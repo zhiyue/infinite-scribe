@@ -12,13 +12,15 @@
 
 ### 背景上下文
 
-当前，长篇网络小スの创作是一个劳动密集型产业，面临着创作速度跟不上读者需求、作者灵感枯竭、以及维持长期故事一致性等巨大挑战。现有工具无法满足自动化、规模化生产的需求，导致内容生产存在根本瓶颈。本项目旨在通过一个由多个专业AI智能体协作的自动化系统，来应对这些挑战，将小说创作带入工业化生产的新时代。
+当前，长篇网络小说的创作是一个劳动密集型产业，面临着创作速度跟不上读者需求、作者灵感枯竭、以及维持长期故事一致性等巨大挑战。现有工具无法满足自动化、规模化生产的需求，导致内容生产存在根本瓶颈。本项目旨在通过一个由多个专业AI智能体协作的自动化系统，来应对这些挑战，将小说创作带入工业化生产的新时代。
 
 ### Change Log
 
 | Date | Version | Description | Author |
 | :--- | :------ | :---------- | :----- |
 |      | 1.0     | Initial Draft | John (PM) |
+|      | 1.1     | Added API requirements, Finalized Epics & Stories | John (PM) |
+
 
 ## 需求
 
@@ -166,13 +168,13 @@
 ### Story 1.2: 部署核心事件与存储服务
 
 *   **As a** 系统,
-*   **I want** Kafka, PostgreSQL, Milvus, 和 Minio 服务能够通过Docker Compose在本地一键启动,
+*   **I want** Kafka, PostgreSQL, Milvus, Neo4j, 和 Minio 服务能够通过Docker Compose在本地一键启动,
 *   **so that** 所有后端服务都有一个稳定、可用的事件总线和数据存储环境。
 *   **Acceptance Criteria:**
     1.  项目根目录下有一个 `docker-compose.yml` 文件。
-    2.  运行 `docker-compose up -d` 可以成功启动Kafka, Zookeeper, PostgreSQL, Milvus, 和 Minio 容器。
+    2.  运行 `docker-compose up -d` 可以成功启动Kafka, Zookeeper, PostgreSQL, Milvus, Neo4j, 和 Minio 容器。
     3.  所有服务的端口都已正确映射到本地，并记录在文档中。
-    4.  PostgreSQL 数据库的初始用户和密码已通过环境变量配置。
+    4.  PostgreSQL 和 Neo4j 数据库的初始用户和密码已通过环境变量配置。
     5.  Minio 服务的访问密钥和私钥已通过环境变量配置，并自动创建一个名为 `novels` 的bucket。
 
 ### Story 1.3: 创建并部署健康的API网关服务
@@ -182,7 +184,7 @@
 *   **so that** 我可以验证后端服务的基础配置和部署流程是通畅的。
 *   **Acceptance Criteria:**
     1.  在 `apps/api-gateway` 目录下创建一个新的FastAPI应用。
-    2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL数据库。
+    2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL和Neo4j数据库。
     3.  提供一个 `/health` 的GET端点，当数据库连接正常时，该端点返回 `{"status": "ok"}` 和 `200` 状态码。
     4.  为该服务编写一个 `Dockerfile`。
     5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务。
@@ -209,14 +211,14 @@
 ### Story 2.1: 设计并实现创世数据模型
 
 *   **As a** 系统,
-*   **I want** 在PostgreSQL中创建用于存储小说核心设定的数据表，并通过Pydantic定义好对应的数据模型,
-*   **so that** 我有一个结构化的、类型安全的方式来持久化和校验用户在创世阶段输入的所有信息。
+*   **I want** 在PostgreSQL中创建用于存储小说核心设定属性的数据表，在Neo4j中定义核心节点标签和关系类型，并通过Pydantic/TypeScript定义好对应的数据模型,
+*   **so that** 我有一个结构化的、类型安全的方式来持久化、校验和关联用户在创世阶段输入的所有信息。
 *   **Acceptance Criteria:**
-    1.  在PostgreSQL中创建至少以下表格：`novels`, `worldview_entries`, `characters`, `character_relationships`, `story_arcs`。
-    2.  表格字段应能支持存储主题、立意、世界观条目、角色卡、关系和初始剧情弧光。
-    3.  在Monorepo的 `packages/shared-types` 中，使用Pydantic为上述每个表格创建对应的、严格的Python数据模型。
-    4.  这些Pydantic模型应包含必要的类型验证（例如，URL、枚举值等）。
-    5.  API网关服务能够导入这些模型，用于API请求和响应的校验。
+    1.  在PostgreSQL中创建 `novels`, `worldview_entries`, `characters`, `story_arcs` 等核心属性表。
+    2.  在Neo4j中定义核心节点标签（如 `:Novel`, `:WorldviewEntry`, `:Character`）和基础关系类型（如 `:PART_OF_NOVEL`, `:CONTAINS`）。
+    3.  在Monorepo的 `packages/shared-types` 中，使用Pydantic为PostgreSQL表创建Python数据模型，并为前端创建对应的TypeScript接口。
+    4.  API网关服务能够导入这些模型，用于API请求和响应的校验。
+    5.  API网关服务能够连接到Neo4j实例。
 
 ### Story 2.2: 实现创世流程的控制API端点
 
@@ -225,12 +227,10 @@
 *   **so that** 我可以在UI上构建一个分步骤的向导来与后端交互。
 *   **Acceptance Criteria:**
     1.  在API网关中创建一个新的路由模块，用于处理 `/genesis` 相关的请求。
-    2.  提供一个 `POST /genesis/start` 端点，用于创建一个新的、处于“创世中”状态的小说条目，并返回一个唯一的 `genesis_session_id`。
-    3.  提供一个 `POST /genesis/{session_id}/worldview` 端点，用于提交世界观设定。
-    4.  提供一个 `POST /genesis/{session_id}/characters` 端点，用于提交核心角色阵容。
-    5.  提供一个 `POST /genesis/{session_id}/plot` 端点，用于提交初始剧情弧光。
-    6.  提供一个 `POST /genesis/{session_id}/finish` 端点，用于结束创世流程，并将小说状态更新为“待生成”。
-    7.  所有端点都必须使用Pydantic模型对请求体进行严格校验。
+    2.  提供一个 `POST /genesis/start` 端点，用于创建一个新的、处于“创世中”状态的小说条目（PG记录和Neo4j节点），并返回一个唯一的 `genesis_session_id`。
+    3.  提供 `POST /genesis/{session_id}/worldview`, `POST /genesis/{session_id}/characters`, `POST /genesis/{session_id}/plot` 端点，用于提交各阶段设定。这些端点会负责将数据属性存入PG，并将节点和关系存入Neo4j。
+    4.  提供一个 `POST /genesis/{session_id}/finish` 端点，用于结束创世流程，并将小说状态更新为“待生成”。
+    5.  所有端点都必须使用Pydantic模型对请求体进行严格校验。
 
 ### Story 2.3: 开发“世界铸造师Agent”的核心逻辑
 
@@ -253,7 +253,7 @@
     1.  在前端应用中，创建一个新的路由 `/create-novel`，导向创世向导。
     2.  向导至少包含以下步骤：1. 主题与立意 -> 2. 世界观设定 -> 3. 核心角色 -> 4. 初始剧情。
     3.  在第2步和第3步，UI可以调用“世界铸造师Agent”（通过API网关）来获取AI生成的建议，并允许用户在此基础上进行修改、删除或添加。
-    4.  用户在每一步填写的信息都会通过调用相应的API端点被保存。
+    4.  用户在每一步填写的信息都会通过调用相应的API端点被保存到PG和Neo4j。
     5.  完成所有步骤后，用户可以点击“完成创世”按钮，系统将跳转回项目仪表盘，并能看到刚刚创建的新小说项目。
 
 ## Epic 3: 端到端章节生成MVP (End-to-End Chapter Generation MVP)
@@ -263,11 +263,11 @@
 ### Story 3.1: 部署所有核心Agent服务
 
 *   **As a** 系统,
-*   **I want** 所有核心的执行与审查Agent（大纲规划师、导演、角色专家、作家、评论家、事实核查员）都作为独立的、容器化的服务被部署,
+*   **I want** 所有核心的执行与审查Agent（大纲规划师、导演、角色专家、作家、评论家、事实核查员、世界观构建师、剧情策划师）都作为独立的、容器化的服务被部署,
 *   **so that** 它们可以订阅和发布事件，构成完整的章节生成流水线。
 *   **Acceptance Criteria:**
     1.  为每个核心Agent在 `apps/` 目录下创建对应的服务文件夹。
-    2.  每个服务都是一个基础的Python应用，能够连接到Kafka。
+    2.  每个服务都是一个基础的Python应用，能够连接到Kafka, PostgreSQL, Neo4j, Minio。
     3.  每个服务都包含一个 `Dockerfile`。
     4.  `docker-compose.yml` 文件被更新，以包含并能一键启动所有这些Agent服务。
     5.  每个Agent启动后，都会向Kafka的特定topic（如 `agent.health.events`）发布一条“I am alive”的消息。
@@ -279,20 +279,20 @@
 *   **so that** 所有发布到Kafka的事件都经过严格的格式和类型验证，确保数据契约的一致性。
 *   **Acceptance Criteria:**
     1.  在Monorepo的 `packages/shared-types` 中，创建一个 `events.py` 文件。
-    2.  为章节生成流程中的每一个关键事件（如 `ChapterWriting.Requested`, `Outline.Created`, `SceneDesign.Completed`, `Chapter.Drafted`, `Review.Completed` 等）创建一个对应的Pydantic模型。
+    2.  为章节生成流程中的每一个关键事件（如 `ChapterWriting.Requested`, `Outline.Created`, `SceneDesign.Completed`, `Character.Created`, `CharacterInteraction.Designed`, `WorldviewEntry.Created`, `Chapter.Drafted`, `Critique.Completed`, `FactCheck.Completed` 等）创建一个对应的Pydantic模型。
     3.  每个Agent在发布事件前，必须使用相应的Pydantic模型来序列化其数据。
     4.  每个Agent在消费事件时，必须使用相应的Pydantic模型来反序列化和验证接收到的数据。
 
-### Story 3.3: 实现单路径章节生成工作流
+### Story 3.3: 实现单路径章节生成工作流 (Prefect)
 
 *   **As a** 监督者,
-*   **I want** 在UI上点击“生成下一章”按钮后，系统能够自动地、按顺序地触发所有核心Agent来完成一章的创作,
+*   **I want** 在UI上点击“生成下一章”按钮后，系统能够通过Prefect自动地、按顺序地触发所有核心Agent来完成一章的创作,
 *   **so that** 我可以验证端到端的自动化流程是通畅的。
 *   **Acceptance Criteria:**
     1.  API网关提供一个 `POST /novels/{novel_id}/generate-chapter` 的端点。
     2.  调用此端点后，Prefect会启动一个章节生成工作流。
-    3.  工作流按顺序发布事件，依次激活大纲规划师、导演、角色专家和作家Agent。
-    4.  每个Agent完成工作后，都会将其产出（如大纲、场景卡）存入Minio，并在数据库中记录元数据，然后发布一个“完成”事件。
+    3.  工作流按顺序发布事件，依次激活大纲规划师、导演、角色专家、世界观构建师（如果需要）、和作家Agent。
+    4.  每个Agent完成工作后，都会将其产出（如大纲、场景卡）存入Minio，在PostgreSQL中记录元数据，在Neo4j中更新关系，然后发布一个“完成”事件。
     5.  后一个Agent能够根据前一个Agent的“完成”事件，获取其产出并继续工作。
     6.  最终，“作家Agent”成功生成章节草稿，并发布 `Chapter.Drafted` 事件。
 
@@ -303,7 +303,7 @@
 *   **so that** 我可以看到完整的“创作-审查”闭环的结果。
 *   **Acceptance Criteria:**
     1.  “评论家Agent”和“事实核查员Agent”订阅 `Chapter.Drafted` 事件。
-    2.  它们在接收到事件后，分别执行自己的评审逻辑，并发布 `Review.Completed` 事件（包含评分、评论或一致性报告）。
+    2.  它们在接收到事件后，分别执行自己的评审逻辑（事实核查员会查询Neo4j和PG），并发布 `Critique.Completed` （包含评分、评论）。
     3.  API网关提供一个 `GET /chapters/{chapter_id}` 的端点，可以获取章节内容及其所有的评审结果。
     4.  前端的项目详情页能够轮询或通过WebSocket接收更新，当章节状态变为“已评审”时，可以查看到章节内容和来自两个评审Agent的意见。
 
@@ -345,8 +345,9 @@
     1.  创建一个共享的“知识库服务”或在 `shared-types` 包中提供一个工具库。
     2.  该服务提供一个 `retrieve_context` 函数，输入为当前任务的描述（如“为第25章生成大纲”）。
     3.  该函数会执行以下操作：
-        a. 从PostgreSQL中获取最新的世界观和角色卡。
-        b. 从Milvus中对任务描述进行向量相似度搜索，找出最相关的3-5个历史章节的摘要。
+        a. 从PostgreSQL中获取最新的世界观和角色卡属性。
+        b. 从Neo4j中查询与当前章节/角色相关的关键关系和历史事件。
+        c. 从Milvus中对任务描述进行向量相似度搜索，找出最相关的3-5个历史章节的摘要。
     4.  所有核心执行Agent（大纲规划师、导演、角色专家、作家）在执行任务前，都必须调用此函数来获取上下文。
     5.  检索到的上下文将被注入到它们发送给大模型的Prompt中。
 
@@ -363,19 +364,18 @@
 
 ## Epic 5: 全功能长篇小说生成 (Full-Scale Novel Generation)
 
-**目标:** 集成并启用所有高级功能（如图数据库、高级智能体、动态工作流、人机反馈闭环），完成一部至少100万字的、高质量、高一致性的长篇小说生成，达到商业化交付标准。
+**目标:** 集成并启用所有高级功能（如图数据库的深度应用、高级智能体、动态工作流增强、人机反馈闭环），完成一部至少100万字的、高质量、高一致性的长篇小说生成，达到商业化交付标准。
 
-### Story 5.1: 集成图数据库 (Neo4j) 用于关系管理
+### Story 5.1: Neo4j图数据库的深度应用与查询优化
 
 *   **As a** 系统,
-*   **I want** 使用Neo4j图数据库来存储和管理所有实体（角色、地点、组织、物品）之间的复杂关系,
-*   **so that** 我可以进行深度的关系查询，并为“事实核查员”提供更强大的逻辑一致性保证。
+*   **I want** 充分利用Neo4j图数据库进行复杂的逻辑推理和关系查询,
+*   **so that** 我可以为“事实核查员”和“剧情策划师”提供更深层次的一致性保证和剧情洞察。
 *   **Acceptance Criteria:**
-    1.  在 `docker-compose.yml` 中添加并配置Neo4j服务。
-    2.  创建一个“知识图谱服务”，负责将结构化数据（如新角色、角色间的互动事件）同步写入Neo4j。
-    3.  例如，当“角色专家”设计了一个“K与银狐在酒吧对峙”的场景后，一个 `(K)-[:CONFRONTED_AT]->(Bar)<-[:CONFRONTED_AT]-(银狐)` 的关系会被添加到图中。
-    4.  “事实核查员Agent”的逻辑被增强：在检查事实前，它会执行Cypher查询来验证关系逻辑（例如，查询“K是否已经认识银狐？”）。
-    5.  UI上提供一个简单的界面，可以可视化展示核心角色的关系图。
+    1.  为Neo4j中的核心关系类型（如 `:KNOWS`, `:LOCATED_IN`, `:EVENT_PRECEDES_EVENT`）创建属性索引以优化查询性能。
+    2.  “事实核查员Agent”的逻辑被重构，以执行更复杂的Cypher查询来验证多跳关系和时间序列逻辑（例如，“A角色在事件X发生时，不可能在Y地点，因为他当时正与Z角色在Q地点互动”）。
+    3.  “剧情策划师Agent”在进行战略评估时，会查询Neo4j以分析当前的角色关系网密度、关键情节节点的连接度等图特有的指标。
+    4.  UI上提供一个更高级的知识图谱浏览器，允许用户执行自定义的Cypher查询或通过预设模板探索图数据。
 
 ### Story 5.2: 开发并集成高级“叙事型”智能体
 
@@ -383,9 +383,9 @@
 *   **I want** 引入更专业的“叙事型”智能体来提升故事的复杂性和趣味性,
 *   **so that** 生成的小说不再是平铺直叙，而是充满悬念和吸引力。
 *   **Acceptance Criteria:**
-    1.  开发并部署一个新的“**伏笔设计Agent (ForeshadowingAgent)**”。它会根据“剧情策划师”的长期指令，在当前章节中巧妙地植入一些看似无意、实则关键的细节或对话。
-    2.  开发并部署一个新的“**情节反转Agent (PlotTwistAgent)**”。在关键的剧情节点，它会被激活，用于设计出人意料但又合乎逻辑的情节反转。
-    3.  Prefect工作流被更新，以包含调用这些高级智能体的可选阶段。
+    1.  开发并部署一个新的“**伏笔设计Agent (ForeshadowingAgent)**”。它会根据“剧情策划师”的长期指令，在当前章节中巧妙地植入一些看似无意、实则关键的细节或对话，并将其作为元数据记录在Neo4j中（例如，一个 `:PLANTED_FORESHADOW` 关系连接到章节节点）。
+    2.  开发并部署一个新的“**情节反转Agent (PlotTwistAgent)**”。在关键的剧情节点，它会被激活，用于设计出人意料但又合乎逻辑的情节反转，并确保反转与Neo4j中已有的伏笔或角色动机相符。
+    3.  Prefect工作流被更新，以包含调用这些高级智能体的可选阶段，这些阶段的触发可能由“剧情策划师”的指令或特定的故事里程碑决定。
 
 ### Story 5.3: 实现完整的人机反馈与精修闭环
 
@@ -395,19 +395,19 @@
 *   **Acceptance Criteria:**
     1.  在前端UI的章节阅读器中，增加一个“编辑模式”。
     2.  在编辑模式下，用户可以像在Word文档中一样，直接修改文本、添加批注。
-    3.  当用户保存修改后，系统会将“原始版本”和“用户修改版”一同存储。
+    3.  当用户保存修改后，系统会将“原始版本”和“用户修改版”一同存储（可能在Minio中存储不同版本，并在PG中记录版本信息）。
     4.  API网关提供一个端点，用于接收这些“精修数据”。
-    5.  （后MVP）这些高质量的对比数据将被用于未来对自研模型或微调模型的训练。
-    6.  工作流中增加一个“人工审核”状态，允许在发布前等待人类的最终批准。
+    5.  （后MVP）这些高质量的对比数据将被用于未来对自研模型或微调模型的训练的准备工作。
+    6.  工作流中增加一个“人工审核”状态，允许在发布前等待人类的最终批准。如果人工审核驳回，可以附带修改意见，触发“改写者Agent”进行定向修改。
 
-### Story 5.4: 实现全面的可观测性与告警
+### Story 5.4: 实现全面的可观测性与告警 (Langfuse集成)
 
 *   **As a** 开发团队,
 *   **I want** 将所有Agent的详细思考链、工具使用和API调用过程都集成到Langfuse中,
 *   **so that** 我可以深入地调试任何一个Agent的行为，并对系统进行端到端的性能和质量追踪。
 *   **Acceptance Criteria:**
     1.  在 `docker-compose.yml` 中添加并配置Langfuse服务。
-    2.  所有Agent的核心逻辑都被Langfuse的SDK包裹，以追踪其执行过程。
+    2.  所有Agent的核心逻辑都被Langfuse的SDK包裹，以追踪其执行过程（包括Prompt、LLM响应、Token使用情况）。
     3.  LiteLLM被配置为将其所有的请求/响应日志转发到Langfuse。
-    4.  可以从Langfuse的UI中，清晰地看到从一个事件触发到最终章节生成的完整调用链。
-    5.  基于关键指标（如API调用失败率、内容生成一致性错误率）设置告警规则。
+    4.  可以从Langfuse的UI中，清晰地看到从一个事件触发到最终章节生成的完整调用链和每个步骤的详细信息。
+    5.  基于Langfuse收集的关键指标（如API调用失败率、内容生成一致性错误率、平均Token消耗）设置告警规则，并通过邮件或Slack通知开发团队。
