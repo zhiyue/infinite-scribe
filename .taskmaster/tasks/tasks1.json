@@ -1,0 +1,280 @@
+{
+  "mvp": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Monorepo Project Structure with CI/CD",
+        "description": "Initialize pnpm workspace monorepo with proper directory structure, linting, and GitHub Actions CI/CD pipeline",
+        "details": "Create pnpm workspace with apps/ and packages/ directories. Setup TypeScript 5.x, ESLint 8.x with @typescript-eslint/parser, Prettier 3.x. Configure GitHub Actions workflow for linting, testing, and build validation. Include .gitignore, .nvmrc (Node 18+), and workspace configuration in pnpm-workspace.yaml. Setup changesets for versioning if needed.",
+        "testStrategy": "Verify pnpm install works, linting passes, CI pipeline runs successfully on PR creation",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Setup Local Development Infrastructure",
+        "description": "Create Docker Compose configuration for all required services in local development environment",
+        "details": "Create docker-compose.yml with PostgreSQL 15, Milvus 2.3+, Neo4j 5.x, Kafka with Zookeeper, Redis 7.x, Minio for S3-compatible storage. Include proper networking, volumes, and environment variables. Add health checks and wait-for scripts. Create .env.example with all required environment variables.",
+        "testStrategy": "Verify all services start successfully with docker-compose up and health checks pass",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Create Core Agent Service Skeletons",
+        "description": "Setup FastAPI service templates for Writer, Critic, and Rewriter agents with basic endpoints",
+        "details": "Create three FastAPI 0.100+ applications in apps/writer-agent, apps/critic-agent, apps/rewriter-agent. Include /health endpoints, basic middleware (CORS, logging), Pydantic v2 models, async route handlers. Setup Dockerfile for each service with Python 3.11+. Include basic error handling and logging configuration.",
+        "testStrategy": "Each service starts successfully, /health endpoints return 200, basic API documentation available at /docs",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Setup React Frontend Application",
+        "description": "Initialize React TypeScript application with routing, UI framework, and core layout structure",
+        "details": "Create React 18 app with Vite 5.x in apps/frontend. Setup TypeScript 5.x strict mode, React Router v6, TanStack Query v5, Zustand for state management. Install and configure shadcn/ui with Radix UI primitives, Tailwind CSS v3. Create basic layout with navigation, dashboard placeholder, and responsive design. Setup .env handling for API endpoints.",
+        "testStrategy": "Application builds and runs, routing works, UI components render correctly, responsive design functions",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Setup Database Models and Migrations",
+        "description": "Create PostgreSQL database models for world bible, chapters, and system tracking with Alembic migrations",
+        "details": "Setup SQLAlchemy 2.x with async support, Alembic for migrations. Create models for WorldBible (characters, settings, rules), Chapter (content, status, metadata), AgentExecution (tracking), CostTracking (tokens, api_calls). Use Pydantic v2 for serialization. Include proper relationships, indexes, and constraints.",
+        "testStrategy": "Migrations run successfully, database schema matches models, CRUD operations work correctly",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement World Bible CRUD API",
+        "description": "Create comprehensive REST API for managing world bible entries with validation and error handling",
+        "details": "Create FastAPI service in apps/world-bible-api with endpoints for creating, reading, updating, deleting world bible entries. Include character profiles, world settings, story rules. Use async SQLAlchemy sessions, proper HTTP status codes, comprehensive error handling. Add request/response validation with Pydantic v2 models.",
+        "testStrategy": "All CRUD operations work correctly, validation prevents invalid data, proper error responses returned",
+        "priority": "medium",
+        "dependencies": [
+          3,
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Create World Bible Management UI",
+        "description": "Build React interface for managing world bible entries with forms, lists, and editing capabilities",
+        "details": "Create React components for world bible management using shadcn/ui form components, data tables, and dialogs. Implement CRUD operations with TanStack Query for data fetching and caching. Include search/filter functionality, form validation with react-hook-form, and optimistic updates. Add toast notifications for user feedback.",
+        "testStrategy": "All CRUD operations work through UI, form validation prevents errors, data updates reflect immediately",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Setup Milvus Vector Database Integration",
+        "description": "Integrate Milvus for semantic memory storage and retrieval with embedding generation",
+        "details": "Setup Milvus client in packages/memory-service. Integrate OpenAI text-embedding-3-small or similar for generating embeddings. Create collections for story events, character interactions, and setting details. Implement semantic search with similarity thresholds. Add batch operations for efficiency and proper error handling.",
+        "testStrategy": "Embeddings generate correctly, vector storage and retrieval work, semantic search returns relevant results",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Setup Neo4j Graph Database Integration",
+        "description": "Configure Neo4j for relationship mapping between story entities with Cypher queries",
+        "details": "Setup Neo4j driver in packages/memory-service. Create node types for Characters, Locations, Events, Objects. Implement relationship creation (KNOWS, LOCATED_AT, PARTICIPATES_IN, OWNS). Write Cypher queries for complex relationship traversal. Include graph visualization data preparation and batch operations.",
+        "testStrategy": "Nodes and relationships create correctly, complex queries return expected results, graph structure maintains integrity",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Implement Unified Memory Service",
+        "description": "Create consolidated service combining vector and graph memory with unified API interface",
+        "details": "Create packages/memory-service with unified API for both semantic (Milvus) and relationship (Neo4j) memory. Implement /add-memory, /search-semantic, /query-relationships, /update-relationships endpoints. Add memory contextualization that combines both types of memory for comprehensive context retrieval. Include memory summarization and conflict resolution.",
+        "testStrategy": "Both memory types work together, context retrieval provides comprehensive information, API responses are consistent",
+        "priority": "high",
+        "dependencies": [
+          8,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Setup Prefect Workflow Orchestration",
+        "description": "Configure Prefect for automating the write-review-revise workflow with proper error handling",
+        "details": "Setup Prefect 2.x server and flows in packages/workflow-orchestrator. Create flows for chapter generation pipeline: writer → critic → rewriter → human review. Include retry logic, error handling, and flow state management. Add webhook triggers for human approval/rejection and automatic next chapter initiation.",
+        "testStrategy": "Workflows execute in correct order, error handling works properly, human intervention points function correctly",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Writer Agent Core Logic",
+        "description": "Develop Writer Agent with advanced prompting, memory integration, and chapter generation capabilities",
+        "details": "Implement WriterAgent in apps/writer-agent with LiteLLM for model access. Create sophisticated prompts using memory context, world bible information, and previous chapter continuity. Add chapter structure templates, character voice consistency, and narrative progression logic. Include token usage tracking and Langfuse integration for observability.",
+        "testStrategy": "Generated chapters maintain narrative consistency, character voices are distinct, memory integration provides relevant context",
+        "priority": "high",
+        "dependencies": [
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Implement Critic Agent Core Logic",
+        "description": "Build Critic Agent for evaluating chapter quality, consistency, and providing structured feedback",
+        "details": "Implement CriticAgent in apps/critic-agent with structured evaluation criteria: narrative consistency (1-10), character development (1-10), pacing (1-10), world building consistency (1-10). Create JSON response format with scores, specific feedback, and suggested improvements. Include memory cross-checking for consistency validation.",
+        "testStrategy": "Evaluation scores are consistent and meaningful, feedback is specific and actionable, JSON responses are well-structured",
+        "priority": "high",
+        "dependencies": [
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Rewriter Agent Core Logic",
+        "description": "Create Rewriter Agent that processes critic feedback and generates improved chapter versions",
+        "details": "Implement RewriterAgent in apps/rewriter-agent that processes structured critic feedback and applies specific improvements. Maintain original chapter structure while addressing identified issues. Include selective rewriting (only changing problematic sections) and version comparison capabilities. Add confidence scoring for changes made.",
+        "testStrategy": "Revisions address specific critic feedback, original chapter structure preserved, improvements are measurable",
+        "priority": "high",
+        "dependencies": [
+          12,
+          13
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Integrate Agents with Memory System",
+        "description": "Connect all agents to memory service for context retrieval and memory updating workflows",
+        "details": "Modify all agents to query memory service before processing. WriterAgent retrieves relevant context and updates memory after generation. CriticAgent checks consistency against memory. RewriterAgent updates memory with revisions. Add memory conflict detection and resolution. Include memory optimization to prevent context bloat.",
+        "testStrategy": "Agents consistently use memory context, memory updates correctly, no memory conflicts occur during operation",
+        "priority": "high",
+        "dependencies": [
+          12,
+          13,
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Create Chapter Review UI Interface",
+        "description": "Build comprehensive UI for reviewing chapter drafts, critic feedback, and revisions side-by-side",
+        "details": "Create three-panel review interface: original draft, critic evaluation with scores/feedback, and revised version. Include text comparison highlighting, comment annotation system, and progress tracking. Add chapter navigation, status indicators, and responsive design for various screen sizes. Use TanStack Query for real-time updates.",
+        "testStrategy": "All three panels display correctly, text comparison works accurately, annotations save properly, interface is responsive",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          13
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Implement Human Feedback Workflow Controls",
+        "description": "Add approval/rejection controls and custom feedback integration for human supervision",
+        "details": "Add approve/reject/request-revision buttons to review interface. Implement custom feedback text area for specific revision requests. Connect to Prefect workflows to trigger next chapter or revision cycles. Include chapter status tracking (pending, approved, rejected, in_revision) and audit logging of all human decisions.",
+        "testStrategy": "Approval triggers next chapter generation, rejection pauses workflow, custom feedback reaches RewriterAgent correctly",
+        "priority": "high",
+        "dependencies": [
+          16,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Setup Cost Tracking and Performance Dashboard",
+        "description": "Create real-time dashboard showing token usage, API costs, and performance metrics",
+        "details": "Implement cost tracking service that monitors API calls, token usage, and estimated costs per chapter. Create dashboard with charts showing cumulative costs, average tokens per chapter, generation time metrics, and cost projections. Use Chart.js or similar for visualization. Include cost alerts and budget tracking.",
+        "testStrategy": "Cost tracking accurately captures all API usage, dashboard updates in real-time, projections are mathematically correct",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Implement Manuscript Export Functionality",
+        "description": "Create export system for compiling approved chapters into complete manuscript files",
+        "details": "Create export service that compiles all approved chapters in correct order. Support .txt and .md formats with proper formatting, chapter breaks, and metadata. Include table of contents generation, word count statistics, and export job status tracking. Add download functionality through frontend with progress indicators.",
+        "testStrategy": "Exported manuscripts are properly formatted, chapters are in correct order, download process works reliably",
+        "priority": "low",
+        "dependencies": [
+          17
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Setup Comprehensive Testing and Monitoring",
+        "description": "Implement testing framework and monitoring for the complete system with observability",
+        "details": "Setup pytest for backend services with async test support, Vitest for frontend component testing. Implement integration tests for agent workflows and API endpoints. Add Langfuse integration for LLM call tracing and analysis. Include health checks, error alerting, and performance monitoring. Setup test data factories and mocking for external APIs.",
+        "testStrategy": "All critical paths covered by tests, monitoring detects issues accurately, observability provides actionable insights",
+        "priority": "medium",
+        "dependencies": [
+          19
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-24T20:48:22.587Z",
+      "updated": "2025-06-24T20:48:22.587Z",
+      "description": "Tasks for mvp context"
+    }
+  }
+}
