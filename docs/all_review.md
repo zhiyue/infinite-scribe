@@ -103,5 +103,5 @@
 *   **可以考虑的改进:**
     *   **细化错误处理流程图:** 架构文档中提到了错误处理策略，但如果能针对几个关键的失败场景（如LLM API调用失败、Kafka消息处理失败）画出具体的错误处理和重试流程图，对开发者会更有帮助。
 
-
+参考: https://aistudio.google.com/prompts/1DBL6EpLRDFSdgZ3y5p87xZjvkKkB9PsJ
 
