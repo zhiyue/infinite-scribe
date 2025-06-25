@@ -18,13 +18,13 @@
 ## Story 1.2: 部署核心事件与存储服务
 
 *   **As a** 系统,
-*   **I want** Kafka, PostgreSQL, Milvus, 和 Minio 服务能够通过Docker Compose在本地一键启动,
+*   **I want** Kafka, PostgreSQL, Milvus, Neo4j, 和 Minio 服务能够通过Docker Compose在本地一键启动,
 *   **so that** 所有后端服务都有一个稳定、可用的事件总线和数据存储环境。
 *   **Acceptance Criteria:**
     1.  项目根目录下有一个 `docker-compose.yml` 文件。
-    2.  运行 `docker-compose up -d` 可以成功启动Kafka, Zookeeper, PostgreSQL, Milvus, 和 Minio 容器。
+    2.  运行 `docker-compose up -d` 可以成功启动Kafka, Zookeeper, PostgreSQL, Milvus, Neo4j, 和 Minio 容器。
     3.  所有服务的端口都已正确映射到本地，并记录在文档中。
-    4.  PostgreSQL 数据库的初始用户和密码已通过环境变量配置。
+    4.  PostgreSQL 和 Neo4j 数据库的初始用户和密码已通过环境变量配置。
     5.  Minio 服务的访问密钥和私钥已通过环境变量配置，并自动创建一个名为 `novels` 的bucket。
 
 ## Story 1.3: 创建并部署健康的API网关服务
@@ -34,7 +34,7 @@
 *   **so that** 我可以验证后端服务的基础配置和部署流程是通畅的。
 *   **Acceptance Criteria:**
     1.  在 `apps/api-gateway` 目录下创建一个新的FastAPI应用。
-    2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL数据库。
+    2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL和Neo4j数据库。
     3.  提供一个 `/health` 的GET端点，当数据库连接正常时，该端点返回 `{"status": "ok"}` 和 `200` 状态码。
     4.  为该服务编写一个 `Dockerfile`。
     5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务。
