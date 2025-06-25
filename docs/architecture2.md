@@ -13,12 +13,13 @@
 | Date | Version | Description | Author |
 | :--- | :------ | :---------- | :----- |
 |      | 1.0     | Initial Draft | Winston (Architect) |
+|      | 1.1     | 集成Neo4j管理世界观关系 | Winston (Architect) |
 
 ## 高层架构
 
 ### 技术摘要
 
-本系统将构建为一个基于**事件驱动的微服务架构**，部署在云平台上。前端采用**React (Vite)** 构建的单页应用（SPA），通过一个**API网关**与后端进行通信。后端由一系列解耦的、容器化的**Python智能体（Agent）服务**组成，它们通过 **Kafka** 事件总线进行异步协作。整个创作流程由 **Prefect** 进行编排。数据存储采用混合模式，使用 **PostgreSQL** 进行结构化数据存储，**Milvus** 进行向量相似性搜索，以及 **Minio** 进行对象存储。
+本系统将构建为一个基于**事件驱动的微服务架构**，部署在云平台上。前端采用**React (Vite)** 构建的单页应用（SPA），通过一个**API网关**与后端进行通信。后端由一系列解耦的、容器化的**Python智能体（Agent）服务**组成，它们通过 **Kafka** 事件总线进行异步协作。整个创作流程由 **Prefect** 进行编排。数据存储采用混合模式，使用 **PostgreSQL** 进行结构化属性数据存储，**Milvus** 进行向量相似性搜索，**Neo4j** 管理复杂的关系数据，以及 **Minio** 进行对象存储。
 
 ### 平台与基础设施选择
 
@@ -26,7 +27,7 @@
 *   **关键服务:**
     *   **计算:** 容器运行服务（如 Kubernetes, ECS, 或 Docker Swarm）。
     *   **消息队列:** 一个托管的Kafka集群或自部署的Kafka。
-    *   **数据库:** 托管的PostgreSQL和Milvus服务。
+    *   **数据库:** 托管的PostgreSQL、Milvus和Neo4j服务。
     *   **对象存储:** 兼容S3的存储服务（如AWS S3或自部署的Minio）。
 *   **部署宿主和区域:** MVP阶段将在本地通过Docker Compose进行开发和测试。生产部署的区域将根据目标用户地理位置和成本效益另行决定。
 
@@ -50,9 +51,10 @@ graph TD
         FE --> APIGW[API网关 (FastAPI)]
         
         subgraph "数据存储层"
-            DB[(PostgreSQL)]
-            VDB[(Milvus)]
-            S3[(Minio)]
+            DB[(PostgreSQL<br/>属性数据)]
+            VDB[(Milvus<br/>向量数据)]
+            GDB[("Neo4j<br/>关系数据")]
+            S3[(Minio<br/>对象存储)]
         end
 
         subgraph "编排与事件层"
@@ -68,10 +70,11 @@ graph TD
 
         APIGW --> Orchestrator
         APIGW --> DB
+        APIGW --> GDB # API网关可能需要查询关系
         
         Orchestrator -- "发布任务事件" --> Broker
         Broker -- "分发任务" --> Agent1 & Agent2 & Agent3
-        Agent1 & Agent2 & Agent3 -- "读/写" --> DB & VDB & S3
+        Agent1 & Agent2 & Agent3 -- "读/写" --> DB & VDB & GDB & S3
         Agent1 & Agent2 & Agent3 -- "发布完成事件" --> Broker
         Broker -- "通知" --> Orchestrator
     end
@@ -85,6 +88,7 @@ graph TD
 *   **前端模式:** **单页应用 (Single-Page Application - SPA)** - 提供流畅的、类似桌面应用的交互体验。
 *   **后端模式:** **智能体模式 (Agent Model)** - 每个服务都是一个具有特定技能的自主智能体。
 *   **集成模式:** **API网关 (API Gateway)** - 为前端提供一个统一、简化的入口点来与复杂的后端系统交互。
+*   **知识表示:** **混合数据模型 (Hybrid Data Model)** - 结构化属性使用PostgreSQL，向量相似性使用Milvus，复杂关系使用Neo4j。
 
 ## 技术栈
 
@@ -108,8 +112,9 @@ graph TD
 | **数据校验** | Pydantic | `~2.6.0` | 数据模型与校验 | 提供运行时的数据类型强制，是FastAPI的核心。 |
 | **工作流编排** | Prefect | `~2.19.0`| 业务流程编排 | Python原生，对数据密集型和动态工作流支持良好。 |
 | **事件总线** | Apache Kafka | `3.7.0` (镜像) | 智能体间异步通信 | 高吞吐量、持久化的分布式消息系统，业界标准。 |
-| **关系型数据库**| PostgreSQL | `16` (镜像) | 核心元数据存储 | 功能强大，可靠，支持丰富的JSON操作。 |
+| **关系型数据库**| PostgreSQL | `16` (镜像) | 核心元数据与属性存储 | 功能强大，可靠，支持丰富的JSON操作。 |
 | **向量数据库** | Milvus | `2.4.0` (镜像) | 上下文检索 | 专为向量相似性搜索设计，性能卓越。 |
+| **图数据库** | Neo4j | `5.x` (最新稳定版镜像) | 存储和查询复杂的世界观、角色关系 | 强大的图数据处理能力，支持复杂的关系分析和一致性校验。 |
 | **对象存储** | Minio | `LATEST` (镜像) | 存储小说内容等大文件 | 兼容S3协议的开源解决方案，便于本地部署。 |
 | **缓存** | Redis | `7.2` (镜像) | 缓存与临时数据 | 高性能的内存数据库，用途广泛。 |
 | **LLM网关** | LiteLLM | `~1.34.0`| 统一调用大模型API | 支持多种模型，提供统一的接口和成本控制。 |
@@ -118,18 +123,18 @@ graph TD
 
 ## 数据模型
 
-以下是本系统的核心数据模型定义。这些模型将在 `packages/shared-types` 中实现，供前后端共同使用。
+以下是本系统的核心数据模型定义。这些模型将在 `packages/shared-types` 中实现，供前后端共同使用。属性主要存储在PostgreSQL，关系主要存储在Neo4j。
 
-### Novel (小说)
+### Novel (小说) - PostgreSQL & Neo4j Node :Novel
 
 *   **目的:** 代表一个独立的小说项目，是所有其他数据的根实体。
-*   **TypeScript 接口:**
+*   **TypeScript 接口 (属性部分):**
     ```typescript
     interface Novel {
-      id: string; // UUID
+      id: string; // UUID, 主键
       title: string;
-      theme: string; // 主题
-      writing_style: string; // 风格
+      theme: string; 
+      writing_style: string; 
       status: 'GENESIS' | 'GENERATING' | 'PAUSED' | 'COMPLETED' | 'FAILED';
       target_chapters: number;
       completed_chapters: number;
@@ -137,92 +142,110 @@ graph TD
       updated_at: Date;
     }
     ```
-*   **关系:**
-    *   拥有多个 `WorldviewEntry` (1:N)
-    *   拥有多个 `Character` (1:N)
-    *   拥有多个 `Chapter` (1:N)
-    *   拥有多个 `StoryArc` (1:N)
 
-### Chapter (章节)
+### Chapter (章节) - PostgreSQL & Neo4j Node :Chapter
 
 *   **目的:** 代表小说中的一个独立章节。
-*   **TypeScript 接口:**
+*   **TypeScript 接口 (属性部分):**
     ```typescript
     interface Chapter {
-      id: string; // UUID
-      novel_id: string;
+      id: string; // UUID, 主键
+      novel_id: string; // 外键 -> Novel.id
       chapter_number: number;
       title: string;
-      content_url: string; // 指向Minio中存储章节内容的链接
+      content_url: string; // 指向Minio
       status: 'DRAFT' | 'REVIEWING' | 'REVISING' | 'PUBLISHED';
       word_count: number;
       created_at: Date;
       updated_at: Date;
     }
     ```
-*   **关系:**
-    *   属于一个 `Novel` (N:1)
-    *   拥有多个 `Review` (1:N)
+*   **Neo4j关系示例:** `(:Chapter)-[:BELONGS_TO_NOVEL]->(:Novel)`
 
-### Character (角色)
+### Character (角色) - PostgreSQL & Neo4j Node :Character
 
 *   **目的:** 代表小说中的一个角色，包含其所有核心设定。
-*   **TypeScript 接口:**
+*   **TypeScript 接口 (属性部分):**
     ```typescript
     interface Character {
-      id: string; // UUID
-      novel_id: string;
+      id: string; // UUID, 主键
+      novel_id: string; // 外键 -> Novel.id
       name: string;
-      role: 'PROTAGONIST' | 'ANTAGONIST' | 'ALLY' | 'SUPPORTING'; // 角色定位
-      description: string; // 简短描述
-      background_story: string; // 背景故事
-      personality_traits: string[]; // 性格标签
-      goals: string[]; // 角色的目标
-      // ... 其他自定义字段
+      role: 'PROTAGONIST' | 'ANTAGONIST' | 'ALLY' | 'SUPPORTING';
+      description: string; 
+      background_story: string; 
+      personality_traits: string[]; 
+      goals: string[]; 
       created_at: Date;
       updated_at: Date;
     }
     ```
-*   **关系:**
-    *   属于一个 `Novel` (N:1)
+*   **Neo4j关系示例:** `(:Character)-[:APPEARS_IN_NOVEL]->(:Novel)`, `(:Character)-[:INTERACTS_WITH {type: "FRIENDSHIP"}]->(:Character)`
 
-### WorldviewEntry (世界观条目)
+### WorldviewEntry (世界观条目) - PostgreSQL & Neo4j Node :WorldviewEntry
 
 *   **目的:** 代表世界观中的一个独立设定条目。
-*   **TypeScript 接口:**
+*   **TypeScript 接口 (属性部分):**
     ```typescript
     interface WorldviewEntry {
-      id: string; // UUID
-      novel_id: string;
-      entry_type: 'LOCATION' | 'ORGANIZATION' | 'TECHNOLOGY' | 'LAW'; // 条目类型
+      id: string; // UUID, 主键
+      novel_id: string; // 外键 -> Novel.id
+      entry_type: 'LOCATION' | 'ORGANIZATION' | 'TECHNOLOGY' | 'LAW' | 'CONCEPT' | 'EVENT' | 'ITEM';
       name: string;
       description: string;
+      tags?: string[];
       created_at: Date;
       updated_at: Date;
     }
     ```
-*   **关系:**
-    *   属于一个 `Novel` (N:1)
+*   **Neo4j关系示例:** `(:WorldviewEntry)-[:PART_OF_NOVEL]->(:Novel)`, `(location:NewKyoto)-[:CONTAINS]->(district:OldTown)`, `(org:GenesisCorp)-[:HAS_TECHNOLOGY]->(tech:MindUpload)`
 
-### Review (评审)
+### Review (评审) - PostgreSQL
 
 *   **目的:** 记录一次对章节草稿的评审结果。
 *   **TypeScript 接口:**
     ```typescript
     interface Review {
       id: string; // UUID
-      chapter_id: string;
-      agent_id: string; // 进行评审的Agent ID
-      review_type: 'CRITIC' | 'FACT_CHECK'; // 评审类型
-      score?: number; // 评论家评分
-      comment?: string; // 评论家评语
-      is_consistent?: boolean; // 事实核查员结果
-      issues_found?: string[]; // 事实核查员发现的问题
+      chapter_id: string; // 外键 -> Chapter.id
+      agent_id: string; 
+      review_type: 'CRITIC' | 'FACT_CHECK';
+      score?: number; 
+      comment?: string; 
+      is_consistent?: boolean; 
+      issues_found?: string[]; 
       created_at: Date;
     }
     ```
-*   **关系:**
-    *   属于一个 `Chapter` (N:1)
+
+### StoryArc (故事弧) - PostgreSQL & Neo4j Node :StoryArc (可选)
+
+*   **目的:** 代表一个主要的情节线或故事阶段。
+*   **TypeScript 接口 (属性部分):**
+    ```typescript
+    interface StoryArc {
+      id: string; // UUID, 主键
+      novel_id: string; // 外键 -> Novel.id
+      title: string;
+      summary: string;
+      start_chapter_number?: number;
+      end_chapter_number?: number;
+      status: 'PLANNED' | 'ACTIVE' | 'COMPLETED';
+      created_at: Date;
+      updated_at: Date;
+    }
+    ```
+*   **Neo4j关系示例:** `(:StoryArc)-[:PART_OF_NOVEL]->(:Novel)`, `(:StoryArc)-[:PRECEDES_ARC]->(:StoryArc)`
+
+### Neo4j 关系模型概念
+
+除了上述节点，Neo4j将用于存储实体间的复杂关系，例如：
+*   `(:Character)-[:KNOWS]->(:Character)`
+*   `(:Character)-[:LOCATED_IN {start_time, end_time}]->(:WorldviewEntry {entry_type: "LOCATION"})`
+*   `(:WorldviewEntry {entry_type: "EVENT"})-[:PRECEDES]->(:WorldviewEntry {entry_type: "EVENT"})`
+*   `(:Chapter)-[:FEATURES_CHARACTER]->(:Character)`
+*   `(:Chapter)-[:MENTIONS_LOCATION]->(:WorldviewEntry {entry_type: "LOCATION"})`
+*   `(:Chapter)-[:ADVANCES_ARC]->(:StoryArc)`
 
 ## 组件
 
@@ -233,7 +256,7 @@ graph TD
     *   处理所有来自前端的HTTP请求。
     *   进行身份验证和授权。
     *   将前端指令（如“开始创世”、“生成章节”）转化为对Prefect工作流的调用。
-    *   提供查询接口，供前端获取工作流状态和结果数据（如章节内容）。
+    *   提供查询接口，供前端获取工作流状态和结果数据（如章节内容、Neo4j图数据）。
 *   **关键接口:**
     *   `POST /genesis/start`
     *   `POST /genesis/{session_id}/...` (用于创世流程的各个步骤)
@@ -241,57 +264,119 @@ graph TD
     *   `GET /chapters/{chapter_id}`
     *   `GET /metrics`
     *   `GET /health`
-*   **依赖:** PostgreSQL (用于存储创世数据、小说元数据), Prefect (用于触发工作流), Kafka (可选，用于发布某些UI触发的即时事件)。
+    *   `GET /novels/{novel_id}/graph/worldview` (新增，查询Neo4j)
+*   **依赖:** PostgreSQL (用于存储创世数据、小说元数据), Neo4j (用于查询关系图谱), Prefect (用于触发工作流), Kafka (可选，用于发布某些UI触发的即时事件)。
 *   **技术栈:** FastAPI, Python, Pydantic。
 
 ### 2. 世界铸造师Agent (Worldsmith Agent)
-*   **责任:** 与人类监督者交互，辅助完成小说初始设定。
-*   **依赖:** 大模型API, PostgreSQL。
+
+*   **责任:**
+    *   在“创世阶段”与人类监督者（通过API网关和UI）交互。
+    *   根据用户的核心创意，调用大模型API生成小说主题、世界观、核心角色阵容和初始剧情弧光的草案。
+    *   辅助用户完成这些初始设定的迭代和确认。
+    *   将最终确认的设定属性写入PostgreSQL，并在Neo4j中创建对应的节点和初始关系。
+*   **关键接口/事件:**
+    *   **订阅:** (通过内部调用或事件) `GenesisStep.Requested` (例如，请求生成世界观建议)。
+    *   **发布:** (通过内部调用或事件) `GenesisStep.SuggestionProvided` (包含AI生成的草案)。
+*   **依赖:** 大模型API (通过LiteLLM), PostgreSQL, Neo4j。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 3. 剧情策划师Agent (PlotMaster Agent)
-*   **责任:** 进行高层战略剧情规划，发布剧情指令。
-*   **依赖:** 知识库 (PostgreSQL, Milvus, Neo4j - 后MVP)。
+
+*   **责任:**
+    *   进行高层次的、战略性的剧情规划。
+    *   周期性地（或按需）分析故事的整体进展、节奏和角色弧光。
+    *   发布“高层剧情指令”，如引入新角色、开启新支线、制造情节转折等。
+*   **关键接口/事件:**
+    *   **订阅:** `Novel.AnalysisRequested`, `Chapter.Completed` (用于计数和触发周期性评估)。
+    *   **发布:** `PlotDirective.Created` (包含具体的剧情指令)。
+*   **依赖:** 知识库 (PostgreSQL, Milvus, Neo4j) 用于获取故事全局信息。
 *   **技术栈:** Python, Pydantic。
 
 ### 4. 大纲规划师Agent (Outliner Agent)
-*   **责任:** 将剧情指令转化为具体章节情节大纲。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   将高层的剧情指令（来自PlotMaster）或简单的“下一章”请求，转化为具体的章节情节大纲。
+*   **关键接口/事件:**
+    *   **订阅:** `OutlineGeneration.Requested`, `PlotDirective.Created`。
+    *   **发布:** `Outline.Created` (包含章节大纲)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取上一章结尾和相关上下文)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 5. 导演Agent (Director Agent)
-*   **责任:** 将章节大纲分解为场景序列，设定节奏和视角。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   将章节大纲分解为更小的场景序列。
+    *   为每个场景定义核心目标、节奏（紧张、平缓等）、视角（POV）和关键转折点。
+*   **关键接口/事件:**
+    *   **订阅:** `SceneDesign.Requested`, `Outline.Created`。
+    *   **发布:** `SceneDesign.Completed` (包含场景卡序列)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取大纲)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 6. 角色专家Agent (CharacterExpert Agent)
-*   **责任:** 创建新角色卡，规划角色在场景中的对话与互动。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   根据场景设计，规划角色间的具体对话和互动。
+    *   如果场景中出现新角色，负责创建其完整的角色卡（属性入PG, 节点入Neo4j）并触发持久化。
+    *   更新Neo4j中角色间的互动关系。
+*   **关键接口/事件:**
+    *   **订阅:** `CharacterInteractionDesign.Requested`, `SceneDesign.Completed`。
+    *   **发布:** `CharacterInteraction.Designed`, `Character.Created` (如果创建了新角色)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL获取场景卡、角色属性, Neo4j获取和更新角色关系)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 7. 世界观构建师Agent (WorldBuilder Agent)
-*   **责任:** 扩展和丰富世界观设定，并持久化。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   在创作过程中，根据需要（例如，导演或作家Agent发现设定不足）扩展和丰富世界观设定。
+    *   确保新的设定属性写入PostgreSQL，并在Neo4j中创建对应的节点和关系。
+*   **关键接口/事件:**
+    *   **订阅:** `WorldviewExpansion.Requested`。
+    *   **发布:** `WorldviewEntry.Created`。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL获取现有世界观属性, Neo4j获取和更新关系)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 8. 作家Agent (Writer Agent)
-*   **责任:** 将场景和对话渲染成最终的章节草稿。
-*   **依赖:** 大模型API, 知识库, Minio。
+
+*   **责任:**
+    *   严格遵循导演的场景和节奏指令，并结合角色专家的对话设计，调用大模型API将所有元素渲染成最终的章节草稿。
+*   **关键接口/事件:**
+    *   **订阅:** `ChapterWriting.Requested`, `SceneDesign.Completed`, `CharacterInteraction.Designed`。
+    *   **发布:** `Chapter.Drafted` (包含章节草稿的URL和元数据)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取完整的创作指令), Minio (存储草稿)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 9. 评论家Agent (Critic Agent)
-*   **责任:** 评估草稿的文学质量、节奏和趣味性。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   对章节草稿的文学质量、节奏感、趣味性和是否符合导演要求进行评估。
+    *   输出结构化的评分和具体的改进建议。
+*   **关键接口/事件:**
+    *   **订阅:** `Critique.Requested`, `Chapter.Drafted`。
+    *   **发布:** `Critique.Completed` (包含评分和评论)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取草稿内容)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 10. 事实核查员Agent (FactChecker Agent)
-*   **责任:** 检查草稿内容与知识库中既定事实的一致性。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   将章节草稿的内容与知识库中已确立的世界观（PG属性）、角色设定（PG属性）和历史情节（Neo4j关系）进行比对。
+    *   报告任何发现的不一致之处或逻辑矛盾。
+*   **关键接口/事件:**
+    *   **订阅:** `FactCheck.Requested`, `Chapter.Drafted`。
+    *   **发布:** `FactCheck.Completed` (包含一致性报告和问题列表)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL, Milvus, Neo4j)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 11. 改写者Agent (Rewriter Agent)
-*   **责任:** 根据评审结果对草稿进行修改和润色。
-*   **依赖:** 大模型API, 知识库。
+
+*   **责任:**
+    *   根据评论家Agent的评分和建议，或事实核查员Agent的报告，对章节草稿进行针对性的修改和润色。
+*   **关键接口/事件:**
+    *   **订阅:** `Revision.Requested` (通常包含草稿、评论和问题报告)。
+    *   **发布:** `Chapter.Revised` (修改后的草稿，将重新进入评审流程)。
+*   **依赖:** 大模型API (通过LiteLLM), 知识库。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
 ### 组件图 (简化版)
@@ -336,12 +421,12 @@ graph TD
     subgraph "存储层"
         PG[(PostgreSQL)]
         MV[(Milvus)]
+        N4J[("Neo4j")]
         MN[(Minio)]
-        N4J[("Neo4j<br/>(后MVP)")]
     end
 
     WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW --> LLMGW
-    WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW --> PG & MV & MN & N4J
+    WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW --> PG & MV & N4J & MN
     LLMGW --> LGF
 
     classDef agent fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
@@ -354,9 +439,12 @@ graph TD
 
 ### 1. 大型语言模型 (LLM) API
 *   **目的:** 所有智能体执行其核心的自然语言理解、生成和评估任务。
-*   **API提供商 (示例):** OpenAI, Anthropic, Google等。
-*   **统一网关:** **LiteLLM** - 统一接口, 模型切换, 成本控制, 日志监控。
-*   **认证:** 通过LiteLLM配置和管理各提供商的API密钥。
+*   **API提供商 (示例):** OpenAI (GPT-4o, GPT-3.5-Turbo等), Anthropic (Claude 3 Opus, Sonnet, Haiku等), Google (Gemini Pro等)。
+*   **统一网关:** **LiteLLM**
+    *   **作用:** 所有对LLM API的调用都**必须**通过LiteLLM代理。
+    *   **好处:** 统一接口, 模型切换, 成本控制, 回退与重试, 日志与监控。
+*   **认证:** 每种LLM API都有其自己的认证机制（通常是API密钥）。这些密钥将安全地存储，并通过配置注入到LiteLLM中。Agent服务本身不直接持有这些密钥。
+*   **速率限制与配额:** 每个LLM提供商都有其速率限制和使用配额。LiteLLM可以帮助我们管理这些限制。
 *   **集成注意事项:** Prompt Engineering, 上下文管理, 错误处理。
 
 ## 核心工作流
@@ -367,12 +455,15 @@ sequenceDiagram
     participant UI as 前端UI
     participant APIGW as API网关
     participant WS_Agent as 世界铸造师Agent
-    participant DB as PostgreSQL
+    participant PG_DB as PostgreSQL
+    participant N4J_DB as Neo4j
     participant LLM as 大模型API (通过LiteLLM)
 
     UI->>+APIGW: POST /genesis/start (小说主题: "赛博侦探")
-    APIGW->>+DB: 创建 Novel 记录 (status: 'GENESIS')
-    DB-->>-APIGW: 返回 novel_id, genesis_session_id
+    APIGW->>+PG_DB: 创建 Novel 记录 (status: 'GENESIS')
+    APIGW->>+N4J_DB: 创建 :Novel 节点
+    PG_DB-->>-APIGW: 返回 novel_id
+    N4J_DB-->>-APIGW: 确认节点创建
     APIGW-->>-UI: 返回 novel_id, genesis_session_id
 
     UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议)
@@ -384,13 +475,17 @@ sequenceDiagram
 
     UI-->>APIGW: (用户修改并确认世界观)
     UI->>+APIGW: POST /genesis/{sid}/worldview (最终世界观数据)
-    APIGW->>+DB: 保存 WorldviewEntry 记录
-    DB-->>-APIGW: 确认保存
+    APIGW->>+PG_DB: 保存 WorldviewEntry 属性数据
+    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及关系
+    PG_DB-->>-APIGW: 确认保存 (PG)
+    N4J_DB-->>-APIGW: 确认创建 (Neo4j)
     APIGW-->>-UI: 确认保存
+
     %% ... 角色设定和初始剧情流程类似 ...
+
     UI->>+APIGW: POST /genesis/{sid}/finish
-    APIGW->>+DB: 更新 Novel 记录 (status: 'GENERATING')
-    DB-->>-APIGW: 确认更新
+    APIGW->>+PG_DB: 更新 Novel 记录 (status: 'GENERATING')
+    PG_DB-->>-APIGW: 确认更新
     APIGW-->>-UI: 创世完成
 ```
 
@@ -406,40 +501,66 @@ sequenceDiagram
     participant WR_Agent as 作家Agent
     participant CR_Agent as 评论家Agent
     participant FC_Agent as 事实核查员Agent
-    participant DB as PostgreSQL
+    participant PG_DB as PostgreSQL
+    participant N4J_DB as Neo4j
     participant Minio as 对象存储
     participant LLM as 大模型API
 
     APIGW->>+Prefect: 触发 "生成第N章" 工作流 (novel_id, chapter_num)
     Prefect->>+Kafka: 发布 OutlineGeneration.Requested 事件
+    
     Kafka-->>OL_Agent: 消费事件
-    OL_Agent->>DB: 获取上下文
-    OL_Agent->>LLM: 生成大纲
-    OL_Agent->>Minio: 存储大纲
+    OL_Agent->>PG_DB & N4J_DB: 获取上下文 (上一章, 世界观, 角色关系)
+    OL_Agent->>LLM: 生成大纲Prompt
+    LLM-->>OL_Agent: 返回大纲
+    OL_Agent->>Minio: 存储大纲内容
+    OL_Agent->>PG_DB: 记录大纲元数据
     OL_Agent->>+Kafka: 发布 Outline.Created 事件
+    
     Kafka-->>DIR_Agent: 消费事件
     DIR_Agent->>Minio: 获取大纲
-    DIR_Agent->>LLM: 生成场景卡
+    DIR_Agent->>LLM: 生成场景卡Prompt
+    LLM-->>DIR_Agent: 返回场景卡序列
     DIR_Agent->>Minio: 存储场景卡
+    DIR_Agent->>PG_DB: 记录场景卡元数据
     DIR_Agent->>+Kafka: 发布 SceneDesign.Completed 事件
+
     Kafka-->>CE_Agent: 消费事件
     CE_Agent->>Minio: 获取场景卡
-    CE_Agent->>LLM: 生成互动设计
+    CE_Agent->>PG_DB & N4J_DB: 获取相关角色信息和关系
+    CE_Agent->>LLM: 生成角色互动/对话Prompt (可能创建新角色)
+    LLM-->>CE_Agent: 返回互动设计 (和新角色卡)
     CE_Agent->>Minio: 存储互动设计
-    CE_Agent->>+Kafka: 发布 CharacterInteraction.Designed 事件
+    CE_Agent->>PG_DB: 记录互动元数据 (和新角色属性)
+    CE_Agent->>N4J_DB: 创建新角色节点和关系 (如果适用)
+    CE_Agent->>+Kafka: 发布 CharacterInteraction.Designed (和 Character.Created) 事件
+
     Kafka-->>WR_Agent: 消费事件
-    WR_Agent->>Minio: 获取创作指令
-    WR_Agent->>LLM: 生成章节草稿
+    WR_Agent->>Minio: 获取场景卡, 互动设计
+    WR_Agent->>LLM: 生成章节草稿Prompt
+    LLM-->>WR_Agent: 返回章节草稿
     WR_Agent->>Minio: 存储章节草稿
+    WR_Agent->>PG_DB: 记录章节元数据
     WR_Agent->>+Kafka: 发布 Chapter.Drafted 事件
+
     Kafka-->>CR_Agent: 消费事件 (并行)
-    CR_Agent->>LLM: 生成评论
+    CR_Agent->>Minio: 获取章节草稿
+    CR_Agent->>LLM: 生成评论Prompt
+    LLM-->>CR_Agent: 返回评分和评论
+    CR_Agent->>PG_DB: 存储Review记录
     CR_Agent->>+Kafka: 发布 Critique.Completed 事件
+    
     Kafka-->>FC_Agent: 消费事件 (并行)
-    FC_Agent->>LLM: 一致性检查
+    FC_Agent->>Minio: 获取章节草稿
+    FC_Agent->>PG_DB & N4J_DB: 获取世界观/角色/关系进行比对
+    FC_Agent->>LLM: (可选) 辅助判断一致性
+    LLM-->>FC_Agent: 返回一致性分析
+    FC_Agent->>PG_DB: 存储Review记录
     FC_Agent->>+Kafka: 发布 FactCheck.Completed 事件
-    Kafka-->>Prefect: 消费评审结果
-    Prefect->>DB: 更新章节状态
+
+    Kafka-->>Prefect: 消费 Critique.Completed 和 FactCheck.Completed
+    Prefect->>Prefect: (决策逻辑) 假设通过
+    Prefect->>PG_DB: 更新章节状态为 'PUBLISHED'
     Prefect-->>-APIGW: 工作流完成
 ```
 
@@ -448,46 +569,416 @@ sequenceDiagram
 openapi: 3.0.0
 info:
   title: 多智能体网络小说自动写作系统 - 控制API
-  version: v1.0.0
+  version: v1.1.0 
   description: 用于前端UI与后端工作流系统交互的控制API。
 servers:
-  - url: http://localhost:8000/api/v1
+  - url: http://localhost:8000/api/v1 
     description: 本地开发服务器
+  - url: https://your-production-domain.com/api/v1 
+    description: 生产环境服务器
+
 components:
   schemas:
     Novel:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        # ... (其他Novel字段)
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        theme:
+          type: string
+        writing_style:
+          type: string
+        status:
+          type: string
+          enum: [GENESIS, GENERATING, PAUSED, COMPLETED, FAILED]
+        target_chapters:
+          type: integer
+        completed_chapters:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Chapter:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        # ... (其他Chapter字段)
-    # ... (其他Schema定义如GenesisStartRequest, GenesisStartResponse等)
+        id:
+          type: string
+          format: uuid
+        novel_id:
+          type: string
+          format: uuid
+        chapter_number:
+          type: integer
+        title:
+          type: string
+        content_url:
+          type: string
+          format: url
+        status:
+          type: string
+          enum: [DRAFT, REVIEWING, REVISING, PUBLISHED]
+        word_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        chapter_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+        review_type:
+          type: string
+          enum: [CRITIC, FACT_CHECK]
+        score:
+          type: number
+          format: float
+        comment:
+          type: string
+        is_consistent:
+          type: boolean
+        issues_found:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+    WorldviewNode: 
+      type: object
+      properties:
+        id: { type: string } 
+        labels: { type: array, items: { type: string } }
+        properties: { type: object }
+    WorldviewRelationship: 
+      type: object
+      properties:
+        id: { type: string } 
+        type: { type: string }
+        startNodeId: { type: string }
+        endNodeId: { type: string }
+        properties: { type: object }
+    GenesisStartRequest:
+      type: object
+      required:
+        - title
+        - theme
+        - writing_style
+        - target_chapters
+      properties:
+        title:
+          type: string
+        theme:
+          type: string
+        writing_style:
+          type: string
+        target_chapters:
+          type: integer
+          minimum: 1
+    GenesisStartResponse:
+      type: object
+      properties:
+        novel_id:
+          type: string
+          format: uuid
+        genesis_session_id:
+          type: string
+          format: uuid
+    GenesisStepRequest: 
+      type: object
+      properties:
+        data:
+          type: object 
+    GenesisStepResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    WorkflowStatus:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+        progress:
+          type: number
+          format: float
+        details:
+          type: string
+    Metrics:
+      type: object
+      properties:
+        total_words_generated:
+          type: integer
+        cost_per_10k_words:
+          type: number
+          format: float
+        avg_chapter_generation_time_seconds:
+          type: number
+          format: float
+        chapter_revision_rate:
+          type: number
+          format: float
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
 security:
   - BearerAuth: []
+
 paths:
   /health:
     get:
       summary: 健康检查
       responses:
-        '200': { description: 服务正常 }
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
   /genesis/start:
     post:
       summary: 启动新的创世流程
-      # ... (请求体和响应定义)
-  # ... (其他API端点定义)
-```
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenesisStartRequest'
+      responses:
+        '201':
+          description: 创世流程已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStartResponse'
+        '400':
+          description: 无效请求
+  /genesis/{session_id}/worldview:
+    post:
+      summary: 提交世界观设定
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenesisStepRequest' 
+      responses:
+        '200':
+          description: 世界观已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/characters:
+    post:
+      summary: 提交核心角色
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenesisStepRequest' # data 包含 characters 数组
+      responses:
+        '200':
+          description: 核心角色已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/plot:
+    post:
+      summary: 提交初始剧情弧光
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenesisStepRequest' # data 包含 plot_arc 对象
+      responses:
+        '200':
+          description: 初始剧情已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/finish:
+    post:
+      summary: 完成并结束创世流程
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 创世已完成，小说待生成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+  /novels:
+    get:
+      summary: 获取所有小说项目列表
+      responses:
+        '200':
+          description: 成功获取小说列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Novel'
+  /novels/{novel_id}/generate-chapter:
+    post:
+      summary: 触发指定小说生成下一章
+      parameters:
+        - name: novel_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: 章节生成任务已接受
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: 
+                    type: string
+                  message:
+                    type: string
+  /chapters/{chapter_id}:
+    get:
+      summary: 获取指定章节内容及其评审
+      parameters:
+        - name: chapter_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功获取章节详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chapter:
+                    $ref: '#/components/schemas/Chapter'
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+  /workflows/{task_id}/status:
+    get:
+      summary: 查询指定工作流的状态
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功获取工作流状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+  /metrics:
+    get:
+      summary: 获取系统关键性能与成本指标
+      responses:
+        '200':
+          description: 成功获取指标
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+  /novels/{novel_id}/graph/worldview: 
+    get:
+      summary: 获取指定小说的世界观图谱数据 (用于可视化)
+      parameters:
+        - name: novel_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功获取图谱数据
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorldviewNode'
+                  relationships:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorldviewRelationship'
 
 ## 数据库模式
+
+### PostgreSQL
 ```sql
 -- Novels Table
 CREATE TABLE novels (
@@ -524,21 +1015,23 @@ CREATE TABLE characters (
     role VARCHAR(50) CHECK (role IN ('PROTAGONIST', 'ANTAGONIST', 'ALLY', 'SUPPORTING')),
     description TEXT,
     background_story TEXT,
-    personality_traits TEXT[], 
-    goals TEXT[], 
+    personality_traits TEXT[], -- Array of strings
+    goals TEXT[], -- Array of strings
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Worldview Entries Table
+-- Worldview Entries Table (Stores attributes of worldview entities)
 CREATE TABLE worldview_entries (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- This ID will match the Neo4j node's app_id property
     novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
-    entry_type VARCHAR(50) NOT NULL CHECK (entry_type IN ('LOCATION', 'ORGANIZATION', 'TECHNOLOGY', 'LAW', 'CONCEPT')),
+    entry_type VARCHAR(50) NOT NULL CHECK (entry_type IN ('LOCATION', 'ORGANIZATION', 'TECHNOLOGY', 'LAW', 'CONCEPT', 'EVENT', 'ITEM')),
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    tags TEXT[],
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (novel_id, name, entry_type) 
 );
 
 -- Reviews Table
@@ -560,145 +1053,383 @@ CREATE TABLE story_arcs (
     novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     summary TEXT,
-    start_chapter INTEGER,
-    end_chapter INTEGER,
+    start_chapter_number INTEGER,
+    end_chapter_number INTEGER,
     status VARCHAR(50) DEFAULT 'PLANNED' CHECK (status IN ('PLANNED', 'ACTIVE', 'COMPLETED')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Indexes and Triggers (as previously defined)
+-- Indexes for performance
+CREATE INDEX idx_chapters_novel_id ON chapters(novel_id);
+CREATE INDEX idx_characters_novel_id ON characters(novel_id);
+CREATE INDEX idx_worldview_entries_novel_id ON worldview_entries(novel_id);
+CREATE INDEX idx_reviews_chapter_id ON reviews(chapter_id);
+CREATE INDEX idx_story_arcs_novel_id ON story_arcs(novel_id);
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION trigger_set_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply the trigger to relevant tables
+CREATE TRIGGER set_timestamp_novels
+BEFORE UPDATE ON novels
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TRIGGER set_timestamp_chapters
+BEFORE UPDATE ON chapters
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TRIGGER set_timestamp_characters
+BEFORE UPDATE ON characters
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TRIGGER set_timestamp_worldview_entries
+BEFORE UPDATE ON worldview_entries
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TRIGGER set_timestamp_story_arcs
+BEFORE UPDATE ON story_arcs
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
 ```
+
+### Neo4j
+*   **节点标签 (Node Labels):**
+    *   `:Novel` (属性: `app_id` (对应PG novels.id), `title`)
+    *   `:Chapter` (属性: `app_id` (对应PG chapters.id), `chapter_number`, `title`)
+    *   `:Character` (属性: `app_id` (对应PG characters.id), `name`, `role`)
+    *   `:WorldviewEntry` (属性: `app_id` (对应PG worldview_entries.id), `name`, `entry_type`)
+    *   `:StoryArc` (属性: `app_id` (对应PG story_arcs.id), `title`)
+*   **关系类型 (Relationship Types) - 示例:**
+    *   `(:Chapter)-[:BELONGS_TO_NOVEL]->(:Novel)`
+    *   `(:Character)-[:APPEARS_IN_NOVEL]->(:Novel)`
+    *   `(:WorldviewEntry)-[:PART_OF_NOVEL]->(:Novel)`
+    *   `(:StoryArc)-[:PART_OF_NOVEL]->(:Novel)`
+    *   `(:WorldviewEntry)-[:CONTAINS_ENTRY {description: "Parent-child relationship"}]->(:WorldviewEntry)`
+    *   `(:WorldviewEntry)-[:RELATED_TO_ENTRY {type: "ALLIANCE", since: "date"}]->(:WorldviewEntry)`
+    *   `(:Character)-[:INTERACTED_WITH_CHARACTER {type: "CONFRONTATION", chapter_id: "uuid"}]->(:Character)`
+    *   `(:Character)-[:MEMBER_OF {role: "Leader"}]->(:WorldviewEntry {entry_type: "ORGANIZATION"})`
+    *   `(:Chapter)-[:FEATURES_CHARACTER]->(:Character)`
+    *   `(:Chapter)-[:MENTIONS_WORLDVIEW_ENTRY]->(:WorldviewEntry)`
+    *   `(:Chapter)-[:PART_OF_ARC]->(:StoryArc)`
 
 ## 源代码树
 ```plaintext
 novel-ai-writer/
-├── .github/
+├── .github/                    # CI/CD 工作流 (GitHub Actions)
 │   └── workflows/
-│       └── main.yml
-├── apps/
-│   ├── frontend/
-│   │   ├── public/
+│       └── main.yml            # 主CI/CD流水线
+├── .vscode/                    # VSCode 编辑器特定配置 (可选)
+│   └── settings.json
+├── apps/                       # 存放可独立部署的应用
+│   ├── frontend/               # React + Vite 前端应用
+│   │   ├── public/             # 静态资源
 │   │   ├── src/
-│   │   │   ├── assets/
-│   │   │   ├── components/
-│   │   │   ├── config/
-│   │   │   ├── hooks/
-│   │   │   ├── layouts/
-│   │   │   ├── pages/
-│   │   │   ├── services/
-│   │   │   ├── store/
-│   │   │   ├── styles/
-│   │   │   ├── types/
-│   │   │   ├── utils/
+│   │   │   ├── assets/         # 图片、字体等
+│   │   │   ├── components/     # UI组件
+│   │   │   │   ├── custom/     # 项目自定义业务组件
+│   │   │   │   └── ui/         # 从Shadcn UI复制和定制的基础组件
+│   │   │   ├── config/         # 前端特定配置
+│   │   │   ├── hooks/          # 自定义React Hooks
+│   │   │   ├── layouts/        # 页面布局组件
+│   │   │   ├── pages/          # 页面级组件 (路由目标)
+│   │   │   ├── services/       # API调用服务
+│   │   │   ├── store/          # Zustand状态管理
+│   │   │   ├── styles/         # 全局样式, Tailwind配置
+│   │   │   ├── types/          # 前端特定类型 (如果不能共享)
+│   │   │   ├── utils/          # 前端工具函数
 │   │   │   └── App.tsx
 │   │   │   └── main.tsx
 │   │   ├── index.html
 │   │   ├── package.json
-│   │   └── vite.config.ts
-│   ├── api-gateway/
+│   │   ├── tsconfig.json
+│   │   ├── vite.config.ts
+│   │   └── vitest.config.ts
+│   ├── api-gateway/            # FastAPI API网关服务
+│   │   ├── app/                # FastAPI应用代码
+│   │   │   ├── api/            # API路由模块
+│   │   │   ├── core/           # 核心配置, 中间件
+│   │   │   ├── crud/           # 数据库CRUD操作 (可选)
+│   │   │   ├── services/       # 业务服务 (如调用Neo4j)
+│   │   │   ├── models/         # Pydantic模型 (如果不能从shared-types导入)
+│   │   │   └── main.py
+│   │   ├── tests/
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── worldsmith-agent/       # 世界铸造师Agent服务
+│   │   ├── agent/              # Agent核心逻辑
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── plotmaster-agent/       # 剧情策划师Agent服务 (结构类似)
+│   ├── outliner-agent/         # 大纲规划师Agent服务 (结构类似)
+│   ├── director-agent/         # 导演Agent服务 (结构类似)
+│   ├── characterexpert-agent/  # 角色专家Agent服务 (结构类似)
+│   ├── worldbuilder-agent/     # 世界观构建师Agent服务 (结构类似)
+│   ├── writer-agent/           # 作家Agent服务 (结构类似)
+│   ├── critic-agent/           # 评论家Agent服务 (结构类似)
+│   ├── factchecker-agent/      # 事实核查员Agent服务 (结构类似)
+│   └── rewriter-agent/         # 改写者Agent服务 (结构类似)
+│   ├── knowledgegraph-service/ # (可选) 封装Neo4j操作的共享服务
 │   │   ├── app/
-│   │   └── Dockerfile
-│   ├── worldsmith-agent/
-│   │   └── Dockerfile
-│   └── ... (其他Agent服务)
-├── packages/
-│   ├── shared-types/
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+├── packages/                   # 存放共享的代码包
+│   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
 │   │   ├── src/
+│   │   │   ├── models.py       # Pydantic数据模型
+│   │   │   ├── events.py       # 事件Schema
+│   │   │   └── index.ts        # TypeScript类型导出
 │   │   └── package.json
-│   ├── eslint-config-custom/
-│   └── tsconfig-custom/
-├── docs/
-├── scripts/
-├── docker-compose.yml
-├── package.json
-├── pnpm-workspace.yaml
-└── README.md
+│   ├── eslint-config-custom/   # 共享ESLint配置
+│   │   └── index.js
+│   ├── tsconfig-custom/        # 共享TypeScript配置
+│   │   └── base.json
+│   └── common-utils/           # 通用工具函数 (Python和JS/TS)
+│       ├── py_utils/
+│       ├── ts_utils/
+│       └── package.json
+├── infrastructure/             # Terraform IaC 代码
+│   └── modules/
+│       ├── vpc/
+│       ├── kafka/
+│       ├── postgresql/
+│       ├── milvus/
+│       ├── neo4j/  
+│       └── ecs_fargate/ 
+├── docs/                       # 项目文档
+│   ├── project-brief.md
+│   ├── prd.md
+│   ├── front-end-spec.md
+│   └── architecture.md         # (本文档)
+├── scripts/                    # 项目级脚本 (如: 启动所有服务, 清理)
+├── .dockerignore
+├── .env.example                # 环境变量模板
+├── .eslintignore
+├── .eslintrc.js                # Monorepo根ESLint配置
+├── .gitignore
+├── .prettierignore
+├── .prettierrc.js              # Monorepo根Prettier配置
+├── docker-compose.yml          # Docker Compose配置 (包含Neo4j)
+├── package.json                # Monorepo根package.json (pnpm)
+├── pnpm-workspace.yaml         # pnpm工作区定义
+├── README.md
+└── tsconfig.json               # Monorepo根TypeScript配置 (用于路径映射等)
 ```
 
 ## 基础设施与部署
-### 基础设施即代码 (IaC)
-*   **工具:** Terraform `~1.7.0`
-*   **位置:** `infrastructure/`
+
+### 基础设施即代码 (Infrastructure as Code - IaC)
+
+*   **工具:** **Terraform** 
+    *   **版本:** Terraform `~1.7.0`
+*   **位置:** 所有IaC代码将存放在Monorepo的 `infrastructure/` 目录下。
+*   **方法:**
+    *   为每个环境（开发、预发布、生产）创建独立的Terraform工作区。
+    *   核心基础设施（如VPC、Kafka集群、PostgreSQL, Milvus, Neo4j实例）将作为基础模块进行管理。
+    *   应用服务（如Agent容器、API网关）的部署将引用这些基础模块。
+
 ### 部署策略
-*   **策略:** 基于容器的蓝绿部署或金丝雀发布。
-*   **CI/CD平台:** GitHub Actions (`.github/workflows/main.yml`)
+
+*   **策略:** **基于容器的蓝绿部署 (Blue/Green Deployment)** 或 **金丝雀发布 (Canary Releases)**。
+*   **CI/CD平台:** **GitHub Actions**。
+*   **流水线配置:** 位于 `.github/workflows/main.yml`。
+    *   **阶段:** 代码检出 -> Lint/Test -> 构建Docker镜像 -> 推送镜像 -> (可选)安全扫描 -> Terraform应用 -> 部署服务 -> E2E测试 -> 流量切换/增加。
+
 ### 环境
-| 环境名称 | 用途 | 部署方式 | 数据库/事件总线 |
+
+| 环境名称 | 用途 | 部署方式 | 数据库/事件总线/图库 |
 | :--- | :--- | :--- | :--- |
-| 本地 | 开发与单元测试 | `docker-compose up` | 本地Docker |
-| 开发 | 共享开发/集成 | CI/CD自动 (develop分支) | 云上开发实例 |
-| 预发布 | UAT/E2E测试 | CI/CD自动 (release/*分支) | 生产副本 |
-| 生产 | 实时环境 | CI/CD手动批准 (main分支) | 高可用生产实例 |
+| **本地 (Local)** | 日常开发与单元测试 | `docker-compose up` | 本地Docker容器 (含Neo4j) |
+| **开发 (Development)** | 共享的开发/集成测试环境 | CI/CD自动部署 (来自`develop`分支) | 专用的云上开发实例 (含Neo4j) |
+| **预发布 (Staging)** | 模拟生产环境，进行UAT和E2E测试 | CI/CD自动部署 (来自`release/*`分支或手动触发) | 生产环境的精确副本 (含Neo4j，数据可能脱敏) |
+| **生产 (Production)** | 最终用户访问的实时环境 | CI/CD手动批准部署 (来自`main`分支) | 高可用的生产级云实例 (含Neo4j) |
+
 ### 环境提升流程
 ```mermaid
 graph LR
-    A[本地开发] --> B(GitHub PR)
-    B --> C[开发环境部署]
-    C --> D(创建release/*)
-    D --> E[预发布部署]
-    E --> F(PR到main)
-    F --> G[生产部署]
+    A[本地开发] -->|提交到 feature/* 分支| B(GitHub PR)
+    B -->|合并到 develop 分支| C[开发环境自动部署]
+    C -->|通过集成测试| D(创建 release/* 分支)
+    D -->|合并到 release/* 分支| E[预发布环境自动部署]
+    E -->|通过UAT/E2E测试| F(创建部署到生产的PR)
+    F -->|批准并合并到 main 分支| G[生产环境手动批准部署]
 ```
+
 ### 回滚策略
-*   **方法:** 蓝绿切换, Docker镜像回滚。
-*   **RTO:** 15分钟内。
+
+*   **主要方法:** 蓝绿切换, Docker镜像回滚。
+*   **触发条件:** 关键KPI恶化, E2E测试失败, 大量用户负面反馈。
+*   **恢复时间目标 (RTO):** 生产环境回滚操作应在 **15分钟内** 完成。
 
 ## 错误处理策略
+
 ### 总体方法
-*   **模型:** 基于异常。
-*   **传递:** 服务内部捕获/重抛；服务间通过DLQ；API网关转HTTP错误。
+
+*   **错误模型:** **基于异常 (Exception-based)**。
+*   **异常层级:** 后端定义基础 `AppException`；前端使用标准 `Error`。
+*   **错误传递:** 服务内部捕获/重抛；服务间通过Kafka DLQ；API网关转HTTP错误。
+
 ### 日志标准
-*   **库:** Python `logging` (JSON), 前端 `console.error()`。
-*   **格式:** 结构化 (时间戳, 服务名, 级别, 相关ID, 消息, 堆栈)。
+
+*   **库:** Python `logging` (JSON格式), 前端 `console.error()`。
+*   **格式:** 结构化 (时间戳, 服务名/Agent ID, 日志级别, 相关ID, 错误消息, 堆栈跟踪)。
+*   **日志级别:** ERROR, WARNING, INFO, DEBUG。
+*   **必需上下文:** 相关ID (UUID), 服务上下文, (脱敏)用户上下文。
+
 ### 错误处理模式
-*   **外部API:** LiteLLM负责重试、熔断、超时。
-*   **业务逻辑:** 自定义异常，API网关转用户友好错误。
-*   **数据一致性:** PostgreSQL事务，后MVP考虑Saga。幂等性设计。
+
+#### 外部API错误 (特别是LLM API)
+*   **重试策略:** LiteLLM配置指数退避重试。
+*   **熔断器 (Circuit Breaker):** LiteLLM配置模型/提供商自动切换。
+*   **超时配置:** 为LLM API调用设置合理超时。
+*   **错误翻译:** Agent服务将LiteLLM错误翻译为业务异常。
+
+#### 业务逻辑错误
+*   **自定义异常:** 定义清晰的业务异常。
+*   **用户友好错误:** API网关转换错误为用户友好消息和错误码。
+*   **错误码:** 考虑为API响应定义统一内部错误码。
+
+#### 数据一致性
+*   **事务策略 (PostgreSQL):** 关键写操作使用事务。
+*   **补偿逻辑 (Saga Pattern - 后MVP):** 为跨服务长时间流程考虑。
+*   **幂等性:** 所有事件消费者必须设计为幂等。
 
 ## 编码标准
+
 ### 核心标准
-*   **语言版本:** Python `~3.11`, TypeScript `~5.2.2`。
-*   **Linting/Formatting:** Ruff, Black (Python); ESLint, Prettier (TS)。强制执行。
+
+*   **语言与运行时版本:** Python `~3.11`, TypeScript `~5.2.2`, Node.js `~20.x.x`。
+*   **代码风格与Linting:**
+    *   **Python:** `Ruff` (Linter), `Black` (Formatter)。
+    *   **TypeScript/JavaScript:** `ESLint` (共享配置), `Prettier` (共享配置)。
+    *   **强制执行:** Git提交钩子和CI流水线。
+*   **测试文件组织:** Python (`test_*.py` 或 `*_test.py`), TypeScript (`*.test.ts(x)` 或 `*.spec.ts(x)`), 与被测模块同级。
+
 ### 命名约定
-*   (如前定义)
-### 关键规则
-*   禁止硬编码敏感信息。
-*   严格类型提示。
-*   优先异步IO。
-*   结构化日志。
-*   规范错误处理。
-*   遵循Monorepo。
-*   事件驱动通信。
-*   幂等性设计。
+
+| 元素 | 约定 | Python示例 | TypeScript示例 |
+| :--- | :--- | :--- | :--- |
+| 变量 | snake_case (Py), camelCase (TS) | `user_name` | `userName` |
+| 函数/方法 | snake_case (Py), camelCase (TS) | `get_user_data()` | `getUserData()` |
+| 类名 | PascalCase | `UserDataProcessor` | `UserDataProcessor` |
+| 常量 | UPPER_SNAKE_CASE | `MAX_RETRIES` | `MAX_RETRIES` |
+| 文件名 (Py) | snake_case.py | `user_service.py` | N/A |
+| 文件名 (TS) | kebab-case.ts 或 PascalCase.tsx | N/A | `user-service.ts`, `UserProfile.tsx` |
+| Pydantic模型字段 | snake_case | `class User(BaseModel): user_id: UUID` | N/A |
+
+### 关键规则 (AI智能体必须严格遵守)
+
+*   **1. 禁止硬编码敏感信息:** 通过环境变量或配置服务加载。
+*   **2. 严格的类型提示:** Python类型提示, TypeScript `strict`模式。
+*   **3. 优先使用异步/非阻塞IO:** Python后端使用 `async/await`。
+*   **4. 结构化日志记录:** 使用项目定义的结构化日志格式，含相关ID。
+*   **5. 错误处理规范:** 遵循定义的错误处理策略。
+*   **6. 遵循Monorepo结构:** 代码放置在正确位置，共享代码在 `packages/`。
+*   **7. 事件驱动通信:** Agent间通信必须通过Kafka。
+*   **8. 幂等性设计:** 事件消费者逻辑必须幂等。
+*   **9. Neo4j操作封装:** 对Neo4j的操作应通过专门的知识图谱服务或共享库进行封装。
+
+### 语言特定指南
+
+*   **Python:** 依赖在 `requirements.txt` 或 `pyproject.toml` 中声明。建议独立虚拟环境。
+*   **TypeScript:** 利用 `tsconfig.json` 的 `paths` 别名。
 
 ## 测试策略与标准
+
 ### 测试理念
-*   **覆盖率目标:** 单元测试85%。
+
+*   **测试驱动开发 (TDD) / 行为驱动开发 (BDD) - 鼓励但不强制。**
+*   **覆盖率目标:** 单元测试核心逻辑 **85%**。集成测试覆盖关键交互。
 *   **测试金字塔:** (如图所示)
+    ```text
+            /\
+           /  \
+          /E2E \  
+         /______\
+        /        \
+       /集成测试 \ 
+      /__________\
+     /            \
+    /  单元测试    \ 
+   /______________\
+    ```
+
 ### 测试类型与组织
-*   **单元测试:** Pytest (Python), Vitest (TS)。AAA模式，模拟外部依赖。
-*   **集成测试:** 覆盖服务间交互。使用`testcontainers`。
-*   **端到端测试:** Playwright。覆盖核心用户流程。
+
+#### 1. 单元测试 (Unit Tests)
+*   **框架:** Python: `Pytest ~8.1.0`; TypeScript: `Vitest ~1.4.0`。
+*   **文件约定:** (如编码标准中所述)。
+*   **模拟库:** Python: `unittest.mock`, `pytest-mock`; TypeScript: `Vitest`内置。
+*   **AI要求:** 为所有公开函数/方法生成测试，覆盖正常、边界、错误情况，遵循AAA，模拟所有外部依赖。
+
+#### 2. 集成测试 (Integration Tests)
+*   **范围:** API网关与Agent交互, Agent与Kafka交互, Agent与数据库(PG, Milvus, Neo4j)交互。
+*   **位置:** 各自服务的 `tests/integration` 目录。
+*   **测试基础设施:** 使用 `testcontainers` 启动临时的PG, Milvus, Neo4j, Kafka实例。模拟LiteLLM或测试与真实LiteLLM(模拟后端)的集成。
+
+#### 3. 端到端测试 (End-to-End Tests)
+*   **框架:** Playwright `~1.42.0`。
+*   **范围:** MVP阶段覆盖“创世流程”和“单章节生成与查看”。
+*   **环境:** 预发布 (Staging) 环境。
+
 ### 测试数据管理
-*   单元: 硬编码。集成: 工厂/固件。E2E: 专用库或动态创建。
+
+*   **单元测试:** 硬编码模拟数据。
+*   **集成测试:** 数据工厂/固件创建数据，测试后清理/回滚。
+*   **端到端测试:** 专用可重置E2E数据库或测试用例自管理数据。
+
 ### 持续测试
-*   CI集成 (GitHub Actions)。
+
+*   **CI集成:** 单元、集成测试在每次提交/PR时自动运行 (GitHub Actions)。E2E测试在合并到`develop`/`release`后触发。
+*   **性能测试 (后MVP):** `k6` 或 `Locust`。
+*   **安全测试 (后MVP):** SAST/DAST工具。
 
 ## 安全
+
 ### 输入验证
 *   **库:** Pydantic (后端), Zod/Yup (前端)。
-*   **位置:** 前后端双重验证。
-### 认证与授权
-*   **方法:** JWT (API网关)。
-*   **存储:** HttpOnly Cookie (前端)。
-*   **授权:** RBAC。
-### 密钥管理
-*   **开发:** `.env`。
-*   **生产:** 专用密钥管理服务。
+*   **位置:** 前后端双重验证。后端验证是最后防线。
+*   **规则:** 严格验证所有外部输入，白名单优先。
+
+### 认证与授权 (Authentication & Authorization)
+*   **方法 (API网关):** JWT。考虑 `Auth0`, `Keycloak` 或自定义实现。
+*   **存储 (前端):** JWT存入安全的 `HttpOnly` Cookie。
+*   **授权:** RBAC。API端点声明所需权限。
+*   **密码:** 强哈希算法 (`bcrypt` 或 `Argon2`) 加盐存储。
+
+### 密钥管理 (Secrets Management)
+*   **开发:** `.env` 文件 (加入 `.gitignore`)。
+*   **生产:** **必须**使用专用密钥管理服务 (HashiCorp Vault, AWS Secrets Manager等)。
+*   **代码要求:** 严禁硬编码密钥，严禁日志中出现密钥。
+
 ### API安全
-*   速率限制, 严格CORS, 安全头, HTTPS强制。
+*   **速率限制:** API网关实现 (如 `slowapi` for FastAPI)。
+*   **CORS策略:** API网关配置严格CORS。
+*   **安全头:** API响应包含推荐安全头。
+*   **HTTPS强制:** 生产环境流量必须HTTPS。
+
 ### 数据保护
-*   传输中加密 (TLS/SSL)。
+*   **传输中加密:** 所有外部通信必须TLS/SSL (HTTPS)。
+*   **静态加密 (后MVP):** 考虑对PG, Minio, Neo4j中的敏感数据进行静态加密。
+*   **PII处理:** (如果适用) 遵循相关隐私法规。
+*   **日志限制:** 敏感数据不入日志。
+
 ### 依赖安全
-*   CI中集成漏洞扫描。定期更新。
+*   **扫描工具:** CI/CD集成漏洞扫描 (`npm audit`/`pnpm audit`, `pip-audit`/`Safety`)。
+*   **更新策略:** 定期审查和更新依赖。
+*   **审批流程:** 新依赖需安全评估。
+
+### 安全测试 (后MVP)
+*   **SAST:** `Bandit` (Python), `ESLint`安全插件。
+*   **DAST:** OWASP ZAP。
+*   **渗透测试:** 定期第三方渗透测试。
