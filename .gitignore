@@ -26,6 +26,7 @@ out/
 .env.backend
 .env.agents
 .env.*.backup
+.env.backend.local
 # Keep example files
 !.env.example
 !.env.*.example

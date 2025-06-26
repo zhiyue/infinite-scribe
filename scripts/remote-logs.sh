@@ -55,6 +55,10 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             usage
             ;;
+        --)
+            # Skip the -- separator from pnpm
+            shift
+            ;;
         -*)
             echo "Unknown option: $1"
             usage
