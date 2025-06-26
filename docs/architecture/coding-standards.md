@@ -1,4 +1,4 @@
-# 编码标准
+# Coding Standards
 
 ## 核心标准
 

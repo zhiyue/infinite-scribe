@@ -1,4 +1,4 @@
-# 组件
+# Components
 
 ## 1. API网关 (API Gateway)
 
@@ -122,7 +122,7 @@
 *   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id`)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
-## 组件图 (已更新，更强调Neo4j在存储层的作用)
+## Components图 (已更新，更强调Neo4j在存储层的作用)
 
 ```mermaid
 graph TD

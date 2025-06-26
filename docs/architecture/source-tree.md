@@ -1,6 +1,6 @@
-# 源代码树
+# Source Tree
 ```plaintext
-infinite-scribe/
+novel-ai-writer/
 ├── .github/                    # CI/CD 工作流 (GitHub Actions)
 │   └── workflows/
 │       └── main.yml            # 主CI/CD流水线

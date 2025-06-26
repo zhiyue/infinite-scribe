@@ -1,4 +1,4 @@
-# 基础设施与部署
+# Infrastructure and Deployment
 
 ## 基础设施即代码 (Infrastructure as Code - IaC)
 

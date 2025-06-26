@@ -1,4 +1,4 @@
-# 高层架构
+# High Level Architecture
 
 ## 技术摘要
 
@@ -22,7 +22,7 @@
     *   `apps/`: 存放可独立部署的应用，如 `frontend`, `api-gateway`, `writer-agent` 等。
     *   `packages/`: 存放共享的代码库，如 `shared-types`, `eslint-config`, `common-utils` 等。
 
-## 高层架构图
+## High Level Architecture
 
 ```mermaid
 graph TD

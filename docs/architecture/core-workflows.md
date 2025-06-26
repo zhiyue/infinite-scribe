@@ -1,4 +1,4 @@
-# 核心工作流
+# Core Workflows
 
 ## 1. 创世流程 (Genesis Flow) - UI触发
 ```mermaid

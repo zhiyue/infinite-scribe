@@ -1,4 +1,4 @@
-# 数据库模式
+# Database Schema
 
 ## PostgreSQL
 ```sql

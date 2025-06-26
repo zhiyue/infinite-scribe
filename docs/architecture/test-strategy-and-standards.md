@@ -1,4 +1,4 @@
-# 测试策略与标准
+# Test Strategy and Standards
 
 ## 测试理念
 *   **测试驱动开发 (TDD) / 行为驱动开发 (BDD) - 鼓励但不强制。**

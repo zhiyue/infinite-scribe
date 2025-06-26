@@ -1,4 +1,4 @@
-# 错误处理策略
+# Error Handling Strategy
 
 ## 总体方法
 *   **错误模型:** **基于异常 (Exception-based)**。
@@ -12,7 +12,7 @@
 *   **必需上下文:** 相关ID (UUID), 服务上下文, (脱敏)用户上下文。
 
 ## 错误处理模式
-### 外部API错误 (特别是LLM API)
+### External APIs错误 (特别是LLM API)
 *   **重试策略:** LiteLLM配置指数退避重试。
 *   **熔断器 (Circuit Breaker):** LiteLLM配置模型/提供商自动切换。
 *   **超时配置:** 为LLM API调用设置合理超时。

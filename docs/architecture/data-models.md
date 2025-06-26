@@ -1,4 +1,4 @@
-# 数据模型
+# Data Models
 
 以下是本系统的核心数据模型定义。这些模型将在 `packages/shared-types` 中实现，供前后端共同使用。属性主要存储在PostgreSQL，**特定于项目的知识图谱关系主要存储在Neo4j**。
 

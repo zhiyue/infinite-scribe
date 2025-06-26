@@ -1,4 +1,4 @@
-# 安全
+# Security
 
 ## 输入验证
 *   **库:** Pydantic (后端), Zod/Yup (前端)。
@@ -33,7 +33,7 @@
 *   **更新策略:** 定期审查和更新依赖。
 *   **审批流程:** 新依赖需安全评估。
 
-## 安全测试 (后MVP)
+## Security测试 (后MVP)
 *   **SAST:** `Bandit` (Python), `ESLint`安全插件。
 *   **DAST:** OWASP ZAP。
 *   **渗透测试:** 定期第三方渗透测试。
