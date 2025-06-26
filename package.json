@@ -1,0 +1,46 @@
+{
+  "name": "infinite-scribe",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AI-powered novel writing platform using multi-agent collaboration",
+  "author": "InfiniteScribe Team",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/zhiyue/infinite-scribe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhiyue/infinite-scribe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhiyue/infinite-scribe/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": "~8.15.0"
+  },
+  "packageManager": "pnpm@8.15.9",
+  "scripts": {
+    "dev": "echo 'Run development scripts in individual apps'",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:structure": "node scripts/test-project-structure.js",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "clean": "pnpm -r clean",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5",
+    "typescript": "~5.2.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css,md}": [
+      "prettier --write"
+    ],
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
+  }
+}
