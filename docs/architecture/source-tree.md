@@ -1,6 +1,10 @@
 # Source Tree
 ```plaintext
-novel-ai-writer/
+infinite-scribe/
+├── .venv/                      # 统一的Python虚拟环境 (开发和部署)
+├── pyproject.toml              # 统一的Python依赖配置 (所有服务)
+├── uv.lock                     # Python依赖锁文件
+├── .python-version             # Python版本文件 (3.11)
 ├── .github/                    # CI/CD 工作流 (GitHub Actions)
 │   └── workflows/
 │       └── main.yml            # 主CI/CD流水线
@@ -51,12 +55,10 @@ novel-ai-writer/
 │   │   │   ├── models/         # Pydantic模型 (如果不能从shared-types导入)
 │   │   │   └── main.py
 │   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── Dockerfile
 │   ├── worldsmith-agent/       # 世界铸造师Agent服务
 │   │   ├── agent/              # Agent核心逻辑
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── Dockerfile
 │   ├── plotmaster-agent/       # 剧情策划师Agent服务 (结构类似)
 │   ├── outliner-agent/         # 大纲规划师Agent服务 (结构类似)
 │   ├── director-agent/         # 导演Agent服务 (结构类似)
@@ -68,8 +70,7 @@ novel-ai-writer/
 │   └── rewriter-agent/         # 改写者Agent服务 (结构类似)
 │   ├── knowledgegraph-service/ # (可选) 封装Neo4j操作的共享服务/库 (更可能在packages/common-utils)
 │   │   ├── app/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── Dockerfile
 ├── packages/                   # 存放共享的代码包
 │   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
 │   │   ├── src/
@@ -113,3 +114,9 @@ novel-ai-writer/
 ├── README.md
 └── tsconfig.json               # Monorepo根TypeScript配置 (用于路径映射等)
 ```
+
+## 注意事项
+
+1. **Python依赖管理**：所有Python服务共享根目录的 `pyproject.toml` 和 `.venv`，简化依赖管理
+2. **Docker构建**：每个服务的Dockerfile都引用根目录的依赖配置
+3. **开发环境**：统一虚拟环境，所有服务都可以直接运行，无需切换环境

@@ -111,8 +111,8 @@ graph TD
 | **CSS方案** | Tailwind CSS | `~3.4.1` | UI样式 | 提供原子化的CSS类，开发效率高，与Shadcn UI集成良好。 |
 | **包管理器** | pnpm | `~8.15.0`| Monorepo依赖管理 | 速度快，节省磁盘空间，对Monorepo支持优秀。 |
 | **后端语言** | Python | `~3.11` | 后端与Agent开发 | AI/ML生态系统无与伦比，异步性能良好。 |
-| **后端框架** | FastAPI | `~0.110.0`| API网关与服务 | 高性能，基于Pydantic的自动校验和文档生成。 |
-| **数据校验** | Pydantic | `~2.6.0` | 数据模型与校验 | 提供运行时的数据类型强制，是FastAPI的核心。 |
+| **后端框架** | FastAPI | `~0.115.13`| API网关与服务 | 高性能，基于Pydantic的自动校验和文档生成。 |
+| **数据校验** | Pydantic | `~2.11.7` | 数据模型与校验 | 提供运行时的数据类型强制，是FastAPI的核心。 |
 | **工作流编排** | Prefect | `~2.19.0`| 业务流程编排 | Python原生，对数据密集型和动态工作流支持良好。 |
 | **事件总线** | Apache Kafka | `3.7.0` (镜像) | 智能体间异步通信 | 高吞吐量、持久化的分布式消息系统，业界标准。 |
 | **关系型数据库**| PostgreSQL | `16` (镜像) | 核心元数据与属性存储 | 功能强大，可靠，支持丰富的JSON操作。 |
@@ -1204,11 +1204,11 @@ novel-ai-writer/
 │   │   │   └── main.py
 │   │   ├── tests/
 │   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── pyproject.toml
 │   ├── worldsmith-agent/       # 世界铸造师Agent服务
 │   │   ├── agent/              # Agent核心逻辑
 │   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── pyproject.toml
 │   ├── plotmaster-agent/       # 剧情策划师Agent服务 (结构类似)
 │   ├── outliner-agent/         # 大纲规划师Agent服务 (结构类似)
 │   ├── director-agent/         # 导演Agent服务 (结构类似)
@@ -1221,7 +1221,7 @@ novel-ai-writer/
 │   ├── knowledgegraph-service/ # (可选) 封装Neo4j操作的共享服务/库 (更可能在packages/common-utils)
 │   │   ├── app/
 │   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── pyproject.toml
 ├── packages/                   # 存放共享的代码包
 │   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
 │   │   ├── src/
@@ -1376,7 +1376,7 @@ graph LR
 
 ### 语言特定指南
 
-*   **Python:** 依赖在 `requirements.txt` 或 `pyproject.toml` 中声明。建议独立虚拟环境。
+*   **Python:** 依赖在 `pyproject.toml` 中声明（遵循PEP 517/518标准）。使用 `uv` 作为包管理器，建议独立虚拟环境。
 *   **TypeScript:** 利用 `tsconfig.json` 的 `paths` 别名引用共享包。
 
 ## Test Strategy and Standards

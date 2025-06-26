@@ -45,11 +45,14 @@ The development server (192.168.2.201) has been configured with the following cr
 ```bash
 # Backend development
 cp .env.backend.local .env.backend
-cd apps/api-gateway
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+
+# Initialize Python environment (only once)
+uv venv
+uv sync --dev
+source .venv/bin/activate
+
+# Run API Gateway
+uvicorn apps.api-gateway.app.main:app --reload
 
 # Frontend development
 cp .env.frontend.example .env.frontend

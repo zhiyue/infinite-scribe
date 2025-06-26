@@ -35,5 +35,5 @@
 
 ## 语言特定指南
 
-*   **Python:** 依赖在 `requirements.txt` 或 `pyproject.toml` 中声明。建议独立虚拟环境。
+*   **Python:** 依赖在 `pyproject.toml` 中声明（遵循PEP 517/518标准）。使用 `uv` 作为包管理器，建议独立虚拟环境。
 *   **TypeScript:** 利用 `tsconfig.json` 的 `paths` 别名引用共享包。
