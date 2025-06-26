@@ -1,64 +1,150 @@
-# Infinite Scribe - Multi-Agent Collaboration Framework
-> 多智能体小说写作原型 (Multi-Agent Novel Writing Prototype)
+# InfiniteScribe - AI小说生成平台
+> AI-Powered Novel Writing Platform
 
-This repository contains the core configuration, knowledge base, and operational workflows for **Infinite Scribe**, an experimental framework designed to orchestrate multiple AI agents for complex, collaborative tasks like creative writing.
+InfiniteScribe是一个基于多智能体协作的AI小说创作平台，通过多个专业AI代理的协同工作，实现高质量、连贯的长篇小说生成。
 
-Rather than being a standalone software application, this project serves as the "brain" and "playbook" that guides a team of specialized AI agents. It defines their roles, rules of engagement, and the processes they follow to achieve sophisticated goals, such as generating a full-length novel.
+## 🎯 项目概述
 
-## 🎯 Project Mission
+InfiniteScribe利用最先进的AI技术和多智能体架构，为用户提供一个全面的小说创作解决方案。系统包含前端应用、API网关、多个专业智能体服务，以及完整的基础设施支持。
 
-To develop and refine a robust multi-agent framework capable of producing high-quality, coherent, long-form narratives, while validating the processes and configurations required for such a system to operate effectively.
+## 🏗️ 技术栈
 
-## 核心理念 (Core Concepts)
+- **前端**: React 18.2 + TypeScript 5.2 + Vite + Tailwind CSS + Shadcn UI
+- **后端**: Python 3.11 + FastAPI + Pydantic
+- **数据库**: PostgreSQL 16 + Redis 7.2 + Neo4j 5.x + Milvus 2.4
+- **消息队列**: Apache Kafka 3.7
+- **工作流编排**: Prefect 2.19
+- **对象存储**: MinIO
+- **AI/LLM**: LiteLLM (统一多模型接口)
+- **可观测性**: Langfuse
+- **包管理**: pnpm 8.15 (Monorepo)
 
-- **Agent-Based Architecture**: The system is built around a team of specialized AI agents (e.g., Project Manager, Architect, Developer, QA), each with a distinct role and set of instructions.
-- **Workflow Orchestration**: YAML files define the sequence of tasks and agent interactions required to complete complex processes, such as the `greenfield-fullstack.yml` workflow.
-- **Knowledge-Driven**: The framework relies heavily on structured documentation, templates, and checklists to ensure quality and consistency. The `docs` and `.bmad-core` directories are central to its operation.
-- **Tool-Agnostic**: Agent configurations are provided for multiple platforms (Claude, Cursor, etc.), allowing for flexibility in the underlying AI models used.
-
-## 📁 Project Structure
-
-This repository is organized as a central knowledge base and configuration hub for the multi-agent system.
+## 📁 项目结构
 
 ```
 infinite-scribe/
-├── .bmad-core/          # Core framework for the "Build Me A Dream" agent system.
-│   ├── agents/          # Prompt definitions for each specialized agent.
-│   ├── tasks/           # Definitions of specific tasks the agents can perform.
-│   ├── templates/       # Standard templates for documents (PRD, architecture, etc.).
-│   └── workflows/       # YAML files defining multi-step agent collaborations.
-├── .claude/             # Configuration and prompts specific to the Anthropic Claude model.
-├── .clinerules/         # High-level rules and directives governing agent behavior.
-├── .cursor/             # Configuration for the Cursor IDE environment.
-├── .github/             # GitHub-specific files, including workflow instructions.
-├── .taskmaster/         # Contains project management files, like PRDs and task lists.
-├── .windsurf/           # Configuration for the Windsurf AI environment.
-├── docs/                # Central repository for all project documentation.
-│   ├── prd/             # Detailed epics and requirements for the novel generation.
-│   └── architecture.md  # High-level system architecture documents.
-└── web-bundles/         # Packaged agent prompts for distribution or use in web contexts.
+├── apps/                       # 独立应用
+│   ├── frontend/              # React前端应用
+│   ├── api-gateway/           # FastAPI网关服务
+│   ├── worldsmith-agent/      # 世界铸造师Agent
+│   ├── plotmaster-agent/      # 剧情策划师Agent
+│   ├── outliner-agent/        # 大纲规划师Agent
+│   ├── director-agent/        # 导演Agent
+│   ├── characterexpert-agent/ # 角色专家Agent
+│   ├── worldbuilder-agent/    # 世界观构建师Agent
+│   ├── writer-agent/          # 作家Agent
+│   ├── critic-agent/          # 评论家Agent
+│   ├── factchecker-agent/     # 事实核查员Agent
+│   └── rewriter-agent/        # 改写者Agent
+├── packages/                  # 共享代码包
+│   ├── shared-types/         # 共享类型定义
+│   ├── common-utils/         # 通用工具函数
+│   ├── eslint-config-custom/ # ESLint配置
+│   └── tsconfig-custom/      # TypeScript配置
+├── infrastructure/           # 基础设施配置
+├── docs/                     # 项目文档
+│   ├── architecture/         # 架构文档
+│   ├── prd/                  # 产品需求文档
+│   └── stories/              # 用户故事
+└── scripts/                  # 项目脚本
 ```
 
-## 🚀 Usage
+## 🚀 快速开始
 
-This repository is not meant to be "run" in a traditional sense with a single command. Instead, it serves as a foundational resource for an external orchestration engine or a human operator directing AI agents.
+### 前置要求
 
-**Typical Use Cases:**
-1.  **Providing Context to AI**: An orchestrator loads the relevant agent definitions, rules, and task instructions from this repository to guide an AI model.
-2.  **Executing Workflows**: The YAML workflow files are parsed by an engine that calls the appropriate agents in sequence to complete a task.
-3.  **Manual Operation**: A human operator uses the prompts and templates in this repository to manually guide AI agents through a platform like Claude or a local model interface.
+- Node.js ~20.x
+- pnpm ~8.15
+- Docker & Docker Compose
+- Python ~3.11
 
-## 🤝 Contributing
+### 安装依赖
 
-Contributions to the agent prompts, workflow definitions, and documentation are welcome. Please follow the existing structure and conventions.
+```bash
+# 安装pnpm（如果未安装）
+npm install -g pnpm@8.15.9
 
-### Development Workflow
+# 安装项目依赖
+pnpm install
+```
 
-1.  Create a feature branch from `main`.
-2.  Update or add new configuration files, prompts, or documents.
-3.  Ensure changes are consistent with the overall architecture.
-4.  Submit a pull request with a clear description of the changes.
+### 环境配置
 
-## 📄 License
+```bash
+# 复制环境变量模板
+cp .env.example .env
 
-This project is proprietary software. All rights reserved.
+# 编辑.env文件，填入实际的配置值
+```
+
+### 启动开发环境
+
+```bash
+# 启动Docker服务（数据库、消息队列等）
+docker-compose up -d
+
+# 启动前端开发服务器
+pnpm --filter frontend dev
+
+# 启动API网关（在新终端）
+pnpm --filter api-gateway dev
+```
+
+### 项目结构验证
+
+```bash
+# 运行项目结构测试
+pnpm test:structure
+```
+
+## 🧪 测试
+
+```bash
+# 运行所有测试
+pnpm test
+
+# 运行特定包的测试
+pnpm --filter <package-name> test
+```
+
+## 🎨 代码规范
+
+项目使用ESLint和Prettier确保代码质量和一致性：
+
+```bash
+# 运行代码检查
+pnpm lint
+
+# 格式化代码
+pnpm format
+```
+
+## 📖 文档
+
+- [架构设计](./docs/architecture.md)
+- [产品需求文档](./docs/prd.md)
+- [前端规范](./docs/front-end-spec.md)
+- [API文档](./docs/architecture/rest-api-spec.md)
+
+## 🤝 贡献指南
+
+1. Fork本仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建Pull Request
+
+### 提交规范
+
+使用约定式提交（Conventional Commits）：
+- `feat:` 新功能
+- `fix:` 修复bug
+- `docs:` 文档更新
+- `style:` 代码格式（不影响代码运行的变动）
+- `refactor:` 重构
+- `test:` 测试相关
+- `chore:` 构建过程或辅助工具的变动
+
+## 📄 许可证
+
+本项目为私有软件，版权所有。
