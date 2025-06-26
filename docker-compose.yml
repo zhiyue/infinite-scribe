@@ -148,6 +148,22 @@ services:
       timeout: 20s
       retries: 3
 
+  # MinIO Init - Create buckets
+  minio-init:
+    image: minio/mc:latest
+    container_name: infinite-scribe-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./infrastructure/docker/init/minio:/scripts
+    entrypoint: /scripts/create-buckets.sh
+    networks:
+      - infinite-scribe-network
+
   # Zookeeper (required for Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
