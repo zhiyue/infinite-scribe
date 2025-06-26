@@ -58,9 +58,9 @@ echo -e "${GREEN}✓ Files synced successfully${NC}"
 
 # Check environment files on server
 echo -e "\n${YELLOW}Checking environment configuration...${NC}"
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && bash -c '
+if ! ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && bash -c '
     if [ ! -f .env.infrastructure ]; then
-        echo -e \"${RED}Missing .env.infrastructure file${NC}\"
+        echo \"Missing .env.infrastructure file\"
         echo \"Please create it from .env.example:\"
         echo \"  cp .env.example .env.infrastructure\"
         echo \"  nano .env.infrastructure\"
@@ -73,8 +73,12 @@ ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && bash -c '
         echo \"Created .env symlink\"
     fi
     
-    echo -e \"${GREEN}✓ Environment files configured${NC}\"
-'"
+    echo \"Environment files configured\"
+'"; then
+    echo -e "${RED}Environment configuration failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Environment files configured${NC}"
 
 # Deploy services
 echo -e "\n${YELLOW}Deploying services with Docker Compose...${NC}"

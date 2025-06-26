@@ -48,25 +48,24 @@ echo -e "${GREEN}✓ PostgreSQL backup complete${NC}"
 # Backup Redis
 echo -e "\n${YELLOW}Backing up Redis data...${NC}"
 ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    docker compose exec -T redis redis-cli --rdb backups/${BACKUP_NAME}/redis.rdb BGSAVE && \
-    sleep 2 && \
-    docker compose cp redis:/data/dump.rdb backups/${BACKUP_NAME}/redis.rdb"
+    docker compose exec -T redis redis-cli -a \${REDIS_PASSWORD:-redis} BGSAVE && \
+    sleep 3 && \
+    docker cp infinite-scribe-redis:/data/dump.rdb backups/${BACKUP_NAME}/redis.rdb"
 echo -e "${GREEN}✓ Redis backup complete${NC}"
 
 # Backup Neo4j
 echo -e "\n${YELLOW}Backing up Neo4j database...${NC}"
 ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    docker compose stop neo4j && \
-    docker compose run --rm -v ${PROJECT_DIR}/backups/${BACKUP_NAME}:/backup neo4j \
-        neo4j-admin database dump --to-path=/backup neo4j && \
-    docker compose start neo4j"
+    docker compose exec -T neo4j neo4j-admin database dump --to-stdout neo4j > backups/${BACKUP_NAME}/neo4j.dump"
 echo -e "${GREEN}✓ Neo4j backup complete${NC}"
 
 # Backup MinIO data
 echo -e "\n${YELLOW}Backing up MinIO data...${NC}"
 ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    docker compose exec -T minio mc alias set myminio http://localhost:9000 minioadmin minioadmin && \
-    docker compose exec -T minio mc mirror --overwrite myminio /backup/${BACKUP_NAME}/minio"
+    mkdir -p backups/${BACKUP_NAME}/minio && \
+    docker compose exec -T minio sh -c 'mc alias set myminio http://localhost:9000 \${MINIO_ROOT_USER:-minioadmin} \${MINIO_ROOT_PASSWORD:-minioadmin} && \
+    mc mirror --overwrite myminio/novels /tmp/backup-novels' && \
+    docker cp infinite-scribe-minio:/tmp/backup-novels backups/${BACKUP_NAME}/minio/"
 echo -e "${GREEN}✓ MinIO backup complete${NC}"
 
 # Backup environment files
