@@ -70,18 +70,30 @@ pnpm install
 
 ### 环境配置
 
-```bash
-# 复制环境变量模板
-cp .env.example .env
+InfiniteScribe 使用分层的环境变量管理方案，将配置按用途分离：
 
-# 编辑.env文件，填入实际的配置值
+```bash
+# 基础设施配置（Docker Compose使用）
+cp .env.example .env.infrastructure
+# 编辑 .env.infrastructure，设置数据库密码等
+
+# 前端应用配置（可选，仅在需要时创建）
+cp .env.frontend.example .env.frontend
+
+# 后端服务配置（可选，仅在需要时创建）
+cp .env.backend.example .env.backend
+
+# AI Agent配置（可选，仅在需要时创建）
+cp .env.agents.example .env.agents
 ```
+
+> 💡 **提示**: Docker Compose 默认使用 `.env` 文件，系统会自动创建指向 `.env.infrastructure` 的符号链接。
 
 ### 启动开发环境
 
 ```bash
-# 启动Docker服务（数据库、消息队列等）
-docker-compose up -d
+# 启动基础设施服务（数据库、消息队列等）
+pnpm infra:up
 
 # 检查所有服务健康状态
 pnpm check:services
@@ -91,6 +103,22 @@ pnpm --filter frontend dev
 
 # 启动API网关（在新终端）
 pnpm --filter api-gateway dev
+```
+
+#### 基础设施管理命令
+
+```bash
+# 启动所有基础设施服务
+pnpm infra:up
+
+# 停止所有服务
+pnpm infra:down
+
+# 查看服务日志
+pnpm infra:logs
+
+# 部署到开发服务器 (192.168.2.201)
+pnpm infra:deploy
 ```
 
 ### 服务健康检查
@@ -146,6 +174,7 @@ pnpm format
 - [产品需求文档](./docs/prd.md)
 - [前端规范](./docs/front-end-spec.md)
 - [API文档](./docs/architecture/rest-api-spec.md)
+- [环境变量配置指南](./docs/deployment/environment-variables.md)
 
 ## 🤝 贡献指南
 
