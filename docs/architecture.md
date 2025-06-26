@@ -383,7 +383,7 @@ Neo4j将用于存储**每个小说项目内部**的实体间的复杂关系，�
 *   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id`)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
-### Components图 (已更新，更强调Neo4j在存储层的作用)
+### Components图
 
 ```mermaid
 graph TD
