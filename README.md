@@ -11,9 +11,9 @@ InfiniteScribe利用最先进的AI技术和多智能体架构，为用户提供�
 
 - **前端**: React 18.2 + TypeScript 5.2 + Vite + Tailwind CSS + Shadcn UI
 - **后端**: Python 3.11 + FastAPI + Pydantic
-- **数据库**: PostgreSQL 16 + Redis 7.2 + Neo4j 5.x + Milvus 2.4
+- **数据库**: PostgreSQL 16 + Redis 7.2 + Neo4j 5.x + Milvus 2.6
 - **消息队列**: Apache Kafka 3.7
-- **工作流编排**: Prefect 2.19
+- **工作流编排**: Prefect 3.x
 - **对象存储**: MinIO
 - **AI/LLM**: LiteLLM (统一多模型接口)
 - **可观测性**: Langfuse
@@ -83,12 +83,33 @@ cp .env.example .env
 # 启动Docker服务（数据库、消息队列等）
 docker-compose up -d
 
+# 检查所有服务健康状态
+pnpm check:services
+
 # 启动前端开发服务器
 pnpm --filter frontend dev
 
 # 启动API网关（在新终端）
 pnpm --filter api-gateway dev
 ```
+
+### 服务健康检查
+
+```bash
+# 检查所有必需服务的运行状态
+pnpm check:services
+
+# 运行完整的服务健康检查（需要额外依赖）
+pnpm check:services:full
+```
+
+服务检查包括：
+- PostgreSQL、Redis、Neo4j 数据库连接
+- Kafka 消息队列状态
+- Milvus 向量数据库
+- MinIO 对象存储
+- Prefect 工作流编排平台
+- 所有服务的 Web UI 访问性
 
 ### 项目结构验证
 
