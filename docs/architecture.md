@@ -1,6 +1,6 @@
 # 多智能体网络小说自动写作系统 全栈架构文档
 
-## 简介
+## Introduction
 
 本文档概述了“多智能体网络小说自动写作系统”的完整全栈架构，包括后端服务、前端实现及其集成方式。它将作为所有AI开发智能体的唯一技术事实来源，确保整个技术栈的一致性。
 
@@ -16,7 +16,7 @@
 |      | 1.1     | 集成Neo4j管理世界观关系 | Winston (Architect) |
 |      | 1.2     | 根据PRD v1.3和front-end-spec v1.2更新，重点调整数据模型、API接口、数据库模式以支持项目仪表盘和项目级知识库。 | Winston (Architect) |
 
-## 高层架构
+## High Level Architecture
 
 ### 技术摘要
 
@@ -40,7 +40,7 @@
     *   `apps/`: 存放可独立部署的应用，如 `frontend`, `api-gateway`, `writer-agent` 等。
     *   `packages/`: 存放共享的代码库，如 `shared-types`, `eslint-config`, `common-utils` 等。
 
-### 高层架构图
+### High Level Architecture
 
 ```mermaid
 graph TD
@@ -93,11 +93,11 @@ graph TD
 *   **集成模式:** **API网关 (API Gateway)** - 为前端提供一个统一、简化的入口点来与复杂的后端系统交互。
 *   **知识表示:** **混合数据模型 (Hybrid Data Model)** - 结构化属性使用PostgreSQL，向量相似性使用Milvus，**特定于项目的复杂关系和知识图谱使用Neo4j**。
 
-## 技术栈
+## Tech Stack
 
 以下表格定义了本项目将要使用的全部核心技术及其具体版本。所有开发工作都必须严格遵守此技术栈，以确保兼容性和稳定性。
 
-### 技术栈表
+### Tech Stack表
 
 | 类别 | 技术 | 版本 | 用途 | 理由 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -124,7 +124,7 @@ graph TD
 | **可观测性** | Langfuse | `~2.25.0`| LLM应用追踪与调试 | 提供对复杂Agent流程的端到端可见性。 |
 | **测试框架** | Vitest, Pytest | `~1.4.0`, `~8.1.0` | 前后端单元/集成测试 | 分别是Vite和Python生态中最主流、最强大的测试框架。 |
 
-## 数据模型
+## Data Models
 
 以下是本系统的核心数据模型定义。这些模型将在 `packages/shared-types` 中实现，供前后端共同使用。属性主要存储在PostgreSQL，**特定于项目的知识图谱关系主要存储在Neo4j**。
 
@@ -259,7 +259,7 @@ Neo4j将用于存储**每个小说项目内部**的实体间的复杂关系，�
     *   `(:WorldviewEntry {entry_type:"ORGANIZATION", name:"光明教会"})-[:HOSTILE_TO]->(:WorldviewEntry {entry_type:"ORGANIZATION", name:"暗影兄弟会"})`
     *   `(:WorldviewEntry {entry_type:"TECHNOLOGY", name:"曲速引擎"})-[:REQUIRES_MATERIAL]->(:WorldviewEntry {entry_type:"ITEM", name:"零点水晶"})`
 
-## 组件
+## Components
 
 ### 1. API网关 (API Gateway)
 
@@ -383,7 +383,7 @@ Neo4j将用于存储**每个小说项目内部**的实体间的复杂关系，�
 *   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id`)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
-### 组件图 (已更新，更强调Neo4j在存储层的作用)
+### Components图 (已更新，更强调Neo4j在存储层的作用)
 
 ```mermaid
 graph TD
@@ -441,7 +441,7 @@ graph TD
     class LLMGW,LGF support;
 ```
 
-## 外部API
+## External APIs
 
 ### 1. 大型语言模型 (LLM) API
 *   **目的:** 所有智能体执行其核心的自然语言理解、生成和评估任务。
@@ -453,7 +453,7 @@ graph TD
 *   **速率限制与配额:** 每个LLM提供商都有其速率限制和使用配额。LiteLLM可以帮助我们管理这些限制。
 *   **集成注意事项:** Prompt Engineering, 上下文管理, 错误处理。
 
-## 核心工作流
+## Core Workflows
 
 ### 1. 创世流程 (Genesis Flow) - UI触发
 ```mermaid
@@ -990,7 +990,7 @@ paths:
                       $ref: '#/components/schemas/WorldviewRelationship'
 ```
 
-## 数据库模式
+## Database Schema
 
 ### PostgreSQL
 ```sql
@@ -1150,7 +1150,7 @@ EXECUTE FUNCTION trigger_set_timestamp();
         *   `(:PlotPoint)-[:INVOLVES_CHARACTER]->(:Character)`
 *   **索引:** 将为常用的查询属性（如 `app_id`, `name`, `entry_type`）创建索引。
 
-## 源代码树
+## Source Tree
 ```plaintext
 novel-ai-writer/
 ├── .github/                    # CI/CD 工作流 (GitHub Actions)
@@ -1266,7 +1266,7 @@ novel-ai-writer/
 └── tsconfig.json               # Monorepo根TypeScript配置 (用于路径映射等)
 ```
 
-## 基础设施与部署
+## Infrastructure and Deployment
 
 ### 基础设施即代码 (Infrastructure as Code - IaC)
 
@@ -1311,7 +1311,7 @@ graph LR
 *   **触发条件:** 关键KPI恶化, E2E测试失败, 大量用户负面反馈。
 *   **恢复时间目标 (RTO):** 生产环境回滚操作应在 **15分钟内** 完成。
 
-## 错误处理策略
+## Error Handling Strategy
 
 ### 总体方法
 *   **错误模型:** **基于异常 (Exception-based)**。
@@ -1325,7 +1325,7 @@ graph LR
 *   **必需上下文:** 相关ID (UUID), 服务上下文, (脱敏)用户上下文。
 
 ### 错误处理模式
-#### 外部API错误 (特别是LLM API)
+#### External APIs错误 (特别是LLM API)
 *   **重试策略:** LiteLLM配置指数退避重试。
 *   **熔断器 (Circuit Breaker):** LiteLLM配置模型/提供商自动切换。
 *   **超时配置:** 为LLM API调用设置合理超时。
@@ -1339,7 +1339,7 @@ graph LR
 *   **补偿逻辑 (Saga Pattern - 后MVP):** 为跨服务长时间流程考虑。
 *   **幂等性:** 所有事件消费者必须设计为幂等。
 
-## 编码标准
+## Coding Standards
 
 ### 核心标准
 
@@ -1379,7 +1379,7 @@ graph LR
 *   **Python:** 依赖在 `requirements.txt` 或 `pyproject.toml` 中声明。建议独立虚拟环境。
 *   **TypeScript:** 利用 `tsconfig.json` 的 `paths` 别名引用共享包。
 
-## 测试策略与标准
+## Test Strategy and Standards
 
 ### 测试理念
 *   **测试驱动开发 (TDD) / 行为驱动开发 (BDD) - 鼓励但不强制。**
@@ -1423,7 +1423,7 @@ graph LR
 *   **性能测试 (后MVP):** `k6` 或 `Locust`。
 *   **安全测试 (后MVP):** SAST/DAST工具。
 
-## 安全
+## Security
 
 ### 输入验证
 *   **库:** Pydantic (后端), Zod/Yup (前端)。
@@ -1458,7 +1458,7 @@ graph LR
 *   **更新策略:** 定期审查和更新依赖。
 *   **审批流程:** 新依赖需安全评估。
 
-### 安全测试 (后MVP)
+### Security测试 (后MVP)
 *   **SAST:** `Bandit` (Python), `ESLint`安全插件。
 *   **DAST:** OWASP ZAP。
 *   **渗透测试:** 定期第三方渗透测试。
