@@ -1,7 +1,5 @@
 # Components
 
-> **注意:** 所有后端组件（API Gateway和Agent服务）现已整合到统一的代码库 `apps/backend/` 中。通过 `SERVICE_TYPE` 环境变量选择运行哪个服务。详见 [Backend Architecture: Unified Structure](architecture.md#backend-architecture-unified-structure)。
-
 ## 1. API网关 (API Gateway)
 
 *   **责任:**
@@ -124,7 +122,7 @@
 *   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id`)。
 *   **技术栈:** Python, Pydantic, LiteLLM。
 
-## Components图 (已更新，更强调Neo4j在存储层的作用)
+## Components图
 
 ```mermaid
 graph TD
