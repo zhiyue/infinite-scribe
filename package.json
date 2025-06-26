@@ -28,7 +28,12 @@
     "clean": "pnpm -r clean",
     "prepare": "husky install",
     "check:services": "node scripts/check-services-simple.js",
-    "check:services:full": "node scripts/check-services.js"
+    "check:services:full": "node scripts/check-services.js",
+    "infra:deploy": "./scripts/deploy-infrastructure.sh",
+    "infra:deploy:local": "./scripts/deploy-infrastructure.sh --local",
+    "infra:up": "docker compose --env-file .env.infrastructure up -d",
+    "infra:down": "docker compose --env-file .env.infrastructure down",
+    "infra:logs": "docker compose --env-file .env.infrastructure logs -f"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

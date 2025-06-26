@@ -21,6 +21,14 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.infrastructure
+.env.frontend
+.env.backend
+.env.agents
+.env.*.backup
+# Keep example files
+!.env.example
+!.env.*.example
 
 # Logs
 logs/
