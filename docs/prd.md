@@ -206,11 +206,11 @@
 *   **I want** 一个基于FastAPI的、容器化的API网关服务，它能连接到数据库并提供一个健康的检查端点,
 *   **so that** 我可以验证后端服务的基础配置和部署流程是通畅的。
 *   **Acceptance Criteria:**
-    1.  在 `apps/api-gateway` 目录下创建一个新的FastAPI应用。
+    1.  在 `apps/backend/src/api` 目录下创建API Gateway的FastAPI应用。
     2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL和Neo4j数据库。
     3.  提供一个 `/health` 的GET端点，当数据库连接正常时，该端点返回 `{"status": "ok"}` 和 `200` 状态码。
-    4.  为该服务编写一个 `Dockerfile`。
-    5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务。
+    4.  使用统一的 `apps/backend/Dockerfile`，通过 `SERVICE_TYPE=api-gateway` 环境变量运行API Gateway。
+    5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务（使用统一的backend镜像）。
     6.  启动后，可以通过 `http://localhost:8000/health` 成功访问到健康检查接口。
 
 ### Story 1.4: 创建并部署基础的前端仪表盘UI
@@ -262,11 +262,11 @@
 *   **I want** 一个“世界铸造师Agent”服务，它能够根据简单的指令生成结构化的创世内容建议,
 *   **so that** 我可以辅助用户完成世界观和角色的设定，而不是让用户从零开始。
 *   **Acceptance Criteria:**
-    1.  在 `apps/worldsmith-agent` 目录下创建一个新的Python服务。
+    1.  在 `apps/backend/src/agents/worldsmith` 目录下创建世界铸造师Agent服务。
     2.  该服务能够接收一个包含主题和简短描述的请求。
     3.  服务调用大模型API，生成一份包含多个世界观条目（如地点、组织、技术）和多个核心角色概念（姓名、简介、功能定位）的JSON草案。
     4.  该服务提供一个内部调用的接口（或通过事件总线），供API网关在创世流程中调用。
-    5.  为该服务编写 `Dockerfile` 并集成到 `docker-compose.yml` 中。
+    5.  使用统一的 `apps/backend/Dockerfile`，通过 `SERVICE_TYPE=agent-worldsmith` 环境变量运行该服务，并集成到 `docker-compose.yml` 中。
 
 ### Story 2.4: 构建前端“创世向导”UI
 
@@ -290,10 +290,10 @@
 *   **I want** 所有核心的执行与审查Agent（大纲规划师、导演、角色专家、作家、评论家、事实核查员、世界观构建师、剧情策划师）都作为独立的、容器化的服务被部署,
 *   **so that** 它们可以订阅和发布事件，构成完整的章节生成流水线。
 *   **Acceptance Criteria:**
-    1.  为每个核心Agent在 `apps/` 目录下创建对应的服务文件夹。
+    1.  为每个核心Agent在 `apps/backend/src/agents/` 目录下创建对应的模块。
     2.  每个服务都是一个基础的Python应用，能够连接到Kafka, PostgreSQL, Neo4j, Minio。
-    3.  每个服务都包含一个 `Dockerfile`。
-    4.  `docker-compose.yml` 文件被更新，以包含并能一键启动所有这些Agent服务。
+    3.  所有Agent使用统一的 `apps/backend/Dockerfile`，通过 `SERVICE_TYPE` 环境变量选择运行的服务。
+    4.  `docker-compose.yml` 文件被更新，以包含并能一键启动所有这些Agent服务（使用统一的backend镜像，不同的SERVICE_TYPE）。
     5.  每个Agent启动后，都会向Kafka的特定topic（如 `agent.health.events`）发布一条“I am alive”的消息。
 
 ### Story 3.2: 实现事件Schema注册与验证

@@ -1,5 +1,7 @@
 # Components
 
+> **注意:** 所有后端组件（API Gateway和Agent服务）现已整合到统一的代码库 `apps/backend/` 中。通过 `SERVICE_TYPE` 环境变量选择运行哪个服务。详见 [Backend Architecture: Unified Structure](architecture.md#backend-architecture-unified-structure)。
+
 ## 1. API网关 (API Gateway)
 
 *   **责任:**

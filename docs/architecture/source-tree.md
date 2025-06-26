@@ -46,31 +46,33 @@ infinite-scribe/
 │   │   ├── tsconfig.json
 │   │   ├── vite.config.ts
 │   │   └── vitest.config.ts
-│   ├── api-gateway/            # FastAPI API网关服务
-│   │   ├── app/                # FastAPI应用代码
-│   │   │   ├── api/            # API路由模块 (e.g., v1/genesis.py, v1/novels.py, v1/graph.py)
-│   │   │   ├── core/           # 核心配置, 中间件, 安全
-│   │   │   ├── crud/           # 数据库CRUD操作 (可选, 或在services中)
-│   │   │   ├── services/       # 业务服务 (e.g., neo4j_service.py, prefect_service.py)
-│   │   │   ├── models/         # Pydantic模型 (如果不能从shared-types导入)
-│   │   │   └── main.py
-│   │   ├── tests/
-│   │   └── Dockerfile
-│   ├── worldsmith-agent/       # 世界铸造师Agent服务
-│   │   ├── agent/              # Agent核心逻辑
-│   │   └── Dockerfile
-│   ├── plotmaster-agent/       # 剧情策划师Agent服务 (结构类似)
-│   ├── outliner-agent/         # 大纲规划师Agent服务 (结构类似)
-│   ├── director-agent/         # 导演Agent服务 (结构类似)
-│   ├── characterexpert-agent/  # 角色专家Agent服务 (结构类似)
-│   ├── worldbuilder-agent/     # 世界观构建师Agent服务 (结构类似)
-│   ├── writer-agent/           # 作家Agent服务 (结构类似)
-│   ├── critic-agent/           # 评论家Agent服务 (结构类似)
-│   ├── factchecker-agent/      # 事实核查员Agent服务 (结构类似)
-│   └── rewriter-agent/         # 改写者Agent服务 (结构类似)
-│   ├── knowledgegraph-service/ # (可选) 封装Neo4j操作的共享服务/库 (更可能在packages/common-utils)
-│   │   ├── app/
-│   │   └── Dockerfile
+│   └── backend/                # 统一的后端服务 (API Gateway和所有Agent服务)
+│       ├── src/
+│       │   ├── api/            # API Gateway模块
+│       │   │   ├── routes/     # API路由 (e.g., v1/genesis.py, v1/novels.py)
+│       │   │   ├── middleware/ # 中间件
+│       │   │   └── main.py     # API Gateway入口
+│       │   ├── agents/         # 所有Agent服务
+│       │   │   ├── worldsmith/      # 世界铸造师Agent
+│       │   │   ├── plotmaster/      # 剧情策划师Agent
+│       │   │   ├── outliner/        # 大纲规划师Agent
+│       │   │   ├── director/        # 导演Agent
+│       │   │   ├── characterexpert/ # 角色专家Agent
+│       │   │   ├── worldbuilder/    # 世界观构建师Agent
+│       │   │   ├── writer/          # 作家Agent
+│       │   │   ├── critic/          # 评论家Agent
+│       │   │   ├── factchecker/     # 事实核查员Agent
+│       │   │   └── rewriter/        # 改写者Agent
+│       │   ├── core/           # 核心配置, 共享功能
+│       │   │   ├── config.py   # 统一配置管理
+│       │   │   ├── database.py # 数据库连接
+│       │   │   └── messaging.py # Kafka等消息队列
+│       │   └── common/         # 共享业务逻辑
+│       │       ├── services/   # 共享服务 (e.g., neo4j_service.py)
+│       │       └── models/     # 共享数据模型
+│       ├── tests/              # 统一测试目录
+│       ├── pyproject.toml      # 后端统一依赖配置
+│       └── Dockerfile          # 统一Dockerfile (通过SERVICE_TYPE环境变量选择服务)
 ├── packages/                   # 存放共享的代码包
 │   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
 │   │   ├── src/
@@ -117,6 +119,8 @@ infinite-scribe/
 
 ## 注意事项
 
-1. **Python依赖管理**：所有Python服务共享根目录的 `pyproject.toml` 和 `.venv`，简化依赖管理
-2. **Docker构建**：每个服务的Dockerfile都引用根目录的依赖配置
-3. **开发环境**：统一虚拟环境，所有服务都可以直接运行，无需切换环境
+1. **后端统一结构**：所有后端服务（API Gateway和Agent服务）共享同一个代码库和依赖配置
+2. **服务部署灵活性**：通过`SERVICE_TYPE`环境变量在Docker部署时选择运行哪个服务
+3. **依赖管理简化**：后端使用统一的`pyproject.toml`，减少依赖管理复杂度
+4. **代码复用**：Agent服务可以共享`core`和`common`模块中的功能
+5. **开发环境**：开发时可以在同一个虚拟环境中运行所有后端服务

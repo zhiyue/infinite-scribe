@@ -76,7 +76,7 @@ exclude = [
     "__pycache__",
     "*.egg-info",
 ]
-src = ["apps", "packages"]
+src = ["apps/backend/src", "apps/frontend", "packages"]
 
 [tool.ruff.lint]
 select = [
@@ -117,17 +117,8 @@ exclude = '''
 [tool.pytest.ini_options]
 pythonpath = [
     ".",
-    "apps/api-gateway",
-    "apps/worldsmith-agent",
-    "apps/plotmaster-agent",
-    "apps/outliner-agent",
-    "apps/director-agent",
-    "apps/characterexpert-agent",
-    "apps/worldbuilder-agent",
-    "apps/writer-agent",
-    "apps/critic-agent",
-    "apps/factchecker-agent",
-    "apps/rewriter-agent",
+    "apps/backend",
+    "apps/frontend",
     "packages/shared-types/src",
 ]
 testpaths = ["tests", "apps/*/tests"]

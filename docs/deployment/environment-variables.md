@@ -62,9 +62,10 @@ npm run build
 
 ### 3. Backend Layer (`.env.backend`)
 
-Used by FastAPI backend services and API Gateway.
+Used by the unified backend services (API Gateway and all Agents).
 
 **Key Variables:**
+- `SERVICE_TYPE` - Determines which service to run (e.g., `api-gateway`, `agent-worldsmith`)
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string
 - `*_API_KEY` - External service API keys
@@ -72,29 +73,37 @@ Used by FastAPI backend services and API Gateway.
 
 **Usage:**
 ```bash
-# API Gateway
-cd apps/api-gateway
+# Backend services
+cd apps/backend
 cp .env.backend.example .env.backend
 # Edit .env.backend
-python main.py
+
+# Run specific service via SERVICE_TYPE
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
 ### 4. Agent Layer (`.env.agents`)
 
-Used by AI Agent services.
+> **注意:** Agent服务现已整合到后端层。Agent相关的环境变量应包含在 `.env.backend` 中。
 
-**Key Variables:**
+**Key Variables (now in `.env.backend`):**
 - `LLM_MODEL_*` - Model selection per agent
 - `LLM_TEMPERATURE_*` - Model parameters
 - `AGENT_*` - Agent-specific settings
 
 **Usage:**
 ```bash
-# Individual agent
-cd apps/worldsmith-agent
-cp .env.agents.example .env.agents
-# Edit .env.agents
-python -m agent.main
+# Backend services (API Gateway and Agents)
+cd apps/backend
+cp .env.backend.example .env.backend
+# Edit .env.backend
+
+# Run API Gateway
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app
+
+# Run specific agent
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
 ## Security Best Practices

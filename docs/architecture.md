@@ -37,7 +37,7 @@
 *   **结构:** **Monorepo**。
 *   **Monorepo工具:** **pnpm workspaces**。
 *   **包组织:**
-    *   `apps/`: 存放可独立部署的应用，如 `frontend`, `api-gateway`, `writer-agent` 等。
+    *   `apps/`: 存放可独立部署的应用，如 `frontend`, `backend` (包含API Gateway和所有Agent服务)。
     *   `packages/`: 存放共享的代码库，如 `shared-types`, `eslint-config`, `common-utils` 等。
 
 ### High Level Architecture
@@ -1194,34 +1194,33 @@ novel-ai-writer/
 │   │   ├── tsconfig.json
 │   │   ├── vite.config.ts
 │   │   └── vitest.config.ts
-│   ├── api-gateway/            # FastAPI API网关服务
-│   │   ├── app/                # FastAPI应用代码
-│   │   │   ├── api/            # API路由模块 (e.g., v1/genesis.py, v1/novels.py, v1/graph.py)
-│   │   │   ├── core/           # 核心配置, 中间件, 安全
-│   │   │   ├── crud/           # 数据库CRUD操作 (可选, 或在services中)
-│   │   │   ├── services/       # 业务服务 (e.g., neo4j_service.py, prefect_service.py)
-│   │   │   ├── models/         # Pydantic模型 (如果不能从shared-types导入)
-│   │   │   └── main.py
-│   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── pyproject.toml
-│   ├── worldsmith-agent/       # 世界铸造师Agent服务
-│   │   ├── agent/              # Agent核心逻辑
-│   │   ├── Dockerfile
-│   │   └── pyproject.toml
-│   ├── plotmaster-agent/       # 剧情策划师Agent服务 (结构类似)
-│   ├── outliner-agent/         # 大纲规划师Agent服务 (结构类似)
-│   ├── director-agent/         # 导演Agent服务 (结构类似)
-│   ├── characterexpert-agent/  # 角色专家Agent服务 (结构类似)
-│   ├── worldbuilder-agent/     # 世界观构建师Agent服务 (结构类似)
-│   ├── writer-agent/           # 作家Agent服务 (结构类似)
-│   ├── critic-agent/           # 评论家Agent服务 (结构类似)
-│   ├── factchecker-agent/      # 事实核查员Agent服务 (结构类似)
-│   └── rewriter-agent/         # 改写者Agent服务 (结构类似)
-│   ├── knowledgegraph-service/ # (可选) 封装Neo4j操作的共享服务/库 (更可能在packages/common-utils)
-│   │   ├── app/
-│   │   ├── Dockerfile
-│   │   └── pyproject.toml
+│   └── backend/                # 统一的后端服务 (API Gateway和所有Agent服务)
+│       ├── src/
+│       │   ├── api/            # API Gateway模块
+│       │   │   ├── routes/     # API路由 (e.g., v1/genesis.py, v1/novels.py)
+│       │   │   ├── middleware/ # 中间件
+│       │   │   └── main.py     # API Gateway入口
+│       │   ├── agents/         # 所有Agent服务
+│       │   │   ├── worldsmith/      # 世界铸造师Agent
+│       │   │   ├── plotmaster/      # 剧情策划师Agent
+│       │   │   ├── outliner/        # 大纲规划师Agent
+│       │   │   ├── director/        # 导演Agent
+│       │   │   ├── characterexpert/ # 角色专家Agent
+│       │   │   ├── worldbuilder/    # 世界观构建师Agent
+│       │   │   ├── writer/          # 作家Agent
+│       │   │   ├── critic/          # 评论家Agent
+│       │   │   ├── factchecker/     # 事实核查员Agent
+│       │   │   └── rewriter/        # 改写者Agent
+│       │   ├── core/           # 核心配置, 共享功能
+│       │   │   ├── config.py   # 统一配置管理
+│       │   │   ├── database.py # 数据库连接
+│       │   │   └── messaging.py # Kafka等消息队列
+│       │   └── common/         # 共享业务逻辑
+│       │       ├── services/   # 共享服务 (e.g., neo4j_service.py)
+│       │       └── models/     # 共享数据模型
+│       ├── tests/              # 统一测试目录
+│       ├── pyproject.toml      # 后端统一依赖配置
+│       └── Dockerfile          # 统一Dockerfile (通过SERVICE_TYPE环境变量选择服务)
 ├── packages/                   # 存放共享的代码包
 │   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
 │   │   ├── src/
@@ -1264,6 +1263,36 @@ novel-ai-writer/
 ├── pnpm-workspace.yaml         # pnpm工作区定义
 ├── README.md
 └── tsconfig.json               # Monorepo根TypeScript配置 (用于路径映射等)
+```
+
+## Backend Architecture: Unified Structure
+
+### 后端统一架构说明
+
+为了简化开发、部署和维护，所有后端服务（API Gateway和所有Agent服务）已整合到统一的代码库中：
+
+*   **单一代码库:** 所有后端服务位于 `apps/backend/` 目录下。
+*   **共享依赖:** 使用单一的 `pyproject.toml` 管理所有Python依赖。
+*   **代码复用:** Agent服务可以轻松共享 `core` 和 `common` 模块中的功能。
+*   **灵活部署:** 通过 `SERVICE_TYPE` 环境变量决定运行哪个服务：
+    *   `SERVICE_TYPE=api-gateway` - 运行API Gateway
+    *   `SERVICE_TYPE=agent-worldsmith` - 运行世界铸造师Agent
+    *   `SERVICE_TYPE=agent-plotmaster` - 运行剧情策划师Agent
+    *   其他Agent服务类推
+*   **统一Docker镜像:** 一个Dockerfile可以构建包含所有服务的镜像，部署时通过环境变量选择具体服务。
+
+### 服务启动示例
+
+```bash
+# 本地开发
+cd apps/backend
+uvicorn src.api.main:app --reload  # API Gateway
+python -m src.agents.worldsmith.main  # Agent服务
+
+# Docker部署
+docker build -t infinite-scribe-backend ./apps/backend
+docker run -e SERVICE_TYPE=api-gateway infinite-scribe-backend
+docker run -e SERVICE_TYPE=agent-worldsmith infinite-scribe-backend
 ```
 
 ## Infrastructure and Deployment

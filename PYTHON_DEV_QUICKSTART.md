@@ -16,13 +16,13 @@ source .venv/bin/activate  # 激活虚拟环境
 
 ### 3. 运行服务
 ```bash
-# 使用开发脚本（推荐）
-python scripts/dev.py run api-gateway
-python scripts/dev.py run worldsmith-agent
+# API Gateway
+cd apps/backend
+uvicorn src.api.main:app --reload
 
-# 或直接运行
-uvicorn apps.api-gateway.app.main:app --reload
-python -m apps.worldsmith-agent.agent.main
+# Agent 服务
+python -m src.agents.worldsmith.main
+python -m src.agents.plotmaster.main
 ```
 
 ## 📦 依赖管理
@@ -43,15 +43,20 @@ uv sync --dev --upgrade
 ```
 infinite-scribe/
 ├── .venv/               # 统一虚拟环境
-├── pyproject.toml       # 所有服务依赖
+├── pyproject.toml       # 根项目依赖
 ├── uv.lock             # 依赖锁文件
 ├── scripts/
 │   └── dev.py          # 开发辅助脚本
 └── apps/
-    ├── api-gateway/
-    │   ├── app/        # 源代码
-    │   └── Dockerfile  # 部署配置
-    └── [agent-name]/   # 其他服务
+    ├── frontend/        # 前端应用
+    └── backend/         # 统一后端
+        ├── src/
+        │   ├── api/     # API Gateway
+        │   ├── agents/  # 所有Agent服务
+        │   ├── core/    # 核心功能
+        │   └── common/  # 共享逻辑
+        ├── pyproject.toml # 后端依赖
+        └── Dockerfile   # 统一部署配置
 ```
 
 ## 🔧 常用命令
@@ -91,19 +96,17 @@ dev = [
 
 ## 🐳 Docker 使用
 
-```dockerfile
-# 使用根目录的依赖配置
-FROM python:3.11-slim
+```bash
+# 构建统一的后端镜像
+docker build -t infinite-scribe-backend ./apps/backend
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# 运行不同的服务
+docker run -e SERVICE_TYPE=api-gateway infinite-scribe-backend
+docker run -e SERVICE_TYPE=agent-worldsmith infinite-scribe-backend
+docker run -e SERVICE_TYPE=agent-plotmaster infinite-scribe-backend
 
-WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
-COPY apps/api-gateway/app ./app
-ENV PATH="/app/.venv/bin:$PATH"
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0"]
+# 使用 docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
 ```
 
 ## ⚡ IDE 配置
@@ -114,8 +117,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0"]
 {
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/apps/api-gateway",
-        "${workspaceFolder}/apps/worldsmith-agent",
+        "${workspaceFolder}/apps/backend",
         "${workspaceFolder}/packages/shared-types/src"
     ]
 }
@@ -123,7 +125,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0"]
 
 ### PyCharm
 - Project Interpreter: 选择 `.venv/bin/python`
-- Mark as Sources Root: 各个 `apps/*/` 目录
+- Mark as Sources Root: `apps/backend` 目录
 
 ---
 

@@ -1,0 +1,86 @@
+# Backend services using the new unified structure
+# This file shows how to deploy backend services with the new structure
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
+
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: infinite-scribe-api-gateway
+    environment:
+      SERVICE_TYPE: api-gateway
+      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
+      REDIS_URL: "redis://:redis@redis:6379/0"
+      NEO4J_URL: "bolt://neo4j:neo4j@neo4j:7687"
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MINIO_ENDPOINT: minio:9000
+      PREFECT_API_URL: "http://prefect-api:4200/api"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+      - kafka
+    networks:
+      - infinite-scribe-network
+
+  # Agent Services
+  agent-worldsmith:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: infinite-scribe-agent-worldsmith
+    environment:
+      SERVICE_TYPE: agent-worldsmith
+      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
+      REDIS_URL: "redis://:redis@redis:6379/0"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PREFECT_API_URL: "http://prefect-api:4200/api"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - infinite-scribe-network
+
+  agent-plotmaster:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: infinite-scribe-agent-plotmaster
+    environment:
+      SERVICE_TYPE: agent-plotmaster
+      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
+      REDIS_URL: "redis://:redis@redis:6379/0"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PREFECT_API_URL: "http://prefect-api:4200/api"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - infinite-scribe-network
+
+  # Add more agents as needed...
+  # Example template for other agents:
+  # agent-<name>:
+  #   build:
+  #     context: ./apps/backend
+  #     dockerfile: Dockerfile
+  #   container_name: infinite-scribe-agent-<name>
+  #   environment:
+  #     SERVICE_TYPE: agent-<name>
+  #     # ... other environment variables
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - kafka
+  #   networks:
+  #     - infinite-scribe-network

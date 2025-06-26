@@ -75,6 +75,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
 env/
 venv/
 ENV/
@@ -86,6 +87,19 @@ venv.bak/
 dmypy.json
 .pyre/
 .pytype/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.hypothesis/
+.tox/
+.nox/
+*.egg-info/
+.eggs/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Docker
 .dockerignore

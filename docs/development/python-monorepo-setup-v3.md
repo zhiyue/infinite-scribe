@@ -6,6 +6,8 @@
 - **一个虚拟环境**：所有开发工作使用根目录的 `.venv`
 - **简单直接**：开发和部署使用相同的依赖配置
 
+> **重要更新:** 后端服务（API Gateway和所有Agent）已整合到 `apps/backend/` 统一代码库中。通过 `SERVICE_TYPE` 环境变量选择运行的服务。
+
 ## 项目结构
 
 ```
@@ -15,13 +17,16 @@ infinite-scribe/
 ├── uv.lock                         # 依赖锁文件
 ├── .python-version                 # Python 版本 (3.11)
 ├── apps/
-│   ├── api-gateway/
-│   │   ├── Dockerfile             # 使用根目录的 pyproject.toml
-│   │   └── app/
-│   ├── worldsmith-agent/
-│   │   ├── Dockerfile
-│   │   └── agent/
-│   └── ...
+│   ├── frontend/
+│   │   └── ...
+│   └── backend/
+│       ├── Dockerfile             # 统一的Dockerfile
+│       ├── pyproject.toml          # 后端统一依赖
+│       └── src/
+│           ├── api/              # API Gateway
+│           ├── agents/           # 所有Agent服务
+│           ├── core/             # 核心配置
+│           └── common/           # 共享逻辑
 └── packages/
     └── shared-types/
         └── src/
@@ -42,13 +47,16 @@ source .venv/bin/activate  # Linux/macOS
 
 ```bash
 # API Gateway
-uvicorn apps.api-gateway.app.main:app --reload
+cd apps/backend
+uvicorn src.api.main:app --reload
 
 # Agent 服务
-python -m apps.worldsmith-agent.agent.main
+python -m src.agents.worldsmith.main
+python -m src.agents.plotmaster.main
 
-# 或使用脚本
-python scripts/dev.py run api-gateway
+# 或通过环境变量
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app --reload
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
 ## 2. 根目录 pyproject.toml
