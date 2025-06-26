@@ -25,17 +25,24 @@ InfiniteScribe利用最先进的AI技术和多智能体架构，为用户提供�
 infinite-scribe/
 ├── apps/                       # 独立应用
 │   ├── frontend/              # React前端应用
-│   ├── api-gateway/           # FastAPI网关服务
-│   ├── worldsmith-agent/      # 世界铸造师Agent
-│   ├── plotmaster-agent/      # 剧情策划师Agent
-│   ├── outliner-agent/        # 大纲规划师Agent
-│   ├── director-agent/        # 导演Agent
-│   ├── characterexpert-agent/ # 角色专家Agent
-│   ├── worldbuilder-agent/    # 世界观构建师Agent
-│   ├── writer-agent/          # 作家Agent
-│   ├── critic-agent/          # 评论家Agent
-│   ├── factchecker-agent/     # 事实核查员Agent
-│   └── rewriter-agent/        # 改写者Agent
+│   └── backend/               # 统一后端服务
+│       ├── src/
+│       │   ├── api/          # API网关服务
+│       │   ├── agents/       # 所有Agent服务
+│       │   │   ├── worldsmith/      # 世界铸造师Agent
+│       │   │   ├── plotmaster/      # 剧情策划师Agent
+│       │   │   ├── outliner/        # 大纲规划师Agent
+│       │   │   ├── director/        # 导演Agent
+│       │   │   ├── characterexpert/ # 角色专家Agent
+│       │   │   ├── worldbuilder/    # 世界观构建师Agent
+│       │   │   ├── writer/          # 作家Agent
+│       │   │   ├── critic/          # 评论家Agent
+│       │   │   ├── factchecker/     # 事实核查员Agent
+│       │   │   └── rewriter/        # 改写者Agent
+│       │   ├── core/         # 核心配置
+│       │   └── common/       # 共享逻辑
+│       ├── Dockerfile        # 统一Docker镜像
+│       └── pyproject.toml   # 统一Python依赖
 ├── packages/                  # 共享代码包
 │   ├── shared-types/         # 共享类型定义
 │   ├── common-utils/         # 通用工具函数
@@ -80,11 +87,9 @@ cp .env.example .env.infrastructure
 # 前端应用配置（可选，仅在需要时创建）
 cp .env.frontend.example .env.frontend
 
-# 后端服务配置（可选，仅在需要时创建）
+# 后端服务配置（包含API Gateway和所有Agent配置）
 cp .env.backend.example .env.backend
-
-# AI Agent配置（可选，仅在需要时创建）
-cp .env.agents.example .env.agents
+# 编辑 .env.backend，设置SERVICE_TYPE和相关配置
 ```
 
 > 💡 **提示**: Docker Compose 默认使用 `.env` 文件，系统会自动创建指向 `.env.infrastructure` 的符号链接。
@@ -102,7 +107,11 @@ pnpm check:services
 pnpm --filter frontend dev
 
 # 启动API网关（在新终端）
-pnpm --filter api-gateway dev
+cd apps/backend
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app --reload
+
+# 或启动特定Agent服务
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
 #### 基础设施管理命令
@@ -203,6 +212,59 @@ ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose r
 3. **Kafka 无法连接**: 检查 KAFKA_ADVERTISED_LISTENERS 配置
 4. **MinIO bucket 不存在**: 服务启动时会自动创建 novels bucket
 5. **Prefect 无法访问**: 确保 PostgreSQL 正常运行（Prefect 依赖它）
+
+## 🏭 统一后端架构
+
+InfiniteScribe 采用统一的后端架构，所有后端服务（API Gateway 和各种 Agent）共享一个代码库和依赖配置。
+
+### 服务类型
+
+通过 `SERVICE_TYPE` 环境变量选择要运行的服务：
+
+- `api-gateway` - API 网关服务
+- `agent-worldsmith` - 世界铸造师 Agent
+- `agent-plotmaster` - 剧情策划师 Agent
+- `agent-outliner` - 大纲规划师 Agent
+- `agent-director` - 导演 Agent
+- `agent-characterexpert` - 角色专家 Agent
+- `agent-worldbuilder` - 世界观构建师 Agent
+- `agent-writer` - 作家 Agent
+- `agent-critic` - 评论家 Agent
+- `agent-factchecker` - 事实核查员 Agent
+- `agent-rewriter` - 改写者 Agent
+
+### 运行后端服务
+
+```bash
+# 进入后端目录
+cd apps/backend
+
+# 安装Python依赖（使用 uv）
+uv venv
+source .venv/bin/activate  # Linux/macOS
+uv sync --dev
+
+# 运行 API Gateway
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app --reload
+
+# 运行特定 Agent
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
+```
+
+### Docker 部署
+
+统一的 Dockerfile 支持所有服务：
+
+```bash
+# 构建镜像
+docker build -t infinite-scribe-backend apps/backend/
+
+# 运行 API Gateway
+docker run -e SERVICE_TYPE=api-gateway -p 8000:8000 infinite-scribe-backend
+
+# 运行 Agent
+docker run -e SERVICE_TYPE=agent-worldsmith infinite-scribe-backend
+```
 
 ## 🧪 测试
 

@@ -1,274 +1,127 @@
-# Python Monorepo 开发环境配置指南
+# Python Monorepo 开发环境配置指南 v3 (简化版)
 
-## 概述
+## 核心理念
 
-本项目使用 monorepo 结构，包含多个 Python 服务（API Gateway、各种 Agent 服务）。每个服务都有独立的 `pyproject.toml`，使用 `uv` 作为包管理器。
+- **一个 pyproject.toml**：根目录维护唯一的依赖文件
+- **一个虚拟环境**：所有开发工作使用根目录的 `.venv`
+- **简单直接**：开发和部署使用相同的依赖配置
 
-## 目录结构
+> **重要更新:** 后端服务（API Gateway和所有Agent）已整合到 `apps/backend/` 统一代码库中。通过 `SERVICE_TYPE` 环境变量选择运行的服务。
+
+## 项目结构
 
 ```
 infinite-scribe/
+├── .venv/                          # 统一虚拟环境
+├── pyproject.toml                  # 唯一的依赖配置文件
+├── uv.lock                         # 依赖锁文件
+├── .python-version                 # Python 版本 (3.11)
 ├── apps/
-│   ├── api-gateway/
-│   │   ├── pyproject.toml          # API 网关依赖
-│   │   ├── .venv/                  # 独立虚拟环境
-│   │   └── app/
-│   ├── worldsmith-agent/
-│   │   ├── pyproject.toml          # 世界铸造师依赖
-│   │   ├── .venv/                  # 独立虚拟环境
-│   │   └── agent/
-│   └── ... (其他 agent 服务)
-├── packages/                        # 共享包
-│   └── shared-types/
-│       ├── pyproject.toml          # 共享类型定义
+│   ├── frontend/
+│   │   └── ...
+│   └── backend/
+│       ├── Dockerfile             # 统一的Dockerfile
+│       ├── pyproject.toml          # 后端统一依赖
 │       └── src/
-├── pyproject.toml                  # 根目录配置（可选）
-└── .python-version                 # Python 版本锁定
+│           ├── api/              # API Gateway
+│           ├── agents/           # 所有Agent服务
+│           ├── core/             # 核心配置
+│           └── common/           # 共享逻辑
+└── packages/
+    └── shared-types/
+        └── src/
 ```
 
-## 1. 安装开发工具
+## 1. 快速开始
 
-### 1.1 安装 uv
-
-```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 或使用 pip
-pip install uv
-```
-
-### 1.2 设置 Python 版本
+### 1.1 初始化环境
 
 ```bash
-# 在项目根目录创建 .python-version
-echo "3.11.8" > .python-version
-
-# uv 会自动使用这个版本
-```
-
-## 2. 开发工作流
-
-### 2.1 初始化服务环境
-
-```bash
-# 为每个服务创建独立的虚拟环境
-cd apps/api-gateway
-uv venv
-uv sync --dev  # 安装包括开发依赖
-
-cd ../worldsmith-agent
+# 在项目根目录
 uv venv
 uv sync --dev
+source .venv/bin/activate  # Linux/macOS
 ```
 
-### 2.2 激活虚拟环境
+### 1.2 运行服务
 
 ```bash
-# 方式1：直接激活
-cd apps/api-gateway
-source .venv/bin/activate  # Linux/macOS
-# 或
-.venv\Scripts\activate     # Windows
+# API Gateway
+cd apps/backend
+uvicorn src.api.main:app --reload
 
-# 方式2：使用 uv run（推荐）
-cd apps/api-gateway
-uv run uvicorn app.main:app --reload
+# Agent 服务
+python -m src.agents.worldsmith.main
+python -m src.agents.plotmaster.main
+
+# 或通过环境变量
+SERVICE_TYPE=api-gateway uvicorn src.api.main:app --reload
+SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
-## 3. 管理共享依赖
-
-### 3.1 创建共享包
+## 2. 根目录 pyproject.toml
 
 ```toml
-# packages/shared-types/pyproject.toml
+# /pyproject.toml
 [project]
-name = "infinite-scribe-shared"
+name = "infinite-scribe"
 version = "0.1.0"
-description = "Shared types and utilities"
+description = "Infinite Scribe - AI-powered novel creation platform"
+requires-python = ">=3.11"
+
 dependencies = [
+    # Core
+    "fastapi~=0.115.13",
     "pydantic~=2.11.7",
+    "uvicorn[standard]~=0.32.0",
+    
+    # Databases
+    "asyncpg~=0.30.0",
+    "neo4j~=5.26.0",
+    "redis~=5.2.0",
+    
+    # AI/ML
+    "openai~=1.54.0",
+    "anthropic~=0.39.0",
+    "litellm~=1.52.0",
+    
+    # Infrastructure
+    "aiokafka~=0.11.0",
+    "prefect~=2.19.0",
+    "minio~=7.2.10",
+    
+    # Utils
+    "python-dotenv~=1.0.1",
+    "structlog~=24.4.0",
+    "httpx~=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3.3",
+    "pytest-asyncio~=0.24.0",
+    "pytest-cov~=6.0.0",
+    "ruff~=0.7.2",
+    "black~=24.10.0",
+    "mypy~=1.13.0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-```
 
-### 3.2 在服务中使用共享包
-
-```toml
-# apps/api-gateway/pyproject.toml
-[project]
-name = "api-gateway"
-dependencies = [
-    "fastapi~=0.115.13",
-    "infinite-scribe-shared @ file://../../packages/shared-types",
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "apps/api-gateway",
+    "apps/worldsmith-agent",
+    "packages/shared-types/src",
 ]
 ```
 
-## 4. 开发脚本
+## 3. Docker 构建
 
-### 4.1 根目录脚本管理
-
-创建 `scripts/dev.sh`：
-
-```bash
-#!/bin/bash
-# 开发环境管理脚本
-
-case "$1" in
-    "install-all")
-        echo "Installing all services..."
-        for service in apps/*/; do
-            if [ -f "$service/pyproject.toml" ]; then
-                echo "Installing $service"
-                (cd "$service" && uv venv && uv sync --dev)
-            fi
-        done
-        ;;
-    
-    "update-all")
-        echo "Updating all services..."
-        for service in apps/*/; do
-            if [ -f "$service/pyproject.toml" ]; then
-                echo "Updating $service"
-                (cd "$service" && uv sync --dev --upgrade)
-            fi
-        done
-        ;;
-    
-    "run")
-        service=$2
-        shift 2
-        echo "Running $service..."
-        (cd "apps/$service" && uv run "$@")
-        ;;
-    
-    *)
-        echo "Usage: $0 {install-all|update-all|run <service> <command>}"
-        exit 1
-        ;;
-esac
-```
-
-### 4.2 使用开发脚本
-
-```bash
-# 安装所有服务的依赖
-./scripts/dev.sh install-all
-
-# 更新所有依赖
-./scripts/dev.sh update-all
-
-# 运行特定服务
-./scripts/dev.sh run api-gateway uvicorn app.main:app --reload
-./scripts/dev.sh run worldsmith-agent python -m agent.main
-```
-
-## 5. VS Code 配置
-
-### 5.1 多根工作区配置
-
-创建 `.vscode/infinite-scribe.code-workspace`：
-
-```json
-{
-    "folders": [
-        {
-            "name": "Root",
-            "path": ".."
-        },
-        {
-            "name": "API Gateway",
-            "path": "../apps/api-gateway"
-        },
-        {
-            "name": "Worldsmith Agent",
-            "path": "../apps/worldsmith-agent"
-        }
-    ],
-    "settings": {
-        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-        "python.terminal.activateEnvironment": true,
-        "python.linting.enabled": true,
-        "python.linting.ruffEnabled": true,
-        "python.formatting.provider": "black",
-        "[python]": {
-            "editor.formatOnSave": true,
-            "editor.codeActionsOnSave": {
-                "source.organizeImports": true
-            }
-        }
-    }
-}
-```
-
-### 5.2 服务特定设置
-
-每个服务目录下的 `.vscode/settings.json`：
-
-```json
-{
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-    "python.terminal.activateEnvironment": true
-}
-```
-
-## 6. 依赖管理最佳实践
-
-### 6.1 版本锁定
-
-```bash
-# 生成锁文件
-cd apps/api-gateway
-uv lock
-
-# 提交 uv.lock 到版本控制
-git add uv.lock
-```
-
-### 6.2 依赖更新策略
-
-```toml
-# pyproject.toml - 使用兼容版本
-[project]
-dependencies = [
-    "fastapi~=0.115.13",     # 允许 0.115.x
-    "pydantic>=2.11,<3",     # 允许 2.x 但不允许 3.0
-    "asyncpg==0.30.0",       # 精确版本
-]
-```
-
-## 7. 常见命令
-
-```bash
-# 添加新依赖
-cd apps/api-gateway
-uv add fastapi
-
-# 添加开发依赖
-uv add --dev pytest pytest-asyncio
-
-# 移除依赖
-uv remove package-name
-
-# 显示依赖树
-uv tree
-
-# 运行测试
-uv run pytest
-
-# 运行脚本
-uv run python scripts/migrate.py
-```
-
-## 8. Docker 集成
-
-### 8.1 Dockerfile 模板
+### 3.1 统一的 Dockerfile 模板
 
 ```dockerfile
 # apps/api-gateway/Dockerfile
@@ -277,96 +130,165 @@ FROM python:3.11-slim as builder
 # 安装 uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制依赖文件
+# 复制根目录的依赖文件
 COPY pyproject.toml uv.lock ./
-
-# 安装依赖
 RUN uv sync --frozen --no-dev
 
-# 运行阶段
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# 复制虚拟环境
+# 复制虚拟环境和应用代码
 COPY --from=builder /app/.venv ./.venv
+COPY apps/api-gateway/app ./app
 
-# 复制应用代码
-COPY app ./app
-
-# 设置环境变量
 ENV PATH="/app/.venv/bin:$PATH"
-
-# 运行应用
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-## 9. 环境变量管理
+### 3.2 Docker Compose 配置
 
-### 9.1 服务特定环境变量
-
-```bash
-# apps/api-gateway/.env
-DATABASE_URL=postgresql://user:pass@localhost/db
-REDIS_URL=redis://localhost:6379
-
-# apps/worldsmith-agent/.env
-OPENAI_API_KEY=sk-...
-MODEL_NAME=gpt-4
+```yaml
+# docker-compose.yml
+services:
+  api-gateway:
+    build:
+      context: .  # 使用根目录作为构建上下文
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://...
 ```
 
-### 9.2 使用 python-dotenv
+## 4. 开发工具脚本
+
+创建 `scripts/dev.py`:
 
 ```python
-# app/core/config.py
-from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
+#!/usr/bin/env python
+"""开发辅助脚本"""
+import subprocess
+import sys
+from pathlib import Path
 
-# 加载服务特定的 .env 文件
-load_dotenv()
+SERVICES = {
+    "api-gateway": {
+        "module": "apps.api-gateway.app.main",
+        "command": "uvicorn {module}:app --reload --port 8000"
+    },
+    "worldsmith-agent": {
+        "module": "apps.worldsmith-agent.agent.main",
+        "command": "python -m {module}"
+    },
+}
 
-class Settings(BaseSettings):
-    database_url: str
-    redis_url: str
+def run_service(service_name):
+    """运行指定服务"""
+    if service_name not in SERVICES:
+        print(f"Unknown service: {service_name}")
+        sys.exit(1)
     
-    class Config:
-        env_file = ".env"
+    service = SERVICES[service_name]
+    command = service["command"].format(module=service["module"])
+    subprocess.run(command, shell=True)
+
+def test(service_name=None):
+    """运行测试"""
+    if service_name:
+        cmd = f"pytest apps/{service_name}/tests -v"
+    else:
+        cmd = "pytest -v"
+    subprocess.run(cmd, shell=True)
+
+def lint():
+    """代码检查"""
+    subprocess.run("ruff check . && black --check .", shell=True)
+
+def format_code():
+    """格式化代码"""
+    subprocess.run("ruff check --fix . && black .", shell=True)
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command")
+    
+    # run
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("service", choices=SERVICES.keys())
+    
+    # test
+    test_parser = subparsers.add_parser("test")
+    test_parser.add_argument("service", nargs="?")
+    
+    # lint & format
+    subparsers.add_parser("lint")
+    subparsers.add_parser("format")
+    
+    args = parser.parse_args()
+    
+    if args.command == "run":
+        run_service(args.service)
+    elif args.command == "test":
+        test(args.service)
+    elif args.command == "lint":
+        lint()
+    elif args.command == "format":
+        format_code()
 ```
 
-## 10. 故障排除
+## 5. IDE 配置
 
-### 常见问题
+### VS Code
+`.vscode/settings.json`:
+```json
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/apps/api-gateway",
+        "${workspaceFolder}/apps/worldsmith-agent",
+        "${workspaceFolder}/packages/shared-types/src"
+    ]
+}
+```
 
-1. **虚拟环境冲突**
-   ```bash
-   # 清理并重建
-   rm -rf .venv
-   uv venv
-   uv sync
-   ```
+### PyCharm
+- Project Interpreter: `/path/to/project/.venv/bin/python`
+- Mark as Sources Root: 每个 `apps/*/` 目录
 
-2. **共享包更新未生效**
-   ```bash
-   # 强制重新安装
-   uv sync --reinstall-package infinite-scribe-shared
-   ```
+## 6. 常用命令
 
-3. **Python 版本不匹配**
-   ```bash
-   # 检查并设置正确版本
-   uv python install 3.11.8
-   uv venv --python 3.11.8
-   ```
+```bash
+# 依赖管理
+uv add fastapi                    # 添加依赖
+uv add --dev pytest              # 添加开发依赖
+uv sync --dev                    # 同步所有依赖
+uv sync --dev --upgrade          # 升级依赖
 
-## 总结
+# 运行
+python scripts/dev.py run api-gateway
+python scripts/dev.py test
+python scripts/dev.py format
 
-- 每个服务维护独立的虚拟环境和依赖
-- 使用 `uv` 统一管理包和虚拟环境
-- 共享代码通过本地包引用
-- 开发脚本简化多服务管理
-- Docker 构建优化依赖缓存
+# 直接运行
+uvicorn apps.api-gateway.app.main:app --reload
+pytest apps/api-gateway/tests -v
+```
 
-这种方式既保持了服务的独立性，又能高效地管理整个 monorepo。
+## 优势
+
+1. **极简配置**：一个 pyproject.toml 管理所有依赖
+2. **一致性**：开发和生产使用相同的依赖定义
+3. **易维护**：不需要同步多个文件
+4. **快速上手**：新开发者只需要 `uv sync --dev` 即可开始
+
+## 注意事项
+
+- 所有依赖都在根目录的 pyproject.toml 中管理
+- Docker 构建时使用根目录作为上下文
+- 确保 uv.lock 文件提交到版本控制
+- 使用 `uv sync --frozen` 确保依赖版本一致性
