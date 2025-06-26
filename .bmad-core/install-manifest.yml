@@ -1,5 +1,5 @@
-version: 4.14.0
-installed_at: '2025-06-25T06:58:46.704Z'
+version: 4.16.1
+installed_at: '2025-06-26T11:17:34.375Z'
 install_type: full
 agent: null
 ide_setup: null
@@ -9,6 +9,9 @@ ides_setup:
   - windsurf
   - cline
 files:
+  - path: .bmad-core/install-manifest.yml
+    hash: ff8b7a5e59250c83
+    modified: false
   - path: .bmad-core/core-config.yml
     hash: 8ccd25183820a4a9
     modified: false
