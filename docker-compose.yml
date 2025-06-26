@@ -219,6 +219,12 @@ services:
       PREFECT_API_SERVICES_PAUSE_EXPIRATIONS_ENABLED: "False"
       PREFECT_API_SERVICES_CANCELLATIONS_CLEANUP_ENABLED: "False"
       PREFECT_SERVER_CSRF_PROTECTION_ENABLED: "False"
+      PREFECT_SERVER_API_HOST: "0.0.0.0"
+      PREFECT_SERVER_API_PORT: "4200"
+      PREFECT_SERVER_ALLOW_EPHEMERAL_MODE: "True"
+      PREFECT_SERVER_CORS_ENABLED: "True"
+      PREFECT_SERVER_CORS_ALLOWED_ORIGINS: "*"
+      PREFECT_SERVER_CORS_ALLOWED_HEADERS: "*"
       PREFECT_EXPERIMENTAL_ENABLE_EVENTS_CLIENT: "False"
       PREFECT_EXPERIMENTAL_ENABLE_TASK_SCHEDULING: "True"
       PREFECT_TASK_SCHEDULING_MAX_SCHEDULED_TIME: "1 year"
@@ -227,6 +233,8 @@ services:
       PREFECT_TESTING_UNIT_TEST_MODE: "False"
       PREFECT_UI_ENABLED: "True"
       PREFECT_UI_URL: "http://192.168.2.201:4200"
+      PREFECT_UI_PREFECT_API_URL: "http://192.168.2.201:4200/api"
+      PREFECT_API_URL: "http://192.168.2.201:4200/api"
       PREFECT_RESULTS_DEFAULT_STORAGE_BLOCK: "local-file-system/results"
       PREFECT_RESULTS_PERSIST_BY_DEFAULT: "True"
       PREFECT_TASKS_REFRESH_CACHE: "True"
@@ -287,6 +295,24 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+
+  # Prefect Worker - executes flow runs
+  prefect-worker:
+    image: prefecthq/prefect:3-latest
+    container_name: infinite-scribe-prefect-worker
+    command: prefect worker start --pool "default-pool" --type process
+    environment:
+      PREFECT_API_URL: "http://prefect-api:4200/api"
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/prefect"
+    depends_on:
+      prefect-api:
+        condition: service_healthy
+    networks:
+      - infinite-scribe-network
+    volumes:
+      - ./flows:/flows  # Mount flows directory for Python code
+      - ./data:/data    # Mount data directory for file access
+    working_dir: /flows
 
   # NOTE: Additional services (LiteLLM, Langfuse) will be added in subsequent stories
   # as they require more specific configuration
