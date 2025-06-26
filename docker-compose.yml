@@ -14,6 +14,7 @@ volumes:
   minio-data:
   kafka-data:
   zookeeper-data:
+  etcd-data:
 
 services:
   # PostgreSQL Database
@@ -28,6 +29,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init/postgres:/docker-entrypoint-initdb.d
     networks:
       - infinite-scribe-network
     healthcheck:
@@ -40,7 +42,7 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: infinite-scribe-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redis}
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis} --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -48,7 +50,7 @@ services:
     networks:
       - infinite-scribe-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,14 +79,20 @@ services:
 
   # Milvus Vector Database
   milvus:
-    image: milvusdb/milvus:v2.4.0
+    image: milvusdb/milvus:v2.6.0-rc1
     container_name: infinite-scribe-milvus
-    command: milvus run standalone
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MQ_TYPE: woodpecker
     ports:
       - "${MILVUS_PORT:-19530}:19530"
+      - "9091:9091"
     volumes:
       - milvus-data:/var/lib/milvus
     networks:
@@ -92,18 +100,32 @@ services:
     depends_on:
       - etcd
       - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
 
   # Etcd (required for Milvus)
   etcd:
-    image: quay.io/coreos/etcd:v3.5.5
+    image: quay.io/coreos/etcd:v3.5.18
     container_name: infinite-scribe-etcd
     environment:
       ETCD_AUTO_COMPACTION_MODE: revision
       ETCD_AUTO_COMPACTION_RETENTION: "1000"
       ETCD_QUOTA_BACKEND_BYTES: "4294967296"
-    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+      ETCD_SNAPSHOT_COUNT: "50000"
+    volumes:
+      - etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - infinite-scribe-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   # MinIO Object Storage
   minio:
@@ -116,8 +138,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio-data:/data
-    command: server /data --console-address ":9001"
+      - minio-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
     networks:
       - infinite-scribe-network
     healthcheck:
@@ -137,6 +159,11 @@ services:
       - zookeeper-data:/var/lib/zookeeper/data
     networks:
       - infinite-scribe-network
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Kafka Message Broker
   kafka:
@@ -149,13 +176,117 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://192.168.2.201:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
       - infinite-scribe-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
 
-  # NOTE: Additional services (LiteLLM, Prefect, Langfuse) will be added in subsequent stories
+  # Prefect v3 Workflow Orchestration
+  prefect-migrate:
+    image: prefecthq/prefect:3-latest
+    container_name: infinite-scribe-prefect-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: prefect server database upgrade -y
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/prefect"
+    networks:
+      - infinite-scribe-network
+
+  prefect-api:
+    image: prefecthq/prefect:3-latest
+    container_name: infinite-scribe-prefect-api
+    command: prefect server start --analytics-off --host 0.0.0.0 --port 4200 --log-level INFO
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/prefect"
+      PREFECT_API_DATABASE_ECHO: "False"
+      PREFECT_API_SERVICES_SCHEDULER_ENABLED: "False"
+      PREFECT_API_SERVICES_LATE_RUNS_ENABLED: "False"
+      PREFECT_API_SERVICES_FLOW_RUN_NOTIFICATIONS_ENABLED: "False"
+      PREFECT_API_SERVICES_PAUSE_EXPIRATIONS_ENABLED: "False"
+      PREFECT_API_SERVICES_CANCELLATIONS_CLEANUP_ENABLED: "False"
+      PREFECT_SERVER_CSRF_PROTECTION_ENABLED: "False"
+      PREFECT_EXPERIMENTAL_ENABLE_EVENTS_CLIENT: "False"
+      PREFECT_EXPERIMENTAL_ENABLE_TASK_SCHEDULING: "True"
+      PREFECT_TASK_SCHEDULING_MAX_SCHEDULED_TIME: "1 year"
+      PREFECT_TASK_RUNNER_THREAD_POOL_MAX_WORKERS: "200"
+      PREFECT_API_ENABLE_HTTP2: "False"
+      PREFECT_TESTING_UNIT_TEST_MODE: "False"
+      PREFECT_UI_ENABLED: "True"
+      PREFECT_UI_URL: "http://192.168.2.201:4200"
+      PREFECT_RESULTS_DEFAULT_STORAGE_BLOCK: "local-file-system/results"
+      PREFECT_RESULTS_PERSIST_BY_DEFAULT: "True"
+      PREFECT_TASKS_REFRESH_CACHE: "True"
+      PREFECT_API_TASK_CACHE_KEY_MAX_LENGTH: "2000"
+    ports:
+      - "4200:4200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prefect-migrate:
+        condition: service_completed_successfully
+    networks:
+      - infinite-scribe-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; exit(0 if requests.get('http://localhost:4200/api/health').status_code == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  prefect-background-service:
+    image: prefecthq/prefect:3-latest
+    container_name: infinite-scribe-prefect-background
+    command: prefect server services start
+    environment:
+      PREFECT_API_URL: "http://prefect-api:4200/api"
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/prefect"
+      PREFECT_API_DATABASE_ECHO: "False"
+      PREFECT_API_SERVICES_SCHEDULER_ENABLED: "True"
+      PREFECT_API_SERVICES_LATE_RUNS_ENABLED: "True"
+      PREFECT_API_SERVICES_FLOW_RUN_NOTIFICATIONS_ENABLED: "True"
+      PREFECT_API_SERVICES_PAUSE_EXPIRATIONS_ENABLED: "True"
+      PREFECT_API_SERVICES_CANCELLATIONS_CLEANUP_ENABLED: "True"
+      PREFECT_API_ENABLE_HTTP2: "False"
+      PREFECT_EXPERIMENTAL_ENABLE_EVENTS_CLIENT: "True"
+      PREFECT_EXPERIMENTAL_ENABLE_TASK_SCHEDULING: "True"
+      PREFECT_API_TASK_CACHE_KEY_MAX_LENGTH: "2000"
+      PREFECT_EXPERIMENTAL_REDIS_HOST: "redis"
+      PREFECT_EXPERIMENTAL_REDIS_PORT: "6379"
+      PREFECT_EXPERIMENTAL_REDIS_PASSWORD: "${REDIS_PASSWORD:-redis}"
+      PREFECT_EXPERIMENTAL_REDIS_DATABASE: "0"
+      PREFECT_TASK_SCHEDULING_MAX_SCHEDULED_TIME: "1 year"
+      PREFECT_TASK_RUNNER_THREAD_POOL_MAX_WORKERS: "200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prefect-api:
+        condition: service_healthy
+    networks:
+      - infinite-scribe-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; exit(0 if requests.get('http://prefect-api:4200/api/health').status_code == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # NOTE: Additional services (LiteLLM, Langfuse) will be added in subsequent stories
   # as they require more specific configuration
