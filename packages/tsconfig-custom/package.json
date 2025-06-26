@@ -1,0 +1,16 @@
+{
+  "name": "@infinite-scribe/tsconfig",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared TypeScript configuration for InfiniteScribe monorepo",
+  "main": "base.json",
+  "files": [
+    "base.json"
+  ],
+  "keywords": [
+    "typescript",
+    "tsconfig",
+    "config"
+  ],
+  "license": "UNLICENSED"
+}

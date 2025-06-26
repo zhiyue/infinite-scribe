@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output
+
+# Cache directories
+.cache/
+.temp/
+.tmp/
+.turbo/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Git
+.git/
+.husky/
+
+# Generated files
+*.min.js
+*.min.css
+
+# Data files
+*.csv
+*.tsv
+
+# Other
+CHANGELOG.md
