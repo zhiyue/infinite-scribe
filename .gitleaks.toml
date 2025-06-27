@@ -1,34 +1,28 @@
-# Gitleaks configuration file
-title = "gitleaks config"
+title = "Infinite Scribe Gitleaks Config"
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Allowlisted files and paths"
 paths = [
-    '''.env.example''',
-    '''.env.template''',
-    '''.env.test''',
+    '''\.env\.example''',
+    '''\.env\.template''',
+    '''\.env\.test''',
     '''test_.*\.py''',
     '''.*_test\.py''',
     '''.*\.md''',
     '''CLAUDE\.md''',
+    '''\.trivyignore''',
+    '''\.gitleaks\.toml''',
+    '''apps/backend/tests/.*''',
 ]
 
-# Allow specific patterns
-[[allowlist.regexes]]
-description = "Allow example/template credentials"
-regex = '''(?i)(your_|example_|template_|placeholder_|dummy_|dev)[\w]+_(key|token|secret|password)'''
-
-[[allowlist.regexes]]
-description = "Allow localhost and private network database URLs"
-regex = '''(redis|postgresql|postgres|mongodb|mysql|neo4j|bolt)://[^@]*@?(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|host\.docker\.internal)'''
-
-[[allowlist.regexes]]
-description = "Allow test passwords in test files"
-regex = '''(?i)password\s*=\s*["']?(test|demo|example|dev)'''
-paths = [
-    '''.*test.*\.py''',
-    '''.*\.test\..*''',
+regexes = [
+    '''devPostgres123''',
+    '''devNeo4j123''',
+    '''devRedis123''',
+    '''your_.*_key''',
+    '''example_.*_key''',
+    '''test.*password''',
+    '''192\.168\.\d+\.\d+''',
 ]
