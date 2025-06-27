@@ -1,0 +1,22 @@
+# Gitleaks configuration file
+
+[allowlist]
+description = "Allowlisted files"
+paths = [
+    '''.env.example''',
+    '''.env.template''',
+    '''test_.*\.py''',
+    '''.*_test\.py''',
+    '''.*\.md''',
+    '''CLAUDE\.md''',
+]
+
+[[rules]]
+description = "Ignore example/template API keys"
+regex = '''(?i)(your_|example_|template_|placeholder_|dummy_)[\w]+_(key|token|secret|password)'''
+tags = ["example", "template"]
+
+[[rules]]
+description = "Ignore localhost URLs with credentials"
+regex = '''(redis|postgresql|postgres|mongodb|mysql)://[\w:@]*(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)'''
+tags = ["localhost", "development"]

@@ -22,7 +22,6 @@ on:
 permissions:
   contents: read
   actions: read
-  security-events: write
 
 jobs:
   lint:
@@ -158,29 +157,3 @@ jobs:
         file: ./coverage.xml
         flags: backend
         name: backend-coverage
-
-  security:
-    name: Security Checks
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        severity: 'CRITICAL'  # 只检查严重漏洞
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        exit-code: '1'
-        skip-dirs: 'node_modules,dist,build,.venv'  # 跳过这些目录
-        scanners: 'vuln'  # 只扫描漏洞，不扫描秘密
-    
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'

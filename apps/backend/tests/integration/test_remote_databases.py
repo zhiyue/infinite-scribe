@@ -128,10 +128,9 @@ async def test_remote_postgres_transaction():
         await conn.execute("TRUNCATE TABLE remote_test_table")
 
     # Test successful transaction
-    async with service.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test1')")
-            await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test2')")
+    async with service.acquire() as conn, conn.transaction():
+        await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test1')")
+        await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test2')")
 
     # Verify data was inserted
     async with service.acquire() as conn:
@@ -140,11 +139,10 @@ async def test_remote_postgres_transaction():
 
     # Test transaction rollback
     with suppress(Exception):
-        async with service.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test3')")
-                # Force an error
-                await conn.execute("INVALID SQL")
+        async with service.acquire() as conn, conn.transaction():
+            await conn.execute("INSERT INTO remote_test_table (value) VALUES ('test3')")
+            # Force an error
+            await conn.execute("INVALID SQL")
 
     # Verify rollback - should still have only 2 records
     async with service.acquire() as conn:

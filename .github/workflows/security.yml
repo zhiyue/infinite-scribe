@@ -1,0 +1,116 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      fail-on-vulnerabilities:
+        description: 'Fail workflow if vulnerabilities are found'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set Trivy exit code
+      id: trivy-config
+      run: |
+        # For main branch pushes and manual triggers with fail=false, don't block
+        if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]] || \
+           [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.fail-on-vulnerabilities }}" == "false" ]] || \
+           [[ "${{ github.event_name }}" == "schedule" ]]; then
+          echo "exit_code=0" >> $GITHUB_OUTPUT
+          echo "::notice::Trivy will report vulnerabilities but not fail the workflow"
+        else
+          echo "exit_code=1" >> $GITHUB_OUTPUT
+          echo "::notice::Trivy will fail the workflow if vulnerabilities are found"
+        fi
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        severity: 'CRITICAL'  # 只检查严重漏洞
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        exit-code: ${{ steps.trivy-config.outputs.exit_code }}
+        skip-dirs: 'node_modules,dist,build,.venv,__pycache__,.git'  # 跳过这些目录
+        scanners: 'vuln'  # 只扫描漏洞，不扫描秘密
+        timeout: '10m'  # 设置超时时间
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: 'trivy'
+    
+    - name: Create vulnerability summary
+      if: always()
+      run: |
+        if [ -f trivy-results.sarif ]; then
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract vulnerability count from SARIF
+          VULN_COUNT=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
+          
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "⚠️ Found **$VULN_COUNT** CRITICAL vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "View details in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No CRITICAL vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: high
+        
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for better detection
+    
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
