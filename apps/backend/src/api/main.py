@@ -1,47 +1,29 @@
 """API Gateway main entry point."""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..core.config import settings
-from .routes import health, v1
-
-app = FastAPI(
-    title="Infinite Scribe API Gateway",
-    description="API Gateway for the Infinite Scribe platform",
-    version="0.1.0",
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-app.include_router(health.router, tags=["health"])
-app.include_router(v1.router, prefix="/api/v1")
+from src.core.config import settings
+from src.api.routes import health, v1
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
     import logging
 
-    from ..common.services.neo4j_service import neo4j_service
-    from ..common.services.postgres_service import postgres_service
+    from src.common.services.neo4j_service import neo4j_service
+    from src.common.services.postgres_service import postgres_service
 
     logger = logging.getLogger(__name__)
 
+    # Startup
     try:
-        # Initialize database connections
         logger.info("Initializing database connections...")
         await postgres_service.connect()
         await neo4j_service.connect()
 
-        # Verify connections
         postgres_ok = await postgres_service.check_connection()
         neo4j_ok = await neo4j_service.check_connection()
 
@@ -57,19 +39,10 @@ async def startup_event():
 
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
-        # Don't prevent startup, let health checks handle it
 
+    yield
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    import logging
-
-    from ..common.services.neo4j_service import neo4j_service
-    from ..common.services.postgres_service import postgres_service
-
-    logger = logging.getLogger(__name__)
-
+    # Shutdown
     try:
         logger.info("Shutting down database connections...")
         await postgres_service.disconnect()
@@ -77,3 +50,24 @@ async def shutdown_event():
         logger.info("Database connections closed successfully")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
+
+
+app = FastAPI(
+    title="Infinite Scribe API Gateway",
+    description="API Gateway for the Infinite Scribe platform",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(health.router, tags=["health"])
+app.include_router(v1.router, prefix="/api/v1")
