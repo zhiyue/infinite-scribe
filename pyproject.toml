@@ -36,7 +36,7 @@ dependencies = [
     "pyyaml~=6.0.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     # Testing
     "pytest~=8.3.3",
