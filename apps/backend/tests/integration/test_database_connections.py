@@ -116,7 +116,9 @@ async def test_redis_connection_success(redis_service):
     with patch("src.common.services.redis_service.settings") as mock_settings:
         mock_settings.REDIS_URL = f"redis://{config['host']}:{config['port']}"
         if config.get("password"):
-            mock_settings.REDIS_URL = f"redis://:{config['password']}@{config['host']}:{config['port']}"
+            mock_settings.REDIS_URL = (
+                f"redis://:{config['password']}@{config['host']}:{config['port']}"
+            )
 
         service = RedisService()
 
@@ -169,7 +171,9 @@ async def test_concurrent_database_connections(postgres_service, neo4j_service, 
     redis_config = redis_service
     redis_url = f"redis://{redis_config['host']}:{redis_config['port']}"
     if redis_config.get("password"):
-        redis_url = f"redis://:{redis_config['password']}@{redis_config['host']}:{redis_config['port']}"
+        redis_url = (
+            f"redis://:{redis_config['password']}@{redis_config['host']}:{redis_config['port']}"
+        )
 
     # Mock settings for all services
     with (
@@ -179,11 +183,11 @@ async def test_concurrent_database_connections(postgres_service, neo4j_service, 
     ):
         # Configure mocked settings
         mock_pg_settings.POSTGRES_URL = postgres_url
-        
+
         mock_neo4j_settings.NEO4J_URL = f"bolt://{neo4j_config['host']}:{neo4j_config['port']}"
         mock_neo4j_settings.NEO4J_USER = neo4j_config["user"]
         mock_neo4j_settings.NEO4J_PASSWORD = neo4j_config["password"]
-        
+
         mock_redis_settings.REDIS_URL = redis_url
 
         # Create services
