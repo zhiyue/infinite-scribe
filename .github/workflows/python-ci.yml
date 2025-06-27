@@ -117,6 +117,7 @@ jobs:
     
     - name: Run unit tests
       env:
+        USE_EXTERNAL_SERVICES: true
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_USER: postgres
@@ -135,6 +136,7 @@ jobs:
     
     - name: Run integration tests
       env:
+        USE_EXTERNAL_SERVICES: true
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_USER: postgres
@@ -149,8 +151,8 @@ jobs:
         REDIS_PASSWORD: ""
       run: |
         cd apps/backend
-        # Skip tests that require Docker containers and remote connections
-        uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing -k "not test_database_connections and not test_remote_databases"
+        # Skip only tests that require remote database connections
+        uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing -k "not test_remote_databases"
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3

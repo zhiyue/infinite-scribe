@@ -1,64 +1,23 @@
-"""Integration tests for database connections using testcontainers."""
+"""Integration tests for database connections using clean architecture."""
 
 import asyncio
-import os
 from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
 from src.common.services.neo4j_service import Neo4jService
 from src.common.services.postgres_service import PostgreSQLService
-from testcontainers.compose import DockerCompose
-from testcontainers.postgres import PostgresContainer
-
-
-@pytest.fixture(scope="module")
-def postgres_container():
-    """Fixture to start PostgreSQL container for testing."""
-    with PostgresContainer("postgres:16") as postgres:
-        postgres.with_env("POSTGRES_DB", "test_infinite_scribe")
-        yield postgres
-
-
-@pytest.fixture(scope="module")
-def neo4j_compose():
-    """Fixture to start Neo4j using docker-compose for testing."""
-    # Use a minimal docker-compose for Neo4j
-    compose_content = """
-version: '3.8'
-services:
-  neo4j:
-    image: neo4j:5
-    environment:
-      NEO4J_AUTH: neo4j/testpassword
-    ports:
-      - "7687:7687"
-      - "7474:7474"
-"""
-    # Write temporary compose file
-    with open("test-neo4j-compose.yml", "w") as f:
-        f.write(compose_content)
-
-    with DockerCompose(".", compose_file_name="test-neo4j-compose.yml") as compose:
-        # Wait for Neo4j to be ready
-        import time
-
-        time.sleep(10)  # Give Neo4j time to start
-        yield compose
-
-    # Cleanup
-    os.remove("test-neo4j-compose.yml")
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
-async def test_postgres_connection_success(postgres_container):
+async def test_postgres_connection_success(postgres_service):
     """Test successful PostgreSQL connection."""
-    # Create PostgreSQL URL for test container
-    postgres_url = f"postgresql+asyncpg://{postgres_container.username}:{postgres_container.password}@{postgres_container.get_container_host_ip()}:{postgres_container.get_exposed_port(5432)}/{postgres_container.dbname}"
+    # Create PostgreSQL URL from service config
+    config = postgres_service
+    postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
-    # Mock settings to use test container
+    # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
         mock_settings.POSTGRES_URL = postgres_url
 
@@ -79,7 +38,6 @@ async def test_postgres_connection_success(postgres_container):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
 async def test_postgres_connection_failure():
     """Test PostgreSQL connection failure handling."""
     # Mock settings with invalid PostgreSQL URL
@@ -101,14 +59,15 @@ async def test_postgres_connection_failure():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
-async def test_neo4j_connection_success(neo4j_compose):
+async def test_neo4j_connection_success(neo4j_service):
     """Test successful Neo4j connection."""
-    # Mock settings for Neo4j test container
+    config = neo4j_service
+
+    # Mock settings for Neo4j
     with patch("src.common.services.neo4j_service.settings") as mock_settings:
-        mock_settings.NEO4J_URL = "bolt://localhost:7687"
-        mock_settings.NEO4J_USER = "neo4j"
-        mock_settings.NEO4J_PASSWORD = "testpassword"
+        mock_settings.NEO4J_URL = f"bolt://{config['host']}:{config['port']}"
+        mock_settings.NEO4J_USER = config["user"]
+        mock_settings.NEO4J_PASSWORD = config["password"]
 
         service = Neo4jService()
 
@@ -127,7 +86,6 @@ async def test_neo4j_connection_success(neo4j_compose):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
 async def test_neo4j_connection_failure():
     """Test Neo4j connection failure handling."""
     # Mock settings with invalid Neo4j URL
@@ -149,13 +107,12 @@ async def test_neo4j_connection_failure():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
-async def test_concurrent_database_connections(postgres_container):
+async def test_concurrent_database_connections(postgres_service):
     """Test handling multiple concurrent database connections."""
-    # Create PostgreSQL URL for test container
-    postgres_url = f"postgresql+asyncpg://{postgres_container.username}:{postgres_container.password}@{postgres_container.get_container_host_ip()}:{postgres_container.get_exposed_port(5432)}/{postgres_container.dbname}"
+    config = postgres_service
+    postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
-    # Mock settings to use test container
+    # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
         mock_settings.POSTGRES_URL = postgres_url
 
@@ -180,13 +137,12 @@ async def test_concurrent_database_connections(postgres_container):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-@pytest.mark.requires_docker
-async def test_database_transaction_rollback(postgres_container):
+async def test_database_transaction_rollback(postgres_service):
     """Test database transaction rollback on error."""
-    # Create PostgreSQL URL for test container
-    postgres_url = f"postgresql+asyncpg://{postgres_container.username}:{postgres_container.password}@{postgres_container.get_container_host_ip()}:{postgres_container.get_exposed_port(5432)}/{postgres_container.dbname}"
+    config = postgres_service
+    postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
-    # Mock settings to use test container
+    # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
         mock_settings.POSTGRES_URL = postgres_url
 

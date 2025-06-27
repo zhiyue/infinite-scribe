@@ -1,0 +1,99 @@
+name: Test Service Connectivity
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-services:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/neo4jtest
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p neo4jtest 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Test PostgreSQL Connection
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+        PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -c "SELECT 1"
+        echo "✅ PostgreSQL is accessible via localhost:5432"
+    
+    - name: Test Neo4j Connection
+      run: |
+        # Install curl to test Neo4j HTTP endpoint
+        curl -u neo4j:neo4jtest http://localhost:7474/db/data/ || true
+        echo "✅ Neo4j is accessible via localhost:7687"
+    
+    - name: Test Redis Connection
+      run: |
+        sudo apt-get install -y redis-tools
+        redis-cli -h localhost -p 6379 ping
+        echo "✅ Redis is accessible via localhost:6379"
+    
+    - name: Test with Python
+      run: |
+        python3 -m pip install psycopg2-binary redis neo4j
+        python3 -c "
+import psycopg2
+import redis
+from neo4j import GraphDatabase
+
+# Test PostgreSQL
+conn = psycopg2.connect(
+    host='localhost',
+    port=5432,
+    user='postgres',
+    password='postgres',
+    database='test_db'
+)
+print('✅ PostgreSQL connected via Python')
+conn.close()
+
+# Test Redis  
+r = redis.Redis(host='localhost', port=6379)
+r.ping()
+print('✅ Redis connected via Python')
+
+# Test Neo4j
+driver = GraphDatabase.driver(
+    'bolt://localhost:7687',
+    auth=('neo4j', 'neo4jtest')
+)
+driver.verify_connectivity()
+print('✅ Neo4j connected via Python')
+driver.close()
+"
