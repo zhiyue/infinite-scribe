@@ -28,7 +28,10 @@
 - [环境变量配置指南](./deployment/environment-variables.md) - 环境配置详解
 
 ### 📋 项目管理
-- [用户故事](./stories/) - 功能需求故事
+- [用户故事](./stories/) - 基于 bmad 方法论的故事驱动开发
+  - [Story 1.1](./stories/1.1.story.md) - Monorepo 项目结构 (Done)
+  - [Story 1.2](./stories/1.2.story.md) - 核心服务部署 (Done)
+  - [Story 1.3](./stories/1.3.story.md) - API 网关服务 (Review)
 - [Scrum 相关](./scrum/) - 敏捷开发流程
 
 ## 📚 文档分类
@@ -69,8 +72,9 @@
 
 ### 新人入职
 1. 阅读 [项目简介](./project-brief.md)
-2. 跟随 [Python 开发快速入门](./development/python-dev-quickstart.md)
-3. 参考 [详细开发指南](./development/detailed-development-guide.md) 配置开发环境
+2. 查看 [用户故事](./stories/) 了解当前开发进度
+3. 跟随 [Python 开发快速入门](./development/python-dev-quickstart.md)
+4. 参考 [详细开发指南](./development/detailed-development-guide.md) 配置开发环境
 
 ### 遇到技术问题
 1. 首先查看 [详细开发指南](./development/detailed-development-guide.md) 的故障排除部分
