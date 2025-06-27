@@ -1,0 +1,5 @@
+# Trivy Ignore File
+# Format: CVE-ID
+
+# Example: Ignore specific CVEs if they are false positives or accepted risks
+# CVE-2023-12345

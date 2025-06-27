@@ -2,10 +2,11 @@
 
 import asyncio
 import os
+from unittest.mock import patch
 
 import pytest
 from src.common.services.neo4j_service import Neo4jService
-from src.common.services.postgres_service import PostgresService
+from src.common.services.postgres_service import PostgreSQLService
 from src.core.config import Settings
 from testcontainers.compose import DockerCompose
 from testcontainers.postgres import PostgresContainer
@@ -53,27 +54,26 @@ services:
 @pytest.mark.integration
 async def test_postgres_connection_success(postgres_container):
     """Test successful PostgreSQL connection."""
-    # Override settings with test container values
-    test_settings = Settings(
-        POSTGRES_HOST=postgres_container.get_container_host_ip(),
-        POSTGRES_PORT=postgres_container.get_exposed_port(5432),
-        POSTGRES_USER=postgres_container.username,
-        POSTGRES_PASSWORD=postgres_container.password,
-        POSTGRES_DB=postgres_container.dbname,
-    )
-
-    service = PostgresService(test_settings)
-
-    # Test connection
-    is_healthy = await service.check_health()
-    assert is_healthy is True
-
-    # Test query execution
-    async with service.get_session() as session:
-        result = await session.execute("SELECT 1")
-        assert result.scalar() == 1
-
-    await service.close()
+    # Create PostgreSQL URL for test container
+    postgres_url = f"postgresql+asyncpg://{postgres_container.username}:{postgres_container.password}@{postgres_container.get_container_host_ip()}:{postgres_container.get_exposed_port(5432)}/{postgres_container.dbname}"
+    
+    # Mock settings to use test container
+    with patch('src.common.services.postgres_service.settings') as mock_settings:
+        mock_settings.POSTGRES_URL = postgres_url
+        
+        service = PostgreSQLService()
+        
+        # Test connection
+        await service.connect()
+        is_healthy = await service.check_connection()
+        assert is_healthy is True
+        
+        # Test query execution
+        async with service.acquire() as conn:
+            result = await conn.fetchval("SELECT 1")
+            assert result == 1
+        
+        await service.disconnect()
 
 
 @pytest.mark.asyncio
