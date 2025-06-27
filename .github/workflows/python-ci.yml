@@ -27,6 +27,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
+    - name: Run Ruff
+      uses: astral-sh/ruff-action@v3
+      with:
+        src: "./apps/backend"
+        args: "check --output-format=github"
+    
+    - name: Run Ruff format check
+      uses: astral-sh/ruff-action@v3
+      with:
+        src: "./apps/backend"
+        args: "format --check"
+    
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -37,31 +49,13 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
-    - name: Create virtual environment and install dependencies
+    - name: Install dependencies
       run: |
-        uv venv
-        source .venv/bin/activate
         uv sync --dev
-    
-    - name: Check code formatting with Ruff
-      run: |
-        source .venv/bin/activate
-        ruff format --check apps/backend/
-    
-    - name: Lint with Ruff
-      run: |
-        source .venv/bin/activate
-        ruff check apps/backend/
-    
-    - name: Check import order
-      run: |
-        source .venv/bin/activate
-        ruff check --select I apps/backend/
     
     - name: Type check with mypy
       run: |
-        source .venv/bin/activate
-        mypy apps/backend/src/ --ignore-missing-imports
+        uv run mypy apps/backend/src/ --ignore-missing-imports
     
   test:
     name: Run Tests
@@ -120,10 +114,8 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
-    - name: Create virtual environment and install dependencies
+    - name: Install dependencies
       run: |
-        uv venv
-        source .venv/bin/activate
         uv sync --dev
     
     - name: Run unit tests
@@ -141,9 +133,8 @@ jobs:
         REDIS_PORT: 6379
         REDIS_PASSWORD: ""
       run: |
-        source .venv/bin/activate
         cd apps/backend
-        python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing
+        uv run python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing
     
     - name: Run integration tests
       env:
@@ -160,9 +151,8 @@ jobs:
         REDIS_PORT: 6379
         REDIS_PASSWORD: ""
       run: |
-        source .venv/bin/activate
         cd apps/backend
-        python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing
+        uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
