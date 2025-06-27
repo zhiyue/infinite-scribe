@@ -1,9 +1,11 @@
 """Pytest configuration and shared fixtures."""
-import pytest
+
 import asyncio
-from typing import Generator
 import sys
+from collections.abc import Generator
 from pathlib import Path
+
+import pytest
 
 # Add src to Python path
 src_path = Path(__file__).parent.parent / "src"
@@ -21,15 +23,7 @@ def event_loop() -> Generator:
 # Markers for different test types
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "unit: Unit tests"
-    )
-    config.addinivalue_line(
-        "markers", "integration: Integration tests requiring external services"
-    )
-    config.addinivalue_line(
-        "markers", "e2e: End-to-end tests"
-    )
-    config.addinivalue_line(
-        "markers", "slow: Tests that take a long time to run"
-    )
+    config.addinivalue_line("markers", "unit: Unit tests")
+    config.addinivalue_line("markers", "integration: Integration tests requiring external services")
+    config.addinivalue_line("markers", "e2e: End-to-end tests")
+    config.addinivalue_line("markers", "slow: Tests that take a long time to run")

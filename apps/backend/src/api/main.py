@@ -1,4 +1,5 @@
 """API Gateway main entry point."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

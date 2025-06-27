@@ -1,4 +1,5 @@
 """Health check endpoints."""
+
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -33,7 +34,11 @@ async def health_check():
             # Return 503 Service Unavailable
             return JSONResponse(
                 status_code=503,
-                content={"status": "unhealthy", "postgres": postgres_healthy, "neo4j": neo4j_healthy}
+                content={
+                    "status": "unhealthy",
+                    "postgres": postgres_healthy,
+                    "neo4j": neo4j_healthy,
+                },
             )
     except Exception as e:
         logger.error(f"Health check error: {e}")
@@ -51,7 +56,7 @@ async def readiness_check():
         if not (postgres_connected and neo4j_connected):
             return JSONResponse(
                 status_code=503,
-                content={"status": "not ready", "reason": "Database connections not established"}
+                content={"status": "not ready", "reason": "Database connections not established"},
             )
 
         # Verify schema
@@ -66,12 +71,9 @@ async def readiness_check():
                 content={
                     "status": "not ready",
                     "postgres_schema": postgres_schema_ok,
-                    "neo4j_constraints": neo4j_constraints_ok
-                }
+                    "neo4j_constraints": neo4j_constraints_ok,
+                },
             )
     except Exception as e:
         logger.error(f"Readiness check error: {e}")
-        return JSONResponse(
-            status_code=503,
-            content={"status": "error", "detail": str(e)}
-        )
+        return JSONResponse(status_code=503, content={"status": "error", "detail": str(e)})

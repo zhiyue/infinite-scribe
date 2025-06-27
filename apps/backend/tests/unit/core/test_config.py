@@ -1,14 +1,15 @@
 """Unit tests for configuration management."""
-import pytest
+
 import os
 from unittest.mock import patch
+
 from src.core.config import Settings
 
 
 def test_default_settings():
     """Test default settings are loaded correctly."""
     settings = Settings()
-    
+
     assert settings.SERVICE_NAME == "infinite-scribe-backend"
     assert settings.SERVICE_TYPE == "api-gateway"
     assert settings.API_HOST == "0.0.0.0"
@@ -23,14 +24,14 @@ def test_postgres_url_generation():
     """Test PostgreSQL URL is generated correctly."""
     settings = Settings()
     expected_url = "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
-    assert settings.POSTGRES_URL == expected_url
+    assert expected_url == settings.POSTGRES_URL
 
 
 def test_neo4j_url_generation():
     """Test Neo4j URL is generated correctly."""
     settings = Settings()
     expected_url = "bolt://neo4j:7687"
-    assert settings.NEO4J_URL == expected_url
+    assert expected_url == settings.NEO4J_URL
 
 
 def test_neo4j_url_with_uri_override():
@@ -44,7 +45,7 @@ def test_redis_url_generation():
     """Test Redis URL is generated correctly."""
     settings = Settings()
     expected_url = "redis://:redis@redis:6379/0"
-    assert settings.REDIS_URL == expected_url
+    assert expected_url == settings.REDIS_URL
 
 
 def test_environment_variable_override():
@@ -55,12 +56,12 @@ def test_environment_variable_override():
         "POSTGRES_HOST": "test-postgres",
         "POSTGRES_PASSWORD": "test-password",
         "NEO4J_USER": "test-neo4j-user",
-        "KAFKA_BOOTSTRAP_SERVERS": "test-kafka:9092"
+        "KAFKA_BOOTSTRAP_SERVERS": "test-kafka:9092",
     }
-    
+
     with patch.dict(os.environ, env_vars):
         settings = Settings()
-        
+
         assert settings.SERVICE_NAME == "test-service"
         assert settings.API_PORT == 9000
         assert settings.POSTGRES_HOST == "test-postgres"
