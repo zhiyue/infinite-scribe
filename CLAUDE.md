@@ -13,9 +13,9 @@ All database and cache services are deployed on the remote server:
 - **Host**: 192.168.2.201
 - **User**: zhiyue (SSH access available)
 - **Services**:
-  - PostgreSQL: Port 5432 (user: postgres, password: postgres, db: test_db)
-  - Neo4j: Port 7687 (user: neo4j, password: neo4jtest, Web UI: 7474)
-  - Redis: Port 6379 (no password)
+  - PostgreSQL: Port 5432 (user: postgres, password: devPostgres123!, db: infinite_scribe)
+  - Neo4j: Port 7687 (user: neo4j, password: devNeo4j123!, Web UI: 7474)
+  - Redis: Port 6379 (password: devRedis123!)
   - Docker environment for running containers
 
 ### SSH Access

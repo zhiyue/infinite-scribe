@@ -89,10 +89,8 @@ async def test_postgres_connection_failure():
         service = PostgreSQLService()
 
         # Test that connection fails gracefully
-        try:
+        with suppress(Exception):
             await service.connect()
-        except Exception:
-            pass  # Expected to fail
 
         # Test health check returns False
         is_healthy = await service.check_connection()
@@ -137,10 +135,8 @@ async def test_neo4j_connection_failure():
         service = Neo4jService()
 
         # Test that connection fails gracefully
-        try:
+        with suppress(Exception):
             await service.connect()
-        except Exception:
-            pass  # Expected to fail
 
         # Test health check returns False
         is_healthy = await service.check_connection()
@@ -203,14 +199,11 @@ async def test_database_transaction_rollback(postgres_container):
             )
 
         # Test transaction rollback
-        try:
-            async with service.acquire() as conn:
-                async with conn.transaction():
-                    await conn.execute("INSERT INTO test_table (value) VALUES ('test')")
-                    # Force an error
-                    await conn.execute("INVALID SQL")
-        except Exception:
-            pass  # Expected
+        with suppress(Exception):
+            async with service.acquire() as conn, conn.transaction():
+                await conn.execute("INSERT INTO test_table (value) VALUES ('test')")
+                # Force an error
+                await conn.execute("INVALID SQL")
 
         # Verify no data was inserted
         async with service.acquire() as conn:
