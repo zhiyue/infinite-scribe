@@ -17,7 +17,7 @@
 
 ### 3. Updated Documentation
 - Updated `docs/architecture/source-tree.md` to reflect new structure
-- Updated `PYTHON_DEV_QUICKSTART.md` with new commands and structure
+- Updated `docs/development/python-dev-quickstart.md` with new commands and structure
 - Created `docs/development/backend-structure-migration.md` as migration guide
 - Created `apps/backend/README.md` for backend-specific documentation
 

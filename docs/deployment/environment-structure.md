@@ -57,4 +57,4 @@ pnpm check:services    # Quick health check
 
 ## Details
 
-See [docs/deployment/environment-variables.md](docs/deployment/environment-variables.md) for complete documentation.
+See [docs/deployment/environment-variables.md](environment-variables.md) for complete documentation. 

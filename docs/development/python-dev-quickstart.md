@@ -129,4 +129,4 @@ docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
 
 ---
 
-详细文档：[Python Monorepo 开发环境配置指南](docs/development/python-monorepo-setup.md)
+详细文档：[Python Monorepo 开发环境配置指南](python-monorepo-setup.md) 

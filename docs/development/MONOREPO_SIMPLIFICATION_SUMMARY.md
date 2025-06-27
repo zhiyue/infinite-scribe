@@ -55,6 +55,6 @@
 
 ## 相关文档
 
-- [快速入门](../../PYTHON_DEV_QUICKSTART.md)
+- [快速入门](python-dev-quickstart.md)
 - [详细指南](python-monorepo-setup-v3.md)
 - [Story 1.3](../stories/1.3.story.md)

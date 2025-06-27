@@ -41,7 +41,7 @@
 - `/docs/development/MONOREPO_SIMPLIFICATION_SUMMARY.md` - 演进历史总结
 
 #### 更新文档
-- `/PYTHON_DEV_QUICKSTART.md` - 更新为最新简化流程
+- `docs/development/python-dev-quickstart.md` - 更新为最新简化流程
 - `/docs/stories/1.3.story.md` - 更新技术约束说明
 - `/docs/architecture/source-tree.md` - 更新目录结构说明
 

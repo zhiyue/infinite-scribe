@@ -121,7 +121,7 @@ cp .env.backend.example .env.backend
 # 编辑 .env.backend，设置SERVICE_TYPE和相关配置
 ```
 
-> 💡 **提示**: Docker Compose 默认使用 `.env` 文件，系统会自动创建指向 `.env.infrastructure` 的符号链接。
+> 💡 **提示**: Docker Compose 默认使用 `.env` 文件，系统会自动创建指向 `.env.infrastructure` 的符号链接。详细环境配置说明请参考 [环境变量结构说明](./docs/deployment/environment-structure.md)。
 
 ### 启动开发环境
 
@@ -142,6 +142,8 @@ SERVICE_TYPE=api-gateway uvicorn src.api.main:app --reload
 # 或启动特定Agent服务
 SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
+
+> 📖 **详细说明**: 更多Python开发环境配置和使用说明，请参考 [Python 开发快速入门](./docs/development/python-dev-quickstart.md)。
 
 #### 基础设施管理命令
 
@@ -502,7 +504,9 @@ mypy apps/backend/src/
 - [API文档](./docs/architecture/rest-api-spec.md)
 
 ### 开发指南
+- [Python 开发快速入门](./docs/development/python-dev-quickstart.md)
 - [环境变量配置指南](./docs/deployment/environment-variables.md)
+- [环境变量结构说明](./docs/deployment/environment-structure.md)
 - [Python 依赖管理](./docs/development/python-dependency-management.md)
 - [Python 导入最佳实践](./docs/development/python-import-best-practices.md)
 - [Docker 架构说明](./docs/development/docker-architecture.md)
