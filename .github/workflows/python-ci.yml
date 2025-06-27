@@ -17,6 +17,7 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/python-ci.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -60,7 +61,7 @@ jobs:
     
     - name: Type check with mypy
       run: |
-        uv run mypy apps/backend/src/ --ignore-missing-imports
+        uv run --python 3.11 mypy apps/backend/src/ --ignore-missing-imports
     
   test:
     name: Run Tests
