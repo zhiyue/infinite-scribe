@@ -45,29 +45,17 @@ ssh zhiyue@${TEST_MACHINE_IP}
 
 ALL tests must be run on the test machine. The development machine (192.168.2.201) is NOT for testing.
 
+**Recommended approach**: Use `--docker-host` for testing with Docker containers on the test machine.
+
 To use a custom test machine:
 ```bash
 export TEST_MACHINE_IP=192.168.2.100
-./scripts/run-tests.sh --all --remote
+./scripts/run-tests.sh --all --docker-host
 ```
 
 The project supports two testing approaches on the test machine:
 
-#### Option 1: Using Pre-deployed Services (--remote)
-Connect to manually deployed services on the test machine:
-
-```bash
-# Run all tests with pre-deployed services
-./scripts/run-tests.sh --all --remote
-
-# Run unit tests only
-./scripts/run-tests.sh --unit --remote
-
-# Run integration tests only
-./scripts/run-tests.sh --integration --remote
-```
-
-#### Option 2: Using Docker Containers (--docker-host)
+#### Option 1: Using Docker Containers (--docker-host) [RECOMMENDED]
 Use Docker on the test machine to spin up isolated containers:
 
 ```bash
@@ -81,6 +69,20 @@ Use Docker on the test machine to spin up isolated containers:
 ./scripts/run-tests.sh --integration --docker-host
 ```
 
+#### Option 2: Using Pre-deployed Services (--remote)
+Connect to manually deployed services on the test machine (less commonly used):
+
+```bash
+# Run all tests with pre-deployed services
+./scripts/run-tests.sh --all --remote
+
+# Run unit tests only
+./scripts/run-tests.sh --unit --remote
+
+# Run integration tests only
+./scripts/run-tests.sh --integration --remote
+```
+
 #### Other Options
 
 ```bash
@@ -88,34 +90,21 @@ Use Docker on the test machine to spin up isolated containers:
 ./scripts/run-tests.sh --help
 
 # Run tests with coverage report
-./scripts/run-tests.sh --all --remote --coverage
 ./scripts/run-tests.sh --all --docker-host --coverage
+./scripts/run-tests.sh --all --remote --coverage
 
 # Run only code quality checks (linting, formatting, type checking)
 ./scripts/run-tests.sh --lint
 
 # Skip code quality checks
-./scripts/run-tests.sh --all --remote --no-lint
 ./scripts/run-tests.sh --all --docker-host --no-lint
+./scripts/run-tests.sh --all --remote --no-lint
 ```
 
 
 #### Test Machine Configuration Details
 
-##### Pre-deployed Services Setup (--remote)
-To use pre-deployed services on the test machine:
-
-1. Deploy PostgreSQL, Neo4j, and Redis on your test machine
-2. Use the same ports and credentials as defined in `.env.test`
-3. Run tests with `--remote` flag to connect to these services
-
-**Service Configuration** (from `.env.test`):
-- Host: Uses TEST_MACHINE_IP env var (default: 192.168.2.202)
-- PostgreSQL: Port 5432, database: `infinite_scribe_test`
-- Neo4j: Port 7687
-- Redis: Port 6379
-
-##### Docker Host Setup (--docker-host)
+##### Docker Host Setup (--docker-host) [RECOMMENDED]
 To use Docker containers on the test machine:
 
 ```bash
@@ -158,6 +147,19 @@ export $(cat .env.remote-docker | xargs)
 # Then restart Docker service
 ```
 
+##### Pre-deployed Services Setup (--remote)
+To use pre-deployed services on the test machine (less common approach):
+
+1. Deploy PostgreSQL, Neo4j, and Redis on your test machine
+2. Use the same ports and credentials as defined in `.env.test`
+3. Run tests with `--remote` flag to connect to these services
+
+**Service Configuration** (from `.env.test`):
+- Host: Uses TEST_MACHINE_IP env var (default: 192.168.2.202)
+- PostgreSQL: Port 5432, database: `infinite_scribe_test`
+- Neo4j: Port 7687
+- Redis: Port 6379
+
 ## Project Structure
 ```
 infinite-scribe/
@@ -185,9 +187,14 @@ uv sync --all-extras
 # Run backend server
 cd apps/backend && uv run uvicorn src.main:app --reload
 
-# Run tests
+# Run tests (recommended: use test script with Docker containers)
+./scripts/run-tests.sh --all --docker-host        # All tests with Docker
+./scripts/run-tests.sh --unit --docker-host       # Unit tests only
+./scripts/run-tests.sh --integration --docker-host # Integration tests only
+
+# Or run tests directly (local only, no external services)
 cd apps/backend && uv run pytest tests/unit/ -v  # Unit tests only
-cd apps/backend && uv run pytest tests/ -v       # All tests
+cd apps/backend && uv run pytest tests/ -v       # All tests (requires services)
 
 # Linting and formatting
 cd apps/backend && uv run ruff check src/
@@ -227,9 +234,10 @@ pnpm test
 
 ## Important Notes
 - Development machine (192.168.2.201): ONLY for development - NO tests of any kind
-- Test machine (configurable, default 192.168.2.202): Use for ALL testing with two options:
-  - `--remote`: Connect to pre-deployed services on test machine
-  - `--docker-host`: Use Docker containers on test machine
+- Test machine (configurable, default 192.168.2.202): Use for ALL testing
+  - **Recommended**: `--docker-host` - Use Docker containers on test machine for isolated testing
+  - Alternative: `--remote` - Connect to pre-deployed services on test machine (less common)
 - `.env.test` contains test machine service configuration (hosts are overridden by TEST_MACHINE_IP)
 - Configure test machine with: `export TEST_MACHINE_IP=your.test.machine.ip`
 - Local development does not require Docker
+- DISABLE_RYUK is available but not recommended - only use if experiencing Ryuk cleanup issues
