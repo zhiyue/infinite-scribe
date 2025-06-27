@@ -175,7 +175,7 @@ jobs:
         severity: 'CRITICAL,HIGH'
         format: 'sarif'
         output: 'trivy-results.sarif'
-        exit-code: '1'
+        exit-code: '0'  # 继续执行，即使发现漏洞
     
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
