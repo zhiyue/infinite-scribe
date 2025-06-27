@@ -207,18 +207,24 @@ fi
 if [ "$USE_DOCKER_HOST" = true ]; then
     echo -e "\n${YELLOW}Checking for leftover test containers...${NC}"
     
-    # Try local docker command first if available
-    if command -v docker &> /dev/null; then
-        leftover_containers=$(docker -H ${REMOTE_DOCKER_HOST} ps -a --filter "name=test" --format "{{.Names}}" 2>/dev/null || true)
-    # Fallback to SSH if docker command not available
+    leftover_containers=""
+    
+    # Since we already tested Docker connectivity above, use the working method
+    # Check if Docker CLI connection worked during initial connectivity test
+    if command -v docker &> /dev/null && docker -H ${REMOTE_DOCKER_HOST} version > /dev/null 2>&1; then
+        echo "Using Docker CLI to check containers..."
+        leftover_containers=$(timeout 10 docker -H ${REMOTE_DOCKER_HOST} ps -a --filter "name=test" --format "{{.Names}}" 2>/dev/null || echo "")
+    # Fallback to SSH (which we know works based on earlier connectivity test)
     elif command -v ssh &> /dev/null; then
-        leftover_containers=$(ssh -o ConnectTimeout=5 -o BatchMode=yes zhiyue@${DOCKER_HOST_IP} 'docker ps -a --filter "name=test" --format "{{.Names}}"' 2>/dev/null || true)
+        echo "Using SSH to check containers..."
+        leftover_containers=$(ssh -o ConnectTimeout=5 -o BatchMode=yes zhiyue@${DOCKER_HOST_IP} 'docker ps -a --filter "name=test" --format "{{.Names}}"' 2>/dev/null || echo "")
     else
-        leftover_containers=""
         echo -e "${YELLOW}Cannot check for containers without Docker CLI or SSH access${NC}"
+        leftover_containers=""
     fi
     
-    if [ -n "$leftover_containers" ] && [ "$leftover_containers" != "" ]; then
+    # Only show message if we actually found container names (not error messages)
+    if [ -n "$leftover_containers" ] && [ "$leftover_containers" != "" ] && [[ "$leftover_containers" != *"error"* ]] && [[ "$leftover_containers" != *"command"* ]] && [[ "$leftover_containers" != *"could not be found"* ]]; then
         echo "Found leftover test containers: $leftover_containers"
     else
         echo "No leftover test containers found. ✓"
