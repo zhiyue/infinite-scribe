@@ -18,6 +18,11 @@ on:
       - 'uv.lock'
       - '.github/workflows/python-ci.yml'
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
 jobs:
   lint:
     name: Lint Python Code
@@ -177,8 +182,9 @@ jobs:
         severity: 'CRITICAL,HIGH'
         format: 'sarif'
         output: 'trivy-results.sarif'
+        exit-code: '1'
     
-    - name: Upload Trivy scan results
+    - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
