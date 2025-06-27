@@ -71,7 +71,6 @@ infinite-scribe/
 │       │       ├── services/   # 共享服务 (e.g., neo4j_service.py)
 │       │       └── models/     # 共享数据模型
 │       ├── tests/              # 统一测试目录
-│       ├── pyproject.toml      # 后端统一依赖配置
 │       └── Dockerfile          # 统一Dockerfile (通过SERVICE_TYPE环境变量选择服务)
 ├── packages/                   # 存放共享的代码包
 │   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
@@ -121,6 +120,7 @@ infinite-scribe/
 
 1. **后端统一结构**：所有后端服务（API Gateway和Agent服务）共享同一个代码库和依赖配置
 2. **服务部署灵活性**：通过`SERVICE_TYPE`环境变量在Docker部署时选择运行哪个服务
-3. **依赖管理简化**：后端使用统一的`pyproject.toml`，减少依赖管理复杂度
+3. **依赖管理简化**：使用根目录的统一`pyproject.toml`管理所有Python依赖，不在`apps/backend/`下单独创建`pyproject.toml`
 4. **代码复用**：Agent服务可以共享`core`和`common`模块中的功能
-5. **开发环境**：开发时可以在同一个虚拟环境中运行所有后端服务
+5. **开发环境**：开发时使用根目录的`.venv`虚拟环境运行所有后端服务
+6. **包管理器**：使用`uv`作为Python包管理器，提供更快的依赖解析和安装速度

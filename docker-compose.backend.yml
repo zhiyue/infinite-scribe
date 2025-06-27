@@ -1,6 +1,11 @@
-# Backend services using the new unified structure
-# This file shows how to deploy backend services with the new structure
-# Use with: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
+# Backend Application Services
+# This file contains all application services (API Gateway and Agents)
+# while docker-compose.yml contains infrastructure services (databases, message queues, etc.)
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
+#
+# Note: All services use the unified Python environment from root pyproject.toml
 
 version: '3.8'
 
@@ -8,41 +13,82 @@ services:
   # API Gateway
   api-gateway:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     container_name: infinite-scribe-api-gateway
     environment:
       SERVICE_TYPE: api-gateway
-      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
-      REDIS_URL: "redis://:redis@redis:6379/0"
-      NEO4J_URL: "bolt://neo4j:neo4j@neo4j:7687"
+      # Database connections
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_scribe}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      # Other services
       MILVUS_HOST: milvus
       MILVUS_PORT: 19530
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       PREFECT_API_URL: "http://prefect-api:4200/api"
+      # API settings
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
-      - neo4j
-      - kafka
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - infinite-scribe-network
+    volumes:
+      - ./apps/backend/src:/app/src:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # Agent Services
   agent-worldsmith:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     container_name: infinite-scribe-agent-worldsmith
     environment:
       SERVICE_TYPE: agent-worldsmith
-      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
-      REDIS_URL: "redis://:redis@redis:6379/0"
+      # Database connections
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_scribe}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      # Other services
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       PREFECT_API_URL: "http://prefect-api:4200/api"
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       - postgres
       - redis
@@ -52,15 +98,26 @@ services:
 
   agent-plotmaster:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     container_name: infinite-scribe-agent-plotmaster
     environment:
       SERVICE_TYPE: agent-plotmaster
-      POSTGRES_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/infinite_scribe"
-      REDIS_URL: "redis://:redis@redis:6379/0"
+      # Database connections
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_scribe}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      # Other services
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       PREFECT_API_URL: "http://prefect-api:4200/api"
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       - postgres
       - redis
@@ -72,11 +129,17 @@ services:
   # Example template for other agents:
   # agent-<name>:
   #   build:
-  #     context: ./apps/backend
-  #     dockerfile: Dockerfile
+  #     context: .
+  #     dockerfile: apps/backend/Dockerfile
   #   container_name: infinite-scribe-agent-<name>
   #   environment:
   #     SERVICE_TYPE: agent-<name>
+  #     # Database connections
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_PORT: 5432
+  #     POSTGRES_DB: ${POSTGRES_DB:-infinite_scribe}
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
   #     # ... other environment variables
   #   depends_on:
   #     - postgres
@@ -84,3 +147,8 @@ services:
   #     - kafka
   #   networks:
   #     - infinite-scribe-network
+
+# Usage:
+# Development: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
+# Specific services: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up api-gateway
+# Background: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up -d

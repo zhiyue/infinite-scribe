@@ -202,6 +202,29 @@ const services = [
     check: async () => {
       return checkHttp(`http://${DEV_SERVER}:4200`, 'Prefect Web UI');
     }
+  },
+  {
+    name: 'API Gateway',
+    port: 8000,
+    check: async () => {
+      try {
+        const response = await fetch(`http://${DEV_SERVER}:8000/health`);
+        const data = await response.json();
+        if (response.ok && data.status === 'ok') {
+          return { 
+            success: true, 
+            info: 'API Gateway healthy, all database connections OK' 
+          };
+        } else {
+          return { 
+            success: false, 
+            error: `Health check failed: ${JSON.stringify(data)}` 
+          };
+        }
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
   }
 ];
 

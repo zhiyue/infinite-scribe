@@ -10,18 +10,21 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy dependency files from root context
+COPY ./pyproject.toml ./
+COPY ./uv.lock ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
+# Install uv and Python dependencies
+RUN pip install uv && \
+    uv sync --no-dev
 
 # Copy application code
-COPY src/ ./src/
+COPY ./apps/backend/src/ ./src/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV SERVICE_TYPE=${SERVICE_TYPE:-api-gateway}
+ENV PYTHONPATH=/app
 
 # Default port (can be overridden)
 EXPOSE 8000

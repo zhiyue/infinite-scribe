@@ -330,5 +330,8 @@ services:
       - ./data:/data    # Mount data directory for file access
     working_dir: /flows
 
+  # NOTE: Application services (API Gateway, Agents) are defined in docker-compose.backend.yml
+  # Use: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
+
   # NOTE: Additional services (LiteLLM, Langfuse) will be added in subsequent stories
   # as they require more specific configuration

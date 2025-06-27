@@ -2,7 +2,7 @@
 import asyncio
 import logging
 
-from ...core.config import settings
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ async def main():
     # - Subscribe to relevant topics
     # - Process messages
     # - Send results
-    
+
 
 def run():
     """Run the Worldsmith Agent."""
