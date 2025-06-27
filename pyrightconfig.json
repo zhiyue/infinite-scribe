@@ -1,0 +1,59 @@
+{
+  // Pyright configuration for Python type checking
+  // Note: $schema field removed to avoid "unknown config option" errors
+  // Note: stubPath removed - type stubs are installed via uv (types-redis, types-pyyaml)
+  "include": [
+    "apps/backend/src",
+    "apps/backend/tests",
+    "packages"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/*.egg-info",
+    ".venv",
+    "venv",
+    "node_modules",
+    "build",
+    "dist"
+  ],
+  "pythonVersion": "3.11",
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none",
+  "reportPrivateImportUsage": "none",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning",
+  "reportDuplicateImport": "warning",
+  "reportOptionalMemberAccess": "warning",
+  "reportGeneralTypeIssues": "error",
+  "reportUntypedFunctionDecorator": "none",
+  "reportUntypedClassDecorator": "none",
+  "reportUntypedBaseClass": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownMemberType": "none",
+  "reportMissingParameterType": "none",
+  "reportUnnecessaryIsInstance": "warning",
+  "reportUnnecessaryCast": "warning",
+  "reportImplicitStringConcatenation": "none",
+  "reportCallInDefaultInitializer": "none",
+  "reportUnnecessaryComparison": "warning",
+  "reportSelfClsParameterName": "warning",
+  "reportImplicitOverride": "none",
+  "reportShadowedImports": "warning",
+  "useLibraryCodeForTypes": true,
+  "reportUnnecessaryTypeIgnoreComment": false,
+  "executionEnvironments": [
+    {
+      "root": "apps/backend",
+      "pythonVersion": "3.11",
+      "pythonPlatform": "Linux",
+      "extraPaths": [
+        "src"
+      ]
+    }
+  ]
+}

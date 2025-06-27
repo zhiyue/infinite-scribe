@@ -1,37 +1,56 @@
 {
+    // Python 配置
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-    "python.terminal.activateEnvironment": true,
+    // Pyright/Pylance 配置
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoSearchPaths": true,
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/apps/api-gateway",
-        "${workspaceFolder}/apps/worldsmith-agent", 
-        "${workspaceFolder}/apps/plotmaster-agent",
-        "${workspaceFolder}/apps/outliner-agent",
-        "${workspaceFolder}/apps/director-agent",
-        "${workspaceFolder}/apps/characterexpert-agent",
-        "${workspaceFolder}/apps/worldbuilder-agent",
-        "${workspaceFolder}/apps/writer-agent",
-        "${workspaceFolder}/apps/critic-agent",
-        "${workspaceFolder}/apps/factchecker-agent",
-        "${workspaceFolder}/apps/rewriter-agent",
-        "${workspaceFolder}/packages/shared-types/src"
+        "${workspaceFolder}/apps/backend/src",
+        "${workspaceFolder}/packages"
     ],
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.indexing": true,
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.variableTypes": true,
+    // 禁用其他 linter，避免冲突
     "python.linting.enabled": false,
-    "python.linting.ruffEnabled": true,
-    "python.formatting.provider": "black",
-    "[python]": {
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit",
-            "source.fixAll": "explicit"
-        }
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "python.linting.mypyEnabled": false,
+    // 禁用 Python 扩展的格式化，避免冲突
+    "python.formatting.provider": "none",
+    // 使用 Ruff 作为主要的 linter/formatter
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.format.enable": true,
+    "ruff.organizeImports": true,
+    "ruff.path": ["${workspaceFolder}/.venv/bin/ruff"],
+    "ruff.interpreter": ["${workspaceFolder}/.venv/bin/python"],
+    // 编辑器配置
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit",
+        "source.fixAll.ruff": "explicit"
     },
+    // Python 特定文件配置
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+            100
+        ]
+    },
+    // 文件关联
+    "files.associations": {
+        "pyrightconfig.json": "jsonc"
+    },
+    // 排除文件
     "files.exclude": {
         "**/__pycache__": true,
         "**/*.pyc": true,
         "**/.pytest_cache": true,
         "**/.mypy_cache": true,
-        "**/.ruff_cache": true,
-        "**/htmlcov": true,
-        "**/.coverage": true
+        "**/.ruff_cache": true
     }
 }

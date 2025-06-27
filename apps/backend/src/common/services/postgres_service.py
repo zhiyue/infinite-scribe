@@ -1,4 +1,5 @@
 """PostgreSQL database connection service."""
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -65,6 +66,7 @@ class PostgreSQLService:
         if self._pool is None:
             await self.connect()
 
+        assert self._pool is not None, "Pool should be initialized after connect()"
         async with self._pool.acquire() as conn:
             yield conn
 

@@ -1,4 +1,5 @@
 """Neo4j database connection service."""
+
 import logging
 
 from neo4j import AsyncDriver, AsyncGraphDatabase
@@ -49,13 +50,19 @@ class Neo4jService:
             async with self._driver.session() as session:
                 result = await session.run("RETURN 1 AS value")
                 record = await result.single()
-                return record["value"] == 1
+                return record is not None and record["value"] == 1
         except Exception as e:
             logger.error(f"Neo4j connection check failed: {e}")
             return False
 
     async def verify_constraints(self) -> bool:
         """Verify required constraints exist."""
+        if self._driver is None:
+            await self.connect()
+
+        if self._driver is None:
+            return False
+
         try:
             async with self._driver.session() as session:
                 result = await session.run("SHOW CONSTRAINTS")
@@ -63,8 +70,7 @@ class Neo4jService:
 
                 # Check for novel_id uniqueness constraint
                 has_novel_constraint = any(
-                    c.get("labelsOrTypes") == ["Novel"]
-                    and c.get("properties") == ["novel_id"]
+                    c.get("labelsOrTypes") == ["Novel"] and c.get("properties") == ["novel_id"]
                     for c in constraints
                 )
 
@@ -83,8 +89,11 @@ class Neo4jService:
         if self._driver is None:
             await self.connect()
 
+        if self._driver is None:
+            raise RuntimeError("Failed to establish Neo4j connection")
+
         async with self._driver.session() as session:
-            result = await session.run(query, parameters or {})
+            result = await session.run(query, parameters or {})  # pyright: ignore[reportArgumentType]
             return await result.data()
 
 

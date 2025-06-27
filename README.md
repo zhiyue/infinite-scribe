@@ -393,6 +393,10 @@ mypy apps/backend/src/
 - [Python 导入最佳实践](./docs/development/python-import-best-practices.md)
 - [Docker 架构说明](./docs/development/docker-architecture.md)
 - [CI/CD 和 Pre-commit 配置](./docs/development/ci-cd-and-pre-commit.md)
+- [本地开发调试指南](./docs/development/local-development-guide.md)
+- [类型检查配置指南](./docs/development/type-checking-setup.md)
+- [Pyright 与 Mypy 兼容性](./docs/development/pyright-mypy-compatibility.md)
+- [VSCode Ruff 格式化设置](./docs/development/vscode-ruff-setup.md)
 
 ## 🤝 贡献指南
 
