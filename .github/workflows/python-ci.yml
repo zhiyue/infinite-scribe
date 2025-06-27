@@ -45,23 +45,19 @@ jobs:
         src: "./apps/backend"
         args: "format --check"
     
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    
     - name: Install uv
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.11"
+        enable-cache: true
     
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --locked --dev
     
     - name: Type check with mypy
       run: |
-        uv run --python 3.11 mypy apps/backend/src/ --ignore-missing-imports
+        uv run mypy apps/backend/src/ --ignore-missing-imports
     
   test:
     name: Run Tests
@@ -110,19 +106,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    
     - name: Install uv
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.11"
+        enable-cache: true
     
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --locked --dev
     
     - name: Run unit tests
       env:
