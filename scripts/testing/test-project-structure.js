@@ -23,7 +23,7 @@ const isDirectory = (filepath) => exists(filepath) && fs.statSync(filepath).isDi
 const isFile = (filepath) => exists(filepath) && fs.statSync(filepath).isFile();
 
 // Project root
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = path.resolve(__dirname, '../..');
 
 // Test results
 let totalTests = 0;
