@@ -67,12 +67,41 @@ infinite-scribe/
 
 ### 安装依赖
 
+#### 快速设置（推荐）
+
 ```bash
-# 安装pnpm（如果未安装）
+# 运行开发环境设置脚本
+./scripts/setup-dev.sh
+```
+
+这个脚本会自动：
+- 安装 uv 包管理器（如果需要）
+- 创建 Python 虚拟环境
+- 安装所有 Python 依赖
+- 设置 pre-commit hooks
+- 安装前端依赖
+
+#### 手动设置
+
+```bash
+# 安装 pnpm（如果未安装）
 npm install -g pnpm@8.15.9
 
-# 安装项目依赖
+# 安装前端依赖
 pnpm install
+
+# 安装 uv（Python 包管理器）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 创建 Python 虚拟环境并安装依赖
+uv venv
+uv sync --dev
+
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 设置 pre-commit hooks
+pre-commit install
 ```
 
 ### 环境配置
@@ -276,9 +305,48 @@ pnpm test
 pnpm --filter <package-name> test
 ```
 
+## 🔄 CI/CD 和代码质量
+
+### Pre-commit Hooks
+
+项目使用 pre-commit 自动检查代码质量：
+
+```bash
+# 初始化 pre-commit（首次设置，已包含在 setup-dev.sh 中）
+./scripts/setup-pre-commit.sh
+
+# 或者直接运行（如果已安装依赖）
+pre-commit install
+
+# 手动运行所有检查
+pre-commit run --all-files
+
+# 更新 hooks 版本
+pre-commit autoupdate
+```
+
+Pre-commit 会在每次提交时自动运行：
+- **Ruff**: Python 代码检查和格式化
+- **Mypy**: 静态类型检查
+- **Bandit**: 安全漏洞扫描
+- **Hadolint**: Dockerfile 检查
+- 更多检查项见 `.pre-commit-config.yaml`
+
+### GitHub Actions CI
+
+每次推送到 `main` 或 `develop` 分支时，自动运行：
+- 代码格式和质量检查
+- 单元测试和集成测试
+- 安全漏洞扫描
+- 测试覆盖率报告
+
+详细配置见 `.github/workflows/python-ci.yml`
+
 ## 🎨 代码规范
 
-项目使用ESLint和Prettier确保代码质量和一致性：
+### JavaScript/TypeScript
+
+项目使用 ESLint 和 Prettier 确保前端代码质量：
 
 ```bash
 # 运行代码检查
@@ -288,13 +356,43 @@ pnpm lint
 pnpm format
 ```
 
+### Python
+
+后端使用 Ruff、Black 和 Mypy：
+
+```bash
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 运行 Ruff 检查（包括导入排序）
+ruff check apps/backend/
+
+# 自动修复问题
+ruff check --fix apps/backend/
+
+# 格式化代码
+black apps/backend/
+
+# 类型检查
+mypy apps/backend/src/
+```
+
+所有代码规范通过 pre-commit hooks 自动执行。
+
 ## 📖 文档
 
+### 架构和设计
 - [架构设计](./docs/architecture.md)
 - [产品需求文档](./docs/prd.md)
 - [前端规范](./docs/front-end-spec.md)
 - [API文档](./docs/architecture/rest-api-spec.md)
+
+### 开发指南
 - [环境变量配置指南](./docs/deployment/environment-variables.md)
+- [Python 依赖管理](./docs/development/python-dependency-management.md)
+- [Python 导入最佳实践](./docs/development/python-import-best-practices.md)
+- [Docker 架构说明](./docs/development/docker-architecture.md)
+- [CI/CD 和 Pre-commit 配置](./docs/development/ci-cd-and-pre-commit.md)
 
 ## 🤝 贡献指南
 

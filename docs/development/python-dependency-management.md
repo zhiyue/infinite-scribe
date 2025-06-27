@@ -17,15 +17,31 @@
    - 确保依赖版本一致性
 
 3. **使用 uv 包管理器**
+   
+   项目使用 [uv](https://github.com/astral-sh/uv) 作为 Python 包管理器，相比 pip 的优势：
+   - ⚡ **极快的速度**：比 pip 快 10-100 倍
+   - 🔒 **自动生成锁文件**：确保依赖版本一致
+   - 📦 **内置虚拟环境管理**：无需单独安装 virtualenv
+   - 🔄 **智能缓存**：避免重复下载
+   
    ```bash
-   # 安装依赖
+   # 创建虚拟环境
+   uv venv
+   
+   # 安装所有依赖（包括开发依赖）
    uv sync --dev
+   
+   # 仅安装生产依赖
+   uv sync
    
    # 添加新依赖
    uv add package-name
    
+   # 添加开发依赖
+   uv add --dev package-name
+   
    # 更新依赖
-   uv sync
+   uv sync --upgrade
    ```
 
 ### 项目结构
