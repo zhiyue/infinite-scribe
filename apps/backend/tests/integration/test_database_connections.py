@@ -52,6 +52,7 @@ services:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_postgres_connection_success(postgres_container):
     """Test successful PostgreSQL connection."""
     # Create PostgreSQL URL for test container
@@ -78,6 +79,7 @@ async def test_postgres_connection_success(postgres_container):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_postgres_connection_failure():
     """Test PostgreSQL connection failure handling."""
     # Mock settings with invalid PostgreSQL URL
@@ -99,6 +101,7 @@ async def test_postgres_connection_failure():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_neo4j_connection_success(neo4j_compose):
     """Test successful Neo4j connection."""
     # Mock settings for Neo4j test container
@@ -124,6 +127,7 @@ async def test_neo4j_connection_success(neo4j_compose):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_neo4j_connection_failure():
     """Test Neo4j connection failure handling."""
     # Mock settings with invalid Neo4j URL
@@ -145,6 +149,7 @@ async def test_neo4j_connection_failure():
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_concurrent_database_connections(postgres_container):
     """Test handling multiple concurrent database connections."""
     # Create PostgreSQL URL for test container
@@ -175,6 +180,7 @@ async def test_concurrent_database_connections(postgres_container):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.requires_docker
 async def test_database_transaction_rollback(postgres_container):
     """Test database transaction rollback on error."""
     # Create PostgreSQL URL for test container
