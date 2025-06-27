@@ -83,7 +83,7 @@ def neo4j_service(use_external_services):
                 "host": neo4j.get_container_host_ip(),
                 "port": neo4j.get_exposed_port(7687),
                 "user": "neo4j",
-                "password": neo4j.admin_password,
+                "password": neo4j.password,
             }
 
 
