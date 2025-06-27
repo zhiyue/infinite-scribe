@@ -71,7 +71,7 @@ infinite-scribe/
 
 ```bash
 # 运行开发环境设置脚本
-./scripts/setup-dev.sh
+./scripts/development/setup-dev.sh
 ```
 
 这个脚本会自动：
@@ -339,58 +339,58 @@ pnpm --filter <package-name> test
 
 ```bash
 # 不带任何标志：运行单元测试 + 代码检查
-./scripts/run-tests.sh
+./scripts/testing/run-tests.sh
 
 # 等同于：
-./scripts/run-tests.sh --unit --lint
+./scripts/testing/run-tests.sh --unit --lint
 ```
 
 #### 使用预部署服务 (--remote)
 
 ```bash
 # 运行所有测试 + 代码检查（使用测试服务器上的预部署服务）
-./scripts/run-tests.sh --all --remote
+./scripts/testing/run-tests.sh --all --remote
 
 # 仅运行单元测试（不含代码检查）
-./scripts/run-tests.sh --unit --remote
+./scripts/testing/run-tests.sh --unit --remote
 
 # 仅运行集成测试（不含代码检查）
-./scripts/run-tests.sh --integration --remote
+./scripts/testing/run-tests.sh --integration --remote
 
 # 运行所有测试 + 生成覆盖率报告（包含代码检查）
-./scripts/run-tests.sh --all --remote --coverage
+./scripts/testing/run-tests.sh --all --remote --coverage
 
 # 运行单元测试 + 生成覆盖率报告（不含代码检查）
-./scripts/run-tests.sh --unit --remote --coverage
+./scripts/testing/run-tests.sh --unit --remote --coverage
 ```
 
 #### 使用 Docker 容器 (--docker-host)
 
 ```bash
 # 运行所有测试 + 代码检查（使用测试服务器的 Docker）
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 
 # 仅运行单元测试（不含代码检查）
-./scripts/run-tests.sh --unit --docker-host
+./scripts/testing/run-tests.sh --unit --docker-host
 
 # 仅运行集成测试（不含代码检查）
-./scripts/run-tests.sh --integration --docker-host
+./scripts/testing/run-tests.sh --integration --docker-host
 
 # 运行所有测试 + 生成覆盖率报告（包含代码检查）
-./scripts/run-tests.sh --all --docker-host --coverage
+./scripts/testing/run-tests.sh --all --docker-host --coverage
 
 # 运行集成测试 + 生成覆盖率报告（不含代码检查）
-./scripts/run-tests.sh --integration --docker-host --coverage
+./scripts/testing/run-tests.sh --integration --docker-host --coverage
 ```
 
 #### 代码检查控制
 
 ```bash
 # 仅运行代码质量检查（linting + type checking）
-./scripts/run-tests.sh --lint
+./scripts/testing/run-tests.sh --lint
 
 # 运行所有测试但跳过代码检查
-./scripts/run-tests.sh --all --remote --no-lint
+./scripts/testing/run-tests.sh --all --remote --no-lint
 
 # 注意：--unit 和 --integration 默认不运行代码检查
 # 只有 --all 或无标志时才默认运行代码检查
@@ -411,7 +411,7 @@ pnpm --filter <package-name> test
 
 ```bash
 # 查看所有可用选项
-./scripts/run-tests.sh --help
+./scripts/testing/run-tests.sh --help
 ```
 
 ## 🔄 CI/CD 和代码质量
@@ -422,7 +422,7 @@ pnpm --filter <package-name> test
 
 ```bash
 # 初始化 pre-commit（首次设置，已包含在 setup-dev.sh 中）
-./scripts/setup-pre-commit.sh
+./scripts/development/setup-pre-commit.sh
 
 # 或者直接运行（如果已安装依赖）
 pre-commit install

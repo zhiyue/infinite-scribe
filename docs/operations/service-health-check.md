@@ -24,7 +24,7 @@ npm run check:services
 
 ```bash
 # 安装完整检查所需的依赖
-./scripts/install-check-deps.sh
+./scripts/development/install-check-deps.sh
 
 # 运行完整检查
 npm run check:services:full

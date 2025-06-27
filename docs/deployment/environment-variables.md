@@ -36,7 +36,7 @@ docker compose up -d
 docker compose --env-file .env.infrastructure up -d
 
 # Using deployment script
-./scripts/deploy-infrastructure.sh
+./scripts/deployment/deploy-infrastructure.sh
 ```
 
 ### 2. Frontend Layer (`.env.frontend`)

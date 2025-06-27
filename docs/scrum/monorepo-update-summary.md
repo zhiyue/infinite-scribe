@@ -15,11 +15,11 @@
 
 ### 2. 创建开发辅助脚本
 
-**文件**: `/scripts/dev.py`
-- 运行服务：`python scripts/dev.py run api-gateway`
-- 运行测试：`python scripts/dev.py test`
-- 代码检查：`python scripts/dev.py lint`
-- 格式化：`python scripts/dev.py format`
+**文件**: `/scripts/development/dev.py`
+- 运行服务：`python scripts/development/dev.py run api-gateway`
+- 运行测试：`python scripts/development/dev.py test`
+- 代码检查：`python scripts/development/dev.py lint`
+- 格式化：`python scripts/development/dev.py format`
 - 更多功能：install, clean, docker-build
 
 ### 3. 创建 Python 版本文件

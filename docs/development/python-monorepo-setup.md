@@ -165,7 +165,7 @@ services:
 
 ## 4. 开发工具脚本
 
-创建 `scripts/dev.py`:
+创建 `scripts/development/dev.py`:
 
 ```python
 #!/usr/bin/env python
@@ -270,9 +270,9 @@ uv sync --dev                    # 同步所有依赖
 uv sync --dev --upgrade          # 升级依赖
 
 # 运行
-python scripts/dev.py run api-gateway
-python scripts/dev.py test
-python scripts/dev.py format
+python scripts/development/dev.py run api-gateway
+python scripts/development/dev.py test
+python scripts/development/dev.py format
 
 # 直接运行
 uvicorn apps.api-gateway.app.main:app --reload
