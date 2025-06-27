@@ -1,18 +1,25 @@
 #!/bin/bash
 
 # Unified test script for Infinite Scribe
+# 
+# Infrastructure:
+#   - 192.168.2.201: Development machine (persistent services, NOT for testing)
+#   - TEST_MACHINE_IP env var or 192.168.2.202: Test machine (for ALL tests)
+#
 # Usage: ./scripts/run-tests.sh [options]
 #
 # Options:
-#   -u, --unit          Run unit tests only (default)
-#   -i, --integration   Run integration tests
-#   -a, --all           Run all tests (unit + integration)
-#   --remote            Use remote services at 192.168.2.201
-#   --docker-host       Use remote Docker host for testcontainers (default: DOCKER_HOST_IP env var or 192.168.2.202)
+#   -u, --unit          Run unit tests only (no linting)
+#   -i, --integration   Run integration tests only (no linting)
+#   -a, --all           Run all tests (unit + integration + linting)
+#   --remote            Use pre-deployed services on test machine (default: TEST_MACHINE_IP env var or 192.168.2.202)
+#   --docker-host       Use test machine Docker (default: DOCKER_HOST_IP env var or TEST_MACHINE_IP)
 #   --coverage          Generate coverage report
 #   --lint              Run only linting and type checking
-#   --no-lint           Skip linting and type checking
+#   --no-lint           Skip linting and type checking (when used with --all)
 #   -h, --help          Show this help message
+#
+# Default behavior (no flags): Run unit tests + linting
 
 set -e
 
@@ -31,8 +38,11 @@ USE_REMOTE_SERVICES=false
 USE_DOCKER_HOST=false
 LINT_ONLY=false
 
+# Test machine configuration (can be overridden by environment variable)
+TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"
+
 # Docker host configuration (can be overridden by environment variable)
-DOCKER_HOST_IP="${DOCKER_HOST_IP:-192.168.2.202}"
+DOCKER_HOST_IP="${DOCKER_HOST_IP:-${TEST_MACHINE_IP}}"
 DOCKER_HOST_PORT="${DOCKER_HOST_PORT:-2375}"
 
 # Parse command line arguments
@@ -41,16 +51,19 @@ while [[ $# -gt 0 ]]; do
         -u|--unit)
             RUN_UNIT=true
             RUN_INTEGRATION=false
+            RUN_LINT=false
             shift
             ;;
         -i|--integration)
             RUN_UNIT=false
             RUN_INTEGRATION=true
+            RUN_LINT=false
             shift
             ;;
         -a|--all)
             RUN_UNIT=true
             RUN_INTEGRATION=true
+            RUN_LINT=true
             shift
             ;;
         --remote)
@@ -90,22 +103,29 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Configure environment based on options
 if [ "$USE_REMOTE_SERVICES" = true ]; then
-    echo -e "${YELLOW}Using remote services at 192.168.2.201${NC}"
+    echo -e "${YELLOW}Using pre-deployed services on TEST machine at ${TEST_MACHINE_IP}${NC}"
+    echo -e "${GREEN}Connecting to manually deployed test services${NC}"
+    
+    # Load .env.test but override host IPs with TEST_MACHINE_IP
     export $(grep -v '^#' "$PROJECT_ROOT/.env.test" | xargs)
+    export POSTGRES_HOST=${TEST_MACHINE_IP}
+    export NEO4J_HOST=${TEST_MACHINE_IP}
+    export REDIS_HOST=${TEST_MACHINE_IP}
     export USE_EXTERNAL_SERVICES=true
     
     # Check connectivity
     if command -v nc &> /dev/null; then
-        echo "Checking remote services connectivity..."
-        nc -zv 192.168.2.201 5432 2>&1 | grep -q succeeded && echo "✓ PostgreSQL" || echo "✗ PostgreSQL"
-        nc -zv 192.168.2.201 7687 2>&1 | grep -q succeeded && echo "✓ Neo4j" || echo "✗ Neo4j"
-        nc -zv 192.168.2.201 6379 2>&1 | grep -q succeeded && echo "✓ Redis" || echo "✗ Redis"
+        echo "Checking test services connectivity..."
+        nc -zv ${TEST_MACHINE_IP} 5432 2>&1 | grep -q succeeded && echo "✓ PostgreSQL" || echo "✗ PostgreSQL"
+        nc -zv ${TEST_MACHINE_IP} 7687 2>&1 | grep -q succeeded && echo "✓ Neo4j" || echo "✗ Neo4j"
+        nc -zv ${TEST_MACHINE_IP} 6379 2>&1 | grep -q succeeded && echo "✓ Redis" || echo "✗ Redis"
     else
         echo -e "${YELLOW}Warning: 'nc' command not found. Skipping connectivity check.${NC}"
-        echo "Services are expected to be available at 192.168.2.201"
+        echo "Test services are expected to be available at ${TEST_MACHINE_IP}"
     fi
 elif [ "$USE_DOCKER_HOST" = true ]; then
-    echo -e "${YELLOW}Using Docker host at ${DOCKER_HOST_IP}:${DOCKER_HOST_PORT} for testcontainers${NC}"
+    echo -e "${YELLOW}Using TEST machine Docker host at ${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}${NC}"
+    echo -e "${GREEN}Safe for destructive tests - using isolated test environment${NC}"
     export USE_REMOTE_DOCKER=true
     export REMOTE_DOCKER_HOST=tcp://${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}
     
@@ -180,12 +200,7 @@ fi
 # Run integration tests
 if [ "$RUN_INTEGRATION" = true ]; then
     echo -e "\n${GREEN}=== Running integration tests ===${NC}"
-    if [ "$USE_REMOTE_SERVICES" = true ]; then
-        # Skip tests that require remote database connections
-        uv run pytest tests/integration/ $PYTEST_OPTS -k "not test_remote_databases"
-    else
-        uv run pytest tests/integration/ $PYTEST_OPTS
-    fi
+    uv run pytest tests/integration/ $PYTEST_OPTS
 fi
 
 # Clean up if using Docker host

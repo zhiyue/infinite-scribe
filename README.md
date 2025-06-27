@@ -155,7 +155,7 @@ pnpm infra:down
 # 查看服务日志
 pnpm infra:logs
 
-# 部署到开发服务器 (192.168.2.201)
+# 部署到开发服务器 (192.168.2.201) - 仅用于开发环境
 pnpm infra:deploy
 ```
 
@@ -186,7 +186,12 @@ pnpm test:structure
 
 ## 🔧 服务详情
 
-所有服务部署在开发服务器 `192.168.2.201` 上，需要在同一内网才能访问。
+### 基础设施说明
+
+- **开发服务器 (192.168.2.201)**: 仅用于开发环境的持久化服务，**不可用于任何测试**
+- **测试服务器 (192.168.2.202)**: 专门用于所有测试，支持破坏性测试
+
+所有开发服务部署在 `192.168.2.201` 上，需要在同一内网才能访问。
 
 ### 服务端口映射
 
@@ -297,6 +302,25 @@ docker run -e SERVICE_TYPE=agent-worldsmith infinite-scribe-backend
 
 ## 🧪 测试
 
+### 测试环境说明
+
+**重要**: 所有测试必须在测试服务器 (192.168.2.202) 上运行，开发服务器 (192.168.2.201) 仅用于开发，不可运行任何测试。
+
+测试服务器支持两种模式：
+- **预部署服务模式 (--remote)**: 连接到测试服务器上预先部署的服务
+- **Docker 容器模式 (--docker-host)**: 使用测试服务器的 Docker 创建临时容器
+
+### 配置测试服务器
+
+```bash
+# 使用默认测试服务器 (192.168.2.202)
+./scripts/run-tests.sh --all --remote
+
+# 使用自定义测试服务器
+export TEST_MACHINE_IP=192.168.2.100
+./scripts/run-tests.sh --all --remote
+```
+
 ### 前端测试
 
 ```bash
@@ -309,20 +333,82 @@ pnpm --filter <package-name> test
 
 ### 后端测试
 
+#### 默认行为
+
 ```bash
-# 运行单元测试（默认）
+# 不带任何标志：运行单元测试 + 代码检查
 ./scripts/run-tests.sh
 
-# 运行所有测试（单元测试 + 集成测试）
-./scripts/run-tests.sh --all
+# 等同于：
+./scripts/run-tests.sh --unit --lint
+```
 
-# 运行测试并生成覆盖率报告
-./scripts/run-tests.sh --all --coverage
+#### 使用预部署服务 (--remote)
 
-# 使用远程服务运行测试
+```bash
+# 运行所有测试 + 代码检查（使用测试服务器上的预部署服务）
 ./scripts/run-tests.sh --all --remote
 
-# 查看更多选项
+# 仅运行单元测试（不含代码检查）
+./scripts/run-tests.sh --unit --remote
+
+# 仅运行集成测试（不含代码检查）
+./scripts/run-tests.sh --integration --remote
+
+# 运行所有测试 + 生成覆盖率报告（包含代码检查）
+./scripts/run-tests.sh --all --remote --coverage
+
+# 运行单元测试 + 生成覆盖率报告（不含代码检查）
+./scripts/run-tests.sh --unit --remote --coverage
+```
+
+#### 使用 Docker 容器 (--docker-host)
+
+```bash
+# 运行所有测试 + 代码检查（使用测试服务器的 Docker）
+./scripts/run-tests.sh --all --docker-host
+
+# 仅运行单元测试（不含代码检查）
+./scripts/run-tests.sh --unit --docker-host
+
+# 仅运行集成测试（不含代码检查）
+./scripts/run-tests.sh --integration --docker-host
+
+# 运行所有测试 + 生成覆盖率报告（包含代码检查）
+./scripts/run-tests.sh --all --docker-host --coverage
+
+# 运行集成测试 + 生成覆盖率报告（不含代码检查）
+./scripts/run-tests.sh --integration --docker-host --coverage
+```
+
+#### 代码检查控制
+
+```bash
+# 仅运行代码质量检查（linting + type checking）
+./scripts/run-tests.sh --lint
+
+# 运行所有测试但跳过代码检查
+./scripts/run-tests.sh --all --remote --no-lint
+
+# 注意：--unit 和 --integration 默认不运行代码检查
+# 只有 --all 或无标志时才默认运行代码检查
+```
+
+#### 测试行为总结
+
+| 命令标志 | 单元测试 | 集成测试 | 代码检查 | 说明 |
+| --- | --- | --- | --- | --- |
+| 无标志 | ✓ | ✗ | ✓ | 默认行为 |
+| `--unit` | ✓ | ✗ | ✗ | 仅单元测试 |
+| `--integration` | ✗ | ✓ | ✗ | 仅集成测试 |
+| `--all` | ✓ | ✓ | ✓ | 完整测试套件 |
+| `--lint` | ✗ | ✗ | ✓ | 仅代码检查 |
+| `--all --no-lint` | ✓ | ✓ | ✗ | 所有测试，无代码检查 |
+
+#### 查看帮助
+
+```bash
+# 查看所有可用选项
 ./scripts/run-tests.sh --help
 ```
 
@@ -364,6 +450,13 @@ Pre-commit 会在每次提交时自动运行：
 详细配置见 `.github/workflows/python-ci.yml`
 
 ## 🎨 代码规范
+
+### 通用规范
+
+- **禁止硬编码**: 永远不要硬编码 IP 地址、端口、密码等配置值
+- **使用环境变量**: 所有环境相关的配置必须可通过环境变量覆盖
+- **提供默认值**: 使用合理的默认值，但允许通过环境变量修改
+- **示例**: `TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"`
 
 ### JavaScript/TypeScript
 
