@@ -1,0 +1,10 @@
+
+version: '3.8'
+services:
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+    ports:
+      - "7687:7687"
+      - "7474:7474"

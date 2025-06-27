@@ -137,6 +137,8 @@ markers = [
     "integration: Integration tests", 
     "e2e: End-to-end tests",
     "slow: Slow tests",
+    "requires_docker: Tests that require Docker containers",
+    "requires_remote: Tests that require remote database connections",
 ]
 
 # Mypy configuration
