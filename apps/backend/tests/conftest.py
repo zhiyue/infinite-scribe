@@ -8,6 +8,14 @@ from pathlib import Path
 
 import pytest
 
+# Configure remote Docker host if requested
+if os.environ.get("USE_REMOTE_DOCKER", "false").lower() == "true":
+    remote_docker_host = os.environ.get("REMOTE_DOCKER_HOST", "tcp://192.168.2.202:2375")
+    os.environ["DOCKER_HOST"] = remote_docker_host
+    # Only disable Ryuk if explicitly requested
+    if os.environ.get("DISABLE_RYUK", "false").lower() == "true":
+        os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"
+
 # Add src to Python path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
@@ -33,7 +41,17 @@ def pytest_configure(config):
 # Service configuration fixtures
 @pytest.fixture(scope="session")
 def use_external_services():
-    """Check if we should use external services instead of testcontainers."""
+    """Check if we should use external services instead of testcontainers.
+
+    This fixture determines whether to use:
+    - External services at 192.168.2.201 (when USE_EXTERNAL_SERVICES=true)
+    - Testcontainers with local or remote Docker (when USE_EXTERNAL_SERVICES=false)
+
+    When using testcontainers, you can additionally set:
+    - USE_REMOTE_DOCKER=true to use remote Docker host
+    - REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375 (or other host)
+    - DISABLE_RYUK=true to disable Ryuk if needed (not recommended)
+    """
     return os.environ.get("USE_EXTERNAL_SERVICES", "false").lower() == "true"
 
 
@@ -50,10 +68,13 @@ def postgres_service(use_external_services):
             "database": os.environ.get("POSTGRES_DB", "test_db"),
         }
     else:
-        # Use testcontainers for local development
+        # Use testcontainers for local or remote Docker
         from testcontainers.postgres import PostgresContainer
 
-        with PostgresContainer("postgres:16") as postgres:
+        postgres = None
+        try:
+            postgres = PostgresContainer("postgres:16")
+            postgres.start()
             yield {
                 "host": postgres.get_container_host_ip(),
                 "port": postgres.get_exposed_port(5432),
@@ -61,6 +82,13 @@ def postgres_service(use_external_services):
                 "password": postgres.password,
                 "database": postgres.dbname,
             }
+        finally:
+            # Ensure cleanup even if Ryuk fails
+            if postgres:
+                try:
+                    postgres.stop()
+                except Exception as e:
+                    print(f"Warning: Failed to stop PostgreSQL container: {e}")
 
 
 @pytest.fixture(scope="session")
@@ -75,16 +103,26 @@ def neo4j_service(use_external_services):
             "password": os.environ.get("NEO4J_PASSWORD", "neo4jtest"),
         }
     else:
-        # Use testcontainers for local development
+        # Use testcontainers for local or remote Docker
         from testcontainers.neo4j import Neo4jContainer
 
-        with Neo4jContainer("neo4j:5") as neo4j:
+        neo4j = None
+        try:
+            neo4j = Neo4jContainer("neo4j:5")
+            neo4j.start()
             yield {
                 "host": neo4j.get_container_host_ip(),
                 "port": neo4j.get_exposed_port(7687),
                 "user": "neo4j",
                 "password": neo4j.password,
             }
+        finally:
+            # Ensure cleanup even if Ryuk fails
+            if neo4j:
+                try:
+                    neo4j.stop()
+                except Exception as e:
+                    print(f"Warning: Failed to stop Neo4j container: {e}")
 
 
 @pytest.fixture(scope="session")
@@ -98,12 +136,22 @@ def redis_service(use_external_services):
             "password": os.environ.get("REDIS_PASSWORD", ""),
         }
     else:
-        # Use testcontainers for local development
+        # Use testcontainers for local or remote Docker
         from testcontainers.redis import RedisContainer
 
-        with RedisContainer("redis:7-alpine") as redis:
+        redis = None
+        try:
+            redis = RedisContainer("redis:7-alpine")
+            redis.start()
             yield {
                 "host": redis.get_container_host_ip(),
                 "port": redis.get_exposed_port(6379),
                 "password": "",
             }
+        finally:
+            # Ensure cleanup even if Ryuk fails
+            if redis:
+                try:
+                    redis.stop()
+                except Exception as e:
+                    print(f"Warning: Failed to stop Redis container: {e}")

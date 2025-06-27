@@ -23,17 +23,80 @@ All database and cache services are deployed on the remote server:
 ssh zhiyue@192.168.2.201
 ```
 
-### Local Testing with Remote Services
-For integration tests, use the remote containers:
-```bash
-# Use .env.test configuration
-export $(cat .env.test | xargs)
+### Testing
 
-# Run all tests
-./test_remote.sh
+The project uses a unified test script with various options:
+
+```bash
+# Show help
+./scripts/run-tests.sh --help
+
+# Run unit tests only (default)
+./scripts/run-tests.sh
+./scripts/run-tests.sh --unit
+
+# Run integration tests only
+./scripts/run-tests.sh --integration
+
+# Run all tests (unit + integration)
+./scripts/run-tests.sh --all
+
+# Run tests with coverage report
+./scripts/run-tests.sh --all --coverage
+
+# Run only code quality checks (linting, formatting, type checking)
+./scripts/run-tests.sh --lint
+
+# Skip code quality checks
+./scripts/run-tests.sh --all --no-lint
+```
+
+#### Testing with Remote Services
+Use remote containers at 192.168.2.201:
+```bash
+# Run all tests with remote services
+./scripts/run-tests.sh --all --remote
 
 # Run specific integration tests
 cd apps/backend && uv run pytest tests/integration/test_remote_databases.py -v
+```
+
+#### Testing with Remote Docker Host
+Use a remote Docker host for testcontainers:
+```bash
+# Run all tests using remote Docker host (default: 192.168.2.202:2375)
+./scripts/run-tests.sh --all --docker-host
+
+# Use a custom Docker host
+export DOCKER_HOST_IP=192.168.2.100
+export DOCKER_HOST_PORT=2375
+./scripts/run-tests.sh --all --docker-host
+
+# Or set environment variables manually
+export USE_REMOTE_DOCKER=true
+export REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375
+./scripts/run-tests.sh --all
+
+# Or use the .env.remote-docker configuration
+export $(cat .env.remote-docker | xargs)
+./scripts/run-tests.sh --all
+```
+
+**Remote Docker Configuration Options:**
+- `DOCKER_HOST_IP` - Docker host IP address (default: 192.168.2.202)
+- `DOCKER_HOST_PORT` - Docker daemon port (default: 2375)
+- `USE_REMOTE_DOCKER=true` - Enable remote Docker host for testcontainers
+- `REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375` - Docker daemon URL
+- `DISABLE_RYUK=true` - Only set if experiencing Ryuk issues (not recommended)
+
+**Docker Host Setup (on DOCKER_HOST_IP, default 192.168.2.202):**
+```bash
+# Ensure Docker daemon is listening on TCP
+# Edit /etc/docker/daemon.json to include:
+# {
+#   "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
+# }
+# Then restart Docker service
 ```
 
 ## Project Structure

@@ -297,12 +297,33 @@ docker run -e SERVICE_TYPE=agent-worldsmith infinite-scribe-backend
 
 ## 🧪 测试
 
+### 前端测试
+
 ```bash
 # 运行所有测试
 pnpm test
 
 # 运行特定包的测试
 pnpm --filter <package-name> test
+```
+
+### 后端测试
+
+```bash
+# 运行单元测试（默认）
+./scripts/run-tests.sh
+
+# 运行所有测试（单元测试 + 集成测试）
+./scripts/run-tests.sh --all
+
+# 运行测试并生成覆盖率报告
+./scripts/run-tests.sh --all --coverage
+
+# 使用远程服务运行测试
+./scripts/run-tests.sh --all --remote
+
+# 查看更多选项
+./scripts/run-tests.sh --help
 ```
 
 ## 🔄 CI/CD 和代码质量
