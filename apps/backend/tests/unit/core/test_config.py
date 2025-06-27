@@ -3,7 +3,34 @@
 import os
 from unittest.mock import patch
 
+import pytest
 from src.core.config import Settings
+
+
+@pytest.fixture(autouse=True)
+def clean_environment():
+    """Clear database-related environment variables for tests."""
+    env_vars_to_clear = [
+        "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
+        "NEO4J_HOST", "NEO4J_PORT", "NEO4J_USER", "NEO4J_PASSWORD", "NEO4J_URI",
+        "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD",
+        "USE_EXTERNAL_SERVICES"
+    ]
+    
+    # Store original values
+    original_values = {var: os.environ.get(var) for var in env_vars_to_clear}
+    
+    # Clear the variables
+    for var in env_vars_to_clear:
+        if var in os.environ:
+            del os.environ[var]
+    
+    yield
+    
+    # Restore original values
+    for var, value in original_values.items():
+        if value is not None:
+            os.environ[var] = value
 
 
 def test_default_settings():
