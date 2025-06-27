@@ -341,3 +341,4 @@ async def test_postgres_transaction_rollback(postgres_service):
             await conn.execute("DROP TABLE IF EXISTS rollback_test_table")
 
         await service.disconnect()
+

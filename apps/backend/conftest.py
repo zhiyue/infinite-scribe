@@ -36,3 +36,4 @@ def redis_service():
         "port": int(os.environ.get("REDIS_PORT", "6379")),
         "password": os.environ.get("REDIS_PASSWORD", ""),
     }
+
