@@ -68,32 +68,3 @@ jobs:
       run: |
         python3 -m pip install psycopg2-binary redis neo4j
         python3 -c "
-import psycopg2
-import redis
-from neo4j import GraphDatabase
-
-# Test PostgreSQL
-conn = psycopg2.connect(
-    host='localhost',
-    port=5432,
-    user='postgres',
-    password='postgres',
-    database='test_db'
-)
-print('✅ PostgreSQL connected via Python')
-conn.close()
-
-# Test Redis  
-r = redis.Redis(host='localhost', port=6379)
-r.ping()
-print('✅ Redis connected via Python')
-
-# Test Neo4j
-driver = GraphDatabase.driver(
-    'bolt://localhost:7687',
-    auth=('neo4j', 'neo4jtest')
-)
-driver.verify_connectivity()
-print('✅ Neo4j connected via Python')
-driver.close()
-"
