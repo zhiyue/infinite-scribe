@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// 加载环境变量
+require('dotenv').config();
+
 const http = require('http');
 const https = require('https');
 const { Client } = require('pg');
@@ -10,7 +13,8 @@ const { MilvusClient } = require('@zilliz/milvus2-sdk-node');
 const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
 
 // Configuration
-const DEV_SERVER = process.env.DEV_SERVER || '192.168.2.201';
+// 默认的开发服务器地址，各服务可以通过自己的 HOST 环境变量覆盖
+const DEFAULT_HOST = process.env.INFRASTRUCTURE_HOST || '192.168.2.201';
 const CHECKS_TIMEOUT = 5000; // 5 seconds timeout for each check
 
 // Color codes for terminal output
@@ -30,14 +34,14 @@ const services = [
     port: 5432,
     check: async () => {
       const client = new Client({
-        host: DEV_SERVER,
-        port: 5432,
+        host: process.env.POSTGRES_HOST || DEFAULT_HOST,
+        port: process.env.POSTGRES_PORT || 5432,
         user: process.env.POSTGRES_USER || 'postgres',
         password: process.env.POSTGRES_PASSWORD || 'postgres',
-        database: 'postgres',
+        database: process.env.POSTGRES_DB || 'postgres',
         connectionTimeoutMillis: CHECKS_TIMEOUT
       });
-      
+
       try {
         await client.connect();
         const res = await client.query('SELECT NOW()');
@@ -54,13 +58,13 @@ const services = [
     check: async () => {
       const client = redis.createClient({
         socket: {
-          host: DEV_SERVER,
-          port: 6379,
+          host: process.env.REDIS_HOST || DEFAULT_HOST,
+          port: process.env.REDIS_PORT || 6379,
           connectTimeout: CHECKS_TIMEOUT
         },
         password: process.env.REDIS_PASSWORD || 'redis'
       });
-      
+
       try {
         await client.connect();
         await client.ping();
@@ -77,14 +81,16 @@ const services = [
     name: 'Neo4j',
     port: 7687,
     check: async () => {
+      const host = process.env.NEO4J_HOST || DEFAULT_HOST;
+      const port = process.env.NEO4J_PORT || 7687;
       const driver = neo4j.driver(
-        `bolt://${DEV_SERVER}:7687`,
+        `bolt://${host}:${port}`,
         neo4j.auth.basic(
           process.env.NEO4J_USER || 'neo4j',
           process.env.NEO4J_PASSWORD || 'neo4j'
         )
       );
-      
+
       try {
         const session = driver.session();
         const result = await session.run('RETURN 1 as num');
@@ -101,20 +107,23 @@ const services = [
     name: 'Neo4j Browser',
     port: 7474,
     check: async () => {
-      return checkHttp(`http://${DEV_SERVER}:7474`, 'Neo4j Browser UI');
+      const host = process.env.NEO4J_HOST || DEFAULT_HOST;
+      return checkHttp(`http://${host}:7474`, 'Neo4j Browser UI');
     }
   },
   {
     name: 'Kafka',
     port: 9092,
     check: async () => {
+      const host = process.env.KAFKA_HOST || DEFAULT_HOST;
+      const port = process.env.KAFKA_PORT || 9092;
       const kafka = new Kafka({
         clientId: 'check-services',
-        brokers: [`${DEV_SERVER}:9092`],
+        brokers: [`${host}:${port}`],
         connectionTimeout: CHECKS_TIMEOUT,
         requestTimeout: CHECKS_TIMEOUT
       });
-      
+
       const admin = kafka.admin();
       try {
         await admin.connect();
@@ -130,11 +139,13 @@ const services = [
     name: 'Milvus',
     port: 19530,
     check: async () => {
+      const host = process.env.MILVUS_HOST || DEFAULT_HOST;
+      const port = process.env.MILVUS_PORT || 19530;
       const milvusClient = new MilvusClient({
-        address: `${DEV_SERVER}:19530`,
+        address: `${host}:${port}`,
         timeout: CHECKS_TIMEOUT
       });
-      
+
       try {
         const health = await milvusClient.checkHealth();
         return { success: health.isHealthy, info: 'Connected, server is healthy' };
@@ -147,8 +158,10 @@ const services = [
     name: 'MinIO',
     port: 9000,
     check: async () => {
+      const host = process.env.MINIO_HOST || DEFAULT_HOST;
+      const port = process.env.MINIO_PORT || 9000;
       const s3Client = new S3Client({
-        endpoint: `http://${DEV_SERVER}:9000`,
+        endpoint: `http://${host}:${port}`,
         region: 'us-east-1',
         credentials: {
           accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
@@ -156,13 +169,13 @@ const services = [
         },
         forcePathStyle: true
       });
-      
+
       try {
         const command = new ListBucketsCommand({});
         const response = await s3Client.send(command);
-        return { 
-          success: true, 
-          info: `Connected, ${response.Buckets?.length || 0} buckets found` 
+        return {
+          success: true,
+          info: `Connected, ${response.Buckets?.length || 0} buckets found`
         };
       } catch (error) {
         return { success: false, error: error.message };
@@ -173,7 +186,8 @@ const services = [
     name: 'MinIO Console',
     port: 9001,
     check: async () => {
-      return checkHttp(`http://${DEV_SERVER}:9001`, 'MinIO Console UI');
+      const host = process.env.MINIO_HOST || DEFAULT_HOST;
+      return checkHttp(`http://${host}:9001`, 'MinIO Console UI');
     }
   },
   {
@@ -181,15 +195,17 @@ const services = [
     port: 4200,
     check: async () => {
       try {
-        const healthCheck = await checkHttp(`http://${DEV_SERVER}:4200/api/health`);
+        const host = process.env.PREFECT_HOST || DEFAULT_HOST;
+        const port = process.env.PREFECT_PORT || 4200;
+        const healthCheck = await checkHttp(`http://${host}:${port}/api/health`);
         if (!healthCheck.success) return healthCheck;
-        
+
         // Additional API check
-        const response = await fetch(`http://${DEV_SERVER}:4200/api/version`);
+        const response = await fetch(`http://${host}:${port}/api/version`);
         const data = await response.json();
-        return { 
-          success: true, 
-          info: `API healthy, version: ${data.version || 'unknown'}` 
+        return {
+          success: true,
+          info: `API healthy, version: ${data.version || 'unknown'}`
         };
       } catch (error) {
         return { success: false, error: error.message };
@@ -200,7 +216,9 @@ const services = [
     name: 'Prefect UI',
     port: 4200,
     check: async () => {
-      return checkHttp(`http://${DEV_SERVER}:4200`, 'Prefect Web UI');
+      const host = process.env.PREFECT_HOST || DEFAULT_HOST;
+      const port = process.env.PREFECT_PORT || 4200;
+      return checkHttp(`http://${host}:${port}`, 'Prefect Web UI');
     }
   },
   {
@@ -208,17 +226,19 @@ const services = [
     port: 8000,
     check: async () => {
       try {
-        const response = await fetch(`http://${DEV_SERVER}:8000/health`);
+        const host = process.env.API_GATEWAY_HOST || DEFAULT_HOST;
+        const port = process.env.API_GATEWAY_PORT || 8000;
+        const response = await fetch(`http://${host}:${port}/health`);
         const data = await response.json();
         if (response.ok && data.status === 'ok') {
-          return { 
-            success: true, 
-            info: 'API Gateway healthy, all database connections OK' 
+          return {
+            success: true,
+            info: 'API Gateway healthy, all database connections OK'
           };
         } else {
-          return { 
-            success: false, 
-            error: `Health check failed: ${JSON.stringify(data)}` 
+          return {
+            success: false,
+            error: `Health check failed: ${JSON.stringify(data)}`
           };
         }
       } catch (error) {
@@ -232,33 +252,33 @@ const services = [
 async function checkHttp(url, serviceName = '') {
   return new Promise((resolve) => {
     const client = url.startsWith('https') ? https : http;
-    
+
     const req = client.get(url, { timeout: CHECKS_TIMEOUT }, (res) => {
       if (res.statusCode >= 200 && res.statusCode < 400) {
-        resolve({ 
-          success: true, 
-          info: `${serviceName} accessible, status: ${res.statusCode}` 
+        resolve({
+          success: true,
+          info: `${serviceName} accessible, status: ${res.statusCode}`
         });
       } else {
-        resolve({ 
-          success: false, 
-          error: `HTTP ${res.statusCode}` 
+        resolve({
+          success: false,
+          error: `HTTP ${res.statusCode}`
         });
       }
     });
-    
+
     req.on('error', (err) => {
-      resolve({ 
-        success: false, 
-        error: err.message 
+      resolve({
+        success: false,
+        error: err.message
       });
     });
-    
+
     req.on('timeout', () => {
       req.destroy();
-      resolve({ 
-        success: false, 
-        error: 'Connection timeout' 
+      resolve({
+        success: false,
+        error: 'Connection timeout'
       });
     });
   });
@@ -267,20 +287,20 @@ async function checkHttp(url, serviceName = '') {
 // Main execution
 async function main() {
   console.log(`${colors.bold}${colors.blue}InfiniteScribe Service Health Check${colors.reset}`);
-  console.log(`${colors.blue}Development Server: ${DEV_SERVER}${colors.reset}`);
+  console.log(`${colors.blue}Default Host: ${DEFAULT_HOST}${colors.reset}`);
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
-  
+
   const results = [];
   let healthyCount = 0;
-  
+
   // Check each service
   for (const service of services) {
     process.stdout.write(`Checking ${service.name}...`.padEnd(30));
-    
+
     try {
       const result = await service.check();
       results.push({ ...service, ...result });
-      
+
       if (result.success) {
         healthyCount++;
         console.log(`${colors.green}✓ HEALTHY${colors.reset} - ${result.info}`);
@@ -292,20 +312,20 @@ async function main() {
       console.log(`${colors.red}✗ ERROR${colors.reset} - ${error.message}`);
     }
   }
-  
+
   // Summary
   console.log(`\n${colors.blue}${'='.repeat(50)}${colors.reset}`);
   console.log(`${colors.bold}Summary:${colors.reset}`);
   console.log(`Total services: ${services.length}`);
   console.log(`${colors.green}Healthy: ${healthyCount}${colors.reset}`);
   console.log(`${colors.red}Failed: ${services.length - healthyCount}${colors.reset}`);
-  
+
   // Docker compose hint
   if (healthyCount < services.length) {
     console.log(`\n${colors.yellow}Hint: To start all services, run:${colors.reset}`);
-    console.log(`ssh ${process.env.USER || 'zhiyue'}@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe && docker compose up -d"`);
+    console.log(`ssh ${process.env.USER || 'zhiyue'}@${DEFAULT_HOST} "cd ~/workspace/mvp/infinite-scribe && docker compose up -d"`);
   }
-  
+
   // Exit code based on health
   process.exit(healthyCount === services.length ? 0 : 1);
 }
