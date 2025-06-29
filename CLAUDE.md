@@ -1,7 +1,9 @@
 # Infinite Scribe - Development Environment
 
 ## Project Overview
+
 Infinite Scribe is a full-stack application with:
+
 - Frontend: Next.js/React (TypeScript)
 - Backend: FastAPI (Python)
 - Databases: PostgreSQL, Neo4j
@@ -11,17 +13,24 @@ Infinite Scribe is a full-stack application with:
 ## Remote Infrastructure
 
 ### Development Machine (192.168.2.201)
+
 **Purpose**: Long-running development infrastructure services. NOT FOR TESTING.
+
 - **Host**: 192.168.2.201
 - **User**: zhiyue (SSH access available)
 - **Services**:
-  - PostgreSQL: Port 5432 (user: postgres, password: devPostgres123!, db: infinite_scribe)
-  - Neo4j: Port 7687 (user: neo4j, password: devNeo4j123!, Web UI: 7474)  
+  - PostgreSQL: Port 5432 (user: postgres, password: devPostgres123!, db:
+    infinite_scribe)
+  - Neo4j: Port 7687 (user: neo4j, password: devNeo4j123!, Web UI: 7474)
   - Redis: Port 6379 (password: devRedis123!)
-- **Important**: This machine is for development use ONLY - NO tests should be run against these services
+- **Important**: This machine is for development use ONLY - NO tests should be
+  run against these services
 
 ### Test Machine (default: 192.168.2.202)
-**Purpose**: Test environment for running tests including destructive data tests.
+
+**Purpose**: Test environment for running tests including destructive data
+tests.
+
 - **Host**: Configurable via `TEST_MACHINE_IP` env var (default: 192.168.2.202)
 - **User**: zhiyue (SSH access available)
 - **Features**:
@@ -30,6 +39,7 @@ Infinite Scribe is a full-stack application with:
   - Used by testcontainers for integration tests
 
 ### SSH Access
+
 ```bash
 # Development machine
 ssh zhiyue@192.168.2.201
@@ -43,11 +53,14 @@ ssh zhiyue@${TEST_MACHINE_IP}
 
 ### Testing
 
-ALL tests must be run on the test machine. The development machine (192.168.2.201) is NOT for testing.
+ALL tests must be run on the test machine. The development machine
+(192.168.2.201) is NOT for testing.
 
-**Recommended approach**: Use `--docker-host` for testing with Docker containers on the test machine.
+**Recommended approach**: Use `--docker-host` for testing with Docker containers
+on the test machine.
 
 To use a custom test machine:
+
 ```bash
 export TEST_MACHINE_IP=192.168.2.100
 ./scripts/run-tests.sh --all --docker-host
@@ -56,6 +69,7 @@ export TEST_MACHINE_IP=192.168.2.100
 The project supports two testing approaches on the test machine:
 
 #### Option 1: Using Docker Containers (--docker-host) [RECOMMENDED]
+
 Use Docker on the test machine to spin up isolated containers:
 
 ```bash
@@ -70,6 +84,7 @@ Use Docker on the test machine to spin up isolated containers:
 ```
 
 #### Option 2: Using Pre-deployed Services (--remote)
+
 Connect to manually deployed services on the test machine (less commonly used):
 
 ```bash
@@ -101,10 +116,10 @@ Connect to manually deployed services on the test machine (less commonly used):
 ./scripts/run-tests.sh --all --remote --no-lint
 ```
 
-
 #### Test Machine Configuration Details
 
 ##### Docker Host Setup (--docker-host) [RECOMMENDED]
+
 To use Docker containers on the test machine:
 
 ```bash
@@ -124,12 +139,13 @@ export USE_REMOTE_DOCKER=true
 export REMOTE_DOCKER_HOST=tcp://${TEST_MACHINE_IP:-192.168.2.202}:2375
 ./scripts/run-tests.sh --all
 
-# Or use the .env.remote-docker configuration
-export $(cat .env.remote-docker | xargs)
+# Or use the .env.test configuration
+export $(cat .env.test | xargs)
 ./scripts/run-tests.sh --all
 ```
 
 **Docker Configuration Options:**
+
 - `TEST_MACHINE_IP` - Test machine IP address (default: 192.168.2.202)
 - `DOCKER_HOST_IP` - Docker host IP (default: uses TEST_MACHINE_IP)
 - `DOCKER_HOST_PORT` - Docker daemon port (default: 2375)
@@ -138,6 +154,7 @@ export $(cat .env.remote-docker | xargs)
 - `DISABLE_RYUK=true` - Only set if experiencing Ryuk issues (not recommended)
 
 **Docker Daemon Setup (on test machine):**
+
 ```bash
 # Ensure Docker daemon is listening on TCP
 # Edit /etc/docker/daemon.json to include:
@@ -148,6 +165,7 @@ export $(cat .env.remote-docker | xargs)
 ```
 
 ##### Pre-deployed Services Setup (--remote)
+
 To use pre-deployed services on the test machine (less common approach):
 
 1. Deploy PostgreSQL, Neo4j, and Redis on your test machine
@@ -155,12 +173,14 @@ To use pre-deployed services on the test machine (less common approach):
 3. Run tests with `--remote` flag to connect to these services
 
 **Service Configuration** (from `.env.test`):
+
 - Host: Uses TEST_MACHINE_IP env var (default: 192.168.2.202)
 - PostgreSQL: Port 5432, database: `infinite_scribe_test`
 - Neo4j: Port 7687
 - Redis: Port 6379
 
 ## Project Structure
+
 ```
 infinite-scribe/
 ├── apps/
@@ -172,14 +192,51 @@ infinite-scribe/
 ├── .github/           # GitHub Actions workflows
 ├── pyproject.toml     # Python project configuration
 ├── uv.lock           # Python dependency lock file
-├── package.json      # Node.js project configuration  
+├── package.json      # Node.js project configuration
 ├── pnpm-lock.yaml   # Frontend dependency lock file
-└── .env.test        # Test environment configuration
+├── .env              # Active environment (symlink)
+├── .env.local        # Local development config
+├── .env.dev          # Dev server config (192.168.2.201)
+├── .env.test         # Test environment config
+└── .env.example      # Environment template
+```
+
+## Environment Management
+
+The project uses a simplified environment structure with four main configuration
+files:
+
+### Environment Files
+
+- `.env` - Symlink to the active environment configuration
+- `.env.local` - Local development with Docker Compose
+- `.env.dev` - Development server (192.168.2.201) configuration
+- `.env.test` - Test environment configuration (used for testing)
+- `.env.example` - Template for creating new environments
+
+### Switching Environments
+
+```bash
+# Consolidate existing .env files (run once)
+pnpm env:consolidate
+
+# Switch to local development
+pnpm env:local
+
+# Switch to dev server
+pnpm env:dev
+
+# Switch to test environment
+pnpm env:test
+
+# Show current environment
+pnpm env:show
 ```
 
 ## Common Commands
 
 ### Backend Development
+
 ```bash
 # Install dependencies
 uv sync --all-extras
@@ -205,6 +262,7 @@ uv run mypy apps/backend/src/ --ignore-missing-imports
 ```
 
 ### Frontend Development
+
 ```bash
 # Install dependencies
 pnpm install
@@ -220,6 +278,7 @@ pnpm test
 ```
 
 ## CI/CD
+
 - GitHub Actions workflows in `.github/workflows/`
 - Trivy security scanning configured (CRITICAL vulnerabilities only)
 - Automated testing on push/PR to main/develop branches
@@ -227,17 +286,27 @@ pnpm test
 ## Coding Guidelines
 
 ### Configuration Management
-- **NEVER hardcode values** - Always use environment variables or configuration files
-- IP addresses, ports, passwords, and other environment-specific values must be configurable
+
+- **NEVER hardcode values** - Always use environment variables or configuration
+  files
+- IP addresses, ports, passwords, and other environment-specific values must be
+  configurable
 - Use sensible defaults with the ability to override via environment variables
-- Example: `TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"` instead of hardcoding `192.168.2.202`
+- Example: `TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"` instead of
+  hardcoding `192.168.2.202`
 
 ## Important Notes
-- Development machine (192.168.2.201): ONLY for development - NO tests of any kind
+
+- Development machine (192.168.2.201): ONLY for development - NO tests of any
+  kind
 - Test machine (configurable, default 192.168.2.202): Use for ALL testing
-  - **Recommended**: `--docker-host` - Use Docker containers on test machine for isolated testing
-  - Alternative: `--remote` - Connect to pre-deployed services on test machine (less common)
-- `.env.test` contains test machine service configuration (hosts are overridden by TEST_MACHINE_IP)
+  - **Recommended**: `--docker-host` - Use Docker containers on test machine for
+    isolated testing
+  - Alternative: `--remote` - Connect to pre-deployed services on test machine
+    (less common)
+- `.env.test` contains test machine service configuration (hosts are overridden
+  by TEST_MACHINE_IP)
 - Configure test machine with: `export TEST_MACHINE_IP=your.test.machine.ip`
 - Local development does not require Docker
-- DISABLE_RYUK is available but not recommended - only use if experiencing Ryuk cleanup issues
+- DISABLE_RYUK is available but not recommended - only use if experiencing Ryuk
+  cleanup issues

@@ -1,161 +1,194 @@
-# Environment Variables Configuration Guide
+# Environment Variables Guide
 
 ## Overview
 
-InfiniteScribe uses a layered approach to environment variable management, separating infrastructure concerns from application configuration.
+InfiniteScribe uses a simplified environment structure with four main configuration files:
 
-## Environment File Structure
+1. **`.env`** - Symlink to the active environment configuration
+2. **`.env.local`** - Local development with Docker Compose
+3. **`.env.dev`** - Development server (192.168.2.201) configuration
+4. **`.env.test`** - Test environment configuration
+5. **`.env.example`** - Template with all possible variables
 
-```
-.env.infrastructure    # Core services (Docker Compose)
-.env.frontend         # Frontend application
-.env.backend          # API Gateway & backend services  
-.env.agents           # AI Agent services
-```
+## Environment Files Comparison
 
-## Layer Details
+### Common Variables (All Environments)
 
-### 1. Infrastructure Layer (`.env.infrastructure`)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `POSTGRES_HOST` | PostgreSQL host | localhost / 192.168.2.201 |
+| `POSTGRES_PORT` | PostgreSQL port | 5432 |
+| `POSTGRES_USER` | PostgreSQL user | postgres |
+| `POSTGRES_PASSWORD` | PostgreSQL password | devPostgres123! |
+| `REDIS_HOST` | Redis host | localhost / 192.168.2.201 |
+| `REDIS_PORT` | Redis port | 6379 |
+| `REDIS_PASSWORD` | Redis password | devRedis123! |
+| `NEO4J_HOST` | Neo4j host | localhost / 192.168.2.201 |
+| `NEO4J_PORT` | Neo4j port | 7687 |
+| `NEO4J_USER` | Neo4j user | neo4j |
+| `NEO4J_PASSWORD` | Neo4j password | devNeo4j123! |
+| `API_HOST` | API bind host | 0.0.0.0 |
+| `API_PORT` | API port | 8000 |
+| `SERVICE_NAME` | Service identifier | infinite-scribe-backend |
+| `SERVICE_TYPE` | Service type | api-gateway |
+| `ALLOWED_ORIGINS` | CORS allowed origins | ["*"] |
+| `OPENAI_API_KEY` | OpenAI API key | (your key) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | (your key) |
 
-Used by Docker Compose to deploy core services. Managed by DevOps team.
+### Environment-Specific Variables
 
-**Key Variables:**
-- `POSTGRES_*` - PostgreSQL configuration
-- `REDIS_*` - Redis configuration
-- `NEO4J_*` - Neo4j configuration
-- `MINIO_*` - MinIO object storage
-- `KAFKA_*` - Kafka message broker
-- `DEV_SERVER_IP` - Development server IP
+#### Local Development (`.env.local`)
+- `NODE_ENV=development`
+- `POSTGRES_DB=infinite_scribe`
+- All hosts use `localhost`
+- `NEXT_PUBLIC_API_URL=http://localhost:8000`
 
-**Usage:**
-```bash
-# Default (uses .env if exists, otherwise .env.infrastructure)
-docker compose up -d
+#### Development Server (`.env.dev`)
+- `NODE_ENV=development`
+- `POSTGRES_DB=infinite_scribe`
+- All hosts use `192.168.2.201`
+- `NEXT_PUBLIC_API_URL=http://192.168.2.201:8000`
+- Used for persistent development infrastructure
 
-# Explicit environment file
-docker compose --env-file .env.infrastructure up -d
+#### Test Environment (`.env.test`)
+- `NODE_ENV=test`
+- `POSTGRES_DB=infinite_scribe_test` (separate test database)
+- `TEST_MACHINE_IP=${TEST_MACHINE_IP:-192.168.2.202}`
+- All hosts use `${TEST_MACHINE_IP}`
+- Additional Docker configuration:
+  - `USE_REMOTE_DOCKER=true`
+  - `REMOTE_DOCKER_HOST=tcp://${TEST_MACHINE_IP}:2375`
+  - `DISABLE_RYUK=false`
 
-# Using deployment script
-./scripts/deployment/deploy-infrastructure.sh
-```
+## When to Use Each Environment
 
-### 2. Frontend Layer (`.env.frontend`)
+### `.env.local`
+- **Use for**: Local development on your machine
+- **Services**: Run with Docker Compose locally
+- **Database**: Local `infinite_scribe` database
+- **Best for**: Individual development, testing new features
 
-Used by the React/Vite frontend application.
+### `.env.dev`
+- **Use for**: Shared development infrastructure
+- **Services**: Deployed on 192.168.2.201
+- **Database**: Shared `infinite_scribe` database
+- **Best for**: Team development, integration testing, demos
 
-**Key Variables:**
-- `VITE_API_BASE_URL` - Backend API endpoint
-- `VITE_WS_URL` - WebSocket endpoint
-- `VITE_ENABLE_*` - Feature flags
+### `.env.test`
+- **Use for**: Running automated tests
+- **Services**: Isolated containers on test machine
+- **Database**: Separate `infinite_scribe_test` database
+- **Best for**: CI/CD, test runs, destructive testing
 
-**Usage:**
-```bash
-# Development
-cd apps/frontend
-cp .env.frontend.example .env.frontend
-# Edit .env.frontend with your values
-npm run dev
+## Usage
 
-# Production build
-npm run build
-```
-
-### 3. Backend Layer (`.env.backend`)
-
-Used by the unified backend services (API Gateway and all Agents).
-
-**Key Variables:**
-- `SERVICE_TYPE` - Determines which service to run (e.g., `api-gateway`, `agent-worldsmith`)
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `*_API_KEY` - External service API keys
-- `JWT_SECRET` - Authentication secret
-
-**Usage:**
-```bash
-# Backend services
-cd apps/backend
-cp .env.backend.example .env.backend
-# Edit .env.backend
-
-# Run specific service via SERVICE_TYPE
-SERVICE_TYPE=api-gateway uvicorn src.api.main:app
-SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
-```
-
-### 4. Agent Layer (`.env.agents`)
-
-> **注意:** Agent服务现已整合到后端层。Agent相关的环境变量应包含在 `.env.backend` 中。
-
-**Key Variables (now in `.env.backend`):**
-- `LLM_MODEL_*` - Model selection per agent
-- `LLM_TEMPERATURE_*` - Model parameters
-- `AGENT_*` - Agent-specific settings
-
-**Usage:**
-```bash
-# Backend services (API Gateway and Agents)
-cd apps/backend
-cp .env.backend.example .env.backend
-# Edit .env.backend
-
-# Run API Gateway
-SERVICE_TYPE=api-gateway uvicorn src.api.main:app
-
-# Run specific agent
-SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
-```
-
-## Security Best Practices
-
-1. **Never commit actual `.env` files** - Only commit `.env.*.example` templates
-2. **Use strong passwords** - Generate with `openssl rand -base64 32`
-3. **Rotate secrets regularly** - Especially API keys
-4. **Separate by environment** - Different values for dev/staging/prod
-5. **Limit access** - Infrastructure vars only for DevOps team
-
-## Migration from Single .env
-
-If you have an existing `.env` file:
+### Switching Environments
 
 ```bash
-# Backup existing configuration
-cp .env .env.backup
+# Show current environment
+pnpm env:show
 
-# Copy infrastructure variables
-cp .env .env.infrastructure
+# Switch to local development
+pnpm env:local
 
-# Create application configs from examples
-cp .env.frontend.example .env.frontend
-cp .env.backend.example .env.backend
-cp .env.agents.example .env.agents
+# Switch to dev server
+pnpm env:dev
 
-# Update application configs with values from .env.backup
-# Remove application-specific vars from .env.infrastructure
+# Switch to test environment
+pnpm env:test
 ```
 
-## Docker Compose Behavior
+### Manual Switching
 
-Docker Compose looks for environment files in this order:
-1. `.env` (if exists)
-2. Variables set in shell environment
-3. Default values in `docker-compose.yml`
+```bash
+# Remove existing symlink
+rm .env
 
-To use `.env.infrastructure` explicitly:
-- Rename to `.env`, OR
-- Use `docker compose --env-file .env.infrastructure`, OR
-- Set `COMPOSE_ENV_FILE=.env.infrastructure` in your shell
+# Create new symlink
+ln -s .env.local .env    # For local development
+ln -s .env.dev .env      # For dev server
+ln -s .env.test .env     # For testing
+```
 
-## Troubleshooting
+## Optional Services
 
-### Services can't connect
-- Check if services use internal Docker network names (e.g., `postgres` not `localhost`)
-- Verify passwords match between layers
+These services can be enabled by uncommenting in your environment file:
 
-### Environment variable not found
-- Check correct file is loaded
-- Verify variable name matches exactly
-- For frontend, remember `VITE_` prefix
+### Milvus Vector Database
+```bash
+MILVUS_HOST=localhost
+MILVUS_PORT=19530
+```
 
-### Permission denied
-- Ensure `.env.*` files have appropriate permissions: `chmod 600 .env.*`
+### MinIO Object Storage
+```bash
+MINIO_HOST=localhost
+MINIO_PORT=9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_ENDPOINT=minio:9000
+```
+
+### Kafka Message Broker
+```bash
+KAFKA_HOST=localhost
+KAFKA_PORT=9092
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+```
+
+### Prefect Workflow Orchestration
+```bash
+PREFECT_API_URL=http://prefect:4200/api
+PREFECT_POSTGRES_USER=prefect
+PREFECT_POSTGRES_PASSWORD=your_prefect_password
+```
+
+## Complete Variable Reference
+
+### Core Services
+- **PostgreSQL**: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- **Redis**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
+- **Neo4j**: `NEO4J_HOST`, `NEO4J_PORT`, `NEO4J_USER`, `NEO4J_PASSWORD`, `NEO4J_URI`
+
+### Application Configuration
+- **API**: `API_HOST`, `API_PORT`
+- **Frontend**: `NEXT_PUBLIC_API_URL`, `PORT`
+- **Service**: `NODE_ENV`, `SERVICE_NAME`, `SERVICE_TYPE`, `ALLOWED_ORIGINS`
+
+### AI Providers
+- **OpenAI**: `OPENAI_API_KEY`
+- **Anthropic**: `ANTHROPIC_API_KEY`
+
+### Test Environment Only
+- **Docker**: `TEST_MACHINE_IP`, `USE_REMOTE_DOCKER`, `REMOTE_DOCKER_HOST`, `DISABLE_RYUK`
+- **Testcontainers**: `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`, `TESTCONTAINERS_HOST_OVERRIDE`
+
+### Optional Services
+- **Milvus**: `MILVUS_HOST`, `MILVUS_PORT`
+- **MinIO**: `MINIO_HOST`, `MINIO_PORT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_ENDPOINT`
+- **Kafka**: `KAFKA_HOST`, `KAFKA_PORT`, `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_ADVERTISED_LISTENERS`
+- **Prefect**: `PREFECT_API_URL`, `PREFECT_POSTGRES_USER`, `PREFECT_POSTGRES_PASSWORD`
+
+## Best Practices
+
+1. **Never commit** actual API keys or passwords
+2. **Use `.env.example`** as a reference for all available variables
+3. **Keep environment-specific** variables in their respective files
+4. **Use environment variables** instead of hardcoding values in code
+5. **Document** any new environment variables you add
+6. **Set appropriate defaults** in your application code
+
+## Testing with Custom Test Machine
+
+To use a different test machine:
+
+```bash
+# Set custom test machine IP
+export TEST_MACHINE_IP=192.168.2.100
+
+# Run tests
+./scripts/run-tests.sh --all --docker-host
+```
+
+The test environment will automatically use the custom IP for all service connections.

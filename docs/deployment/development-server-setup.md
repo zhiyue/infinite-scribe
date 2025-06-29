@@ -1,167 +1,318 @@
-# 开发服务器部署指南
+# Development Server Setup Guide
 
-## 服务器信息
+## Server Information
 
-- **IP地址**: 192.168.2.201
-- **用户**: zhiyue
-- **项目路径**: ~/workspace/mvp/infinite-scribe/
+- **IP Address**: 192.168.2.201
+- **User**: zhiyue
+- **Project Path**: ~/workspace/mvp/infinite-scribe/
+- **Environment**: Uses `.env.dev` configuration
+- **Purpose**: Shared development infrastructure (NOT for testing)
 
-## 已部署服务
+## Quick Deployment
 
-### 数据库服务
-
-1. **PostgreSQL 16**
-   - 端口: 5432
-   - 数据库: infinite_scribe, prefect
-   - 用户: postgres / postgres
-
-2. **Redis 7.2**
-   - 端口: 6379
-   - 密码: redis
-   - 内存限制: 512MB (LRU)
-
-3. **Neo4j 5.x**
-   - Bolt端口: 7687
-   - HTTP端口: 7474
-   - 用户: neo4j / neo4j
-   - Web UI: http://192.168.2.201:7474
-
-4. **Milvus 2.6.0-rc1**
-   - 端口: 19530
-   - 指标端口: 9091
-   - 依赖: etcd, MinIO
-
-### 消息队列
-
-**Apache Kafka 3.7**
-- 外部端口: 9092 (EXTERNAL)
-- 内部端口: 29092 (INTERNAL)
-- 依赖: Zookeeper
-
-### 对象存储
-
-**MinIO**
-- API端口: 9000
-- Console端口: 9001
-- 访问密钥: minioadmin / minioadmin
-- Web UI: http://192.168.2.201:9001
-
-### 工作流编排
-
-**Prefect 3.x**
-- API/UI端口: 4200
-- Web UI: http://192.168.2.201:4200
-- API: http://192.168.2.201:4200/api
-- 组件:
-  - prefect-api: API服务器
-  - prefect-background-service: 后台调度服务
-  - prefect-worker: 任务执行器
-- 工作池: default-pool (process类型)
-
-## 服务管理
-
-### 启动所有服务
+### From Local Machine
 
 ```bash
+# Ensure you have .env.dev configured
+pnpm env:dev
+
+# Deploy to development server
+./scripts/deployment/deploy-infrastructure.sh
+
+# Or manually deploy
+pnpm infra:deploy
+```
+
+### On Development Server
+
+```bash
+# SSH to server
 ssh zhiyue@192.168.2.201
+
+# Navigate to project
 cd ~/workspace/mvp/infinite-scribe
+
+# Ensure using dev environment
+ln -sf .env.dev .env
+
+# Start services
 docker compose up -d
 ```
 
-### 停止所有服务
+## Deployed Services
+
+### Core Database Services
+
+1. **PostgreSQL 16**
+   - Port: 5432
+   - Database: infinite_scribe
+   - User: postgres
+   - Password: devPostgres123!
+   - Connection: `postgresql://postgres:devPostgres123!@192.168.2.201:5432/infinite_scribe`
+
+2. **Redis 7.2**
+   - Port: 6379
+   - Password: devRedis123!
+   - Memory limit: 512MB (LRU policy)
+   - Connection: `redis://:devRedis123!@192.168.2.201:6379/0`
+
+3. **Neo4j 5.x**
+   - Bolt port: 7687
+   - HTTP port: 7474
+   - User: neo4j
+   - Password: devNeo4j123!
+   - Web UI: http://192.168.2.201:7474
+   - Connection: `bolt://neo4j:devNeo4j123!@192.168.2.201:7687`
+
+### Optional Services
+
+4. **Milvus 2.6.0** (Vector Database)
+   - Port: 19530
+   - Metrics port: 9091
+   - Dependencies: etcd, MinIO
+   - Status: Available when enabled
+
+5. **Apache Kafka 3.7** (Message Broker)
+   - External port: 9092
+   - Internal port: 29092
+   - Bootstrap servers: `192.168.2.201:9092`
+   - Dependencies: Zookeeper
+
+6. **MinIO** (Object Storage)
+   - API port: 9000
+   - Console port: 9001
+   - Access key: devMinioAccess
+   - Secret key: devMinioSecret123!
+   - Web UI: http://192.168.2.201:9001
+
+7. **Prefect 3.x** (Workflow Orchestration)
+   - API/UI port: 4200
+   - Web UI: http://192.168.2.201:4200
+   - API endpoint: http://192.168.2.201:4200/api
+   - Components:
+     - prefect-api: API server
+     - prefect-background-service: Background scheduler
+     - prefect-worker: Task executor
+
+## Service Management
+
+### Essential Commands
 
 ```bash
-docker compose down
-```
-
-### 查看服务状态
-
-```bash
+# View all services
 docker compose ps
-```
 
-### 查看服务日志
+# Start specific service
+docker compose up -d [service-name]
 
-```bash
-# 查看所有服务日志
-docker compose logs
+# Stop specific service
+docker compose stop [service-name]
 
-# 查看特定服务日志
-docker compose logs [service-name]
-
-# 实时查看日志
-docker compose logs -f [service-name]
-```
-
-### 重启服务
-
-```bash
+# Restart service
 docker compose restart [service-name]
+
+# View logs
+docker compose logs -f [service-name]
+
+# Execute command in service
+docker compose exec [service-name] [command]
 ```
 
-## 健康检查
+### Health Monitoring
 
-从本地运行健康检查：
+From your local machine:
+```bash
+# Check all services
+pnpm check:services
+
+# Check with full details
+pnpm check:services:full
+```
+
+On the server:
+```bash
+# Check container health
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Check specific service health
+docker inspect [container-name] --format='{{.State.Health.Status}}'
+```
+
+## Data Management
+
+### Volume Locations
+
+All data is persisted in Docker volumes:
+- `postgres-data`: PostgreSQL databases
+- `redis-data`: Redis persistence files
+- `neo4j-data`: Neo4j graph database
+- `milvus-data`: Vector embeddings
+- `minio-data`: Object storage files
+- `kafka-data`: Message data
+- `prefect-data`: Workflow metadata
+
+### Backup Procedures
 
 ```bash
-npm run check:services
+# PostgreSQL backup
+docker compose exec postgres pg_dump -U postgres infinite_scribe > infinite_scribe_$(date +%Y%m%d).sql
+
+# Neo4j backup
+docker compose exec neo4j neo4j-admin database dump neo4j --to-path=/backups/
+
+# Redis backup
+docker compose exec redis redis-cli BGSAVE
+
+# Full volume backup
+./scripts/monitoring/backup-dev-data.sh
 ```
 
-这会检查所有服务的连通性和健康状态。
+## Troubleshooting
 
-## 故障排查
+### Common Issues
 
-### Kafka连接问题
+1. **Service won't start**
+   ```bash
+   # Check logs
+   docker compose logs [service-name]
 
-Kafka配置了双监听器：
-- 内部通信: kafka:29092
-- 外部访问: 192.168.2.201:9092
+   # Check port conflicts
+   sudo lsof -i :[port-number]
+   ```
 
-### Prefect UI无法连接API
+2. **Connection refused**
+   - Verify service is running: `docker compose ps`
+   - Check environment variables in `.env.dev`
+   - Ensure firewall allows connections
 
-已配置CORS和API URL环境变量，确保通过正确的地址访问。
+3. **Kafka connection issues**
+   - Kafka uses dual listeners:
+     - Internal: `kafka:29092`
+     - External: `192.168.2.201:9092`
+   - Ensure KAFKA_ADVERTISED_LISTENERS is correctly set
 
-### 服务无法启动
+4. **Prefect UI can't connect to API**
+   - CORS is configured for all origins
+   - API URL should be `http://192.168.2.201:4200/api`
 
-1. 检查端口占用
-2. 查看Docker日志
-3. 验证环境变量配置
-4. 确保依赖服务已启动
+### Resource Monitoring
 
-## 配置文件
+```bash
+# Check disk usage
+df -h
 
-- **Docker Compose**: `/docker-compose.yml`
-- **环境变量**: `/.env`
-- **PostgreSQL初始化**: `/infrastructure/docker/init/postgres/`
-- **Prefect工作流**: `/flows/`
+# Check memory usage
+free -h
 
-## 数据持久化
+# Check Docker resource usage
+docker system df
 
-所有数据通过Docker volumes持久化：
-- postgres-data
-- redis-data
-- neo4j-data
-- milvus-data
-- minio-data
-- kafka-data
-- zookeeper-data
-- etcd-data
+# Monitor container resources
+docker stats
+```
 
-## 网络配置
+## Security Notes
 
-所有服务在同一Docker网络中：`infinite-scribe-network`
+1. **Current Status**: Development configuration with known passwords
+2. **Network**: Services bound to 0.0.0.0 (accessible from network)
+3. **Recommendations for production**:
+   - Change all default passwords
+   - Implement firewall rules
+   - Enable SSL/TLS for services
+   - Restrict service binding to specific interfaces
 
-## 备份建议
+## Maintenance Tasks
 
-定期备份以下数据：
-1. PostgreSQL数据库
-2. Neo4j图数据库
-3. MinIO对象存储
-4. Kafka主题数据
+### Regular Updates
 
-## 安全注意事项
+```bash
+# Update Docker images
+docker compose pull
 
-1. 当前配置使用默认密码，生产环境需更改
-2. 考虑添加防火墙规则限制端口访问
-3. 启用服务的认证和加密功能
-4. 定期更新服务镜像版本
+# Recreate containers with new images
+docker compose up -d --force-recreate
+
+# Clean up old images
+docker image prune -a
+```
+
+### Cleanup Procedures
+
+```bash
+# Remove stopped containers
+docker compose rm -f
+
+# Clean build cache
+docker builder prune
+
+# Full system cleanup (careful!)
+docker system prune -a --volumes
+```
+
+## Integration with Development
+
+### Backend Configuration
+
+The backend services automatically use development server when:
+```bash
+# Switch to dev environment locally
+pnpm env:dev
+
+# Start backend service
+cd apps/backend
+uv run uvicorn src.main:app --reload
+```
+
+### Environment Variables
+
+Key variables in `.env.dev`:
+```bash
+POSTGRES_HOST=192.168.2.201
+REDIS_HOST=192.168.2.201
+NEO4J_HOST=192.168.2.201
+# ... all services use 192.168.2.201
+```
+
+## Remote Access
+
+### SSH Access
+```bash
+# Direct SSH
+ssh zhiyue@192.168.2.201
+
+# SSH with port forwarding (access services locally)
+ssh -L 5432:localhost:5432 zhiyue@192.168.2.201  # PostgreSQL
+ssh -L 7474:localhost:7474 zhiyue@192.168.2.201  # Neo4j UI
+```
+
+### Using pnpm shortcuts
+```bash
+# Quick SSH access
+pnpm ssh:dev
+
+# Deploy to dev
+pnpm deploy:dev
+
+# View remote logs
+pnpm logs:remote
+```
+
+## Best Practices
+
+1. **Always use `.env.dev`** for development server deployments
+2. **Never run tests** against development server services
+3. **Coordinate with team** before restarting shared services
+4. **Monitor resource usage** regularly
+5. **Backup data** before major changes
+
+## Next Steps
+
+1. Configure your local `.env.dev` file
+2. Deploy infrastructure: `./scripts/deployment/deploy-infrastructure.sh`
+3. Verify services: `pnpm check:services`
+4. Start developing with shared infrastructure
+
+For more information:
+- [Infrastructure Deployment Guide](./infrastructure-deployment.md)
+- [Environment Variables Guide](./environment-variables.md)
+- [Environment Structure](./environment-structure.md)
