@@ -1,6 +1,6 @@
 #!/bin/bash
-# Consolidate multiple .env files into a cleaner structure
-# New structure: .env.local, .env.dev, .env.test, .env.example
+# 将多个 .env 文件整合成更清晰的结构
+# 新结构: .env.local, .env.dev, .env.test, .env.example
 
 set -e
 
@@ -10,15 +10,15 @@ cd "$PROJECT_ROOT"
 
 echo "🔄 Consolidating .env files..."
 
-# Create backup directory
+# 创建备份目录
 BACKUP_DIR=".env-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
-# Backup all existing .env files
+# 备份所有现有的 .env 文件
 echo "📦 Backing up existing .env files to $BACKUP_DIR/"
 find . -maxdepth 3 -name ".env*" -type f -exec cp {} "$BACKUP_DIR/" \; 2>/dev/null || true
 
-# Step 1: Create .env.dev from current infrastructure setup
+# 步骤 1: 从当前基础设施设置创建 .env.dev
 echo "🏗️  Creating .env.dev (Development Server)"
 cat > .env.dev << 'EOF'
 # Development Server Configuration (192.168.2.201)

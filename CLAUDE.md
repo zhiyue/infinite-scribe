@@ -285,6 +285,19 @@ pnpm test
 
 ## Coding Guidelines
 
+### Code Comments
+
+- **Use Chinese (中文) for all code comments** - 项目统一使用中文注释
+- This applies to all file types: Python, TypeScript, JavaScript, Shell scripts,
+  etc.
+- Example:
+  ```python
+  # 初始化数据库连接
+  def init_database():
+      # 从环境变量读取配置
+      host = os.getenv("POSTGRES_HOST")
+  ```
+
 ### Configuration Management
 
 - **NEVER hardcode values** - Always use environment variables or configuration
@@ -310,3 +323,17 @@ pnpm test
 - Local development does not require Docker
 - DISABLE_RYUK is available but not recommended - only use if experiencing Ryuk
   cleanup issues
+
+## Communication Language
+
+**IMPORTANT**: Always respond in Chinese (中文) when answering questions and
+providing explanations, unless the user explicitly requests a response in
+another language.
+
+# important-instruction-reminders
+
+Do what has been asked; nothing more, nothing less. NEVER create files unless
+they're absolutely necessary for achieving your goal. ALWAYS prefer editing an
+existing file to creating a new one. NEVER proactively create documentation
+files (\*.md) or README files. Only create documentation files if explicitly
+requested by the User.

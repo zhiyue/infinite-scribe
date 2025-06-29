@@ -1,5 +1,5 @@
 #!/bin/bash
-# Switch between different environment configurations
+# 在不同环境配置之间切换
 
 set -e
 
@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Function to display usage
+# 显示使用说明的函数
 usage() {
     echo "Usage: $0 [local|dev|test]"
     echo ""
@@ -20,7 +20,7 @@ usage() {
     exit 1
 }
 
-# Check arguments
+# 检查参数
 if [ $# -ne 1 ]; then
     usage
 fi

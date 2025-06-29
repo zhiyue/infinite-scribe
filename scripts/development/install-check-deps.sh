@@ -4,14 +4,14 @@
 
 echo "Installing dependencies for full service health check..."
 
-# Check if we're in the right directory
+# 检查是否在正确的目录
 if [ ! -f "package.json" ]; then
     echo "Error: Must run from project root directory"
     exit 1
 fi
 
-# Install required npm packages
-npm install --save-dev \
+# 安装所需的 pnpm 包到工作空间根目录
+pnpm add -w -D \
   pg@^8.11.0 \
   redis@^4.6.0 \
   neo4j-driver@^5.0.0 \
@@ -20,4 +20,4 @@ npm install --save-dev \
   @aws-sdk/client-s3@^3.0.0
 
 echo "Dependencies installed successfully!"
-echo "You can now run: npm run check:services:full"
+echo "You can now run: pnpm check:services:full"
