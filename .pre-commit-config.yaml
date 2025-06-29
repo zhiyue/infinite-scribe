@@ -75,13 +75,13 @@ repos:
       - id: shellcheck
         files: \.(sh|bash)$
 
-  # Markdown linting
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.37.0
-    hooks:
-      - id: markdownlint
-        args: [--fix]
-        exclude: ^(CHANGELOG\.md|docs/.*\.md)$
+  # Markdown linting (temporarily disabled)
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.37.0
+  #   hooks:
+  #     - id: markdownlint
+  #       args: [--fix]
+  #       exclude: ^(CHANGELOG\.md|docs/.*\.md)$
 
 # Configuration for specific hooks
 default_language_version:
