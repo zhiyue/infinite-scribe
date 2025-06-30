@@ -337,3 +337,196 @@ they're absolutely necessary for achieving your goal. ALWAYS prefer editing an
 existing file to creating a new one. NEVER proactively create documentation
 files (\*.md) or README files. Only create documentation files if explicitly
 requested by the User.
+
+
+# Using Gemini CLI for Large Codebase Analysis
+
+When analyzing large codebases or multiple files that might exceed context limits, use the Gemini CLI with its massive context window. Use `gemini -p` to leverage Google Gemini's large context capacity.
+
+## File and Directory Inclusion Syntax
+
+Use the `@` syntax to include files and directories in your Gemini prompts. The paths should be relative to WHERE you run the gemini command:
+
+### Examples:
+
+**Single file analysis:**
+```bash
+gemini -p "@src/main.py Explain this file's purpose and structure"
+```
+
+**Multiple files:**
+```bash
+gemini -p "@package.json @src/index.js Analyze the dependencies used in the code"
+```
+
+**Entire directory:**
+```bash
+gemini -p "@src/ Summarize the architecture of this codebase"
+```
+
+**Multiple directories:**
+```bash
+gemini -p "@src/ @tests/ Analyze test coverage for the source code"
+```
+
+**Current directory and subdirectories:**
+```bash
+gemini -p "@./ Give me an overview of this entire project"
+# Or use --all_files flag:
+gemini --all_files -p "Analyze the project structure and dependencies"
+```
+
+## Implementation Verification Examples
+
+**Check if a feature is implemented:**
+```bash
+gemini -p "@src/ @lib/ Has dark mode been implemented in this codebase? Show me the relevant files and functions"
+```
+
+**Verify authentication implementation:**
+```bash
+gemini -p "@src/ @middleware/ Is JWT authentication implemented? List all auth-related endpoints and middleware"
+```
+
+**Check for specific patterns:**
+```bash
+gemini -p "@src/ Are there any React hooks that handle WebSocket connections? List them with file paths"
+```
+
+**Verify error handling:**
+```bash
+gemini -p "@src/ @api/ Is proper error handling implemented for all API endpoints? Show examples of try-catch blocks"
+```
+
+**Check for rate limiting:**
+```bash
+gemini -p "@backend/ @middleware/ Is rate limiting implemented for the API? Show the implementation details"
+```
+
+**Verify caching strategy:**
+```bash
+gemini -p "@src/ @lib/ @services/ Is Redis caching implemented? List all cache-related functions and their usage"
+```
+
+**Check for specific security measures:**
+```bash
+gemini -p "@src/ @api/ Are SQL injection protections implemented? Show how user inputs are sanitized"
+```
+
+**Verify test coverage for features:**
+```bash
+gemini -p "@src/payment/ @tests/ Is the payment processing module fully tested? List all test cases"
+```
+
+## When to Use Gemini CLI
+
+Use `gemini -p` when:
+- Analyzing entire codebases or large directories
+- Comparing multiple large files
+- Need to understand project-wide patterns or architecture
+- Current context window is insufficient for the task
+- Working with files totaling more than 100KB
+- Verifying if specific features, patterns, or security measures are implemented
+- Checking for the presence of certain coding patterns across the entire codebase
+
+## Important Notes
+
+- Paths in @ syntax are relative to your current working directory when invoking gemini
+- The CLI will include file contents directly in the context
+- No need for --yolo flag for read-only analysis
+- Gemini's context window can handle entire codebases that would overflow Claude's context
+- When checking implementations, be specific about what you're looking for to get accurate results
+
+---
+
+# Gemini CLI Integration Guide (Gemini CLI 集成指南)
+
+## Overview (概述)
+This guide explains how to integrate Gemini CLI within Claude Code to enable collaboration between the two AI models.
+
+本指南说明如何在 Claude Code 中集成 Gemini CLI，实现两个 AI 模型的协同工作。
+
+## Trigger Conditions (触发条件)
+
+When users input any of the following commands, Claude will initiate collaboration mode with Gemini:
+
+当用户输入以下任一指令时，Claude 将启动与 Gemini 的协作模式：
+
+### Supported Trigger Words (支持的触发词)
+- `Proceed with Gemini` / `与 Gemini 协商`
+- `Consult with Gemini` / `咨询 Gemini`
+- `Let's discuss this with Gemini` / `让我们和 Gemini 讨论这个`
+
+### Regular Expression Matching (正则表达式匹配)
+```regex
+/(proceed|consult|discuss).*gemini/i
+```
+
+## Workflow (工作流程)
+
+### 1. Prompt Generation (提示词生成)
+Claude analyzes user requirements and generates appropriate prompts for Gemini:
+
+Claude 分析用户需求，生成适合 Gemini 的提示词：
+
+```bash
+export PROMPT="<structured description of user requirements>"
+```
+
+### 2. Gemini CLI Invocation (Gemini CLI 调用)
+Use heredoc to call Gemini:
+
+使用 heredoc 方式调用 Gemini：
+
+```bash
+gemini -p "$PROMPT"
+
+### 3. Response Processing (响应处理)
+- **Raw Output**: Preserve Gemini's complete response
+- **Claude Enhancement**: Add the following:
+  - Key points summary
+  - Additional context and explanations
+  - Comparative analysis of both models' perspectives
+
+• 原始输出：保留 Gemini 的完整响应
+• Claude 增强：添加以下内容
+  ▪ 关键要点总结
+  ▪ 补充说明和上下文
+  ▪ 两个模型观点的对比分析
+
+### 4. Integrated Output (整合输出)
+Final output format:
+
+最终输出格式：
+
+```markdown
+## Gemini Response (Gemini 响应)
+[Gemini's raw answer]
+
+## Claude Analysis (Claude 分析)
+[Claude's supplementary insights and integration]
+
+## Comprehensive Conclusion (综合结论)
+[Final recommendations after AI collaboration]
+```
+
+## Usage Example (使用示例)
+
+```bash
+# User input (用户输入)
+"Analyze this code issue, proceed with Gemini"
+"分析这个代码问题，proceed with Gemini"
+
+# Claude execution (Claude 执行)
+1. Generate PROMPT variable (生成 PROMPT 变量)
+2. Call gemini CLI (调用 gemini CLI)
+3. Integrate responses (整合双方响应)
+4. Output comprehensive analysis (输出综合分析)
+```
+
+## Best Practices
+
+1. **For Large Codebases**: Always use Gemini CLI when analyzing projects that exceed Claude's context window
+2. **For Collaboration**: Use trigger words when you need perspectives from both AI models
+3. **Path Specification**: Always ensure paths are relative to your current working directory
+4. **Specific Queries**: Be precise about what you're looking for to get the most accurate results from Gemini
