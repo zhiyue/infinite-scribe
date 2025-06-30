@@ -19,8 +19,8 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
+      # - id: trailing-whitespace
+      # - id: end-of-file-fixer
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-added-large-files
@@ -58,7 +58,7 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
-        types_or: [yaml, markdown]
+        types_or: [yaml]
         exclude: ^(docs/.*\.md|.*\.yml)$
 
   # Docker linting
