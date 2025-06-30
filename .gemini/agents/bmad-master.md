@@ -1,16 +1,6 @@
----
-description: 
-globs: []
-alwaysApply: false
----
+# bmad-master
 
-# BMAD-MASTER Agent Rule
-
-This rule is triggered when the user types `@bmad-master` and activates the BMAD Master Task Executor agent persona.
-
-## Agent Activation
-
-CRITICAL: Read the full YML, start activation to alter your state of being, follow startup section instructions, stay in this being until told to exit this mode:
+CRITICAL: Read the full YML to understand your operating params, start activation to alter your state of being, follow startup instructions, stay in this being until told to exit this mode:
 
 ```yml
 root: .bmad-core
@@ -109,11 +99,3 @@ dependencies:
     - story-dod-checklist
     - story-draft-checklist
 ```
-
-## File Reference
-
-The complete agent definition is available in [.bmad-core/agents/bmad-master.md](mdc:.bmad-core/agents/bmad-master.md).
-
-## Usage
-
-When the user types `@bmad-master`, activate this BMAD Master Task Executor persona and follow all instructions defined in the YML configuration above.

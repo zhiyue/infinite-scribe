@@ -1,22 +1,19 @@
-version: 4.21.1
-installed_at: '2025-06-30T11:41:10.468Z'
+version: 4.16.1
+installed_at: '2025-06-26T11:17:34.375Z'
 install_type: full
 agent: null
+ide_setup: null
 ides_setup:
   - cursor
   - claude-code
   - windsurf
-  - gemini
-expansion_packs: []
+  - cline
 files:
-  - path: .bmad-core/install-manifest.yml.bak
-    hash: 912397cd26709c7b
-    modified: false
   - path: .bmad-core/install-manifest.yml
-    hash: 912397cd26709c7b
+    hash: ff8b7a5e59250c83
     modified: false
   - path: .bmad-core/core-config.yml
-    hash: 0fc7de6864683e72
+    hash: 8ccd25183820a4a9
     modified: false
   - path: .bmad-core/workflows/greenfield-ui.yml
     hash: fed0d7f34062ff95
@@ -28,16 +25,16 @@ files:
     hash: 6d650ead514b3cd8
     modified: false
   - path: .bmad-core/workflows/brownfield-ui.yml
-    hash: fe28d84ec887b275
+    hash: 00ba2e9c095151d0
     modified: false
   - path: .bmad-core/workflows/brownfield-service.yml
-    hash: 8b9c3b50aae90b8f
+    hash: 8b7748bb6010c557
     modified: false
   - path: .bmad-core/workflows/brownfield-fullstack.yml
-    hash: f1f267bfd2003c7c
+    hash: 0317b34832a19627
     modified: false
   - path: .bmad-core/utils/workflow-management.md
-    hash: 11fa4807701a4466
+    hash: 6c9da44e60ec257f
     modified: false
   - path: .bmad-core/utils/web-agent-startup-instructions.md
     hash: 27ee619b1a953aa6
@@ -97,7 +94,7 @@ files:
     hash: 1298309d4e874b0b
     modified: false
   - path: .bmad-core/tasks/execute-checklist.md
-    hash: e0467201115d500f
+    hash: e83f4ae155bb5db8
     modified: false
   - path: .bmad-core/tasks/document-project.md
     hash: 6daded58e413997d
@@ -109,7 +106,7 @@ files:
     hash: be7699b750a382e3
     modified: false
   - path: .bmad-core/tasks/create-doc.md
-    hash: aede560374bd48db
+    hash: 63ef4f97bfd66c1b
     modified: false
   - path: .bmad-core/tasks/create-deep-research-prompt.md
     hash: a104cb9b17cde3b7
@@ -136,7 +133,7 @@ files:
     hash: 6530bed845540b0d
     modified: false
   - path: .bmad-core/data/bmad-kb.md
-    hash: d222ee238b7b16d5
+    hash: cc192f1a55b71304
     modified: false
   - path: .bmad-core/checklists/story-draft-checklist.md
     hash: 28d5c2d3e9088320
@@ -172,7 +169,7 @@ files:
     hash: 40f796bdefcd14c6
     modified: false
   - path: .bmad-core/agents/dev.md
-    hash: d88c2dc2669a9e90
+    hash: 3e65e0ce05572906
     modified: false
   - path: .bmad-core/agents/bmad-orchestrator.md
     hash: c26017d6501d2e06

@@ -1,6 +1,6 @@
 # BMAD-ORCHESTRATOR Agent Rule
 
-This rule is triggered when the user types `@bmad-orchestrator` and activates the BMAD Orchestrator agent persona.
+This rule is triggered when the user types `@bmad-orchestrator` and activates the BMAD Master Orchestrator agent persona.
 
 ## Agent Activation
 
@@ -135,4 +135,4 @@ The complete agent definition is available in [.bmad-core/agents/bmad-orchestrat
 
 ## Usage
 
-When the user types `@bmad-orchestrator`, activate this BMAD Orchestrator persona and follow all instructions defined in the YML configuration above.
+When the user types `@bmad-orchestrator`, activate this BMAD Master Orchestrator persona and follow all instructions defined in the YML configuration above.

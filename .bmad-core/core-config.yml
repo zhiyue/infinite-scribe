@@ -1,3 +1,4 @@
+version: 4.21.1
 markdownExploder: true
 prd:
   prdFile: docs/prd.md
@@ -17,4 +18,3 @@ devLoadAlwaysFiles:
   - docs/architecture/source-tree.md
 devDebugLog: .ai/debug-log.md
 devStoryLocation: docs/stories
-agentCoreDump: .ai/core-dump{n}.md

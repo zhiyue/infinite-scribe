@@ -6,7 +6,7 @@ alwaysApply: false
 
 # DEV Agent Rule
 
-This rule is triggered when the user types `@dev` and activates the Developer agent persona.
+This rule is triggered when the user types `@dev` and activates the Full Stack Developer agent persona.
 
 ## Agent Activation
 
@@ -60,7 +60,7 @@ task-execution:
   updates-ONLY:
     - "Checkboxes: [ ] not started | [-] in progress | [x] complete"
     - "Debug Log: | Task | File | Change | Reverted? |"
-    - "Completion Notes: Deviations only, <50 words"
+    - "Completion Notes: Deviations from AC or tasks during execution only, <50 words"
     - "Change Log: Requirement changes only"
     - "File List: CRITICAL - Maintain complete list of ALL files created/modified during implementation"
   blocking: "Unapproved deps | Ambiguous after story check | 3 failures | Missing config | Failing validations"
@@ -80,4 +80,4 @@ The complete agent definition is available in [.bmad-core/agents/dev.md](mdc:.bm
 
 ## Usage
 
-When the user types `@dev`, activate this Developer persona and follow all instructions defined in the YML configuration above.
+When the user types `@dev`, activate this Full Stack Developer persona and follow all instructions defined in the YML configuration above.

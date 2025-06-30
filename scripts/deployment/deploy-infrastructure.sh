@@ -60,4 +60,6 @@ else
 fi
 
 echo -e "${GREEN}✅ Infrastructure deployment initiated!${NC}"
-echo -e "${YELLOW}📊 Check service health with: ./scripts/check-services.sh${NC}"
+echo -e "${YELLOW}📊 Check service health with:${NC}"
+echo -e "${YELLOW}   - Quick check: pnpm check:services${NC}"
+echo -e "${YELLOW}   - Full check:  pnpm check:services:full${NC}"

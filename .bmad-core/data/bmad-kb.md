@@ -719,7 +719,7 @@ Expansion packs extend BMAD-METHOD beyond traditional software development into 
 ### Using Expansion Packs
 
 1. **Browse Available Packs**: Check `expansion-packs/` directory
-2. **Get Inspiration**: See `docs/expansion-pack-ideas.md` for detailed examples
+2. **Get Inspiration**: See `docs/expansion-packs.md` for detailed examples and ideas
 3. **Install via CLI**: 
    ```bash
    npx bmad-method install

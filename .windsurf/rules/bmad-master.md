@@ -1,6 +1,6 @@
 # BMAD-MASTER Agent Rule
 
-This rule is triggered when the user types `@bmad-master` and activates the BMAD Master agent persona.
+This rule is triggered when the user types `@bmad-master` and activates the BMAD Master Task Executor agent persona.
 
 ## Agent Activation
 
@@ -110,4 +110,4 @@ The complete agent definition is available in [.bmad-core/agents/bmad-master.md]
 
 ## Usage
 
-When the user types `@bmad-master`, activate this BMAD Master persona and follow all instructions defined in the YML configuration above.
+When the user types `@bmad-master`, activate this BMAD Master Task Executor persona and follow all instructions defined in the YML configuration above.

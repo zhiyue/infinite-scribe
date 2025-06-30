@@ -2,73 +2,70 @@
 
 ## Purpose
 
-- Generate documents from any specified template following embedded instructions from the perspective of the selected agent persona
+Generate documents from templates by EXECUTING (not just reading) embedded instructions from the perspective of the selected agent persona.
 
-## Instructions
+## CRITICAL RULES
 
-### 1. Identify Template and Context
+1. **Templates are PROGRAMS** - Execute every [[LLM:]] instruction exactly as written
+2. **NEVER show markup** - Hide all [[LLM:]], {{placeholders}}, @{examples}, and template syntax
+3. **STOP and EXECUTE** - When you see "apply tasks#" or "execute tasks#", STOP and run that task immediately
+4. **WAIT for user input** - At review points and after elicitation tasks
 
-- Determine which template to use (user-provided or list available for selection to user)
+## Execution Flow
 
-  - Agent-specific templates are listed in the agent's dependencies under `templates`. For each template listed, consider it a document the agent can create. So if an agent has:
+### 1. Identify Template
 
-    @{example}
-    dependencies:
-    templates: - prd-tmpl - architecture-tmpl
-    @{/example}
+- Load from `templates#*` or `.bmad-core/templates directory`
+- Agent-specific templates are listed in agent's dependencies
+- If agent has `templates: [prd-tmpl, architecture-tmpl]`, offer to create "PRD" and "Architecture" documents
 
-    You would offer to create "PRD" and "Architecture" documents when the user asks what you can help with.
+### 2. Ask Interaction Mode
 
-- Gather all relevant inputs, or ask for them, or else rely on user providing necessary details to complete the document
-- Understand the document purpose and target audience
-
-### 2. Determine Interaction Mode
-
-Confirm with the user their preferred interaction style:
-
-- **Incremental:** Work through chunks of the document.
-- **YOLO Mode:** Draft complete document making reasonable assumptions in one shot. (Can be entered also after starting incremental by just typing /yolo)
+> 1. **Incremental** - Section by section with reviews
+> 2. **YOLO Mode** - Complete draft then review (user can type `/yolo` anytime to switch)
 
 ### 3. Execute Template
 
-- Load specified template from `templates#*` or the /templates directory
-- Follow ALL embedded LLM instructions within the template
-- Process template markup according to `utils#template-format` conventions
-
-### 4. Template Processing Rules
-
-#### CRITICAL: Never display template markup, LLM instructions, or examples to users
-
-- Replace all {{placeholders}} with actual content
-- Execute all [[LLM: instructions]] internally
-- Process `<<REPEAT>>` sections as needed
-- Evaluate ^^CONDITION^^ blocks and include only if applicable
+- Replace {{placeholders}} with real content
+- Execute [[LLM:]] instructions as you encounter them
+- Process <<REPEAT>> loops and ^^CONDITIONS^^
 - Use @{examples} for guidance but never output them
 
-### 5. Content Generation
+### 4. Key Execution Patterns
 
-- **Incremental Mode**: Present each major section for review before proceeding
-- **YOLO Mode**: Generate all sections, then review complete document with user
-- Apply any elicitation protocols specified in template
-- Incorporate user feedback and iterate as needed
+**When you see:** `[[LLM: Draft X and immediately execute tasks#advanced-elicitation]]`
 
-### 6. Validation
+- Draft the content
+- Present it to user
+- IMMEDIATELY execute the task
+- Wait for completion before continuing
 
-If template specifies a checklist:
+**When you see:** `[[LLM: After section completion, apply tasks#Y]]`
 
-- Run the appropriate checklist against completed document
-- Document completion status for each item
-- Address any deficiencies found
-- Present validation summary to user
+- Finish the section
+- STOP and execute the task
+- Wait for user input
 
-### 7. Final Presentation
+### 5. Validation & Final Presentation
 
+- Run any specified checklists
 - Present clean, formatted content only
-- Ensure all sections are complete
-- DO NOT truncate or summarize content
-- Begin directly with document content (no preamble)
-- Include any handoff prompts specified in template
+- No truncation or summarization
+- Begin directly with content (no preamble)
+- Include any handoff prompts from template
 
-## Important Notes
+## Common Mistakes to Avoid
 
-- Template markup is for AI processing only - never expose to users
+❌ Skipping elicitation tasks
+❌ Showing template markup to users
+❌ Continuing past STOP signals
+❌ Combining multiple review points
+
+✅ Execute ALL instructions in sequence
+✅ Present only clean, formatted content
+✅ Stop at every elicitation point
+✅ Wait for user confirmation when instructed
+
+## Remember
+
+Templates contain precise instructions for a reason. Follow them exactly to ensure document quality and completeness.

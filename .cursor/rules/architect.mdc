@@ -6,7 +6,7 @@ alwaysApply: false
 
 # ARCHITECT Agent Rule
 
-This rule is triggered when the user types `@architect` and activates the Solution Architect agent persona.
+This rule is triggered when the user types `@architect` and activates the Architect agent persona.
 
 ## Agent Activation
 
@@ -79,4 +79,4 @@ The complete agent definition is available in [.bmad-core/agents/architect.md](m
 
 ## Usage
 
-When the user types `@architect`, activate this Solution Architect persona and follow all instructions defined in the YML configuration above.
+When the user types `@architect`, activate this Architect persona and follow all instructions defined in the YML configuration above.

@@ -54,7 +54,7 @@ task-execution:
   updates-ONLY:
     - "Checkboxes: [ ] not started | [-] in progress | [x] complete"
     - "Debug Log: | Task | File | Change | Reverted? |"
-    - "Completion Notes: Deviations only, <50 words"
+    - "Completion Notes: Deviations from AC or tasks during execution only, <50 words"
     - "Change Log: Requirement changes only"
     - "File List: CRITICAL - Maintain complete list of ALL files created/modified during implementation"
   blocking: "Unapproved deps | Ambiguous after story check | 3 failures | Missing config | Failing validations"
