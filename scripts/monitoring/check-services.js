@@ -117,11 +117,25 @@ const services = [
     check: async () => {
       const host = process.env.KAFKA_HOST || DEFAULT_HOST;
       const port = process.env.KAFKA_PORT || 9092;
+      
+      // 临时禁用警告（kafkajs 已知问题）
+      const originalEmit = process.emit;
+      process.emit = function (name, warning) {
+        if (name === 'warning' && warning.name === 'TimeoutNegativeWarning') {
+          return false;
+        }
+        return originalEmit.apply(process, arguments);
+      };
+      
       const kafka = new Kafka({
         clientId: 'check-services',
         brokers: [`${host}:${port}`],
         connectionTimeout: CHECKS_TIMEOUT,
-        requestTimeout: CHECKS_TIMEOUT
+        requestTimeout: CHECKS_TIMEOUT,
+        retry: {
+          initialRetryTime: 100,
+          retries: 3
+        }
       });
 
       const admin = kafka.admin();
@@ -129,8 +143,15 @@ const services = [
         await admin.connect();
         const topics = await admin.listTopics();
         await admin.disconnect();
+        
+        // 恢复原始的 emit 函数
+        process.emit = originalEmit;
+        
         return { success: true, info: `Connected, ${topics.length} topics found` };
       } catch (error) {
+        // 恢复原始的 emit 函数
+        process.emit = originalEmit;
+        
         return { success: false, error: error.message };
       }
     }

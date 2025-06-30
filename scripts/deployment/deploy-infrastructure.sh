@@ -26,25 +26,37 @@ if [ "$1" = "--local" ]; then
     # 使用 .env.local 运行 docker-compose
     docker compose --env-file .env.local up -d
 else
-    echo -e "${GREEN}🌐 Deploying to development server (192.168.2.201)...${NC}"
-
-    # Ensure .env.dev exists
+    # 从 .env.dev 读取基础设施主机地址
     if [ ! -f .env.dev ]; then
         echo -e "${RED}❗ .env.dev not found. This file is required for dev server deployment.${NC}"
         echo -e "${YELLOW}💡 Run 'pnpm env:consolidate' to create it or copy from .env.example${NC}"
         exit 1
     fi
+    
+    # 从 .env.dev 提取 INFRASTRUCTURE_HOST
+    INFRA_HOST=$(grep -E "^INFRASTRUCTURE_HOST=" .env.dev | cut -d'=' -f2)
+    # 如果没有找到，使用默认值
+    INFRA_HOST=${INFRA_HOST:-192.168.2.201}
+    
+    # 从环境变量或 .env.dev 获取 SSH 用户
+    SSH_USER=${SSH_USER:-zhiyue}
+    
+    echo -e "${GREEN}🌐 Deploying to development server (${INFRA_HOST})...${NC}"
 
+    # Ensure directory exists on dev server
+    echo -e "${YELLOW}📁 Creating directory on dev server...${NC}"
+    ssh "${SSH_USER}@${INFRA_HOST}" "mkdir -p ~/workspace/mvp/infinite-scribe"
+    
     # Sync files to dev server
     echo -e "${YELLOW}📤 Syncing files to dev server...${NC}"
     rsync -avz --exclude 'node_modules' --exclude '.git' \
         --exclude '*.log' --exclude '.env.local' --exclude '.env.test' \
         --exclude '.venv' --exclude '__pycache__' \
-        ./ zhiyue@192.168.2.201:~/workspace/mvp/infinite-scribe/
+        ./ "${SSH_USER}@${INFRA_HOST}:~/workspace/mvp/infinite-scribe/"
 
     # Deploy on dev server using .env.dev
     echo -e "${YELLOW}🔧 Starting services on dev server...${NC}"
-    ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose --env-file .env.dev up -d"
+    ssh "${SSH_USER}@${INFRA_HOST}" "cd ~/workspace/mvp/infinite-scribe && docker compose --env-file .env.dev up -d"
 fi
 
 echo -e "${GREEN}✅ Infrastructure deployment initiated!${NC}"
