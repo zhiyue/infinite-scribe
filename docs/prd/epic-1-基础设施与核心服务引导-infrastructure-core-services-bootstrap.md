@@ -9,7 +9,7 @@
 *   **so that** 我可以统一管理前端、后端和共享代码，并确保代码风格和规范的一致性。
 *   **Acceptance Criteria:**
     1.  项目根目录包含 `pnpm-workspace.yaml` 文件。
-    2.  创建 `apps` 目录用于存放独立应用（如 `frontend`, `api-gateway`）。
+    2.  创建 `apps` 目录用于存放独立应用（如 `frontend`, `backend`）。
     3.  创建 `packages` 目录用于存放共享代码（如 `eslint-config`, `typescript-config`, `shared-types`）。
     4.  根目录的 `package.json` 配置好工作区。
     5.  ESLint 和 Prettier 的共享配置已创建并应用到整个工作区。
@@ -33,11 +33,11 @@
 *   **I want** 一个基于FastAPI的、容器化的API网关服务，它能连接到数据库并提供一个健康的检查端点,
 *   **so that** 我可以验证后端服务的基础配置和部署流程是通畅的。
 *   **Acceptance Criteria:**
-    1.  在 `apps/api-gateway` 目录下创建一个新的FastAPI应用。
+    1.  在 `apps/backend/src/api` 目录下创建API Gateway的FastAPI应用。
     2.  该应用能够成功读取环境变量并连接到Docker中运行的PostgreSQL和Neo4j数据库。
     3.  提供一个 `/health` 的GET端点，当数据库连接正常时，该端点返回 `{"status": "ok"}` 和 `200` 状态码。
-    4.  为该服务编写一个 `Dockerfile`。
-    5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务。
+    4.  使用统一的 `apps/backend/Dockerfile`，通过 `SERVICE_TYPE=api-gateway` 环境变量运行API Gateway。
+    5.  更新 `docker-compose.yml`，使其可以构建并启动 `api-gateway` 服务（使用统一的backend镜像）。
     6.  启动后，可以通过 `http://localhost:8000/health` 成功访问到健康检查接口。
 
 ## Story 1.4: 创建并部署基础的前端仪表盘UI

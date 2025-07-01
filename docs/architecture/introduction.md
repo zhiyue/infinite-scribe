@@ -13,3 +13,6 @@
 |      | 1.0     | Initial Draft | Winston (Architect) |
 |      | 1.1     | 集成Neo4j管理世界观关系 | Winston (Architect) |
 |      | 1.2     | 根据PRD v1.3和front-end-spec v1.2更新，重点调整数据模型、API接口、数据库模式以支持项目仪表盘和项目级知识库。 | Winston (Architect) |
+|      | 1.3     | **重大更新**: 全面重构数据库模式以支持多智能体追踪、工作流编排、版本控制和动态配置。采纳了关于外键的混合策略。 | Winston (Architect) |
+|      | 1.4     | **最终定稿**: 根据最终审查意见，对数据库模式进行硬化，增加索引、触发器、完整性约束和分区策略规划。 | Winston (Architect) |
+

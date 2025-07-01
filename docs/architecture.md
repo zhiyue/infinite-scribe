@@ -48,43 +48,58 @@
 ```mermaid
 graph TD
     subgraph "用户端"
-        User[监督者] --> FE[React前端 (Vite)<br/>仪表盘, 项目详情, 创世向导]
+        User[监督者] --> FE[React前端-Vite-SSE实时更新]
     end
-
+    
     subgraph "云平台 / 本地Docker"
-        FE --> APIGW[API网关 (FastAPI)<br/>控制API, 数据查询]
+        FE -- "HTTP/REST API" --> APIGW[API网关-FastAPI-控制API和数据查询]
+        APIGW -- "SSE 事件流" --> FE
         
-        subgraph "数据存储层"
-            DB[(PostgreSQL<br/>属性数据, 元数据, 版本, 日志)]
-            VDB[(Milvus<br/>向量嵌入, 相似搜索)]
-            GDB[("Neo4j<br/>项目级知识图谱<br/>世界观/角色关系")]
-            S3[(Minio<br/>章节内容, 大纲等)]
+        subgraph "数据存储层 (按 Novel ID 隔离)"
+            DB[(PostgreSQL-属性数据-元数据-版本-日志)]
+            VDB[(Milvus-项目级向量嵌入)]
+            GDB[(Neo4j-项目级知识图谱)]
+            S3[(Minio-章节内容-大纲等)]
         end
-
+        
         subgraph "编排与事件层"
-            Orchestrator[工作流编排器 (Prefect)]
-            Broker[事件总线 (Kafka)]
+            Orchestrator[工作流编排器-Prefect]
+            Broker[事件总线-Kafka]
         end
-
+        
         subgraph "智能体微服务集群"
             Agent1[WriterAgent]
             Agent2[CriticAgent]
-            Agent3[FactCheckerAgent]
-            AgentN[...]
+            AgentN[其他Agent]
         end
-
+        
         APIGW --> Orchestrator
         APIGW --> DB
-        APIGW --> GDB # API网关查询项目级图数据
+        APIGW --> GDB
         
         Orchestrator -- "发布任务事件" --> Broker
-        Broker -- "分发任务" --> Agent1 & Agent2 & Agent3 & AgentN
-        Agent1 & Agent2 & Agent3 & AgentN -- "读/写" --> DB & VDB & GDB & S3
-        Agent1 & Agent2 & Agent3 & AgentN -- "发布完成/中间事件" --> Broker
+        Broker -- "分发任务" --> Agent1
+        Broker -- "分发任务" --> Agent2
+        Broker -- "分发任务" --> AgentN
+        Agent1 -- "读/写" --> DB
+        Agent1 -- "读/写" --> VDB
+        Agent1 -- "读/写" --> GDB
+        Agent1 -- "读/写" --> S3
+        Agent2 -- "读/写" --> DB
+        Agent2 -- "读/写" --> VDB
+        Agent2 -- "读/写" --> GDB
+        Agent2 -- "读/写" --> S3
+        AgentN -- "读/写" --> DB
+        AgentN -- "读/写" --> VDB
+        AgentN -- "读/写" --> GDB
+        AgentN -- "读/写" --> S3
+        Agent1 -- "发布完成/中间事件" --> Broker
+        Agent2 -- "发布完成/中间事件" --> Broker
+        AgentN -- "发布完成/中间事件" --> Broker
         Broker -- "通知" --> Orchestrator
-        Broker -- "通知 (可选)" --> APIGW # 用于UI实时更新
+        Broker -- "推送事件到" --> APIGW
     end
-
+    
     User -- "通过浏览器访问" --> FE
 ```
 
@@ -217,6 +232,37 @@ graph TD
       parent_version_id?: string; // (可选) 指向上一个版本的ID，形成版本链
       metadata?: any; // (可选) 与此版本相关的其他元数据 (JSONB)
       created_at: Date; // 创建时间
+    }
+    ```
+### GenesisSession (创世会话) - PostgreSQL
+*   **TypeScript 接口:**
+    ```typescript
+    interface GenesisSession {
+      id: string; // UUID
+      novel_id: string; // UUID
+      user_id?: string; // UUID
+      status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
+      current_stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE' | 'FINISHED';
+      initial_user_input?: any; // JSONB
+      final_settings?: any; // JSONB
+      created_at: Date;
+      updated_at: Date;
+    }
+    ```
+
+### GenesisStep (创世步骤) - PostgreSQL
+*   **TypeScript 接口:**
+    ```typescript
+    interface GenesisStep {
+      id: string; // UUID
+      session_id: string; // UUID
+      stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE';
+      iteration_count: number;
+      ai_prompt?: string;
+      ai_output: any; // JSONB
+      user_feedback?: string;
+      is_confirmed: boolean;
+      created_at: Date;
     }
     ```
 
@@ -659,6 +705,25 @@ sequenceDiagram
     
     %% 通知API网关，工作流已完成，UI可以更新最终状态
     Prefect-->>-APIGW: 工作流完成
+```
+
+### 3. SSE实时更新流程 (SSE Real-time Update Flow)
+```mermaid
+sequenceDiagram
+    participant UI as 前端UI
+    participant APIGW as API网关
+    participant Kafka as 事件总线
+    participant Agent as 后端Agent服务
+
+    UI->>+APIGW: GET /events/stream (建立SSE长连接)
+    APIGW-->>-UI: Connection Established (HTTP 200 OK)
+
+    Note right of Agent: Agent完成任务...
+    Agent->>+Kafka: 发布 Chapter.StatusUpdated 事件
+    Kafka-->>-APIGW: (API网关消费事件)
+    APIGW-->>UI: 推送SSE消息 (event: chapter_status_update, data: {...})
+
+    Note left of UI: UI监听到事件, 自动更新状态
 ```
 
 ## REST API Spec
@@ -1191,6 +1256,30 @@ paths:
       responses:
         '200':
           description: 成功获取特定Agent的配置
+  /events/stream:
+    get:
+      summary: 订阅实时事件流 (SSE)
+      description: |
+        与此端点建立一个持久连接以接收服务器发送的实时事件。
+        客户端应使用 EventSource API 来消费此流。
+        事件将包含事件类型 (event) 和JSON数据 (data)。
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功建立事件流连接。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: workflow_status_update
+                  data: {"workflow_run_id": "uuid-...", "status": "RUNNING", "details": "DirectorAgent is processing..."}
+
+                  event: chapter_status_update
+                  data: {"chapter_id": "uuid-...", "status": "REVIEWING"}
+        '401':
+          description: 未经授权
 ```
 
 ## Database Schema
@@ -1421,6 +1510,36 @@ CREATE TABLE agent_configurations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
     UNIQUE(novel_id, agent_type, config_key)
+);
+
+--- 创世流程追踪表 ---
+
+CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
+CREATE TYPE genesis_stage AS ENUM ('INITIAL_PROMPT', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED');
+
+CREATE TABLE genesis_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+    user_id UUID,
+    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS',
+    current_stage genesis_stage NOT NULL DEFAULT 'INITIAL_PROMPT',
+    initial_user_input JSONB,
+    final_settings JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE genesis_steps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE,
+    stage genesis_stage NOT NULL,
+    iteration_count INTEGER NOT NULL,
+    ai_prompt TEXT,
+    ai_output JSONB NOT NULL,
+    user_feedback TEXT,
+    is_confirmed BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_iteration_per_stage UNIQUE (session_id, stage, iteration_count)
 );
 
 --- 索引定义 ---

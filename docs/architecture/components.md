@@ -14,7 +14,7 @@
     *   `GET /novels` (新增，获取所有小说项目列表)
     *   `POST /novels/{novel_id}/generate-chapter`
     *   `GET /chapters/{chapter_id}`
-    *   `GET /workflows/{task_id}/status` (查询工作流状态)
+    *   `GET /workflows/{workflow_run_id}/status` (查询工作流状态)
     *   `GET /metrics`
     *   `GET /health`
     *   `GET /novels/{novel_id}/graph/worldview` (新增，查询指定小说的Neo4j世界观图数据)

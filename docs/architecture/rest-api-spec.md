@@ -3,7 +3,7 @@
 openapi: 3.0.0
 info:
   title: 多智能体网络小说自动写作系统 - 控制API
-  version: v1.2.0 
+  version: v1.4.0 
   description: 用于前端UI与后端工作流系统交互的控制API。
 servers:
   - url: http://localhost:8000/api/v1 
@@ -19,80 +19,107 @@ components:
         id:
           type: string
           format: uuid
+          description: 小说的唯一标识符 (UUID)
         title:
           type: string
+          description: 小说标题
         theme:
           type: string
+          description: 小说主题
         writing_style:
           type: string
+          description: 小说写作风格
         status:
           type: string
           enum: [GENESIS, GENERATING, PAUSED, COMPLETED, FAILED]
+          description: 小说的当前状态
         target_chapters:
           type: integer
+          description: 目标总章节数
         completed_chapters:
           type: integer
+          description: 已完成的章节数
         created_at:
           type: string
           format: date-time
+          description: 创建时间戳
         updated_at:
           type: string
           format: date-time
+          description: 最后更新时间戳
     Chapter:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          description: 章节的唯一标识符 (UUID)
         novel_id:
           type: string
           format: uuid
+          description: 所属小说的ID
         chapter_number:
           type: integer
+          description: 章节序号
         title:
           type: string
+          description: 章节标题
         content_url:
           type: string
           format: url
+          description: 指向Minio中存储的章节文本内容的URL
         status:
           type: string
           enum: [DRAFT, REVIEWING, REVISING, PUBLISHED]
+          description: 章节的当前状态
         word_count:
           type: integer
+          description: 章节字数
         created_at:
           type: string
           format: date-time
+          description: 创建时间戳
         updated_at:
           type: string
           format: date-time
+          description: 最后更新时间戳
     Review:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          description: 评审记录的唯一标识符 (UUID)
         chapter_id:
           type: string
           format: uuid
+          description: 被评审章节的ID
         agent_id:
           type: string
+          description: 执行评审的Agent的ID
         review_type:
           type: string
           enum: [CRITIC, FACT_CHECK]
+          description: 评审类型
         score:
           type: number
           format: float
+          description: 评论家评分 (可选)
         comment:
           type: string
+          description: 评论家评语 (可选)
         is_consistent:
           type: boolean
+          description: 事实核查员判断是否一致 (可选)
         issues_found:
           type: array
           items:
             type: string
+          description: 事实核查员发现的问题列表 (可选)
         created_at:
           type: string
           format: date-time
+          description: 评审创建时间戳
     WorldviewNode: 
       type: object
       properties:
@@ -123,9 +150,11 @@ components:
         startNodeAppId: 
           type: string
           format: uuid
+          description: 关系起始节点的app_id
         endNodeAppId: 
           type: string
           format: uuid
+          description: 关系结束节点的app_id
         properties: 
           type: object
           description: 关系的属性
@@ -139,22 +168,28 @@ components:
       properties:
         title:
           type: string
+          description: 新小说的标题
         theme:
           type: string
+          description: 新小说的主题
         writing_style:
           type: string
+          description: 新小说的写作风格
         target_chapters:
           type: integer
           minimum: 1
+          description: 计划的总章节数
     GenesisStartResponse:
       type: object
       properties:
         novel_id:
           type: string
           format: uuid
+          description: 新创建的小说的ID
         genesis_session_id:
           type: string
           format: uuid
+          description: 用于后续创世步骤的会话ID
     GenesisStepRequest: 
       type: object
       properties:
@@ -166,39 +201,50 @@ components:
       properties:
         success:
           type: boolean
+          description: 操作是否成功
         message:
           type: string
+          description: 相关的状态或错误信息
     WorkflowStatus:
       type: object
       properties:
         task_id:
           type: string
+          description: 被查询的工作流任务ID
         status:
           type: string
+          description: 工作流的当前状态
         progress:
           type: number
           format: float
+          description: 工作流的完成进度 (0.0 到 1.0)
         details:
           type: string
+          description: 关于当前状态的详细描述
     Metrics:
       type: object
       properties:
         total_words_generated:
           type: integer
+          description: 系统生成的总字数
         cost_per_10k_words:
           type: number
           format: float
+          description: 每生成一万字的平均成本
         avg_chapter_generation_time_seconds:
           type: number
           format: float
+          description: 生成一个章节的平均耗时（秒）
         chapter_revision_rate:
           type: number
           format: float
+          description: 章节需要修订的比例
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: 用于API认证的JWT令牌
 
 security:
   - BearerAuth: []
@@ -207,6 +253,7 @@ paths:
   /health:
     get:
       summary: 健康检查
+      description: 检查API服务及其依赖项（如数据库）是否正常运行。
       responses:
         '200':
           description: 服务正常
@@ -221,6 +268,7 @@ paths:
   /genesis/start:
     post:
       summary: 启动新的创世流程
+      description: 开始一个新的小说项目，创建初始记录并返回会话ID。
       requestBody:
         required: true
         content:
@@ -229,16 +277,17 @@ paths:
               $ref: '#/components/schemas/GenesisStartRequest'
       responses:
         '201':
-          description: 创世流程已启动
+          description: 创世流程已成功启动
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GenesisStartResponse'
         '400':
-          description: 无效请求
+          description: 无效请求，例如请求体格式错误
   /genesis/{session_id}/worldview:
     post:
       summary: 提交世界观设定
+      description: 在创世流程中，提交并保存世界观设定。
       parameters:
         - name: session_id
           in: path
@@ -246,6 +295,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 从 /genesis/start 获取的会话ID
       requestBody:
         required: true
         content:
@@ -262,6 +312,7 @@ paths:
   /genesis/{session_id}/characters:
     post:
       summary: 提交核心角色
+      description: 在创世流程中，提交并保存核心角色设定。
       parameters:
         - name: session_id
           in: path
@@ -269,6 +320,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 从 /genesis/start 获取的会话ID
       requestBody:
         required: true
         content:
@@ -285,6 +337,7 @@ paths:
   /genesis/{session_id}/plot:
     post:
       summary: 提交初始剧情弧光
+      description: 在创世流程中，提交并保存初始的剧情大纲或故事弧。
       parameters:
         - name: session_id
           in: path
@@ -292,6 +345,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 从 /genesis/start 获取的会话ID
       requestBody:
         required: true
         content:
@@ -308,6 +362,7 @@ paths:
   /genesis/{session_id}/finish:
     post:
       summary: 完成并结束创世流程
+      description: 标记创世流程结束，小说项目状态变为待生成。
       parameters:
         - name: session_id
           in: path
@@ -315,6 +370,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 从 /genesis/start 获取的会话ID
       responses:
         '200':
           description: 创世已完成，小说待生成
@@ -325,6 +381,7 @@ paths:
   /novels: 
     get:
       summary: 获取所有小说项目列表
+      description: 返回当前用户的所有小说项目及其基本信息。
       responses:
         '200':
           description: 成功获取小说列表
@@ -337,6 +394,7 @@ paths:
   /novels/{novel_id}/generate-chapter:
     post:
       summary: 触发指定小说生成下一章
+      description: 接受请求，并异步启动一个用于生成指定小说下一章的工作流。
       parameters:
         - name: novel_id
           in: path
@@ -344,9 +402,10 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 要生成章节的小说的ID
       responses:
         '202':
-          description: 章节生成任务已接受
+          description: 章节生成任务已接受，正在后台处理
           content:
             application/json:
               schema:
@@ -354,11 +413,14 @@ paths:
                 properties:
                   task_id: 
                     type: string
+                    description: 启动的后台工作流任务ID，可用于查询状态
                   message:
                     type: string
+                    description: 确认消息
   /chapters/{chapter_id}:
     get:
       summary: 获取指定章节内容及其评审
+      description: 返回特定章节的详细信息，包括其内容和所有相关的评审记录。
       parameters:
         - name: chapter_id
           in: path
@@ -366,6 +428,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 要获取详情的章节ID
       responses:
         '200':
           description: 成功获取章节详情
@@ -380,15 +443,18 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Review'
-  /workflows/{task_id}/status:
+  /workflows/{workflow_run_id}/status:
     get:
       summary: 查询指定工作流的状态
+      description: 根据从触发任务时获取的ID，查询后台工作流的实时状态。
       parameters:
-        - name: task_id
+        - name: workflow_run_id
           in: path
           required: true
           schema:
             type: string
+            format: uuid
+          description: 要查询状态的工作流运行ID
       responses:
         '200':
           description: 成功获取工作流状态
@@ -399,6 +465,7 @@ paths:
   /metrics:
     get:
       summary: 获取系统关键性能与成本指标
+      description: 返回关于系统整体性能和成本的关键指标。
       responses:
         '200':
           description: 成功获取指标
@@ -409,6 +476,7 @@ paths:
   /novels/{novel_id}/graph/worldview: 
     get:
       summary: 获取指定小说的世界观图谱数据 (用于可视化)
+      description: 从Neo4j中查询并返回特定小说的知识图谱数据，用于前端进行可视化展示。
       parameters:
         - name: novel_id
           in: path
@@ -416,6 +484,7 @@ paths:
           schema:
             type: string
             format: uuid
+          description: 要获取图谱数据的小说ID
       responses:
         '200':
           description: 成功获取图谱数据
@@ -432,4 +501,55 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/WorldviewRelationship'
+  /agents/configurations:
+    get:
+      summary: 获取所有 Agent 的当前配置
+      description: 返回系统中所有Agent的配置信息。
+      responses:
+        '200':
+          description: 成功获取配置列表
+    post:
+      summary: 更新 Agent 配置
+      description: 批量或单个更新Agent的配置项。
+      responses:
+        '200':
+          description: 配置已更新
+  /agents/{agent_type}/configurations:
+    get:
+      summary: 获取特定 Agent 的配置历史
+      description: 返回指定类型Agent的所有配置及其历史记录。
+      parameters:
+        - name: agent_type
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 要查询配置的Agent类型
+      responses:
+        '200':
+          description: 成功获取特定Agent的配置
+  /events/stream:
+    get:
+      summary: 订阅实时事件流 (SSE)
+      description: |
+        与此端点建立一个持久连接以接收服务器发送的实时事件。
+        客户端应使用 EventSource API 来消费此流。
+        事件将包含事件类型 (event) 和JSON数据 (data)。
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功建立事件流连接。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: workflow_status_update
+                  data: {"workflow_run_id": "uuid-...", "status": "RUNNING", "details": "DirectorAgent is processing..."}
+
+                  event: chapter_status_update
+                  data: {"chapter_id": "uuid-...", "status": "REVIEWING"}
+        '401':
+          description: 未经授权
 ```
