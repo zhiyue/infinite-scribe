@@ -330,6 +330,26 @@ services:
       - ./data:/data    # Mount data directory for file access
     working_dir: /flows
 
+  # Frontend Web Application
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: infinite-scribe-frontend
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - infinite-scribe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # NOTE: Application services (API Gateway, Agents) are defined in docker-compose.backend.yml
   # Use: docker-compose -f docker-compose.yml -f docker-compose.backend.yml up
 
