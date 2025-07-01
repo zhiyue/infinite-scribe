@@ -47,7 +47,112 @@ docker compose -f docker-compose.yml -f docker-compose.backend.yml build api-gat
 
 ### 1. 自动部署（推荐）
 
-使用项目提供的部署脚本：
+使用项目提供的部署脚本：❯ export https_proxy=http://192.168.1.191:7890
+
+~
+❯ export http_proxy=http://192.168.1.191:7890
+
+~
+❯ docker info
+Client:
+ Version:    28.2.2
+ Context:    default
+ Debug Mode: false
+ Plugins:
+  ai: Docker AI Agent - Ask Gordon (Docker Inc.)
+    Version:  v1.4.0
+    Path:     /usr/local/lib/docker/cli-plugins/docker-ai
+  buildx: Docker Buildx (Docker Inc.)
+    Version:  v0.24.0-desktop.2
+    Path:     /usr/local/lib/docker/cli-plugins/docker-buildx
+  cloud: Docker Cloud (Docker Inc.)
+    Version:  v0.3.9
+    Path:     /usr/local/lib/docker/cli-plugins/docker-cloud
+  compose: Docker Compose (Docker Inc.)
+    Version:  v2.37.1-desktop.1
+    Path:     /usr/local/lib/docker/cli-plugins/docker-compose
+  debug: Get a shell into any image or container (Docker Inc.)
+    Version:  0.0.41
+    Path:     /usr/local/lib/docker/cli-plugins/docker-debug
+  desktop: Docker Desktop commands (Docker Inc.)
+    Version:  v0.1.9
+    Path:     /usr/local/lib/docker/cli-plugins/docker-desktop
+  extension: Manages Docker extensions (Docker Inc.)
+    Version:  v0.2.29
+    Path:     /usr/local/lib/docker/cli-plugins/docker-extension
+  init: Creates Docker-related starter files for your project (Docker Inc.)
+    Version:  v1.4.0
+    Path:     /usr/local/lib/docker/cli-plugins/docker-init
+  mcp: Docker MCP Plugin (Docker Inc.)
+    Version:  dev
+    Path:     /usr/local/lib/docker/cli-plugins/docker-mcp
+  model: Docker Model Runner (Docker Inc.)
+    Version:  v0.1.24
+    Path:     /usr/local/lib/docker/cli-plugins/docker-model
+  sbom: View the packaged-based Software Bill Of Materials (SBOM) for an image (Anchore Inc.)
+    Version:  0.6.0
+    Path:     /usr/local/lib/docker/cli-plugins/docker-sbom
+  scout: Docker Scout (Docker Inc.)
+    Version:  v1.18.0
+    Path:     /usr/local/lib/docker/cli-plugins/docker-scout
+WARNING: Plugin "/usr/local/lib/docker/cli-plugins/docker-dev" is not valid: failed to fetch metadata: fork/exec /usr/local/lib/docker/cli-plugins/docker-dev: no such file or directory
+WARNING: Plugin "/usr/local/lib/docker/cli-plugins/docker-feedback" is not valid: failed to fetch metadata: fork/exec /usr/local/lib/docker/cli-plugins/docker-feedback: no such file or directory
+
+Server:
+ Containers: 7
+  Running: 0
+  Paused: 0
+  Stopped: 7
+ Images: 9
+ Server Version: 28.2.2
+ Storage Driver: overlayfs
+  driver-type: io.containerd.snapshotter.v1
+ Logging Driver: json-file
+ Cgroup Driver: cgroupfs
+ Cgroup Version: 2
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+ CDI spec directories:
+  /etc/cdi
+  /var/run/cdi
+ Discovered Devices:
+  cdi: docker.com/gpu=webgpu
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 nvidia runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: 05044ec0a9a75232cad458027ca83437aae3f4da
+ runc version: v1.2.5-0-g59923ef
+ init version: de40ad0
+ Security Options:
+  seccomp
+   Profile: builtin
+  cgroupns
+ Kernel Version: 6.6.87.2-microsoft-standard-WSL2
+ Operating System: Docker Desktop
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 20
+ Total Memory: 62.69GiB
+ Name: docker-desktop
+ ID: 01210a4b-861e-4e40-885e-b3908405edca
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ HTTP Proxy: http://127.0.0.1:7890
+ HTTPS Proxy: http://127.0.0.1:7890
+ No Proxy: hubproxy.docker.internal
+ Labels:
+  com.docker.desktop.address=unix:///var/run/docker-cli.sock
+ Experimental: false
+ Insecure Registries:
+  hubproxy.docker.internal:5555
+  ::1/128
+  127.0.0.0/8
+ Live Restore Enabled: false
+
+WARNING: DOCKER_INSECURE_NO_IPTABLES_RAW is set
 
 ```bash
 ./scripts/deployment/deploy-to-dev.sh
