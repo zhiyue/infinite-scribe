@@ -52,12 +52,40 @@ This document provides a quick reference for using either `make` or `pnpm` comma
 | SSH to dev machine | `make ssh-dev` | `pnpm run ssh:dev` |
 | SSH to test machine | `make ssh-test` | `pnpm run ssh:test` |
 
+## Deployment Commands
+
+### Basic Deployment
+| Task | Make Command | pnpm Command |
+|------|--------------|--------------|
+| Deploy all services | `make deploy` | `pnpm run deploy:dev` |
+| Build & deploy all | `make deploy-build` | `pnpm run deploy:dev:build` |
+| Show deployment help | `make deploy-help` | `pnpm run deploy:dev:help` |
+
+### Deploy by Type
+| Task | Make Command | pnpm Command |
+|------|--------------|--------------|
+| Deploy infrastructure | `make deploy-infra` | `pnpm run deploy:dev:infra` |
+| Deploy all backend | `make deploy-backend` | `pnpm run deploy:dev:backend` |
+| Build & deploy backend | `make deploy-backend-build` | `pnpm run deploy:dev:backend:build` |
+| Deploy all agents | `make deploy-agents` | `pnpm run deploy:dev:agents` |
+| Build & deploy agents | `make deploy-agents-build` | `pnpm run deploy:dev:agents:build` |
+
+### Deploy Specific Services
+| Task | Make Command | pnpm Command |
+|------|--------------|--------------|
+| Deploy API Gateway only | `make deploy-api` | `pnpm run deploy:dev:api` |
+| Build & deploy API only | `make deploy-api-build` | `pnpm run deploy:dev:api:build` |
+| Deploy specific service | `SERVICE=<name> make deploy-service` | Use script directly |
+| Build & deploy specific | `SERVICE=<name> make deploy-service-build` | Use script directly |
+
 ## Environment Variables
 
 Both Make and pnpm commands support the same environment variables:
 
 - `TEST_MACHINE_IP`: IP address of the test machine (default: 192.168.2.202)
 - `SSH_USER`: SSH username (default: zhiyue)
+- `DEV_SERVER`: Development server IP (default: 192.168.2.201) - for deployment commands
+- `DEV_USER`: Development server SSH user (default: zhiyue) - for deployment commands
 
 ### Examples:
 
@@ -65,10 +93,12 @@ Both Make and pnpm commands support the same environment variables:
 # Using Make
 TEST_MACHINE_IP=192.168.2.100 make test-all
 SSH_USER=myuser make ssh-dev
+DEV_SERVER=192.168.2.100 make deploy
 
 # Using pnpm
 TEST_MACHINE_IP=192.168.2.100 pnpm run test:all
 SSH_USER=myuser pnpm run ssh:dev
+DEV_SERVER=192.168.2.100 pnpm run deploy:dev
 ```
 
 ## Quick Start

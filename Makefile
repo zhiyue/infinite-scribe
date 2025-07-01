@@ -148,6 +148,77 @@ clean: ## Clean build artifacts and caches
 	find . -type d -name ".next" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "node_modules/.cache" -exec rm -rf {} + 2>/dev/null || true
 
+##@ Deployment Commands
+
+.PHONY: deploy
+deploy: ## Deploy to development server (default: sync and deploy all services)
+	@echo "$(GREEN)Deploying to development server...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh
+
+.PHONY: deploy-build
+deploy-build: ## Build and deploy all services on development server
+	@echo "$(GREEN)Building and deploying all services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --build
+
+.PHONY: deploy-infra
+deploy-infra: ## Deploy only infrastructure services
+	@echo "$(GREEN)Deploying infrastructure services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --type infra
+
+.PHONY: deploy-backend
+deploy-backend: ## Deploy all backend services (API Gateway + Agents)
+	@echo "$(GREEN)Deploying backend services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --type backend
+
+.PHONY: deploy-backend-build
+deploy-backend-build: ## Build and deploy all backend services
+	@echo "$(GREEN)Building and deploying backend services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --type backend --build
+
+.PHONY: deploy-agents
+deploy-agents: ## Deploy all Agent services only
+	@echo "$(GREEN)Deploying Agent services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --type agents
+
+.PHONY: deploy-agents-build
+deploy-agents-build: ## Build and deploy all Agent services
+	@echo "$(GREEN)Building and deploying Agent services...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --type agents --build
+
+.PHONY: deploy-api
+deploy-api: ## Deploy only API Gateway service
+	@echo "$(GREEN)Deploying API Gateway only...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --service api-gateway
+
+.PHONY: deploy-api-build
+deploy-api-build: ## Build and deploy only API Gateway service
+	@echo "$(GREEN)Building and deploying API Gateway only...$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --service api-gateway --build
+
+.PHONY: deploy-service
+deploy-service: ## Deploy specific service (use SERVICE=<name> make deploy-service)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Error: SERVICE not specified$(NC)"; \
+		echo "Usage: SERVICE=api-gateway make deploy-service"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Deploying service: $(SERVICE)$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --service $(SERVICE)
+
+.PHONY: deploy-service-build
+deploy-service-build: ## Build and deploy specific service (use SERVICE=<name> make deploy-service-build)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Error: SERVICE not specified$(NC)"; \
+		echo "Usage: SERVICE=api-gateway make deploy-service-build"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Building and deploying service: $(SERVICE)$(NC)"
+	./scripts/deployment/deploy-to-dev.sh --service $(SERVICE) --build
+
+.PHONY: deploy-help
+deploy-help: ## Show deployment script help
+	./scripts/deployment/deploy-to-dev.sh --help
+
 ##@ SSH Access
 
 .PHONY: ssh-dev

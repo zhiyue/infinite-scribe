@@ -214,8 +214,27 @@ pnpm infra:down
 # 查看服务日志
 pnpm infra:logs
 
-# 部署到开发服务器 (192.168.2.201) - 仅用于开发环境
-pnpm infra:deploy
+# 部署到开发服务器 (192.168.2.201)
+# 基础部署
+make deploy                  # 同步并部署所有服务（推荐）
+make deploy-build            # 构建并部署所有服务
+
+# 分层部署
+make deploy-backend          # 部署所有后端服务（API + Agents）
+make deploy-agents           # 只部署所有 Agent 服务
+make deploy-infra            # 只部署基础设施服务
+
+# 精准部署
+make deploy-api              # 只部署 API Gateway
+SERVICE=agent-worldsmith make deploy-service  # 部署特定 Agent
+
+# 查看所有部署选项
+make deploy-help             # 显示完整帮助
+
+# 或使用 pnpm 命令
+pnpm deploy:dev              # 同步并部署所有服务
+pnpm deploy:dev:backend      # 部署所有后端服务
+pnpm deploy:dev:agents       # 只部署所有 Agent 服务
 ```
 
 ### 服务健康检查
