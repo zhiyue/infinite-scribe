@@ -99,7 +99,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Get project root directory
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Configure environment based on options
 if [ "$USE_REMOTE_SERVICES" = true ]; then

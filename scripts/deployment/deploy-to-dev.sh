@@ -82,7 +82,17 @@ echo -e "${GREEN}✓ Environment files configured${NC}"
 
 # Deploy services
 echo -e "\n${YELLOW}Deploying services with Docker Compose...${NC}"
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose down && docker compose up -d"
+# Stop all services first
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml down"
+# Start infrastructure services first
+echo -e "${YELLOW}Starting infrastructure services...${NC}"
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml up -d"
+# Wait for infrastructure to be ready
+echo -e "${YELLOW}Waiting for infrastructure services to be ready...${NC}"
+sleep 30
+# Start backend services
+echo -e "${YELLOW}Starting backend services...${NC}"
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d api-gateway"
 
 # Wait for services to start
 echo -e "\n${YELLOW}Waiting for services to start...${NC}"
@@ -95,6 +105,8 @@ ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && node scripts/check-services-
 # Show service URLs
 echo -e "\n${BLUE}Service URLs:${NC}"
 echo -e "${BLUE}============================================${NC}"
+echo -e "API Gateway:     http://${DEV_SERVER}:8000"
+echo -e "API Health:      http://${DEV_SERVER}:8000/health"
 echo -e "Neo4j Browser:   http://${DEV_SERVER}:7474"
 echo -e "MinIO Console:   http://${DEV_SERVER}:9001"
 echo -e "Prefect UI:      http://${DEV_SERVER}:4200"
@@ -102,6 +114,7 @@ echo -e "Prefect API:     http://${DEV_SERVER}:4200/api"
 
 echo -e "\n${GREEN}Deployment complete!${NC}"
 echo -e "\nTo view logs:"
-echo -e "  ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose logs -f\""
+echo -e "  Infrastructure: ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose logs -f\""
+echo -e "  API Gateway:    ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml logs -f api-gateway\""
 echo -e "\nTo stop services:"
-echo -e "  ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose down\""
+echo -e "  ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml down\""
