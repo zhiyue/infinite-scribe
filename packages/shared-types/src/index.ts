@@ -126,6 +126,15 @@ export type ISODateString = string;
  */
 export type UUIDString = string;
 
+/**
+ * 带元数据的通用接口
+ * 提供类型安全的元数据支持
+ */
+export interface WithMetadata<T = Record<string, any>> {
+  /** 类型安全的元数据 */
+  metadata?: T;
+}
+
 // ===== 基础接口定义 =====
 
 /**
@@ -160,6 +169,7 @@ export interface AuditFields {
  */
 export interface BaseAPIModel {
   // API模型字段将在Task 5中定义
+  // eslint-disable-next-line @typescript-eslint/no-empty-interface
 }
 
 /**
@@ -334,71 +344,51 @@ export interface Review extends BaseDBModel {
  * 大纲表接口
  * 对应 OutlineModel
  */
-export interface Outline extends BaseDBModel {
-  /** 大纲ID */
-  id: string;
+export interface Outline extends BaseDBModel, AuditFields {
   /** 关联的章节ID */
-  chapter_id: string;
-  /** 创建此大纲的Agent类型 */
-  created_by_agent_type?: AgentType;
-  /** 大纲版本号 */
-  version: number;
+  chapter_id: UUIDString;
   /** 大纲文本内容 */
   content: string;
   /** 指向Minio中存储的大纲文件URL */
   content_url?: string;
   /** 额外的结构化元数据 */
   metadata?: Record<string, any>;
-  /** 创建时间 */
-  created_at: string;
 }
 
 /**
  * 场景卡表接口
  * 对应 SceneCardModel
  */
-export interface SceneCard extends BaseDBModel {
-  /** 场景卡ID */
-  id: string;
+export interface SceneCard extends BaseDBModel, AuditFields {
   /** 所属小说ID */
-  novel_id: string;
+  novel_id: UUIDString;
   /** 所属章节ID */
-  chapter_id: string;
+  chapter_id: UUIDString;
   /** 关联的大纲ID */
-  outline_id: string;
-  /** 创建此场景卡的Agent类型 */
-  created_by_agent_type?: AgentType;
+  outline_id: UUIDString;
   /** 场景在章节内的序号 */
   scene_number: number;
   /** 视角角色ID */
-  pov_character_id?: string;
+  pov_character_id?: UUIDString;
   /** 场景的详细设计 */
   content: Record<string, any>;
-  /** 创建时间 */
-  created_at: string;
 }
 
 /**
  * 角色互动表接口
  * 对应 CharacterInteractionModel
  */
-export interface CharacterInteraction extends BaseDBModel {
-  /** 互动ID */
-  id: string;
+export interface CharacterInteraction extends BaseDBModel, AuditFields {
   /** 所属小说ID */
-  novel_id: string;
+  novel_id: UUIDString;
   /** 所属章节ID */
-  chapter_id: string;
+  chapter_id: UUIDString;
   /** 关联的场景卡ID */
-  scene_card_id: string;
-  /** 创建此互动的Agent类型 */
-  created_by_agent_type?: AgentType;
+  scene_card_id: UUIDString;
   /** 互动类型 */
   interaction_type?: string;
   /** 互动的详细内容 */
   content: Record<string, any>;
-  /** 创建时间 */
-  created_at: string;
 }
 
 // ===== 追踪与配置接口 =====
@@ -408,10 +398,8 @@ export interface CharacterInteraction extends BaseDBModel {
  * 对应 WorkflowRunModel
  */
 export interface WorkflowRun extends BaseDBModel {
-  /** 工作流运行ID */
-  id: string;
   /** 关联的小说ID */
-  novel_id: string;
+  novel_id: UUIDString;
   /** 工作流类型 */
   workflow_type: string;
   /** 工作流当前状态 */
@@ -419,9 +407,9 @@ export interface WorkflowRun extends BaseDBModel {
   /** 启动工作流时传入的参数 */
   parameters?: Record<string, any>;
   /** 开始时间 */
-  started_at: string;
+  started_at: ISODateString;
   /** 完成时间 */
-  completed_at?: string;
+  completed_at?: ISODateString;
   /** 错误详情 */
   error_details?: Record<string, any>;
 }
@@ -431,14 +419,12 @@ export interface WorkflowRun extends BaseDBModel {
  * 对应 AgentActivityModel
  */
 export interface AgentActivity extends BaseDBModel {
-  /** 活动ID */
-  id: string;
   /** 关联的工作流运行ID */
-  workflow_run_id?: string;
+  workflow_run_id?: UUIDString;
   /** 关联的小说ID */
-  novel_id: string;
+  novel_id: UUIDString;
   /** 活动操作的目标实体ID */
-  target_entity_id?: string;
+  target_entity_id?: UUIDString;
   /** 目标实体类型 */
   target_entity_type?: string;
   /** 执行活动的Agent类型 */
@@ -454,9 +440,9 @@ export interface AgentActivity extends BaseDBModel {
   /** 错误详情 */
   error_details?: Record<string, any>;
   /** 开始时间 */
-  started_at: string;
+  started_at: ISODateString;
   /** 完成时间 */
-  completed_at?: string;
+  completed_at?: ISODateString;
   /** 调用LLM消耗的Token数 */
   llm_tokens_used?: number;
   /** 调用LLM的估算成本 */
@@ -470,14 +456,12 @@ export interface AgentActivity extends BaseDBModel {
  * 对应 EventModel
  */
 export interface Event extends BaseDBModel {
-  /** 事件ID */
-  id: string;
   /** 事件类型 */
   event_type: string;
   /** 关联的小说ID */
-  novel_id?: string;
+  novel_id?: UUIDString;
   /** 关联的工作流运行ID */
-  workflow_run_id?: string;
+  workflow_run_id?: UUIDString;
   /** 事件的完整载荷 */
   payload: Record<string, any>;
   /** 事件处理状态 */
@@ -485,9 +469,9 @@ export interface Event extends BaseDBModel {
   /** 处理此事件的Agent类型 */
   processed_by_agent_type?: AgentType;
   /** 事件创建时间 */
-  created_at: string;
+  created_at: ISODateString;
   /** 事件处理完成时间 */
-  processed_at?: string;
+  processed_at?: ISODateString;
   /** 错误详情 */
   error_details?: Record<string, any>;
 }
@@ -497,10 +481,8 @@ export interface Event extends BaseDBModel {
  * 对应 AgentConfigurationModel
  */
 export interface AgentConfiguration extends BaseDBModel {
-  /** 配置ID */
-  id: string;
   /** 关联的小说ID，null表示全局配置 */
-  novel_id?: string;
+  novel_id?: UUIDString;
   /** 配置作用的Agent类型 */
   agent_type?: AgentType;
   /** 配置项名称 */
@@ -510,9 +492,9 @@ export interface AgentConfiguration extends BaseDBModel {
   /** 是否启用此配置 */
   is_active: boolean;
   /** 创建时间 */
-  created_at: string;
+  created_at: ISODateString;
   /** 最后更新时间 */
-  updated_at: string;
+  updated_at: ISODateString;
 }
 
 // ===== 创世流程接口 =====
@@ -566,18 +548,16 @@ export interface GenesisStep extends BaseDBModel {
  * 对应 AuditLogModel
  */
 export interface AuditLog extends BaseDBModel {
-  /** 日志ID */
-  id: string;
   /** 发生变更的表名 */
   table_name: string;
   /** 发生变更的记录ID */
-  record_id: string;
+  record_id: UUIDString;
   /** 操作类型 */
   operation: OperationType;
   /** 执行变更的Agent类型 */
   changed_by_agent_type?: AgentType;
   /** 变更发生时间 */
-  changed_at: string;
+  changed_at: ISODateString;
   /** 旧值 */
   old_values?: Record<string, any>;
   /** 新值 */
@@ -638,71 +618,71 @@ export const MODEL_RELATIONSHIPS = {
       "GenesisSession",
       "SceneCard",
       "CharacterInteraction",
-    ] as const,
+    ] as const satisfies readonly ModelName[],
     foreign_keys: [] as const,
   },
   Chapter: {
-    children: ["ChapterVersion", "Outline", "SceneCard"] as const,
+    children: ["ChapterVersion", "Outline", "SceneCard"] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   ChapterVersion: {
-    children: ["Review"] as const,
+    children: ["Review"] as const satisfies readonly ModelName[],
     foreign_keys: ["chapter_id", "parent_version_id"] as const,
   },
   Character: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   WorldviewEntry: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   StoryArc: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   GenesisSession: {
-    children: ["GenesisStep"] as const,
+    children: ["GenesisStep"] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   GenesisStep: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["session_id"] as const,
   },
   Outline: {
-    children: ["SceneCard"] as const,
+    children: ["SceneCard"] as const satisfies readonly ModelName[],
     foreign_keys: ["chapter_id"] as const,
   },
   SceneCard: {
-    children: ["CharacterInteraction"] as const,
+    children: ["CharacterInteraction"] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id", "chapter_id", "outline_id", "pov_character_id"] as const,
   },
   CharacterInteraction: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id", "chapter_id", "scene_card_id"] as const,
   },
   Review: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["chapter_id", "chapter_version_id"] as const,
   },
   WorkflowRun: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id"] as const,
   },
   AgentActivity: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["workflow_run_id", "novel_id", "target_entity_id"] as const,
   },
   Event: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id", "workflow_run_id"] as const,
   },
   AgentConfiguration: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["novel_id", "agent_type"] as const,
   },
   AuditLog: {
-    children: [] as const,
+    children: [] as const satisfies readonly ModelName[],
     foreign_keys: ["record_id"] as const,
   },
 } as const satisfies ModelRelationships;
