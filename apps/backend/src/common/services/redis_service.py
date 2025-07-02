@@ -74,3 +74,6 @@ class RedisService:
             yield self._client
         finally:
             pass  # Keep connection open for reuse
+
+
+redis_service = RedisService()

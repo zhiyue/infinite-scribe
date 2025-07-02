@@ -32,6 +32,8 @@ class EmbeddingService:
             if not self._client:
                 await self.connect()
 
+            assert self._client is not None, "Client should be initialized after connect()"
+
             # 发送健康检查请求
             response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
             return response.status_code == 200
@@ -64,7 +66,9 @@ class EmbeddingService:
                 raise ValueError(f"Unexpected response format: {result}")
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(f"Embedding API error: {e.response.status_code} - {e.response.text}") from e
+            raise RuntimeError(
+                f"Embedding API error: {e.response.status_code} - {e.response.text}"
+            ) from e
         except Exception as e:
             raise RuntimeError(f"Failed to get embedding: {e!s}") from e
 
