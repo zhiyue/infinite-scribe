@@ -3,6 +3,7 @@
 import logging
 
 from neo4j import AsyncDriver, AsyncGraphDatabase
+
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
