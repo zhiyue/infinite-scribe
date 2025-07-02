@@ -172,6 +172,18 @@ importers:
         specifier: '>=4.0.0'
         version: 5.2.2
 
+  packages/shared-types:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.2
+      eslint:
+        specifier: ^9.29.0
+        version: 9.30.0
+      typescript:
+        specifier: ~5.2.2
+        version: 5.2.2
+
   packages/tsconfig-custom: {}
 
 packages:
