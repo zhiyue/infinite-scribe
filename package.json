@@ -53,6 +53,7 @@
     "env:dev": "./scripts/switch-env.sh dev",
     "env:test": "./scripts/switch-env.sh test",
     "env:show": "[ -L .env ] && echo \"Current: .env -> $(readlink .env)\" || echo \"No .env symlink found\"",
+    "env:sync-frontend": "./scripts/sync-frontend-env.sh",
     "// Original Scripts": "================================",
     "dev": "echo 'Run development scripts in individual apps'",
     "build": "pnpm -r build",

@@ -113,3 +113,7 @@ pip-delete-this-directory.txt
 
 # Husky
 .husky/_
+
+# Environment files (keep tracked for development)
+# Note: These are tracked for team development setup
+
