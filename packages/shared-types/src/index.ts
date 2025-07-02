@@ -104,6 +104,16 @@ export enum GenesisStage {
 }
 
 /**
+ * 创世模式枚举
+ */
+export enum GenesisMode {
+  /** 给我灵感模式（零输入） */
+  INSPIRATION = "inspiration",
+  /** 基于想法完善模式（有输入） */ 
+  REFINEMENT = "refinement",
+}
+
+/**
  * 操作类型枚举
  */
 export enum OperationType {

@@ -93,11 +93,12 @@ class GenesisStatus(str, Enum):
 class GenesisStage(str, Enum):
     """创世阶段枚举"""
 
-    INITIAL_PROMPT = "INITIAL_PROMPT"
-    WORLDVIEW = "WORLDVIEW"
-    CHARACTERS = "CHARACTERS"
-    PLOT_OUTLINE = "PLOT_OUTLINE"
-    FINISHED = "FINISHED"
+    CONCEPT_SELECTION = "CONCEPT_SELECTION"      # 立意选择与迭代阶段（选择抽象立意并优化）
+    STORY_CONCEPTION = "STORY_CONCEPTION"        # 故事构思阶段（将立意转化为具体故事框架）
+    WORLDVIEW = "WORLDVIEW"                      # 世界观创建阶段
+    CHARACTERS = "CHARACTERS"                    # 角色设定阶段
+    PLOT_OUTLINE = "PLOT_OUTLINE"               # 情节大纲阶段
+    FINISHED = "FINISHED"                        # 完成阶段
 
 
 class OperationType(str, Enum):
@@ -122,9 +123,7 @@ class BaseDBModel(BaseModel):
     @classmethod
     def auto_update_timestamp(cls, data):
         """自动更新 updated_at 字段"""
-        if (isinstance(data, dict) and 
-            "updated_at" in cls.model_fields and 
-            "updated_at" not in data):
+        if isinstance(data, dict) and "updated_at" in cls.model_fields and "updated_at" not in data:
             # 在初始化时如果没有提供 updated_at，则设置为当前时间
             data["updated_at"] = datetime.now(tz=UTC)
         return data
@@ -133,10 +132,12 @@ class BaseDBModel(BaseModel):
         """重写属性设置以自动更新 updated_at"""
         super().__setattr__(name, value)
         # 如果设置的不是 updated_at 本身，且模型有 updated_at 字段，则自动更新
-        if (name != "updated_at" and
-            name != "_BaseDBModel__pydantic_extra__" and  # 避免内部属性
-            hasattr(self, "updated_at") and
-            "updated_at" in self.model_fields):
+        if (
+            name != "updated_at"
+            and name != "_BaseDBModel__pydantic_extra__"  # 避免内部属性
+            and hasattr(self, "updated_at")
+            and "updated_at" in self.model_fields
+        ):
             super().__setattr__("updated_at", datetime.now(tz=UTC))
 
 
@@ -291,8 +292,8 @@ class ReviewModel(BaseDBModel):
     workflow_run_id: UUID | None = Field(None, description="关联的工作流运行ID")
     agent_type: AgentType = Field(..., description="执行评审的Agent类型")
     review_type: str = Field(..., max_length=50, description="评审类型")
-    score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(
-        None, description="评论家评分"
+    score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = (
+        Field(None, description="评论家评分")
     )
     comment: str | None = Field(None, description="评论家评语")
     is_consistent: bool | None = Field(None, description="事实核查员判断是否一致")
@@ -389,9 +390,9 @@ class AgentActivityModel(BaseDBModel):
     completed_at: datetime | None = Field(None, description="完成时间")
     # duration_seconds: 计算字段，由数据库生成
     llm_tokens_used: int | None = Field(None, ge=0, description="调用LLM消耗的Token数")
-    llm_cost_estimate: Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None = Field(
-        None, description="调用LLM的估算成本"
-    )
+    llm_cost_estimate: (
+        Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None
+    ) = Field(None, description="调用LLM的估算成本")
     retry_count: int = Field(default=0, ge=0, description="重试次数")
 
 
@@ -429,7 +430,50 @@ class AgentConfigurationModel(BaseDBModel):
     )
 
 
-# 创世流程追踪表模型
+# 创世流程相关表模型
+
+
+class ConceptTemplateModel(BaseDBModel):
+    """立意模板表模型 - 存储抽象的哲学立意供用户选择"""
+
+    id: UUID
+    core_idea: str = Field(..., max_length=200, description="核心抽象思想，如'知识与无知的深刻对立'")
+    description: str = Field(..., max_length=800, description="立意的深层含义阐述")
+    
+    # 哲学维度
+    philosophical_depth: str = Field(..., max_length=1000, description="哲学思辨的深度表达")
+    emotional_core: str = Field(..., max_length=500, description="情感核心与内在冲突")
+    
+    # 分类标签（抽象层面）
+    philosophical_category: str | None = Field(None, max_length=100, description="哲学类别，如'存在主义','人道主义','理想主义'")
+    thematic_tags: list[str] = Field(default_factory=list, description="主题标签，如['成长','选择','牺牲','真理']")
+    complexity_level: str = Field(default="medium", max_length=20, description="思辨复杂度，如'simple','medium','complex'")
+    
+    # 适用性
+    universal_appeal: bool = Field(default=True, description="是否具有普遍意义")
+    cultural_specificity: str | None = Field(None, max_length=100, description="文化特异性，如'东方哲学','西方哲学','普世价值'")
+    
+    # 使用统计
+    usage_count: int = Field(default=0, ge=0, description="被选择使用的次数")
+    rating_sum: int = Field(default=0, ge=0, description="用户评分总和")
+    rating_count: int = Field(default=0, ge=0, description="评分人数")
+    
+    # 元数据
+    is_active: bool = Field(default=True, description="是否启用")
+    created_by: str | None = Field(None, max_length=50, description="创建者，如'system','admin'")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
+    )
+
+    @property
+    def average_rating(self) -> float | None:
+        """计算平均评分"""
+        if self.rating_count == 0:
+            return None
+        return self.rating_sum / self.rating_count
 
 
 class GenesisSessionModel(BaseDBModel):
@@ -439,7 +483,7 @@ class GenesisSessionModel(BaseDBModel):
     novel_id: UUID = Field(..., description="关联的小说ID")
     user_id: UUID | None = Field(None, description="用户ID")
     status: GenesisStatus = Field(default=GenesisStatus.IN_PROGRESS, description="会话状态")
-    current_stage: GenesisStage = Field(default=GenesisStage.INITIAL_PROMPT, description="当前阶段")
+    current_stage: GenesisStage = Field(default=GenesisStage.CONCEPT_SELECTION, description="当前阶段")
     initial_user_input: dict[str, Any] | None = Field(None, description="初始用户输入")
     final_settings: dict[str, Any] | None = Field(None, description="最终设置")
     created_at: datetime = Field(
@@ -684,7 +728,7 @@ def create_example_genesis_session(novel_id: UUID | None = None) -> dict:
         "id": uuid4(),
         "novel_id": novel_id or uuid4(),
         "status": GenesisStatus.IN_PROGRESS,
-        "current_stage": GenesisStage.WORLDVIEW,
+        "current_stage": GenesisStage.CONCEPT_SELECTION,
         "initial_user_input": {"genre": "奇幻", "theme": "成长与冒险", "setting": "魔法世界"},
     }
 

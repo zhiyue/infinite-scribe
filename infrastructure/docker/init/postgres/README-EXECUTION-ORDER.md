@@ -21,6 +21,7 @@
 06-migration-tracking-logging.sql  # 追踪日志表（依赖ENUM）
 07-migration-indexes-constraints.sql # 索引和约束
 08-migration-triggers.sql          # 触发器（依赖所有前面的表）
+09-migration-concept-templates.sql # 立意模板功能（更新ENUM和新增表）
 ```
 
 ## 🚨 关键依赖关系
@@ -34,14 +35,21 @@
   - `novel_status`
   - `chapter_status`
   - `genesis_status`
-  - `genesis_stage`
+  - `genesis_stage` （原始版本）
+
+- **09-migration-concept-templates.sql** 更新了ENUM类型：
+  - 更新 `genesis_stage` 枚举，新增 `CONCEPT_SELECTION` 和 `STORY_CONCEPTION` 阶段
+  - 移除 `INITIAL_PROMPT` 阶段，替换为新的立意选择流程
 
 - **所有后续脚本** 都依赖这些ENUM类型，特别是：
   - 04-migration-core-entities.sql 中的 `ALTER COLUMN status TYPE novel_status`
+  - 05-migration-genesis-tracking.sql 中的 `genesis_stage` 字段定义
   - 各种表中的 `agent_type` 字段定义
 
 ### 表依赖关系
 - **chapter_versions** 表必须在 **chapters** 表更新之前创建
+- **concept_templates** 表独立创建，无外键依赖
+- **genesis_sessions** 表的 `current_stage` 字段依赖更新后的 `genesis_stage` 枚举
 - **触发器** 必须在所有相关表创建完成后创建
 - **外键约束** 在所有表创建完成后添加
 
@@ -64,6 +72,7 @@ psql -d infinite_scribe -f 05-migration-genesis-tracking.sql
 psql -d infinite_scribe -f 06-migration-tracking-logging.sql
 psql -d infinite_scribe -f 07-migration-indexes-constraints.sql
 psql -d infinite_scribe -f 08-migration-triggers.sql
+psql -d infinite_scribe -f 09-migration-concept-templates.sql
 ```
 
 ### CI/CD 流水线配置
@@ -82,7 +91,8 @@ steps:
         05-migration-genesis-tracking.sql \
         06-migration-tracking-logging.sql \
         07-migration-indexes-constraints.sql \
-        08-migration-triggers.sql
+        08-migration-triggers.sql \
+        09-migration-concept-templates.sql
       do
         echo "Executing $script..."
         psql -d infinite_scribe -f "infrastructure/docker/init/postgres/$script"
