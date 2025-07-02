@@ -1,8 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import DashboardLayout from '@/layouts/DashboardLayout'
 import Dashboard from '@/pages/dashboard'
+import ProjectDetail from '@/pages/projects/ProjectDetail'
+import CreateNovel from '@/pages/CreateNovel'
+import GlobalMonitoring from '@/pages/GlobalMonitoring'
+import Settings from '@/pages/Settings'
 
 // 创建QueryClient实例
 const queryClient = new QueryClient({
@@ -17,21 +22,23 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<DashboardLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="projects/:id/*" element={<div>项目详情页（待实现）</div>} />
-            <Route path="create-novel" element={<div>创世向导页（待实现）</div>} />
-            <Route path="global-monitoring" element={<div>全局监控页（待实现）</div>} />
-            <Route path="settings" element={<div>设置页（待实现）</div>} />
-          </Route>
-        </Routes>
-      </Router>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <Routes>
+            <Route path="/" element={<DashboardLayout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="projects/:id/*" element={<ProjectDetail />} />
+              <Route path="create-novel" element={<CreateNovel />} />
+              <Route path="global-monitoring" element={<GlobalMonitoring />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </Router>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
