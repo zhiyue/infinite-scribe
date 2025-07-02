@@ -67,6 +67,8 @@
     "check:services:full": "node scripts/monitoring/check-services.js",
     "infra:deploy": "./scripts/deployment/deploy-infrastructure.sh",
     "infra:deploy:local": "./scripts/deployment/deploy-infrastructure.sh --local",
+    "infra:deploy:clean": "./scripts/deployment/deploy-infrastructure.sh --clean",
+    "infra:deploy:local:clean": "./scripts/deployment/deploy-infrastructure.sh --local --clean",
     "infra:up": "docker compose --env-file .env.infrastructure up -d",
     "infra:down": "docker compose --env-file .env.infrastructure down",
     "infra:logs": "docker compose --env-file .env.infrastructure logs -f",

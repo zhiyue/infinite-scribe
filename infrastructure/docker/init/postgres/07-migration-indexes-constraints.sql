@@ -218,8 +218,8 @@ COMMENT ON FUNCTION validate_workflow_run_references() IS '验证无外键表中
 CREATE OR REPLACE VIEW index_usage_stats AS
 SELECT 
     i.schemaname,
-    i.tablename,
-    i.indexname,
+    i.relname AS tablename,
+    i.indexrelname AS indexname,
     i.idx_tup_read,
     i.idx_tup_fetch,
     i.idx_scan,

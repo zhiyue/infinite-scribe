@@ -32,7 +32,7 @@ COMMENT ON COLUMN workflow_runs.started_at IS '工作流开始执行时间';
 COMMENT ON COLUMN workflow_runs.completed_at IS '工作流完成时间（成功或失败）';
 COMMENT ON COLUMN workflow_runs.error_details IS '如果失败，记录详细的错误信息，JSON格式';
 
--- 2. Agent活动表：分区表，记录所有Agent的详细活动日志
+-- 2. Agent活动表：记录所有Agent的详细活动日志
 CREATE TABLE IF NOT EXISTS agent_activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workflow_run_id UUID, -- 关联的工作流运行ID（无外键约束）
@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS agent_activities (
     llm_tokens_used INTEGER,
     llm_cost_estimate DECIMAL(10, 6),
     retry_count INTEGER DEFAULT 0
-) PARTITION BY RANGE (started_at);
+);
 
-COMMENT ON TABLE agent_activities IS 'Agent活动表：记录所有AI智能体的详细活动日志（按时间分区）';
+COMMENT ON TABLE agent_activities IS 'Agent活动表：记录所有AI智能体的详细活动日志';
 COMMENT ON COLUMN agent_activities.id IS 'Agent活动的唯一ID';
 COMMENT ON COLUMN agent_activities.workflow_run_id IS '关联的工作流运行ID（无外键约束）';
 COMMENT ON COLUMN agent_activities.novel_id IS '关联的小说ID（无外键约束）';
@@ -65,7 +65,7 @@ COMMENT ON COLUMN agent_activities.status IS '活动执行状态';
 COMMENT ON COLUMN agent_activities.input_data IS '活动的输入数据摘要，JSON格式';
 COMMENT ON COLUMN agent_activities.output_data IS '活动的输出数据摘要，JSON格式';
 COMMENT ON COLUMN agent_activities.error_details IS '如果失败，记录错误详情，JSON格式';
-COMMENT ON COLUMN agent_activities.started_at IS '活动开始时间（分区键）';
+COMMENT ON COLUMN agent_activities.started_at IS '活动开始时间';
 COMMENT ON COLUMN agent_activities.completed_at IS '活动完成时间';
 COMMENT ON COLUMN agent_activities.duration_seconds IS '活动持续时间（秒），自动计算字段';
 COMMENT ON COLUMN agent_activities.llm_tokens_used IS '调用LLM消耗的Token数量';
@@ -119,73 +119,45 @@ COMMENT ON COLUMN agent_configurations.config_key IS '配置项名称（如"llm_
 COMMENT ON COLUMN agent_configurations.config_value IS '配置项的值';
 COMMENT ON COLUMN agent_configurations.is_active IS '是否启用此配置';
 
--- 5. 为Agent活动表创建分区
+-- 5. Agent活动表索引（已改为普通表，不再使用分区）
 
--- 分区管理函数：为指定月份创建分区
-CREATE OR REPLACE FUNCTION create_monthly_partition(target_table TEXT, target_date DATE DEFAULT CURRENT_DATE)
-RETURNS void AS $$
-DECLARE
-    start_date date;
-    end_date date;
-    partition_name text;
-BEGIN
-    start_date := date_trunc('month', target_date);
-    end_date := start_date + interval '1 month';
-    partition_name := target_table || '_' || to_char(start_date, 'YYYY_MM');
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = partition_name) THEN
-        EXECUTE format(
-            'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L)',
-            partition_name, target_table, start_date, end_date
-        );
-        
-        -- 为新分区创建索引
-        EXECUTE format('CREATE INDEX %I ON %I (novel_id, agent_type, started_at DESC)', 
-                      'idx_' || partition_name || '_novel_agent', partition_name);
-        EXECUTE format('CREATE INDEX %I ON %I (workflow_run_id)', 
-                      'idx_' || partition_name || '_workflow', partition_name);
-        EXECUTE format('CREATE INDEX %I ON %I (status)', 
-                      'idx_' || partition_name || '_status', partition_name);
-                      
-        RAISE NOTICE '创建分区: %', partition_name;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
+-- Agent活动表索引
+CREATE INDEX IF NOT EXISTS idx_agent_activities_novel_agent ON agent_activities(novel_id, agent_type, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_activities_workflow_run ON agent_activities(workflow_run_id);
+CREATE INDEX IF NOT EXISTS idx_agent_activities_status ON agent_activities(status);
+CREATE INDEX IF NOT EXISTS idx_agent_activities_started_at ON agent_activities(started_at DESC);
 
-COMMENT ON FUNCTION create_monthly_partition(TEXT, DATE) IS '为指定表和指定月份创建分区并添加必要索引';
-
--- 创建当前月份和下个月的分区（确保表可以立即使用）
-SELECT create_monthly_partition('agent_activities', CURRENT_DATE);
-SELECT create_monthly_partition('agent_activities', CURRENT_DATE + interval '1 month');
-
--- 创建前几个月的分区（用于测试和历史数据）
-DO $$
-DECLARE
-    current_month date := date_trunc('month', CURRENT_DATE);
-    partition_date date;
-    partition_name text;
-BEGIN
-    -- 创建前3个月的分区
-    FOR i IN 1..3 LOOP
-        partition_date := current_month - (i || ' month')::interval;
-        partition_name := 'agent_activities_' || to_char(partition_date, 'YYYY_MM');
-        
-        IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = partition_name) THEN
-            EXECUTE format(
-                'CREATE TABLE %I PARTITION OF agent_activities FOR VALUES FROM (%L) TO (%L)',
-                partition_name, 
-                partition_date, 
-                partition_date + interval '1 month'
-            );
-            
-            -- 为历史分区创建索引
-            EXECUTE format('CREATE INDEX %I ON %I (novel_id, agent_type, started_at DESC)', 
-                          'idx_' || partition_name || '_novel_agent', partition_name);
-            EXECUTE format('CREATE INDEX %I ON %I (workflow_run_id)', 
-                          'idx_' || partition_name || '_workflow', partition_name);
-        END IF;
-    END LOOP;
-END $$;
+-- 注释：分区管理函数和分区创建逻辑已移除
+-- 如果未来需要分区功能，可以重新启用以下代码：
+-- 
+-- CREATE OR REPLACE FUNCTION create_monthly_partition(target_table TEXT, target_date DATE DEFAULT CURRENT_DATE)
+-- RETURNS void AS $$
+-- DECLARE
+--     start_date date;
+--     end_date date;
+--     partition_name text;
+-- BEGIN
+--     start_date := date_trunc('month', target_date);
+--     end_date := start_date + interval '1 month';
+--     partition_name := target_table || '_' || to_char(start_date, 'YYYY_MM');
+--     
+--     IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = partition_name) THEN
+--         EXECUTE format(
+--             'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L)',
+--             partition_name, target_table, start_date, end_date
+--         );
+--         
+--         EXECUTE format('CREATE INDEX %I ON %I (novel_id, agent_type, started_at DESC)', 
+--                       'idx_' || partition_name || '_novel_agent', partition_name);
+--         EXECUTE format('CREATE INDEX %I ON %I (workflow_run_id)', 
+--                       'idx_' || partition_name || '_workflow', partition_name);
+--         EXECUTE format('CREATE INDEX %I ON %I (status)', 
+--                       'idx_' || partition_name || '_status', partition_name);
+--                       
+--         RAISE NOTICE '创建分区: %', partition_name;
+--     END IF;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
 -- 6. 创建基本索引（非分区表）
 

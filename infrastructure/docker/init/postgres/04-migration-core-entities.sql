@@ -20,9 +20,12 @@ ALTER TABLE novels
     ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1,
     -- 添加Agent追踪字段
     ADD COLUMN IF NOT EXISTS created_by_agent_type agent_type,
-    ADD COLUMN IF NOT EXISTS updated_by_agent_type agent_type,
-    -- 修改status字段为使用新的ENUM类型
-    ALTER COLUMN status TYPE novel_status USING status::novel_status;
+    ADD COLUMN IF NOT EXISTS updated_by_agent_type agent_type;
+
+-- 单独处理 status 字段类型转换（先删除默认值，再修改类型，最后重设默认值）
+ALTER TABLE novels ALTER COLUMN status DROP DEFAULT;
+ALTER TABLE novels ALTER COLUMN status TYPE novel_status USING status::novel_status;
+ALTER TABLE novels ALTER COLUMN status SET DEFAULT 'GENESIS';
 
 -- 更新 chapters 表：添加版本控制和Agent追踪字段
 ALTER TABLE chapters
@@ -34,9 +37,12 @@ ALTER TABLE chapters
     ADD COLUMN IF NOT EXISTS created_by_agent_type agent_type,
     ADD COLUMN IF NOT EXISTS updated_by_agent_type agent_type,
     -- 添加发布版本关联字段
-    ADD COLUMN IF NOT EXISTS published_version_id UUID,
-    -- 修改status字段为使用新的ENUM类型
-    ALTER COLUMN status TYPE chapter_status USING status::chapter_status;
+    ADD COLUMN IF NOT EXISTS published_version_id UUID;
+
+-- 单独处理 status 字段类型转换
+ALTER TABLE chapters ALTER COLUMN status DROP DEFAULT;
+ALTER TABLE chapters ALTER COLUMN status TYPE chapter_status USING status::chapter_status;
+ALTER TABLE chapters ALTER COLUMN status SET DEFAULT 'DRAFT';
 
 -- 更新 characters 表：添加缺失字段
 ALTER TABLE characters
