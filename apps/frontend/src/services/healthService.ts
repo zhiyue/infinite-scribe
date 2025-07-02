@@ -1,16 +1,6 @@
 import { apiService } from './api'
 import { API_ENDPOINTS } from '@/config/api'
-
-// 健康检查响应类型
-export interface HealthCheckResponse {
-  status: 'healthy' | 'unhealthy'
-  timestamp: string
-  services?: {
-    database?: string
-    redis?: string
-    kafka?: string
-  }
-}
+import type { HealthCheckResponse } from '@/types'
 
 // 健康检查服务
 export const healthService = {

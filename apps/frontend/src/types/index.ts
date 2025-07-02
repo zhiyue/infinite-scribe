@@ -1,13 +1,13 @@
 // 全局类型定义
 
 // API 响应基础类型
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean
   data?: T
   error?: {
     code: string
     message: string
-    details?: any
+    details?: unknown
   }
   timestamp?: string
 }
@@ -74,9 +74,12 @@ export interface HealthCheckResponse {
   timestamp: string
   services?: {
     database?: string
+    neo4j?: string
     redis?: string
+    embedding?: string
     kafka?: string
   }
+  failed?: string[] // 失败的服务列表
 }
 
 // 统计相关类型
@@ -129,5 +132,5 @@ export interface UpdateProjectForm extends Partial<CreateProjectForm> {
 export interface ApiError extends Error {
   code: string
   statusCode?: number
-  details?: any
+  details?: unknown
 }
