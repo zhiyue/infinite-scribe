@@ -3,8 +3,20 @@
 openapi: 3.0.0
 info:
   title: 多智能体网络小说自动写作系统 - 控制API
-  version: v1.4.0 
-  description: 用于前端UI与后端工作流系统交互的控制API。
+  version: v1.5.0 
+  description: |
+    用于前端UI与后端工作流系统交互的控制API。
+    
+    ## 创世流程说明
+    新的创世流程包含以下阶段：
+    1. **CONCEPT_SELECTION** - 立意选择与迭代阶段
+    2. **STORY_CONCEPTION** - 故事构思阶段
+    3. **WORLDVIEW** - 世界观创建阶段
+    4. **CHARACTERS** - 角色设定阶段
+    5. **PLOT_OUTLINE** - 情节大纲阶段
+    6. **FINISHED** - 完成阶段
+    
+    前两个阶段支持用户反馈和迭代优化。
 servers:
   - url: http://localhost:8000/api/v1 
     description: 本地开发服务器
@@ -158,27 +170,67 @@ components:
         properties: 
           type: object
           description: 关系的属性
+    ConceptTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 立意模板唯一标识符
+        core_idea:
+          type: string
+          description: 核心抽象思想，如"知识与无知的深刻对立"
+        description:
+          type: string
+          description: 立意的深层含义阐述
+        philosophical_depth:
+          type: string
+          description: 哲学思辨的深度表达
+        emotional_core:
+          type: string
+          description: 情感核心与内在冲突
+        philosophical_category:
+          type: string
+          description: 哲学类别，如"存在主义"、"人道主义"
+        thematic_tags:
+          type: array
+          items:
+            type: string
+          description: 主题标签数组
+        complexity_level:
+          type: string
+          enum: [simple, medium, complex]
+          description: 思辨复杂度
+        usage_count:
+          type: integer
+          description: 被选择使用的次数统计
+        average_rating:
+          type: number
+          format: float
+          description: 平均用户评分
     GenesisStartRequest:
       type: object
       required:
-        - title
-        - theme
-        - writing_style
-        - target_chapters
+        - user_preferences
       properties:
-        title:
-          type: string
-          description: 新小说的标题
-        theme:
-          type: string
-          description: 新小说的主题
-        writing_style:
-          type: string
-          description: 新小说的写作风格
-        target_chapters:
-          type: integer
-          minimum: 1
-          description: 计划的总章节数
+        user_preferences:
+          type: object
+          description: 用户偏好设定，如题材、风格、复杂度等
+          properties:
+            preferred_genres:
+              type: array
+              items:
+                type: string
+              description: 偏好的题材类型
+            complexity_preference:
+              type: string
+              enum: [simple, medium, complex]
+              description: 思辨复杂度偏好
+            emotional_themes:
+              type: array
+              items:
+                type: string
+              description: 期望的情感主题
     GenesisStartResponse:
       type: object
       properties:
@@ -190,12 +242,111 @@ components:
           type: string
           format: uuid
           description: 用于后续创世步骤的会话ID
+        current_stage:
+          type: string
+          enum: [CONCEPT_SELECTION]
+          description: 当前创世阶段
+    ConceptSelectionRequest:
+      type: object
+      properties:
+        selected_concept_ids:
+          type: array
+          items:
+            type: integer
+          description: 用户选择的立意临时ID列表
+        user_feedback:
+          type: string
+          description: 用户对立意的反馈和要求
+        action:
+          type: string
+          enum: [iterate, confirm]
+          description: 下一步操作：继续迭代或确认立意
+    StoryConceptionRequest:
+      type: object
+      properties:
+        user_feedback:
+          type: string
+          description: 用户对故事构思的反馈
+        specific_adjustments:
+          type: object
+          description: 具体调整要求
+        action:
+          type: string
+          enum: [refine, confirm]
+          description: 下一步操作：优化或确认故事构思
     GenesisStepRequest: 
       type: object
       properties:
         data:
           type: object 
           description: 具体步骤的数据，如世界观条目数组或角色对象数组
+    ConceptGenerationResponse:
+      type: object
+      properties:
+        step_type:
+          type: string
+          enum: [ai_generation, concept_refinement]
+          description: 步骤类型
+        generated_concepts:
+          type: array
+          items:
+            type: object
+            properties:
+              temp_id:
+                type: integer
+                description: 临时ID，用于用户选择
+              core_idea:
+                type: string
+                description: 核心抽象思想
+              description:
+                type: string
+                description: 立意描述
+              philosophical_depth:
+                type: string
+                description: 哲学深度
+              emotional_core:
+                type: string
+                description: 情感核心
+        iteration_count:
+          type: integer
+          description: 当前迭代次数
+    StoryConceptionResponse:
+      type: object
+      properties:
+        step_type:
+          type: string
+          enum: [story_generation, story_refinement]
+          description: 步骤类型
+        story_concept:
+          type: object
+          properties:
+            title_suggestions:
+              type: array
+              items:
+                type: string
+              description: 标题建议
+            core_concept:
+              type: string
+              description: 核心故事概念
+            main_themes:
+              type: array
+              items:
+                type: string
+              description: 主要主题
+            target_audience:
+              type: string
+              description: 目标读者群体
+            estimated_length:
+              type: string
+              description: 预计长度
+            genre_suggestions:
+              type: array
+              items:
+                type: string
+              description: 题材建议
+        iteration_count:
+          type: integer
+          description: 当前迭代次数
     GenesisStepResponse:
       type: object
       properties:
@@ -205,6 +356,13 @@ components:
         message:
           type: string
           description: 相关的状态或错误信息
+        current_stage:
+          type: string
+          enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+          description: 当前创世阶段
+        next_stage:
+          type: string
+          description: 下一个阶段（如果有）
     WorkflowStatus:
       type: object
       properties:
@@ -268,7 +426,7 @@ paths:
   /genesis/start:
     post:
       summary: 启动新的创世流程
-      description: 开始一个新的小说项目，创建初始记录并返回会话ID。
+      description: 开始一个新的小说项目，创建初始记录并返回会话ID。新流程从立意选择阶段开始。
       requestBody:
         required: true
         content:
@@ -284,10 +442,10 @@ paths:
                 $ref: '#/components/schemas/GenesisStartResponse'
         '400':
           description: 无效请求，例如请求体格式错误
-  /genesis/{session_id}/worldview:
+  /genesis/{session_id}/concepts/generate:
     post:
-      summary: 提交世界观设定
-      description: 在创世流程中，提交并保存世界观设定。
+      summary: 生成立意选项
+      description: 基于用户偏好生成抽象哲学立意选项供用户选择。
       parameters:
         - name: session_id
           in: path
@@ -295,7 +453,99 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
+      responses:
+        '200':
+          description: 成功生成立意选项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConceptGenerationResponse'
+  /genesis/{session_id}/concepts/select:
+    post:
+      summary: 提交立意选择
+      description: 用户选择立意并提供反馈，可选择继续迭代或确认立意。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConceptSelectionRequest'
+      responses:
+        '200':
+          description: 立意选择已处理
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ConceptGenerationResponse'
+                  - $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/story/generate:
+    post:
+      summary: 生成故事构思
+      description: 基于确认的立意生成具体的故事框架和构思。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      responses:
+        '200':
+          description: 成功生成故事构思
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryConceptionResponse'
+  /genesis/{session_id}/story/refine:
+    post:
+      summary: 优化故事构思
+      description: 根据用户反馈优化或确认故事构思。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryConceptionRequest'
+      responses:
+        '200':
+          description: 故事构思已处理
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StoryConceptionResponse'
+                  - $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/worldview:
+    post:
+      summary: 提交世界观设定
+      description: 在创世流程中，基于确认的故事构思设计并保存世界观设定。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -312,7 +562,7 @@ paths:
   /genesis/{session_id}/characters:
     post:
       summary: 提交核心角色
-      description: 在创世流程中，提交并保存核心角色设定。
+      description: 在创世流程中，基于世界观和故事构思设计并保存核心角色设定。
       parameters:
         - name: session_id
           in: path
@@ -320,7 +570,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -337,7 +587,7 @@ paths:
   /genesis/{session_id}/plot:
     post:
       summary: 提交初始剧情弧光
-      description: 在创世流程中，提交并保存初始的剧情大纲或故事弧。
+      description: 在创世流程中，基于角色设定和故事构思制定并保存初始的剧情大纲或故事弧。
       parameters:
         - name: session_id
           in: path
@@ -345,7 +595,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -370,7 +620,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       responses:
         '200':
           description: 创世已完成，小说待生成
@@ -378,6 +628,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/status:
+    get:
+      summary: 获取创世会话状态
+      description: 获取当前创世会话的状态和进度信息。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      responses:
+        '200':
+          description: 成功获取会话状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                    description: 会话ID
+                  current_stage:
+                    type: string
+                    enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+                    description: 当前阶段
+                  status:
+                    type: string
+                    enum: [IN_PROGRESS, COMPLETED, ABANDONED]
+                    description: 会话状态
+                  confirmed_concepts:
+                    type: array
+                    description: 已确认的立意
+                  confirmed_story_concept:
+                    type: object
+                    description: 已确认的故事构思
+  /concept-templates:
+    get:
+      summary: 获取立意模板
+      description: 获取可用的立意模板列表，支持筛选和排序。
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按哲学类别筛选
+        - name: complexity
+          in: query
+          schema:
+            type: string
+            enum: [simple, medium, complex]
+          description: 按复杂度筛选
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: 返回数量限制
+      responses:
+        '200':
+          description: 成功获取立意模板
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConceptTemplate'
   /novels: 
     get:
       summary: 获取所有小说项目列表

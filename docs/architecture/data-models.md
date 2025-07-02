@@ -98,7 +98,7 @@
       novel_id: string; // UUID
       user_id?: string; // UUID
       status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
-      current_stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE' | 'FINISHED';
+      current_stage: 'CONCEPT_SELECTION' | 'STORY_CONCEPTION' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE' | 'FINISHED';
       initial_user_input?: any; // JSONB
       final_settings?: any; // JSONB
       created_at: Date;
@@ -112,13 +112,39 @@
     interface GenesisStep {
       id: string; // UUID
       session_id: string; // UUID
-      stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE';
+      stage: 'CONCEPT_SELECTION' | 'STORY_CONCEPTION' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE';
       iteration_count: number;
       ai_prompt?: string;
-      ai_output: any; // JSONB
+      ai_output: any; // JSONB - 包含 step_type 字段用于区分不同类型的交互
       user_feedback?: string;
       is_confirmed: boolean;
       created_at: Date;
+    }
+    ```
+
+## ConceptTemplate (立意模板) - PostgreSQL
+
+*   **目的:** 存储AI生成的抽象哲学立意，供用户选择和复用。
+*   **TypeScript 接口 (对应PG表):**
+    ```typescript
+    interface ConceptTemplate {
+      id: string; // 立意模板唯一标识符 (UUID)
+      core_idea: string; // 核心抽象思想，如"知识与无知的深刻对立"
+      description: string; // 立意的深层含义阐述
+      philosophical_depth: string; // 哲学思辨的深度表达
+      emotional_core: string; // 情感核心与内在冲突
+      philosophical_category?: string; // 哲学类别，如"存在主义"、"人道主义"
+      thematic_tags: string[]; // 主题标签数组，如["成长","选择","牺牲"]
+      complexity_level: 'simple' | 'medium' | 'complex'; // 思辨复杂度
+      universal_appeal: boolean; // 是否具有普遍意义
+      cultural_specificity?: string; // 文化特异性，如"东方哲学"、"西方哲学"
+      usage_count: number; // 被选择使用的次数统计
+      rating_sum: number; // 用户评分总和（用于计算平均分）
+      rating_count: number; // 评分人数
+      is_active: boolean; // 是否启用（用于软删除）
+      created_by?: string; // 创建者，如"system"、"admin"
+      created_at: Date; // 创建时间
+      updated_at: Date; // 最后更新时间
     }
     ```
 

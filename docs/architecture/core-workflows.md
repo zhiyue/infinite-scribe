@@ -5,59 +5,112 @@
 sequenceDiagram
     participant UI as 前端UI
     participant APIGW as API网关
+    participant CS_Agent as 立意构思师Agent
     participant WS_Agent as 世界铸造师Agent
     participant PG_DB as PostgreSQL
     participant N4J_DB as Neo4j
     participant LLM as 大模型API (通过LiteLLM)
 
-    %% 用户在UI上填写小说的基本信息并点击“开始创世”
-    UI->>+APIGW: POST /genesis/start (小说主题: "赛博侦探", ...)
+    %% 阶段1: 立意选择 (CONCEPT_SELECTION)
+    %% 用户在UI上填写小说的基本信息并点击"开始创世"
+    UI->>+APIGW: POST /genesis/start (用户偏好, ...)
     
-    %% API网关接收到请求，开始在各个数据库中创建根实体
-    APIGW->>+PG_DB: 创建 Novel 记录 (status: 'GENESIS')
-    APIGW->>+N4J_DB: 创建 :Novel 节点 (app_id=novel_id, title=...)
-    
-    %% 数据库操作完成后，返回ID给API网关
+    %% API网关创建创世会话，设置为立意选择阶段
+    APIGW->>+PG_DB: 创建 genesis_session (stage: 'CONCEPT_SELECTION')
+    PG_DB-->>-APIGW: 返回 session_id
+    APIGW-->>-UI: 返回 session_id
+
+    %% AI生成立意选项
+    UI->>+APIGW: POST /genesis/{sid}/concepts (请求AI生成立意)
+    APIGW->>+CS_Agent: 生成立意选项 (基于用户偏好)
+    CS_Agent->>+PG_DB: 获取立意模板 (concept_templates)
+    PG_DB-->>-CS_Agent: 返回模板数据
+    CS_Agent->>+LLM: 生成10个立意选项Prompt
+    LLM-->>-CS_Agent: 返回立意选项JSON
+    CS_Agent->>+PG_DB: 保存生成步骤 (step_type: 'ai_generation')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回立意选项
+    APIGW-->>-UI: 返回立意选项
+
+    %% 用户选择并提供反馈 (可能多次迭代)
+    UI->>+APIGW: POST /genesis/{sid}/concepts/select (选择的立意ID + 反馈)
+    APIGW->>+PG_DB: 保存用户选择 (step_type: 'user_selection')
+    PG_DB-->>-APIGW: 确认保存
+    APIGW->>+CS_Agent: 根据反馈优化立意
+    CS_Agent->>+LLM: 优化立意Prompt (基于用户反馈)
+    LLM-->>-CS_Agent: 返回优化后的立意
+    CS_Agent->>+PG_DB: 保存优化步骤 (step_type: 'concept_refinement')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回优化立意
+    APIGW-->>-UI: 返回优化立意
+
+    %% 用户确认最终立意
+    UI->>+APIGW: POST /genesis/{sid}/concepts/confirm (确认最终立意)
+    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'concept_confirmation', is_confirmed: true)
+    PG_DB-->>-APIGW: 确认保存
+    APIGW-->>-UI: 立意确认完成
+
+    %% 阶段2: 故事构思 (STORY_CONCEPTION)
+    UI->>+APIGW: POST /genesis/{sid}/story (请求AI生成故事构思)
+    APIGW->>+PG_DB: 更新会话阶段 (stage: 'STORY_CONCEPTION')
+    PG_DB-->>-APIGW: 确认更新
+    APIGW->>+CS_Agent: 基于确认立意生成故事构思
+    CS_Agent->>+PG_DB: 获取确认的立意数据
+    PG_DB-->>-CS_Agent: 返回立意数据
+    CS_Agent->>+LLM: 生成故事构思Prompt
+    LLM-->>-CS_Agent: 返回故事构思JSON
+    CS_Agent->>+PG_DB: 保存生成步骤 (step_type: 'story_generation')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回故事构思
+    APIGW-->>-UI: 返回故事构思
+
+    %% 用户反馈并优化故事构思 (可选)
+    UI->>+APIGW: POST /genesis/{sid}/story/refine (用户反馈)
+    APIGW->>+CS_Agent: 根据反馈优化故事构思
+    CS_Agent->>+LLM: 优化故事构思Prompt
+    LLM-->>-CS_Agent: 返回优化构思
+    CS_Agent->>+PG_DB: 保存优化步骤 (step_type: 'story_refinement')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回优化构思
+    APIGW-->>-UI: 返回优化构思
+
+    %% 用户确认最终故事构思
+    UI->>+APIGW: POST /genesis/{sid}/story/confirm (确认故事构思)
+    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'story_confirmation', is_confirmed: true)
+    PG_DB-->>-APIGW: 确认保存
+    APIGW->>+PG_DB: 创建 Novel 记录 (基于故事构思)
+    APIGW->>+N4J_DB: 创建 :Novel 节点
     PG_DB-->>-APIGW: 返回 novel_id
     N4J_DB-->>-APIGW: 确认节点创建
-    
-    %% API网关将新创建的小说ID和创世会话ID返回给前端
-    APIGW-->>-UI: 返回 novel_id, genesis_session_id
+    APIGW-->>-UI: 故事构思确认完成, 返回 novel_id
 
-    %% 用户进入下一步，请求AI为世界观提供建议
-    UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议, novel_id=...)
-    
-    %% API网关将请求转发给世界铸造师Agent
-    APIGW->>+WS_Agent: 请求世界观建议 (novel_id, 主题: "赛博侦探")
-    
-    %% Agent调用大模型生成内容
+    %% 阶段3: 世界观设计 (WORLDVIEW)
+    UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议世界观)
+    APIGW->>+PG_DB: 更新会话阶段 (stage: 'WORLDVIEW')
+    PG_DB-->>-APIGW: 确认更新
+    APIGW->>+WS_Agent: 基于故事构思生成世界观
+    WS_Agent->>+PG_DB: 获取确认的故事构思数据
+    PG_DB-->>-WS_Agent: 返回构思数据
     WS_Agent->>+LLM: 生成世界观草案Prompt
     LLM-->>-WS_Agent: 返回世界观草案JSON
-    
-    %% Agent将生成的内容通过API网关返回给UI
     WS_Agent-->>-APIGW: 返回世界观草案
     APIGW-->>-UI: 返回世界观草案
 
-    %% 用户在UI上对AI的建议进行修改，然后最终确认
-    UI-->>APIGW: (用户修改并确认世界观)
-    UI->>+APIGW: POST /genesis/{sid}/worldview (最终世界观数据, novel_id=...)
-    
-    %% API网关将最终确认的数据持久化到数据库
-    APIGW->>+PG_DB: 保存 WorldviewEntry 属性数据 (关联 novel_id)
-    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及与 :Novel 的关系 (关联 novel_id)
-    PG_DB-->>-APIGW: 确认保存 (PG)
-    N4J_DB-->>-APIGW: 确认创建 (Neo4j)
-    APIGW-->>-UI: 确认保存
+    %% 用户确认世界观
+    UI->>+APIGW: POST /genesis/{sid}/worldview/confirm (最终世界观数据)
+    APIGW->>+PG_DB: 保存 WorldviewEntry 数据 (关联 novel_id)
+    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及关系
+    PG_DB-->>-APIGW: 确认保存
+    N4J_DB-->>-APIGW: 确认创建
+    APIGW-->>-UI: 世界观确认完成
 
-    %% ... 角色设定和初始剧情流程与世界观设定类似 ...
-    %% 所有操作都必须携带 novel_id 以确保数据隔离和正确关联
-    Note right of UI: 角色设定和初始剧情流程类似，<br/>所有操作都带 novel_id
+    %% 后续阶段 (CHARACTERS, PLOT_OUTLINE)
+    Note right of UI: 角色设定和剧情大纲流程类似，<br/>基于前序阶段的确认数据<br/>所有操作都关联 novel_id
 
-    %% 用户完成所有创世步骤，点击“完成”
-    UI->>+APIGW: POST /genesis/{sid}/finish (novel_id=...)
-    
-    %% API网关更新小说状态，表示创世阶段结束，可以开始生成章节
-    APIGW->>+PG_DB: 更新 Novel 记录 (status: 'GENERATING', novel_id=...)
+    %% 完成创世流程
+    UI->>+APIGW: POST /genesis/{sid}/finish
+    APIGW->>+PG_DB: 更新会话状态 (stage: 'FINISHED')
+    APIGW->>+PG_DB: 更新 Novel 状态 (status: 'GENERATING')
     PG_DB-->>-APIGW: 确认更新
     APIGW-->>-UI: 创世完成
 ```

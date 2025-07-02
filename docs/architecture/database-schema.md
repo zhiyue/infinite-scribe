@@ -231,14 +231,62 @@ CREATE TABLE agent_configurations (
 --- 创世流程追踪表 ---
 
 CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
-CREATE TYPE genesis_stage AS ENUM ('INITIAL_PROMPT', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED');
+CREATE TYPE genesis_stage AS ENUM (
+    'CONCEPT_SELECTION',  -- 立意选择与迭代阶段：用户从AI生成的抽象立意中选择并优化
+    'STORY_CONCEPTION',   -- 故事构思阶段：将确认的立意转化为具体故事框架
+    'WORLDVIEW',          -- 世界观创建阶段：基于故事构思设计详细世界观
+    'CHARACTERS',         -- 角色设定阶段：设计主要角色
+    'PLOT_OUTLINE',       -- 情节大纲阶段：制定整体剧情框架
+    'FINISHED'            -- 完成阶段：创世过程结束
+);
+
+-- 立意模板表：存储AI生成的抽象哲学立意供用户选择
+CREATE TABLE concept_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- 核心立意内容（抽象哲学思想）
+    core_idea VARCHAR(200) NOT NULL,
+    description VARCHAR(800) NOT NULL,
+    
+    -- 哲学维度
+    philosophical_depth VARCHAR(1000) NOT NULL,
+    emotional_core VARCHAR(500) NOT NULL,
+    
+    -- 分类标签（抽象层面）
+    philosophical_category VARCHAR(100),
+    thematic_tags TEXT[] DEFAULT '{}',
+    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium',
+    
+    -- 适用性
+    universal_appeal BOOLEAN NOT NULL DEFAULT true,
+    cultural_specificity VARCHAR(100),
+    
+    -- 使用统计
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    rating_sum INTEGER NOT NULL DEFAULT 0,
+    rating_count INTEGER NOT NULL DEFAULT 0,
+    
+    -- 元数据
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    -- 约束条件
+    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
+    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
+    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
+    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
+    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
+    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
+);
 
 CREATE TABLE genesis_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
     user_id UUID,
     status genesis_status NOT NULL DEFAULT 'IN_PROGRESS',
-    current_stage genesis_stage NOT NULL DEFAULT 'INITIAL_PROMPT',
+    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION',
     initial_user_input JSONB,
     final_settings JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -272,6 +320,19 @@ CREATE INDEX idx_scene_cards_chapter ON scene_cards(chapter_id, scene_number);
 CREATE INDEX idx_outlines_chapter ON outlines(chapter_id);
 CREATE INDEX idx_character_interactions_scene ON character_interactions(scene_card_id);
 
+-- 创世流程相关索引
+CREATE INDEX idx_genesis_sessions_stage_status ON genesis_sessions(current_stage, status) WHERE status = 'IN_PROGRESS';
+CREATE INDEX idx_genesis_steps_session_stage_confirmed ON genesis_steps(session_id, stage, is_confirmed);
+CREATE INDEX idx_genesis_steps_ai_output_step_type ON genesis_steps USING GIN ((ai_output->'step_type'));
+CREATE INDEX idx_genesis_steps_confirmed_created_at ON genesis_steps(created_at) WHERE is_confirmed = true;
+
+-- 立意模板相关索引
+CREATE INDEX idx_concept_templates_philosophical_category ON concept_templates(philosophical_category) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_complexity_level ON concept_templates(complexity_level) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_thematic_tags ON concept_templates USING GIN(thematic_tags) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_usage_count ON concept_templates(usage_count DESC) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_rating ON concept_templates((rating_sum::float / NULLIF(rating_count, 0)) DESC NULLS LAST) WHERE is_active = true AND rating_count > 0;
+
 --- 触发器定义 ---
 
 -- 为所有有 updated_at 的表创建触发器
@@ -281,6 +342,8 @@ CREATE TRIGGER set_timestamp_characters BEFORE UPDATE ON characters FOR EACH ROW
 CREATE TRIGGER set_timestamp_worldview_entries BEFORE UPDATE ON worldview_entries FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_story_arcs BEFORE UPDATE ON story_arcs FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_agent_configurations BEFORE UPDATE ON agent_configurations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_concept_templates BEFORE UPDATE ON concept_templates FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_genesis_sessions BEFORE UPDATE ON genesis_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
 --- 数据完整性约束 ---
 
@@ -290,6 +353,32 @@ CHECK (published_version_id IS NULL OR EXISTS (
     SELECT 1 FROM chapter_versions cv 
     WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id
 ));
+
+-- 确保创世流程新阶段的数据完整性
+-- 确保 CONCEPT_SELECTION 阶段的 ai_output 包含有效的 step_type
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_concept_selection_data 
+CHECK (
+    stage != 'CONCEPT_SELECTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('ai_generation', 'user_selection', 'concept_refinement', 'concept_confirmation')
+    )
+);
+
+-- 确保 STORY_CONCEPTION 阶段的 ai_output 包含有效的 step_type
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_story_conception_data 
+CHECK (
+    stage != 'STORY_CONCEPTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('story_generation', 'story_refinement', 'story_confirmation')
+    )
+);
+
+-- 确保每个阶段只能有一个已确认的最终步骤
+CREATE UNIQUE INDEX idx_genesis_steps_unique_confirmed_per_stage 
+    ON genesis_steps(session_id, stage) 
+    WHERE is_confirmed = true;
 
 --- 未来扩展性规划 (Post-MVP) ---
 

@@ -111,6 +111,8 @@ ALTER TYPE genesis_stage_new RENAME TO genesis_stage;
 COMMENT ON COLUMN genesis_sessions.current_stage IS '当前创世阶段：CONCEPT_SELECTION(立意选择) -> STORY_CONCEPTION(故事构思) -> WORLDVIEW(世界观) -> CHARACTERS(角色) -> PLOT_OUTLINE(剧情大纲) -> FINISHED(完成)';
 
 -- 4. 创建索引以优化查询性能
+
+-- 立意模板表索引
 CREATE INDEX IF NOT EXISTS idx_concept_templates_philosophical_category 
     ON concept_templates(philosophical_category) 
     WHERE is_active = true;
@@ -131,9 +133,22 @@ CREATE INDEX IF NOT EXISTS idx_concept_templates_rating
     ON concept_templates((rating_sum::float / NULLIF(rating_count, 0)) DESC NULLS LAST) 
     WHERE is_active = true AND rating_count > 0;
 
+-- 创世会话表索引
 CREATE INDEX IF NOT EXISTS idx_genesis_sessions_stage_status 
     ON genesis_sessions(current_stage, status) 
     WHERE status = 'IN_PROGRESS';
+
+-- 为新阶段优化的创世步骤表索引
+CREATE INDEX IF NOT EXISTS idx_genesis_steps_session_stage_confirmed 
+    ON genesis_steps(session_id, stage, is_confirmed);
+
+-- 为JSONB查询优化（支持step_type查询）
+CREATE INDEX IF NOT EXISTS idx_genesis_steps_ai_output_step_type 
+    ON genesis_steps USING GIN ((ai_output->'step_type'));
+
+-- 为确认数据的时间查询优化
+CREATE INDEX IF NOT EXISTS idx_genesis_steps_confirmed_created_at 
+    ON genesis_steps(created_at) WHERE is_confirmed = true;
 
 -- 5. 插入一些初始立意模板数据（用于测试和演示）
 INSERT INTO concept_templates (
@@ -211,7 +226,33 @@ CREATE TRIGGER trigger_concept_templates_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_concept_templates_updated_at();
 
--- 7. 创建辅助函数计算平均评分
+-- 7. 添加数据验证约束确保新阶段数据完整性
+
+-- 确保 CONCEPT_SELECTION 和 STORY_CONCEPTION 阶段的 ai_output 包含有效的 step_type
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_concept_selection_data 
+CHECK (
+    stage != 'CONCEPT_SELECTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('ai_generation', 'user_selection', 'concept_refinement', 'concept_confirmation')
+    )
+);
+
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_story_conception_data 
+CHECK (
+    stage != 'STORY_CONCEPTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('story_generation', 'story_refinement', 'story_confirmation')
+    )
+);
+
+-- 确保每个阶段只能有一个已确认的最终步骤
+CREATE UNIQUE INDEX IF NOT EXISTS idx_genesis_steps_unique_confirmed_per_stage 
+    ON genesis_steps(session_id, stage) 
+    WHERE is_confirmed = true;
+
+-- 8. 创建辅助函数计算平均评分
 CREATE OR REPLACE FUNCTION get_concept_template_average_rating(template_id UUID)
 RETURNS NUMERIC AS $$
 DECLARE
@@ -231,6 +272,96 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION get_concept_template_average_rating(UUID) IS '计算指定立意模板的平均评分';
+
+-- 9. 创建新阶段专用的辅助函数
+
+-- 获取确认的立意数据
+CREATE OR REPLACE FUNCTION get_confirmed_concepts(session_uuid UUID)
+RETURNS JSONB AS $$
+DECLARE
+    confirmed_data JSONB;
+BEGIN
+    SELECT ai_output->'confirmed_concepts'
+    INTO confirmed_data
+    FROM genesis_steps 
+    WHERE session_id = session_uuid 
+      AND stage = 'CONCEPT_SELECTION' 
+      AND is_confirmed = true
+      AND ai_output->>'step_type' = 'concept_confirmation'
+    LIMIT 1;
+    
+    RETURN confirmed_data;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION get_confirmed_concepts(UUID) IS '获取指定会话中已确认的立意数据';
+
+-- 获取确认的故事构思数据
+CREATE OR REPLACE FUNCTION get_confirmed_story_concept(session_uuid UUID)
+RETURNS JSONB AS $$
+DECLARE
+    story_data JSONB;
+BEGIN
+    SELECT ai_output->'final_story_concept'
+    INTO story_data
+    FROM genesis_steps 
+    WHERE session_id = session_uuid 
+      AND stage = 'STORY_CONCEPTION' 
+      AND is_confirmed = true
+      AND ai_output->>'step_type' = 'story_confirmation'
+    LIMIT 1;
+    
+    RETURN story_data;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION get_confirmed_story_concept(UUID) IS '获取指定会话中已确认的故事构思数据';
+
+-- 获取阶段迭代历史
+CREATE OR REPLACE FUNCTION get_stage_iteration_history(session_uuid UUID, target_stage genesis_stage)
+RETURNS TABLE (
+    iteration_count INTEGER,
+    step_type TEXT,
+    ai_output JSONB,
+    user_feedback TEXT,
+    is_confirmed BOOLEAN,
+    created_at TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        gs.iteration_count,
+        gs.ai_output->>'step_type' as step_type,
+        gs.ai_output,
+        gs.user_feedback,
+        gs.is_confirmed,
+        gs.created_at
+    FROM genesis_steps gs
+    WHERE gs.session_id = session_uuid 
+      AND gs.stage = target_stage
+    ORDER BY gs.iteration_count;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION get_stage_iteration_history(UUID, genesis_stage) IS '获取指定会话和阶段的完整迭代历史';
+
+-- 创建视图简化跨阶段数据查询
+CREATE OR REPLACE VIEW genesis_confirmed_data AS
+SELECT 
+    gs.session_id,
+    gs.novel_id,
+    gs.status,
+    gs.current_stage,
+    -- 立意确认数据
+    get_confirmed_concepts(gs.session_id) as confirmed_concepts,
+    -- 故事构思确认数据  
+    get_confirmed_story_concept(gs.session_id) as confirmed_story_concept,
+    -- 会话元数据
+    gs.created_at as session_created_at,
+    gs.updated_at as session_updated_at
+FROM genesis_sessions gs;
+
+COMMENT ON VIEW genesis_confirmed_data IS '创世流程跨阶段确认数据视图，便于获取已确认的立意和故事构思';
 
 -- 迁移完成提示
 DO $$
