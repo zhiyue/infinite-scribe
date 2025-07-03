@@ -570,59 +570,141 @@ graph TD
 sequenceDiagram
     participant UI as 前端UI
     participant APIGW as API网关
+    participant CS_Agent as 立意构思师Agent
     participant WS_Agent as 世界铸造师Agent
     participant PG_DB as PostgreSQL
     participant N4J_DB as Neo4j
     participant LLM as 大模型API (通过LiteLLM)
 
-    %% 用户在UI上填写小说的基本信息并点击“开始创世”
-    UI->>+APIGW: POST /genesis/start (小说主题: "赛博侦探", ...)
+    %% 阶段1: 立意选择 (CONCEPT_SELECTION)
+    %% 用户在UI上填写小说的基本信息并点击"开始创世"
+    UI->>+APIGW: POST /genesis/start (用户偏好, ...)
     
-    %% API网关接收到请求，开始在各个数据库中创建根实体
-    APIGW->>+PG_DB: 创建 Novel 记录 (status: 'GENESIS')
-    APIGW->>+N4J_DB: 创建 :Novel 节点 (app_id=novel_id, title=...)
-    
-    %% 数据库操作完成后，返回ID给API网关
+    %% API网关创建创世会话，设置为立意选择阶段
+    APIGW->>+PG_DB: 创建 genesis_session (stage: 'CONCEPT_SELECTION')
+    PG_DB-->>-APIGW: 返回 session_id
+    APIGW-->>-UI: 返回 session_id
+
+    %% AI异步生成立意选项 (新的SSE模式)
+    UI->>+APIGW: POST /genesis/{sid}/concepts/generate (请求AI生成立意)
+    APIGW->>+PG_DB: 创建异步任务 (genesis_tasks)
+    PG_DB-->>-APIGW: 返回 task_id
+    APIGW-->>-UI: 立即返回 task_id + SSE端点 (202 Accepted)
+
+    %% 建立SSE连接接收实时进度
+    UI->>+APIGW: GET /events/stream?session_id={sid} (建立SSE连接)
+    APIGW-->>-UI: SSE连接建立
+
+    %% 后台异步执行立意生成
+    APIGW->>+CS_Agent: 异步启动立意生成任务
+    CS_Agent->>+PG_DB: 更新任务状态为RUNNING
+    CS_Agent->>+APIGW: 推送 task_started 事件
+    APIGW-->>UI: SSE推送: "开始生成立意..."
+
+    CS_Agent->>+PG_DB: 获取立意模板 (concept_templates)
+    CS_Agent->>+APIGW: 推送 progress_update (0.2, "正在分析用户偏好...")
+    APIGW-->>UI: SSE推送: 进度20%
+
+    CS_Agent->>+LLM: 生成10个立意选项Prompt
+    CS_Agent->>+APIGW: 推送 progress_update (0.6, "正在生成哲学立意...")
+    APIGW-->>UI: SSE推送: 进度60%
+
+    LLM-->>-CS_Agent: 返回立意选项JSON
+    CS_Agent->>+PG_DB: 保存生成步骤 + 完成任务
+    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
+    APIGW-->>UI: SSE推送: 立意生成完成 + 结果数据
+
+    %% 用户选择并提供反馈 (异步迭代优化)
+    UI->>+APIGW: POST /genesis/{sid}/concepts/select (选择的立意ID + 反馈 + action: "iterate")
+    APIGW->>+PG_DB: 保存用户选择 (step_type: 'user_selection')
+    APIGW->>+PG_DB: 创建优化任务 (task_type: 'concept_refinement')
+    PG_DB-->>-APIGW: 返回 refinement_task_id
+    APIGW-->>-UI: 返回 task_id (202 Accepted)
+
+    %% 后台异步执行立意优化
+    APIGW->>+CS_Agent: 异步启动立意优化任务
+    CS_Agent->>+APIGW: 推送 task_started 事件
+    APIGW-->>UI: SSE推送: "开始优化立意..."
+
+    CS_Agent->>+APIGW: 推送 progress_update (0.3, "正在分析用户反馈...")
+    APIGW-->>UI: SSE推送: 进度30%
+
+    CS_Agent->>+LLM: 优化立意Prompt (基于用户反馈)
+    CS_Agent->>+APIGW: 推送 progress_update (0.7, "正在重新生成立意...")
+    APIGW-->>UI: SSE推送: 进度70%
+
+    LLM-->>-CS_Agent: 返回优化后的立意
+    CS_Agent->>+PG_DB: 保存优化步骤 + 完成任务
+    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
+    APIGW-->>UI: SSE推送: 立意优化完成 + 结果数据
+
+    %% 用户确认最终立意
+    UI->>+APIGW: POST /genesis/{sid}/concepts/confirm (确认最终立意)
+    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'concept_confirmation', is_confirmed: true)
+    PG_DB-->>-APIGW: 确认保存
+    APIGW-->>-UI: 立意确认完成
+
+    %% 阶段2: 故事构思 (STORY_CONCEPTION)
+    UI->>+APIGW: POST /genesis/{sid}/story (请求AI生成故事构思)
+    APIGW->>+PG_DB: 更新会话阶段 (stage: 'STORY_CONCEPTION')
+    PG_DB-->>-APIGW: 确认更新
+    APIGW->>+CS_Agent: 基于确认立意生成故事构思
+    CS_Agent->>+PG_DB: 获取确认的立意数据
+    PG_DB-->>-CS_Agent: 返回立意数据
+    CS_Agent->>+LLM: 生成故事构思Prompt
+    LLM-->>-CS_Agent: 返回故事构思JSON
+    CS_Agent->>+PG_DB: 保存生成步骤 (step_type: 'story_generation')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回故事构思
+    APIGW-->>-UI: 返回故事构思
+
+    %% 用户反馈并优化故事构思 (可选)
+    UI->>+APIGW: POST /genesis/{sid}/story/refine (用户反馈)
+    APIGW->>+CS_Agent: 根据反馈优化故事构思
+    CS_Agent->>+LLM: 优化故事构思Prompt
+    LLM-->>-CS_Agent: 返回优化构思
+    CS_Agent->>+PG_DB: 保存优化步骤 (step_type: 'story_refinement')
+    PG_DB-->>-CS_Agent: 确认保存
+    CS_Agent-->>-APIGW: 返回优化构思
+    APIGW-->>-UI: 返回优化构思
+
+    %% 用户确认最终故事构思
+    UI->>+APIGW: POST /genesis/{sid}/story/confirm (确认故事构思)
+    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'story_confirmation', is_confirmed: true)
+    PG_DB-->>-APIGW: 确认保存
+    APIGW->>+PG_DB: 创建 Novel 记录 (基于故事构思)
+    APIGW->>+N4J_DB: 创建 :Novel 节点
     PG_DB-->>-APIGW: 返回 novel_id
     N4J_DB-->>-APIGW: 确认节点创建
-    
-    %% API网关将新创建的小说ID和创世会话ID返回给前端
-    APIGW-->>-UI: 返回 novel_id, genesis_session_id
+    APIGW-->>-UI: 故事构思确认完成, 返回 novel_id
 
-    %% 用户进入下一步，请求AI为世界观提供建议
-    UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议, novel_id=...)
-    
-    %% API网关将请求转发给世界铸造师Agent
-    APIGW->>+WS_Agent: 请求世界观建议 (novel_id, 主题: "赛博侦探")
-    
-    %% Agent调用大模型生成内容
+    %% 阶段3: 世界观设计 (WORLDVIEW)
+    UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议世界观)
+    APIGW->>+PG_DB: 更新会话阶段 (stage: 'WORLDVIEW')
+    PG_DB-->>-APIGW: 确认更新
+    APIGW->>+WS_Agent: 基于故事构思生成世界观
+    WS_Agent->>+PG_DB: 获取确认的故事构思数据
+    PG_DB-->>-WS_Agent: 返回构思数据
     WS_Agent->>+LLM: 生成世界观草案Prompt
     LLM-->>-WS_Agent: 返回世界观草案JSON
-    
-    %% Agent将生成的内容通过API网关返回给UI
     WS_Agent-->>-APIGW: 返回世界观草案
     APIGW-->>-UI: 返回世界观草案
 
-    %% 用户在UI上对AI的建议进行修改，然后最终确认
-    UI-->>APIGW: (用户修改并确认世界观)
-    UI->>+APIGW: POST /genesis/{sid}/worldview (最终世界观数据, novel_id=...)
-    
-    %% API网关将最终确认的数据持久化到数据库
-    APIGW->>+PG_DB: 保存 WorldviewEntry 属性数据 (关联 novel_id)
-    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及与 :Novel 的关系 (关联 novel_id)
-    PG_DB-->>-APIGW: 确认保存 (PG)
-    N4J_DB-->>-APIGW: 确认创建 (Neo4j)
-    APIGW-->>-UI: 确认保存
+    %% 用户确认世界观
+    UI->>+APIGW: POST /genesis/{sid}/worldview/confirm (最终世界观数据)
+    APIGW->>+PG_DB: 保存 WorldviewEntry 数据 (关联 novel_id)
+    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及关系
+    PG_DB-->>-APIGW: 确认保存
+    N4J_DB-->>-APIGW: 确认创建
+    APIGW-->>-UI: 世界观确认完成
 
-    %% ... 角色设定和初始剧情流程与世界观设定类似 ...
-    %% 所有操作都必须携带 novel_id 以确保数据隔离和正确关联
-    Note right of UI: 角色设定和初始剧情流程类似，<br/>所有操作都带 novel_id
+    %% 后续阶段 (CHARACTERS, PLOT_OUTLINE)
+    Note right of UI: 角色设定和剧情大纲流程类似，<br/>基于前序阶段的确认数据<br/>所有操作都关联 novel_id
 
-    %% 用户完成所有创世步骤，点击“完成”
-    UI->>+APIGW: POST /genesis/{sid}/finish (novel_id=...)
-    
-    %% API网关更新小说状态，表示创世阶段结束，可以开始生成章节
-    APIGW->>+PG_DB: 更新 Novel 记录 (status: 'GENERATING', novel_id=...)
+    %% 完成创世流程
+    UI->>+APIGW: POST /genesis/{sid}/finish
+    APIGW->>+PG_DB: 更新会话状态 (stage: 'FINISHED')
+    APIGW->>+PG_DB: 更新 Novel 状态 (status: 'GENERATING')
     PG_DB-->>-APIGW: 确认更新
     APIGW-->>-UI: 创世完成
 ```
@@ -726,13 +808,39 @@ sequenceDiagram
     Note left of UI: UI监听到事件, 自动更新状态
 ```
 
-## REST API Spec
+# REST API Spec
 ```yaml
 openapi: 3.0.0
 info:
   title: 多智能体网络小说自动写作系统 - 控制API
-  version: v1.4.0 
-  description: 用于前端UI与后端工作流系统交互的控制API。
+  version: v1.5.0 
+  description: |
+    用于前端UI与后端工作流系统交互的控制API。
+    
+    ## 创世流程说明
+    新的创世流程包含以下阶段：
+    1. **CONCEPT_SELECTION** - 立意选择与迭代阶段
+    2. **STORY_CONCEPTION** - 故事构思阶段
+    3. **WORLDVIEW** - 世界观创建阶段
+    4. **CHARACTERS** - 角色设定阶段
+    5. **PLOT_OUTLINE** - 情节大纲阶段
+    6. **FINISHED** - 完成阶段
+    
+    ## 异步处理模式
+    AI agent 交互操作（立意生成、故事构思等）采用异步处理模式：
+    1. 客户端发起请求，服务器立即返回任务ID (202 Accepted)
+    2. 客户端通过SSE订阅实时进度和结果推送
+    3. 服务器通过SSE推送处理进度、阶段更新和最终结果
+    4. 客户端可通过任务状态端点查询任务详情
+
+    前两个阶段支持用户反馈和迭代优化，每次迭代都是异步处理。
+
+    ## SSE最佳实践
+    - **连接管理**: 支持按session_id和task_id灵活订阅
+    - **进度粒度**: 合理的进度更新频率，避免过度推送
+    - **断线重连**: 客户端自动重连机制，任务状态持久化
+    - **错误处理**: 实时错误反馈和重试建议
+    - **心跳机制**: 定期心跳保持连接活跃
 servers:
   - url: http://localhost:8000/api/v1 
     description: 本地开发服务器
@@ -886,27 +994,67 @@ components:
         properties: 
           type: object
           description: 关系的属性
+    ConceptTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 立意模板唯一标识符
+        core_idea:
+          type: string
+          description: 核心抽象思想，如"知识与无知的深刻对立"
+        description:
+          type: string
+          description: 立意的深层含义阐述
+        philosophical_depth:
+          type: string
+          description: 哲学思辨的深度表达
+        emotional_core:
+          type: string
+          description: 情感核心与内在冲突
+        philosophical_category:
+          type: string
+          description: 哲学类别，如"存在主义"、"人道主义"
+        thematic_tags:
+          type: array
+          items:
+            type: string
+          description: 主题标签数组
+        complexity_level:
+          type: string
+          enum: [simple, medium, complex]
+          description: 思辨复杂度
+        usage_count:
+          type: integer
+          description: 被选择使用的次数统计
+        average_rating:
+          type: number
+          format: float
+          description: 平均用户评分
     GenesisStartRequest:
       type: object
       required:
-        - title
-        - theme
-        - writing_style
-        - target_chapters
+        - user_preferences
       properties:
-        title:
-          type: string
-          description: 新小说的标题
-        theme:
-          type: string
-          description: 新小说的主题
-        writing_style:
-          type: string
-          description: 新小说的写作风格
-        target_chapters:
-          type: integer
-          minimum: 1
-          description: 计划的总章节数
+        user_preferences:
+          type: object
+          description: 用户偏好设定，如题材、风格、复杂度等
+          properties:
+            preferred_genres:
+              type: array
+              items:
+                type: string
+              description: 偏好的题材类型
+            complexity_preference:
+              type: string
+              enum: [simple, medium, complex]
+              description: 思辨复杂度偏好
+            emotional_themes:
+              type: array
+              items:
+                type: string
+              description: 期望的情感主题
     GenesisStartResponse:
       type: object
       properties:
@@ -918,12 +1066,161 @@ components:
           type: string
           format: uuid
           description: 用于后续创世步骤的会话ID
+        current_stage:
+          type: string
+          enum: [CONCEPT_SELECTION]
+          description: 当前创世阶段
+    ConceptSelectionRequest:
+      type: object
+      properties:
+        selected_concept_ids:
+          type: array
+          items:
+            type: integer
+          description: 用户选择的立意临时ID列表
+        user_feedback:
+          type: string
+          description: 用户对立意的反馈和要求
+        action:
+          type: string
+          enum: [iterate, confirm]
+          description: 下一步操作：继续迭代或确认立意
+    StoryConceptionRequest:
+      type: object
+      properties:
+        user_feedback:
+          type: string
+          description: 用户对故事构思的反馈
+        specific_adjustments:
+          type: object
+          description: 具体调整要求
+        action:
+          type: string
+          enum: [refine, confirm]
+          description: 下一步操作：优化或确认故事构思
     GenesisStepRequest: 
       type: object
       properties:
         data:
           type: object 
           description: 具体步骤的数据，如世界观条目数组或角色对象数组
+    AsyncTaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: 异步任务ID，用于跟踪进度
+        message:
+          type: string
+          description: 任务启动确认消息
+        sse_endpoint:
+          type: string
+          description: SSE端点URL，用于接收实时进度
+    ConceptGenerationResponse:
+      type: object
+      properties:
+        step_type:
+          type: string
+          enum: [ai_generation, concept_refinement]
+          description: 步骤类型
+        generated_concepts:
+          type: array
+          items:
+            type: object
+            properties:
+              temp_id:
+                type: integer
+                description: 临时ID，用于用户选择
+              core_idea:
+                type: string
+                description: 核心抽象思想
+              description:
+                type: string
+                description: 立意描述
+              philosophical_depth:
+                type: string
+                description: 哲学深度
+              emotional_core:
+                type: string
+                description: 情感核心
+        iteration_count:
+          type: integer
+          description: 当前迭代次数
+    StoryConceptionResponse:
+      type: object
+      properties:
+        step_type:
+          type: string
+          enum: [story_generation, story_refinement]
+          description: 步骤类型
+        story_concept:
+          type: object
+          properties:
+            title_suggestions:
+              type: array
+              items:
+                type: string
+              description: 标题建议
+            core_concept:
+              type: string
+              description: 核心故事概念
+            main_themes:
+              type: array
+              items:
+                type: string
+              description: 主要主题
+            target_audience:
+              type: string
+              description: 目标读者群体
+            estimated_length:
+              type: string
+              description: 预计长度
+            genre_suggestions:
+              type: array
+              items:
+                type: string
+              description: 题材建议
+        iteration_count:
+          type: integer
+          description: 当前迭代次数
+    SSEProgressEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [task_started, progress_update, concept_generation_complete, story_conception_complete, task_complete, task_error]
+          description: 事件类型
+        data:
+          type: object
+          description: 事件数据
+          properties:
+            task_id:
+              type: string
+              format: uuid
+              description: 任务ID
+            session_id:
+              type: string
+              format: uuid
+              description: 会话ID
+            progress:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              description: 进度百分比 (0.0-1.0)
+            message:
+              type: string
+              description: 进度描述信息
+            stage:
+              type: string
+              description: 当前处理阶段
+            result:
+              type: object
+              description: 处理结果（仅在完成事件中）
+            error:
+              type: object
+              description: 错误信息（仅在错误事件中）
     GenesisStepResponse:
       type: object
       properties:
@@ -933,6 +1230,13 @@ components:
         message:
           type: string
           description: 相关的状态或错误信息
+        current_stage:
+          type: string
+          enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+          description: 当前创世阶段
+        next_stage:
+          type: string
+          description: 下一个阶段（如果有）
     WorkflowStatus:
       type: object
       properties:
@@ -996,7 +1300,7 @@ paths:
   /genesis/start:
     post:
       summary: 启动新的创世流程
-      description: 开始一个新的小说项目，创建初始记录并返回会话ID。
+      description: 开始一个新的小说项目，创建初始记录并返回会话ID。新流程从立意选择阶段开始。
       requestBody:
         required: true
         content:
@@ -1012,10 +1316,12 @@ paths:
                 $ref: '#/components/schemas/GenesisStartResponse'
         '400':
           description: 无效请求，例如请求体格式错误
-  /genesis/{session_id}/worldview:
+  /genesis/{session_id}/concepts/generate:
     post:
-      summary: 提交世界观设定
-      description: 在创世流程中，提交并保存世界观设定。
+      summary: 异步生成立意选项
+      description: |
+        基于用户偏好异步生成抽象哲学立意选项。该操作会立即返回任务ID，
+        实际生成过程通过SSE推送进度和结果。
       parameters:
         - name: session_id
           in: path
@@ -1023,7 +1329,117 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
+      responses:
+        '202':
+          description: 立意生成任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
+        '400':
+          description: 请求无效或会话状态不正确
+  /genesis/{session_id}/concepts/select:
+    post:
+      summary: 异步提交立意选择
+      description: |
+        用户选择立意并提供反馈，可选择继续迭代或确认立意。
+        如果选择迭代，将异步处理优化过程并通过SSE推送结果。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConceptSelectionRequest'
+      responses:
+        '200':
+          description: 立意确认成功，可进入下一阶段
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+        '202':
+          description: 立意优化任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
+  /genesis/{session_id}/story/generate:
+    post:
+      summary: 异步生成故事构思
+      description: |
+        基于确认的立意异步生成具体的故事框架和构思。
+        生成过程通过SSE推送进度和结果。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      responses:
+        '202':
+          description: 故事构思生成任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
+        '400':
+          description: 请求无效或会话状态不正确
+  /genesis/{session_id}/story/refine:
+    post:
+      summary: 异步优化故事构思
+      description: |
+        根据用户反馈优化或确认故事构思。
+        如果选择优化，将异步处理并通过SSE推送结果。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryConceptionRequest'
+      responses:
+        '200':
+          description: 故事构思确认成功，可进入下一阶段
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenesisStepResponse'
+        '202':
+          description: 故事构思优化任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
+  /genesis/{session_id}/worldview:
+    post:
+      summary: 提交世界观设定
+      description: 在创世流程中，基于确认的故事构思设计并保存世界观设定。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -1040,7 +1456,7 @@ paths:
   /genesis/{session_id}/characters:
     post:
       summary: 提交核心角色
-      description: 在创世流程中，提交并保存核心角色设定。
+      description: 在创世流程中，基于世界观和故事构思设计并保存核心角色设定。
       parameters:
         - name: session_id
           in: path
@@ -1048,7 +1464,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -1065,7 +1481,7 @@ paths:
   /genesis/{session_id}/plot:
     post:
       summary: 提交初始剧情弧光
-      description: 在创世流程中，提交并保存初始的剧情大纲或故事弧。
+      description: 在创世流程中，基于角色设定和故事构思制定并保存初始的剧情大纲或故事弧。
       parameters:
         - name: session_id
           in: path
@@ -1073,7 +1489,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       requestBody:
         required: true
         content:
@@ -1098,7 +1514,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 从 /genesis/start 获取的会话ID
+          description: 创世会话ID
       responses:
         '200':
           description: 创世已完成，小说待生成
@@ -1106,6 +1522,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GenesisStepResponse'
+  /genesis/{session_id}/status:
+    get:
+      summary: 获取创世会话状态
+      description: 获取当前创世会话的状态和进度信息。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 创世会话ID
+      responses:
+        '200':
+          description: 成功获取会话状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                    description: 会话ID
+                  current_stage:
+                    type: string
+                    enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+                    description: 当前阶段
+                  status:
+                    type: string
+                    enum: [IN_PROGRESS, COMPLETED, ABANDONED]
+                    description: 会话状态
+                  confirmed_concepts:
+                    type: array
+                    description: 已确认的立意
+                  confirmed_story_concept:
+                    type: object
+                    description: 已确认的故事构思
+  /concept-templates:
+    get:
+      summary: 获取立意模板
+      description: 获取可用的立意模板列表，支持筛选和排序。
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按哲学类别筛选
+        - name: complexity
+          in: query
+          schema:
+            type: string
+            enum: [simple, medium, complex]
+          description: 按复杂度筛选
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: 返回数量限制
+      responses:
+        '200':
+          description: 成功获取立意模板
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConceptTemplate'
   /novels: 
     get:
       summary: 获取所有小说项目列表
@@ -1265,6 +1750,19 @@ paths:
         事件将包含事件类型 (event) 和JSON数据 (data)。
       security:
         - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: 订阅特定创世会话的事件（可选）
+        - name: task_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: 订阅特定任务的事件（可选）
       responses:
         '200':
           description: 成功建立事件流连接。
@@ -1273,6 +1771,24 @@ paths:
               schema:
                 type: string
                 example: |
+                  event: task_started
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "message": "开始生成立意选项..."}
+
+                  event: progress_update
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.3, "message": "正在分析用户偏好...", "stage": "preference_analysis"}
+
+                  event: progress_update
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.6, "message": "正在生成哲学立意...", "stage": "concept_generation"}
+
+                  event: concept_generation_complete
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "ai_generation", "generated_concepts": [...]}}
+
+                  event: story_conception_complete
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "story_generation", "story_concept": {...}}}
+
+                  event: task_error
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "error": {"code": "GENERATION_FAILED", "message": "立意生成失败"}}
+
                   event: workflow_status_update
                   data: {"workflow_run_id": "uuid-...", "status": "RUNNING", "details": "DirectorAgent is processing..."}
 
@@ -1280,7 +1796,66 @@ paths:
                   data: {"chapter_id": "uuid-...", "status": "REVIEWING"}
         '401':
           description: 未经授权
+  /genesis/tasks/{task_id}/status:
+    get:
+      summary: 查询创世任务状态
+      description: 查询特定创世任务的当前状态和进度。
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 任务ID
+      responses:
+        '200':
+          description: 成功获取任务状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                    description: 任务ID
+                  session_id:
+                    type: string
+                    format: uuid
+                    description: 关联的会话ID
+                  status:
+                    type: string
+                    enum: [PENDING, RUNNING, COMPLETED, FAILED]
+                    description: 任务状态
+                  progress:
+                    type: number
+                    format: float
+                    description: 进度百分比 (0.0-1.0)
+                  stage:
+                    type: string
+                    description: 当前处理阶段
+                  message:
+                    type: string
+                    description: 状态描述
+                  result:
+                    type: object
+                    description: 任务结果（仅在完成时）
+                  error:
+                    type: object
+                    description: 错误信息（仅在失败时）
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: 任务创建时间
+                  updated_at:
+                    type: string
+                    format: date-time
+                    description: 最后更新时间
+        '404':
+          description: 任务未找到
 ```
+
 
 ## Database Schema
 
@@ -1309,7 +1884,88 @@ CREATE TYPE event_status AS ENUM ('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED'
 CREATE TYPE novel_status AS ENUM ('GENESIS', 'GENERATING', 'PAUSED', 'COMPLETED', 'FAILED');
 CREATE TYPE chapter_status AS ENUM ('DRAFT', 'REVIEWING', 'REVISING', 'PUBLISHED');
 
+CREATE TYPE task_status AS ENUM (
+    'PENDING',    -- 等待处理
+    'RUNNING',    -- 正在运行
+    'COMPLETED',  -- 已完成
+    'FAILED',     -- 失败
+    'CANCELLED'   -- 已取消
+);
+CREATE TYPE genesis_task_type AS ENUM (
+    'concept_generation',     -- 立意生成
+    'concept_refinement',     -- 立意优化
+    'story_generation',       -- 故事构思生成
+    'story_refinement',       -- 故事构思优化
+    'worldview_generation',   -- 世界观生成
+    'character_generation',   -- 角色生成
+    'plot_generation'         -- 剧情生成
+);
+
 --- 核心实体表 ---
+
+-- 异步任务管理表（用于创世流程中的AI agent交互）
+CREATE TABLE genesis_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务唯一标识符
+    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE, -- 关联的创世会话ID
+    target_stage genesis_stage NOT NULL, -- 任务对应的创世阶段
+    task_type genesis_task_type NOT NULL, -- 任务类型
+    status task_status NOT NULL DEFAULT 'PENDING', -- 任务当前状态
+    progress DECIMAL(4,3) NOT NULL DEFAULT 0.000, -- 任务进度百分比 (0.000-1.000)
+    current_stage VARCHAR(100), -- 当前处理阶段的内部标识
+    message TEXT, -- 面向用户的状态描述消息
+    input_data JSONB NOT NULL, -- 任务输入数据
+    result_data JSONB, -- 任务执行结果
+    error_data JSONB, -- 任务失败时的错误信息
+    result_step_id UUID REFERENCES genesis_steps(id) ON DELETE SET NULL, -- 任务成功时创建的genesis_step记录ID
+    agent_type agent_type, -- 执行任务的Agent类型
+    estimated_duration_seconds INTEGER, -- 预估任务执行时间（秒）
+    actual_duration_seconds INTEGER, -- 实际任务执行时间（秒）
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
+    started_at TIMESTAMPTZ, -- 任务开始执行时间
+    completed_at TIMESTAMPTZ, -- 任务完成时间
+    
+    -- 约束条件
+    CONSTRAINT progress_range CHECK (progress >= 0.000 AND progress <= 1.000),
+    CONSTRAINT valid_completed_task CHECK (
+        status != 'COMPLETED' OR (result_data IS NOT NULL AND completed_at IS NOT NULL)
+    ),
+    CONSTRAINT valid_failed_task CHECK (
+        status != 'FAILED' OR error_data IS NOT NULL
+    ),
+    CONSTRAINT valid_running_task CHECK (
+        status != 'RUNNING' OR started_at IS NOT NULL
+    )
+);
+
+-- 立意模板表（存储AI生成的抽象哲学立意供用户选择）
+CREATE TABLE concept_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 立意模板唯一标识符
+    core_idea VARCHAR(200) NOT NULL, -- 核心抽象思想
+    description VARCHAR(800) NOT NULL, -- 立意的深层含义阐述
+    philosophical_depth VARCHAR(1000) NOT NULL, -- 哲学思辨的深度表达
+    emotional_core VARCHAR(500) NOT NULL, -- 情感核心与内在冲突
+    philosophical_category VARCHAR(100), -- 哲学类别
+    thematic_tags TEXT[] DEFAULT '{}', -- 主题标签数组
+    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium', -- 思辨复杂度
+    universal_appeal BOOLEAN NOT NULL DEFAULT true, -- 是否具有普遍意义
+    cultural_specificity VARCHAR(100), -- 文化特异性
+    usage_count INTEGER NOT NULL DEFAULT 0, -- 被选择使用的次数统计
+    rating_sum INTEGER NOT NULL DEFAULT 0, -- 用户评分总和
+    rating_count INTEGER NOT NULL DEFAULT 0, -- 评分人数
+    is_active BOOLEAN NOT NULL DEFAULT true, -- 是否启用（用于软删除）
+    created_by VARCHAR(50), -- 创建者
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
+    
+    -- 约束条件
+    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
+    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
+    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
+    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
+    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
+    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
+);
 
 CREATE TABLE novels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 小说唯一ID
@@ -1515,14 +2171,62 @@ CREATE TABLE agent_configurations (
 --- 创世流程追踪表 ---
 
 CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
-CREATE TYPE genesis_stage AS ENUM ('INITIAL_PROMPT', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED');
+CREATE TYPE genesis_stage AS ENUM (
+    'CONCEPT_SELECTION',  -- 立意选择与迭代阶段：用户从AI生成的抽象立意中选择并优化
+    'STORY_CONCEPTION',   -- 故事构思阶段：将确认的立意转化为具体故事框架
+    'WORLDVIEW',          -- 世界观创建阶段：基于故事构思设计详细世界观
+    'CHARACTERS',         -- 角色设定阶段：设计主要角色
+    'PLOT_OUTLINE',       -- 情节大纲阶段：制定整体剧情框架
+    'FINISHED'            -- 完成阶段：创世过程结束
+);
+
+-- 立意模板表：存储AI生成的抽象哲学立意供用户选择
+CREATE TABLE concept_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- 核心立意内容（抽象哲学思想）
+    core_idea VARCHAR(200) NOT NULL,
+    description VARCHAR(800) NOT NULL,
+    
+    -- 哲学维度
+    philosophical_depth VARCHAR(1000) NOT NULL,
+    emotional_core VARCHAR(500) NOT NULL,
+    
+    -- 分类标签（抽象层面）
+    philosophical_category VARCHAR(100),
+    thematic_tags TEXT[] DEFAULT '{}',
+    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium',
+    
+    -- 适用性
+    universal_appeal BOOLEAN NOT NULL DEFAULT true,
+    cultural_specificity VARCHAR(100),
+    
+    -- 使用统计
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    rating_sum INTEGER NOT NULL DEFAULT 0,
+    rating_count INTEGER NOT NULL DEFAULT 0,
+    
+    -- 元数据
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    -- 约束条件
+    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
+    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
+    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
+    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
+    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
+    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
+);
 
 CREATE TABLE genesis_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
     user_id UUID,
     status genesis_status NOT NULL DEFAULT 'IN_PROGRESS',
-    current_stage genesis_stage NOT NULL DEFAULT 'INITIAL_PROMPT',
+    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION',
     initial_user_input JSONB,
     final_settings JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1556,6 +2260,19 @@ CREATE INDEX idx_scene_cards_chapter ON scene_cards(chapter_id, scene_number);
 CREATE INDEX idx_outlines_chapter ON outlines(chapter_id);
 CREATE INDEX idx_character_interactions_scene ON character_interactions(scene_card_id);
 
+-- 创世流程相关索引
+CREATE INDEX idx_genesis_sessions_stage_status ON genesis_sessions(current_stage, status) WHERE status = 'IN_PROGRESS';
+CREATE INDEX idx_genesis_steps_session_stage_confirmed ON genesis_steps(session_id, stage, is_confirmed);
+CREATE INDEX idx_genesis_steps_ai_output_step_type ON genesis_steps USING GIN ((ai_output->'step_type'));
+CREATE INDEX idx_genesis_steps_confirmed_created_at ON genesis_steps(created_at) WHERE is_confirmed = true;
+
+-- 立意模板相关索引
+CREATE INDEX idx_concept_templates_philosophical_category ON concept_templates(philosophical_category) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_complexity_level ON concept_templates(complexity_level) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_thematic_tags ON concept_templates USING GIN(thematic_tags) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_usage_count ON concept_templates(usage_count DESC) WHERE is_active = true;
+CREATE INDEX idx_concept_templates_rating ON concept_templates((rating_sum::float / NULLIF(rating_count, 0)) DESC NULLS LAST) WHERE is_active = true AND rating_count > 0;
+
 --- 触发器定义 ---
 
 -- 为所有有 updated_at 的表创建触发器
@@ -1565,6 +2282,8 @@ CREATE TRIGGER set_timestamp_characters BEFORE UPDATE ON characters FOR EACH ROW
 CREATE TRIGGER set_timestamp_worldview_entries BEFORE UPDATE ON worldview_entries FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_story_arcs BEFORE UPDATE ON story_arcs FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_agent_configurations BEFORE UPDATE ON agent_configurations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_concept_templates BEFORE UPDATE ON concept_templates FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_genesis_sessions BEFORE UPDATE ON genesis_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
 --- 数据完整性约束 ---
 
@@ -1574,6 +2293,32 @@ CHECK (published_version_id IS NULL OR EXISTS (
     SELECT 1 FROM chapter_versions cv 
     WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id
 ));
+
+-- 确保创世流程新阶段的数据完整性
+-- 确保 CONCEPT_SELECTION 阶段的 ai_output 包含有效的 step_type
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_concept_selection_data 
+CHECK (
+    stage != 'CONCEPT_SELECTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('ai_generation', 'user_selection', 'concept_refinement', 'concept_confirmation')
+    )
+);
+
+-- 确保 STORY_CONCEPTION 阶段的 ai_output 包含有效的 step_type
+ALTER TABLE genesis_steps 
+ADD CONSTRAINT valid_story_conception_data 
+CHECK (
+    stage != 'STORY_CONCEPTION' OR (
+        ai_output ? 'step_type' AND 
+        ai_output->>'step_type' IN ('story_generation', 'story_refinement', 'story_confirmation')
+    )
+);
+
+-- 确保每个阶段只能有一个已确认的最终步骤
+CREATE UNIQUE INDEX idx_genesis_steps_unique_confirmed_per_stage 
+    ON genesis_steps(session_id, stage) 
+    WHERE is_confirmed = true;
 
 --- 未来扩展性规划 (Post-MVP) ---
 

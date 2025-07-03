@@ -16,7 +16,21 @@ info:
     5. **PLOT_OUTLINE** - 情节大纲阶段
     6. **FINISHED** - 完成阶段
     
-    前两个阶段支持用户反馈和迭代优化。
+    ## 异步处理模式
+    AI agent 交互操作（立意生成、故事构思等）采用异步处理模式：
+    1. 客户端发起请求，服务器立即返回任务ID (202 Accepted)
+    2. 客户端通过SSE订阅实时进度和结果推送
+    3. 服务器通过SSE推送处理进度、阶段更新和最终结果
+    4. 客户端可通过任务状态端点查询任务详情
+
+    前两个阶段支持用户反馈和迭代优化，每次迭代都是异步处理。
+
+    ## SSE最佳实践
+    - **连接管理**: 支持按session_id和task_id灵活订阅
+    - **进度粒度**: 合理的进度更新频率，避免过度推送
+    - **断线重连**: 客户端自动重连机制，任务状态持久化
+    - **错误处理**: 实时错误反馈和重试建议
+    - **心跳机制**: 定期心跳保持连接活跃
 servers:
   - url: http://localhost:8000/api/v1 
     description: 本地开发服务器
@@ -280,6 +294,19 @@ components:
         data:
           type: object 
           description: 具体步骤的数据，如世界观条目数组或角色对象数组
+    AsyncTaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: 异步任务ID，用于跟踪进度
+        message:
+          type: string
+          description: 任务启动确认消息
+        sse_endpoint:
+          type: string
+          description: SSE端点URL，用于接收实时进度
     ConceptGenerationResponse:
       type: object
       properties:
@@ -347,6 +374,43 @@ components:
         iteration_count:
           type: integer
           description: 当前迭代次数
+    SSEProgressEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [task_started, progress_update, concept_generation_complete, story_conception_complete, task_complete, task_error]
+          description: 事件类型
+        data:
+          type: object
+          description: 事件数据
+          properties:
+            task_id:
+              type: string
+              format: uuid
+              description: 任务ID
+            session_id:
+              type: string
+              format: uuid
+              description: 会话ID
+            progress:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              description: 进度百分比 (0.0-1.0)
+            message:
+              type: string
+              description: 进度描述信息
+            stage:
+              type: string
+              description: 当前处理阶段
+            result:
+              type: object
+              description: 处理结果（仅在完成事件中）
+            error:
+              type: object
+              description: 错误信息（仅在错误事件中）
     GenesisStepResponse:
       type: object
       properties:
@@ -444,8 +508,10 @@ paths:
           description: 无效请求，例如请求体格式错误
   /genesis/{session_id}/concepts/generate:
     post:
-      summary: 生成立意选项
-      description: 基于用户偏好生成抽象哲学立意选项供用户选择。
+      summary: 异步生成立意选项
+      description: |
+        基于用户偏好异步生成抽象哲学立意选项。该操作会立即返回任务ID，
+        实际生成过程通过SSE推送进度和结果。
       parameters:
         - name: session_id
           in: path
@@ -455,16 +521,20 @@ paths:
             format: uuid
           description: 创世会话ID
       responses:
-        '200':
-          description: 成功生成立意选项
+        '202':
+          description: 立意生成任务已启动
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConceptGenerationResponse'
+                $ref: '#/components/schemas/AsyncTaskResponse'
+        '400':
+          description: 请求无效或会话状态不正确
   /genesis/{session_id}/concepts/select:
     post:
-      summary: 提交立意选择
-      description: 用户选择立意并提供反馈，可选择继续迭代或确认立意。
+      summary: 异步提交立意选择
+      description: |
+        用户选择立意并提供反馈，可选择继续迭代或确认立意。
+        如果选择迭代，将异步处理优化过程并通过SSE推送结果。
       parameters:
         - name: session_id
           in: path
@@ -481,17 +551,23 @@ paths:
               $ref: '#/components/schemas/ConceptSelectionRequest'
       responses:
         '200':
-          description: 立意选择已处理
+          description: 立意确认成功，可进入下一阶段
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ConceptGenerationResponse'
-                  - $ref: '#/components/schemas/GenesisStepResponse'
+                $ref: '#/components/schemas/GenesisStepResponse'
+        '202':
+          description: 立意优化任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
   /genesis/{session_id}/story/generate:
     post:
-      summary: 生成故事构思
-      description: 基于确认的立意生成具体的故事框架和构思。
+      summary: 异步生成故事构思
+      description: |
+        基于确认的立意异步生成具体的故事框架和构思。
+        生成过程通过SSE推送进度和结果。
       parameters:
         - name: session_id
           in: path
@@ -501,16 +577,20 @@ paths:
             format: uuid
           description: 创世会话ID
       responses:
-        '200':
-          description: 成功生成故事构思
+        '202':
+          description: 故事构思生成任务已启动
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryConceptionResponse'
+                $ref: '#/components/schemas/AsyncTaskResponse'
+        '400':
+          description: 请求无效或会话状态不正确
   /genesis/{session_id}/story/refine:
     post:
-      summary: 优化故事构思
-      description: 根据用户反馈优化或确认故事构思。
+      summary: 异步优化故事构思
+      description: |
+        根据用户反馈优化或确认故事构思。
+        如果选择优化，将异步处理并通过SSE推送结果。
       parameters:
         - name: session_id
           in: path
@@ -527,13 +607,17 @@ paths:
               $ref: '#/components/schemas/StoryConceptionRequest'
       responses:
         '200':
-          description: 故事构思已处理
+          description: 故事构思确认成功，可进入下一阶段
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/StoryConceptionResponse'
-                  - $ref: '#/components/schemas/GenesisStepResponse'
+                $ref: '#/components/schemas/GenesisStepResponse'
+        '202':
+          description: 故事构思优化任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTaskResponse'
   /genesis/{session_id}/worldview:
     post:
       summary: 提交世界观设定
@@ -856,6 +940,19 @@ paths:
         事件将包含事件类型 (event) 和JSON数据 (data)。
       security:
         - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: 订阅特定创世会话的事件（可选）
+        - name: task_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: 订阅特定任务的事件（可选）
       responses:
         '200':
           description: 成功建立事件流连接。
@@ -864,6 +961,24 @@ paths:
               schema:
                 type: string
                 example: |
+                  event: task_started
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "message": "开始生成立意选项..."}
+
+                  event: progress_update
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.3, "message": "正在分析用户偏好...", "stage": "preference_analysis"}
+
+                  event: progress_update
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.6, "message": "正在生成哲学立意...", "stage": "concept_generation"}
+
+                  event: concept_generation_complete
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "ai_generation", "generated_concepts": [...]}}
+
+                  event: story_conception_complete
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "story_generation", "story_concept": {...}}}
+
+                  event: task_error
+                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "error": {"code": "GENERATION_FAILED", "message": "立意生成失败"}}
+
                   event: workflow_status_update
                   data: {"workflow_run_id": "uuid-...", "status": "RUNNING", "details": "DirectorAgent is processing..."}
 
@@ -871,4 +986,62 @@ paths:
                   data: {"chapter_id": "uuid-...", "status": "REVIEWING"}
         '401':
           description: 未经授权
+  /genesis/tasks/{task_id}/status:
+    get:
+      summary: 查询创世任务状态
+      description: 查询特定创世任务的当前状态和进度。
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 任务ID
+      responses:
+        '200':
+          description: 成功获取任务状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                    description: 任务ID
+                  session_id:
+                    type: string
+                    format: uuid
+                    description: 关联的会话ID
+                  status:
+                    type: string
+                    enum: [PENDING, RUNNING, COMPLETED, FAILED]
+                    description: 任务状态
+                  progress:
+                    type: number
+                    format: float
+                    description: 进度百分比 (0.0-1.0)
+                  stage:
+                    type: string
+                    description: 当前处理阶段
+                  message:
+                    type: string
+                    description: 状态描述
+                  result:
+                    type: object
+                    description: 任务结果（仅在完成时）
+                  error:
+                    type: object
+                    description: 错误信息（仅在失败时）
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: 任务创建时间
+                  updated_at:
+                    type: string
+                    format: date-time
+                    description: 最后更新时间
+        '404':
+          description: 任务未找到
 ```

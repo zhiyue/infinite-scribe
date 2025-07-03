@@ -20,29 +20,58 @@ sequenceDiagram
     PG_DB-->>-APIGW: 返回 session_id
     APIGW-->>-UI: 返回 session_id
 
-    %% AI生成立意选项
-    UI->>+APIGW: POST /genesis/{sid}/concepts (请求AI生成立意)
-    APIGW->>+CS_Agent: 生成立意选项 (基于用户偏好)
-    CS_Agent->>+PG_DB: 获取立意模板 (concept_templates)
-    PG_DB-->>-CS_Agent: 返回模板数据
-    CS_Agent->>+LLM: 生成10个立意选项Prompt
-    LLM-->>-CS_Agent: 返回立意选项JSON
-    CS_Agent->>+PG_DB: 保存生成步骤 (step_type: 'ai_generation')
-    PG_DB-->>-CS_Agent: 确认保存
-    CS_Agent-->>-APIGW: 返回立意选项
-    APIGW-->>-UI: 返回立意选项
+    %% AI异步生成立意选项 (新的SSE模式)
+    UI->>+APIGW: POST /genesis/{sid}/concepts/generate (请求AI生成立意)
+    APIGW->>+PG_DB: 创建异步任务 (genesis_tasks)
+    PG_DB-->>-APIGW: 返回 task_id
+    APIGW-->>-UI: 立即返回 task_id + SSE端点 (202 Accepted)
 
-    %% 用户选择并提供反馈 (可能多次迭代)
-    UI->>+APIGW: POST /genesis/{sid}/concepts/select (选择的立意ID + 反馈)
+    %% 建立SSE连接接收实时进度
+    UI->>+APIGW: GET /events/stream?session_id={sid} (建立SSE连接)
+    APIGW-->>-UI: SSE连接建立
+
+    %% 后台异步执行立意生成
+    APIGW->>+CS_Agent: 异步启动立意生成任务
+    CS_Agent->>+PG_DB: 更新任务状态为RUNNING
+    CS_Agent->>+APIGW: 推送 task_started 事件
+    APIGW-->>UI: SSE推送: "开始生成立意..."
+
+    CS_Agent->>+PG_DB: 获取立意模板 (concept_templates)
+    CS_Agent->>+APIGW: 推送 progress_update (0.2, "正在分析用户偏好...")
+    APIGW-->>UI: SSE推送: 进度20%
+
+    CS_Agent->>+LLM: 生成10个立意选项Prompt
+    CS_Agent->>+APIGW: 推送 progress_update (0.6, "正在生成哲学立意...")
+    APIGW-->>UI: SSE推送: 进度60%
+
+    LLM-->>-CS_Agent: 返回立意选项JSON
+    CS_Agent->>+PG_DB: 保存生成步骤 + 完成任务
+    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
+    APIGW-->>UI: SSE推送: 立意生成完成 + 结果数据
+
+    %% 用户选择并提供反馈 (异步迭代优化)
+    UI->>+APIGW: POST /genesis/{sid}/concepts/select (选择的立意ID + 反馈 + action: "iterate")
     APIGW->>+PG_DB: 保存用户选择 (step_type: 'user_selection')
-    PG_DB-->>-APIGW: 确认保存
-    APIGW->>+CS_Agent: 根据反馈优化立意
+    APIGW->>+PG_DB: 创建优化任务 (task_type: 'concept_refinement')
+    PG_DB-->>-APIGW: 返回 refinement_task_id
+    APIGW-->>-UI: 返回 task_id (202 Accepted)
+
+    %% 后台异步执行立意优化
+    APIGW->>+CS_Agent: 异步启动立意优化任务
+    CS_Agent->>+APIGW: 推送 task_started 事件
+    APIGW-->>UI: SSE推送: "开始优化立意..."
+
+    CS_Agent->>+APIGW: 推送 progress_update (0.3, "正在分析用户反馈...")
+    APIGW-->>UI: SSE推送: 进度30%
+
     CS_Agent->>+LLM: 优化立意Prompt (基于用户反馈)
+    CS_Agent->>+APIGW: 推送 progress_update (0.7, "正在重新生成立意...")
+    APIGW-->>UI: SSE推送: 进度70%
+
     LLM-->>-CS_Agent: 返回优化后的立意
-    CS_Agent->>+PG_DB: 保存优化步骤 (step_type: 'concept_refinement')
-    PG_DB-->>-CS_Agent: 确认保存
-    CS_Agent-->>-APIGW: 返回优化立意
-    APIGW-->>-UI: 返回优化立意
+    CS_Agent->>+PG_DB: 保存优化步骤 + 完成任务
+    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
+    APIGW-->>UI: SSE推送: 立意优化完成 + 结果数据
 
     %% 用户确认最终立意
     UI->>+APIGW: POST /genesis/{sid}/concepts/confirm (确认最终立意)

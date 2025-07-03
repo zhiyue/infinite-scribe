@@ -25,7 +25,88 @@ CREATE TYPE event_status AS ENUM ('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED'
 CREATE TYPE novel_status AS ENUM ('GENESIS', 'GENERATING', 'PAUSED', 'COMPLETED', 'FAILED');
 CREATE TYPE chapter_status AS ENUM ('DRAFT', 'REVIEWING', 'REVISING', 'PUBLISHED');
 
+CREATE TYPE task_status AS ENUM (
+    'PENDING',    -- 等待处理
+    'RUNNING',    -- 正在运行
+    'COMPLETED',  -- 已完成
+    'FAILED',     -- 失败
+    'CANCELLED'   -- 已取消
+);
+CREATE TYPE genesis_task_type AS ENUM (
+    'concept_generation',     -- 立意生成
+    'concept_refinement',     -- 立意优化
+    'story_generation',       -- 故事构思生成
+    'story_refinement',       -- 故事构思优化
+    'worldview_generation',   -- 世界观生成
+    'character_generation',   -- 角色生成
+    'plot_generation'         -- 剧情生成
+);
+
 --- 核心实体表 ---
+
+-- 异步任务管理表（用于创世流程中的AI agent交互）
+CREATE TABLE genesis_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务唯一标识符
+    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE, -- 关联的创世会话ID
+    target_stage genesis_stage NOT NULL, -- 任务对应的创世阶段
+    task_type genesis_task_type NOT NULL, -- 任务类型
+    status task_status NOT NULL DEFAULT 'PENDING', -- 任务当前状态
+    progress DECIMAL(4,3) NOT NULL DEFAULT 0.000, -- 任务进度百分比 (0.000-1.000)
+    current_stage VARCHAR(100), -- 当前处理阶段的内部标识
+    message TEXT, -- 面向用户的状态描述消息
+    input_data JSONB NOT NULL, -- 任务输入数据
+    result_data JSONB, -- 任务执行结果
+    error_data JSONB, -- 任务失败时的错误信息
+    result_step_id UUID REFERENCES genesis_steps(id) ON DELETE SET NULL, -- 任务成功时创建的genesis_step记录ID
+    agent_type agent_type, -- 执行任务的Agent类型
+    estimated_duration_seconds INTEGER, -- 预估任务执行时间（秒）
+    actual_duration_seconds INTEGER, -- 实际任务执行时间（秒）
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
+    started_at TIMESTAMPTZ, -- 任务开始执行时间
+    completed_at TIMESTAMPTZ, -- 任务完成时间
+    
+    -- 约束条件
+    CONSTRAINT progress_range CHECK (progress >= 0.000 AND progress <= 1.000),
+    CONSTRAINT valid_completed_task CHECK (
+        status != 'COMPLETED' OR (result_data IS NOT NULL AND completed_at IS NOT NULL)
+    ),
+    CONSTRAINT valid_failed_task CHECK (
+        status != 'FAILED' OR error_data IS NOT NULL
+    ),
+    CONSTRAINT valid_running_task CHECK (
+        status != 'RUNNING' OR started_at IS NOT NULL
+    )
+);
+
+-- 立意模板表（存储AI生成的抽象哲学立意供用户选择）
+CREATE TABLE concept_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 立意模板唯一标识符
+    core_idea VARCHAR(200) NOT NULL, -- 核心抽象思想
+    description VARCHAR(800) NOT NULL, -- 立意的深层含义阐述
+    philosophical_depth VARCHAR(1000) NOT NULL, -- 哲学思辨的深度表达
+    emotional_core VARCHAR(500) NOT NULL, -- 情感核心与内在冲突
+    philosophical_category VARCHAR(100), -- 哲学类别
+    thematic_tags TEXT[] DEFAULT '{}', -- 主题标签数组
+    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium', -- 思辨复杂度
+    universal_appeal BOOLEAN NOT NULL DEFAULT true, -- 是否具有普遍意义
+    cultural_specificity VARCHAR(100), -- 文化特异性
+    usage_count INTEGER NOT NULL DEFAULT 0, -- 被选择使用的次数统计
+    rating_sum INTEGER NOT NULL DEFAULT 0, -- 用户评分总和
+    rating_count INTEGER NOT NULL DEFAULT 0, -- 评分人数
+    is_active BOOLEAN NOT NULL DEFAULT true, -- 是否启用（用于软删除）
+    created_by VARCHAR(50), -- 创建者
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
+    
+    -- 约束条件
+    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
+    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
+    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
+    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
+    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
+    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
+);
 
 CREATE TABLE novels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 小说唯一ID
