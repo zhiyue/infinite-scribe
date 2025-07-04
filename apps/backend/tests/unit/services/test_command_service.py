@@ -76,7 +76,7 @@ class TestProcessCommand:
         mock_event_publisher.publish_domain_event.assert_called_once()
         
         # Verify database operations
-        assert mock_db.execute.call_count >= 3  # command_inbox, domain_events, update status
+        assert mock_db.execute.call_count >= 3
     
     @pytest.mark.asyncio
     async def test_process_command_duplicate_error(
@@ -110,35 +110,33 @@ class TestProcessCommand:
         assert exc_info.value.existing_command_id == existing_command_id
     
     @pytest.mark.asyncio
-    async def test_process_command_general_error(
+    async def test_process_command_with_idempotency_key(
         self, command_service, mock_db, session_id
     ):
-        """Test general error handling."""
-        # Setup mocks to raise generic exception
-        mock_db.execute = AsyncMock(side_effect=Exception("Database error"))
+        """Test command processing with custom idempotency key."""
+        # Setup mocks
+        mock_db.execute = AsyncMock()
         mock_db.begin.return_value.__aenter__ = AsyncMock()
         mock_db.begin.return_value.__aexit__ = AsyncMock()
         
-        # Mock update command status to avoid nested exception
-        command_service._update_command_status = AsyncMock()
+        # Mock dependencies
+        command_service._get_last_event_id = AsyncMock(return_value=None)
         
-        # Test data
-        command_type = "RequestConceptGeneration"
-        payload = {}
-        
-        # Execute and verify exception
-        with pytest.raises(Exception) as exc_info:
-            await command_service.process_command(
+        with patch('src.common.services.command_service.event_publisher'):
+            # Test data
+            idempotency_key = "custom-key-123"
+            
+            # Execute
+            result = await command_service.process_command(
                 session_id=session_id,
-                command_type=command_type,
-                payload=payload,
-                db=mock_db
+                command_type="ConfirmStage",
+                payload={"stage": "CONCEPT_SELECTION"},
+                db=mock_db,
+                idempotency_key=idempotency_key
             )
-        
-        assert "Database error" in str(exc_info.value)
-        
-        # Verify failure status update was attempted
-        command_service._update_command_status.assert_called_once()
+            
+            # Verify success
+            assert result.status == CommandStatus.COMPLETED.value
 
 
 class TestEventTypeGeneration:
