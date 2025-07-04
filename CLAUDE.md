@@ -308,6 +308,86 @@ pnpm test
 - Example: `TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"` instead of
   hardcoding `192.168.2.202`
 
+## Task Management
+
+### Task Documentation Requirements
+
+在开始任何开发任务之前，必须创建任务文档：
+
+1. **创建任务目录**：在 `docs/development/tasks/` 下创建以任务名称命名的子目录
+   ```bash
+   # 示例：实现用户认证功能
+   mkdir -p docs/development/tasks/user-authentication
+   
+   # 示例：修复数据库连接问题
+   mkdir -p docs/development/tasks/fix-database-connection
+   ```
+
+2. **任务文档结构**：在任务目录中创建以下文件：
+   - `README.md` - 任务概述和上下文
+   - `implementation-plan.md` - 详细的实现方案
+   - `todo-list.md` - 任务清单和进度跟踪
+   - `progress.md` - 实施进度记录（可选）
+
+3. **文档内容要求**：
+
+   **README.md 应包含**：
+   ```markdown
+   # 任务名称
+   
+   ## 任务背景
+   描述为什么需要这个任务
+   
+   ## 目标
+   明确的任务目标
+   
+   ## 相关文件
+   列出涉及的主要文件和模块
+   
+   ## 参考资料
+   相关的文档、Issue 链接等
+   ```
+
+   **implementation-plan.md 应包含**：
+   ```markdown
+   # 实现方案
+   
+   ## 技术方案
+   详细的技术实现方案
+   
+   ## 架构设计
+   必要的架构图或流程图
+   
+   ## 风险评估
+   潜在的风险和应对策略
+   
+   ## 测试计划
+   如何验证实现的正确性
+   ```
+
+   **todo-list.md 应包含**：
+   ```markdown
+   # 任务清单
+   
+   ## 待办事项
+   - [ ] 任务项1
+   - [ ] 任务项2
+   
+   ## 进行中
+   - [ ] 当前正在处理的任务
+   
+   ## 已完成
+   - [x] 已完成的任务项
+   ```
+
+4. **任务恢复**：下次继续任务时，先查看任务文档了解上下文和进度
+
+这种文档化方式确保：
+- 任务上下文不会丢失
+- 便于任务交接和协作
+- 形成项目知识库
+- 提高开发效率
+
 ## Important Notes
 
 - Development machine (192.168.2.201): ONLY for development - NO tests of any
