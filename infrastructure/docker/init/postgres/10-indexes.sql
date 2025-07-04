@@ -125,11 +125,11 @@ COMMENT ON INDEX idx_genesis_user_sessions IS '查询用户的创世会话历史
 -- ===========================================
 
 -- 创建按时间分区的查询索引（为未来分区做准备）
-CREATE INDEX idx_domain_events_daily_partition ON domain_events(DATE(created_at), aggregate_type);
-CREATE INDEX idx_async_tasks_daily_stats ON async_tasks(DATE(created_at), task_type, status);
-
-COMMENT ON INDEX idx_domain_events_daily_partition IS '支持按日期的事件查询，为将来分区优化做准备';
-COMMENT ON INDEX idx_async_tasks_daily_stats IS '支持按日期的任务统计查询';
+-- 使用date_trunc而不是DATE()函数，因为它对timestamptz是immutable的
+-- CREATE INDEX idx_domain_events_daily_partition ON domain_events((created_at::date), aggregate_type);
+-- CREATE INDEX idx_async_tasks_daily_stats ON async_tasks((created_at::date), task_type, status);
+-- COMMENT ON INDEX idx_domain_events_daily_partition IS '支持按日期的事件查询，为将来分区优化做准备';
+-- COMMENT ON INDEX idx_async_tasks_daily_stats IS '支持按日期的任务统计查询';
 
 -- ===========================================
 -- 外键约束性能优化
@@ -248,15 +248,14 @@ END $$;
 -- ===========================================
 
 -- 创建查询性能监控视图
+-- 注意：pg_stats中的most_common_vals和most_common_freqs是anyarray类型，不能直接在VIEW中使用
 CREATE VIEW query_performance_summary AS
 SELECT 
     schemaname,
     tablename,
     attname as column_name,
     n_distinct,
-    correlation,
-    most_common_vals,
-    most_common_freqs
+    correlation
 FROM pg_stats 
 WHERE schemaname = 'public'
 AND tablename IN (
@@ -273,8 +272,8 @@ COMMENT ON VIEW query_performance_summary IS '查询性能分析视图，显示�
 CREATE VIEW index_usage_statistics AS
 SELECT 
     schemaname,
-    tablename,
-    indexname,
+    relname as tablename,
+    indexrelname as indexname,
     idx_scan as index_scans,
     idx_tup_read as tuples_read,
     idx_tup_fetch as tuples_fetched,

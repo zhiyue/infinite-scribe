@@ -26,6 +26,7 @@ CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- Create Prefect database
 -- Prefect是我们使用的工作流引擎，需要独立的数据库
+DROP DATABASE IF EXISTS prefect;
 CREATE DATABASE prefect WITH 
     ENCODING='UTF-8' 
     LC_COLLATE='en_US.utf8' 

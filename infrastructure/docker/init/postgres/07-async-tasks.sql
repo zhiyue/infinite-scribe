@@ -208,7 +208,7 @@ BEGIN
     RAISE NOTICE '- 已创建%个索引优化查询性能', index_count;
     RAISE NOTICE '- 已创建%个检查约束确保数据完整性', constraint_count;
     RAISE NOTICE '- 已创建%个管理函数', function_count;
-    RAISE NOTICE '- 支持任务进度追踪（0-100%）';
+    RAISE NOTICE '- 支持任务进度追踪（0-100%%）';
     RAISE NOTICE '- 提供重试机制和超时检测';
     RAISE NOTICE '- 包含统计视图和清理功能';
 END $$;

@@ -15,6 +15,15 @@ SET search_path TO public;
 -- 依赖关系：02-init-enums.sql（需要所有枚举类型）
 -- ================================================
 
+-- 清理可能存在的旧表（按照依赖关系倒序删除）
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS story_arcs CASCADE;
+DROP TABLE IF EXISTS worldview_entries CASCADE;
+DROP TABLE IF EXISTS characters CASCADE;
+DROP TABLE IF EXISTS chapter_versions CASCADE;
+DROP TABLE IF EXISTS chapters CASCADE;
+DROP TABLE IF EXISTS novels CASCADE;
+
 -- ===========================================
 -- 小说主表 - 存储每个独立小说项目的核心元数据
 -- ===========================================
@@ -103,13 +112,8 @@ COMMENT ON COLUMN chapter_versions.created_at IS '版本创建时间';
 ALTER TABLE chapters ADD CONSTRAINT fk_chapters_published_version 
     FOREIGN KEY (published_version_id) REFERENCES chapter_versions(id) ON DELETE SET NULL;
 
--- 添加检查约束确保published_version_id指向的版本确实属于该章节
-ALTER TABLE chapters ADD CONSTRAINT check_published_version 
-    CHECK (published_version_id IS NULL OR EXISTS (
-        SELECT 1 FROM chapter_versions cv 
-        WHERE cv.id = chapters.published_version_id 
-        AND cv.chapter_id = chapters.id
-    ));
+-- 注意：检查published_version_id是否属于该章节的验证需要在应用层实现
+-- PostgreSQL不支持在CHECK约束中使用子查询
 
 -- ===========================================
 -- 角色表 - 存储小说中所有角色的详细设定信息
