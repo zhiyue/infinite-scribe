@@ -25,6 +25,7 @@
 ```
 03-core-entities.sql        # 核心业务实体表（小说、章节、角色等）
 04-genesis-sessions.sql     # 创世流程状态快照表
+04a-concept-templates.sql   # 立意模板表和初始化数据
 ```
 
 ### 阶段3: 架构机制表
@@ -98,6 +99,12 @@
 - `genesis_sessions`: 创世流程状态快照表
 - 包含检查约束和查询索引
 
+### 04a-concept-templates.sql
+- `concept_templates`: 立意模板表
+- 存储抽象的哲学立意供用户在创世流程中选择
+- 包含10个预定义的立意模板示例数据
+- 支持哲学分类、复杂度分级和主题标签查询
+
 ### 05-domain-events.sql
 - `domain_events`: 统一领域事件日志表
 - 事件溯源架构的核心，不可变事件存储
@@ -156,6 +163,7 @@ psql -d infinite_scribe -f 01-init-functions.sql
 psql -d infinite_scribe -f 02-init-enums.sql
 psql -d infinite_scribe -f 03-core-entities.sql
 psql -d infinite_scribe -f 04-genesis-sessions.sql
+psql -d infinite_scribe -f 04a-concept-templates.sql
 psql -d infinite_scribe -f 05-domain-events.sql
 psql -d infinite_scribe -f 06-command-inbox.sql
 psql -d infinite_scribe -f 07-async-tasks.sql
@@ -176,6 +184,7 @@ steps:
         "02-init-enums.sql"
         "03-core-entities.sql"
         "04-genesis-sessions.sql"
+        "04a-concept-templates.sql"
         "05-domain-events.sql"
         "06-command-inbox.sql"
         "07-async-tasks.sql"
