@@ -1,0 +1,194 @@
+"""Authentication endpoints for user login/logout."""
+
+import logging
+from typing import Union
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.api.schemas import (
+    UserLoginRequest,
+    RefreshTokenRequest,
+    AuthResponse,
+    TokenResponse,
+    MessageResponse,
+    ErrorResponse,
+    UserResponse,
+)
+from src.common.services.user_service import UserService
+from src.database import get_db
+from src.middleware.auth import get_current_user
+from src.models.user import User
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+user_service = UserService()
+
+
+@router.post(
+    "/login",
+    response_model=Union[AuthResponse, ErrorResponse],
+    summary="User login",
+    description="Authenticate user and return access/refresh tokens",
+)
+async def login_user(
+    request: UserLoginRequest,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Union[AuthResponse, ErrorResponse]:
+    """Authenticate user and return tokens.
+    
+    Args:
+        request: User login credentials
+        req: FastAPI request object (for IP and user agent)
+        db: Database session
+        
+    Returns:
+        Authentication response with tokens and user data
+        
+    Raises:
+        HTTPException: If login fails
+    """
+    try:
+        # Get client info
+        ip_address = req.client.host if req.client else None
+        user_agent = req.headers.get("user-agent")
+        
+        # Attempt login
+        result = await user_service.login(
+            db,
+            request.email,
+            request.password,
+            ip_address,
+            user_agent
+        )
+        
+        if not result["success"]:
+            # Determine appropriate status code
+            status_code = status.HTTP_401_UNAUTHORIZED
+            if "locked" in result["error"].lower():
+                status_code = status.HTTP_423_LOCKED
+            elif "verify" in result["error"].lower():
+                status_code = status.HTTP_403_FORBIDDEN
+                
+            raise HTTPException(
+                status_code=status_code,
+                detail=result["error"]
+            )
+        
+        # Create response
+        user_response = UserResponse.model_validate(result["user"])
+        return AuthResponse(
+            success=True,
+            access_token=result["access_token"],
+            refresh_token=result["refresh_token"],
+            user=user_response
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during login"
+        )
+
+
+@router.post(
+    "/logout",
+    response_model=Union[MessageResponse, ErrorResponse],
+    summary="User logout",
+    description="Logout user and invalidate current session",
+)
+async def logout_user(
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Union[MessageResponse, ErrorResponse]:
+    """Logout user and invalidate session.
+    
+    Args:
+        req: FastAPI request object (contains JWT info in state)
+        db: Database session
+        current_user: Current authenticated user
+        
+    Returns:
+        Success or error message
+        
+    Raises:
+        HTTPException: If logout fails
+    """
+    try:
+        # Get JTI from request state (set by auth middleware)
+        jti = getattr(req.state, 'jti', None)
+        
+        if not jti:
+            logger.warning("No JTI found in request state during logout")
+            # Still return success for security
+            return MessageResponse(
+                success=True,
+                message="Logged out successfully"
+            )
+        
+        # Logout user
+        result = await user_service.logout(db, jti)
+        
+        if not result["success"]:
+            logger.error(f"Logout failed: {result['error']}")
+            # Still return success for security
+        
+        return MessageResponse(
+            success=True,
+            message="Logged out successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        # Return success for security - don't reveal internal errors
+        return MessageResponse(
+            success=True,
+            message="Logged out successfully"
+        )
+
+
+@router.post(
+    "/refresh",
+    response_model=Union[TokenResponse, ErrorResponse],
+    summary="Refresh access token",
+    description="Refresh access token using refresh token",
+)
+async def refresh_access_token(
+    request: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> Union[TokenResponse, ErrorResponse]:
+    """Refresh access token using refresh token.
+    
+    Args:
+        request: Refresh token request
+        db: Database session
+        
+    Returns:
+        New access and refresh tokens
+        
+    Raises:
+        HTTPException: If refresh fails
+    """
+    try:
+        # TODO: Implement refresh token logic
+        # This requires additional methods in UserService
+        
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Token refresh not yet implemented"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during token refresh"
+        )
