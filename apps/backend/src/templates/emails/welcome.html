@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Your Email Address</title>
+    <title>Welcome to Auth System</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -69,16 +69,25 @@
             margin-top: 30px;
         }
 
-        .verification-code {
-            background-color: #f3f4f6;
-            padding: 15px;
+        .features {
+            background-color: #f9fafb;
+            padding: 20px;
             border-radius: 5px;
-            font-family: monospace;
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
             margin: 20px 0;
-            border: 2px dashed #d1d5db;
+        }
+
+        .feature-item {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .feature-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #16a34a;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -87,28 +96,33 @@
     <div class="container">
         <div class="header">
             <div class="logo">Auth System</div>
-            <h1 class="title">Verify Your Email Address</h1>
+            <h1 class="title">Welcome to Auth System!</h1>
         </div>
 
         <div class="content">
             <p>Hello {{ username or 'User' }},</p>
 
-            <p>Thank you for signing up! To complete your registration and activate your account, please verify your
-                email address by clicking the button below:</p>
+            <p>🎉 <strong>Congratulations!</strong> Your email has been successfully verified and your account is now
+                active.</p>
+
+            <p>You can now enjoy all the features of our authentication system:</p>
+
+            <div class="features">
+                <div class="feature-item">Secure user authentication</div>
+                <div class="feature-item">Password reset functionality</div>
+                <div class="feature-item">Profile management</div>
+                <div class="feature-item">Session management</div>
+            </div>
+
+            <p>Ready to get started? Click the button below to access your dashboard:</p>
 
             <div style="text-align: center;">
-                <a href="{{ verification_url }}" class="button">Verify Email Address</a>
+                <a href="{{ dashboard_url }}" class="button">Go to Dashboard</a>
             </div>
 
-            <p>If the button above doesn't work, you can also copy and paste the following link into your browser:</p>
+            <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
 
-            <div class="verification-code">
-                {{ verification_url }}
-            </div>
-
-            <p><strong>Important:</strong> This verification link will expire in 24 hours for security reasons.</p>
-
-            <p>If you didn't create an account with us, please ignore this email.</p>
+            <p>Thank you for choosing Auth System!</p>
         </div>
 
         <div class="footer">
