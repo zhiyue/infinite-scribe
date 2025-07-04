@@ -325,9 +325,10 @@ pnpm test
 
 2. **任务文档结构**：在任务目录中创建以下文件：
    - `README.md` - 任务概述和上下文
-   - `implementation-plan.md` - 详细的实现方案
+   - `implementation-plan.md` - 详细的实现方案（必须包含 Mermaid 图表）
    - `todo-list.md` - 任务清单和进度跟踪
    - `progress.md` - 实施进度记录（可选）
+   - `summary.md` - 任务完成后的总结文档（包含最终实现的 Mermaid 图表）
 
 3. **文档内容要求**：
 
@@ -356,7 +357,29 @@ pnpm test
    详细的技术实现方案
    
    ## 架构设计
-   必要的架构图或流程图
+   使用 Mermaid 图表展示架构设计
+   
+   ### 系统架构图
+   ```mermaid
+   graph TD
+       A[组件A] --> B[组件B]
+       B --> C[组件C]
+   ```
+   
+   ### 流程图
+   ```mermaid
+   flowchart LR
+       Start --> Process --> End
+   ```
+   
+   ### 时序图（如适用）
+   ```mermaid
+   sequenceDiagram
+       participant A
+       participant B
+       A->>B: 请求
+       B-->>A: 响应
+   ```
    
    ## 风险评估
    潜在的风险和应对策略
@@ -380,13 +403,74 @@ pnpm test
    - [x] 已完成的任务项
    ```
 
-4. **任务恢复**：下次继续任务时，先查看任务文档了解上下文和进度
+   **summary.md 应包含**（任务完成后创建）：
+   ```markdown
+   # 任务总结
+   
+   ## 实现概述
+   简要描述最终的实现方案
+   
+   ## 最终架构
+   使用 Mermaid 图表描述最终实现的架构和逻辑
+   
+   ### 实现架构图
+   ```mermaid
+   graph TB
+       subgraph "最终实现"
+           A[模块A] --> B[模块B]
+           B --> C[模块C]
+       end
+   ```
+   
+   ### 数据流图
+   ```mermaid
+   flowchart TD
+       Input[输入] --> Process[处理逻辑]
+       Process --> Output[输出]
+   ```
+   
+   ### 类图（如适用）
+   ```mermaid
+   classDiagram
+       class ClassName {
+           +method1()
+           +method2()
+           -privateField
+       }
+   ```
+   
+   ## 关键决策
+   记录重要的技术决策和理由
+   
+   ## 经验教训
+   - 遇到的问题及解决方案
+   - 可以改进的地方
+   - 对未来类似任务的建议
+   
+   ## 性能指标
+   如果适用，记录性能改进数据
+   
+   ## 后续建议
+   未来可能的优化或扩展方向
+   ```
+
+4. **Mermaid 图表使用指南**：
+   - 架构图：使用 `graph` 或 `flowchart` 展示组件关系
+   - 时序图：使用 `sequenceDiagram` 展示交互流程
+   - 类图：使用 `classDiagram` 展示类结构
+   - 状态图：使用 `stateDiagram` 展示状态转换
+   - 甘特图：使用 `gantt` 展示时间规划（如适用）
+
+5. **任务恢复**：下次继续任务时，先查看任务文档了解上下文和进度
 
 这种文档化方式确保：
 - 任务上下文不会丢失
 - 便于任务交接和协作
 - 形成项目知识库
 - 提高开发效率
+- 通过 Mermaid 图表提供直观的可视化理解
+- 任务完成后的总结促进知识沉淀和经验积累
+- 为未来类似任务提供参考和最佳实践
 
 ## Important Notes
 
