@@ -3,7 +3,7 @@
  * 对应后端数据库模型
  */
 
-import { BaseDBModel, AuditFields, UUIDString, ISODateString } from './base'
+import type { BaseDBModel, AuditFields, UUIDString, ISODateString } from './base'
 import {
   AgentType,
   NovelStatus,

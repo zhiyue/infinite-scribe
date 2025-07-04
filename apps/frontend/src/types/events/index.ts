@@ -3,7 +3,7 @@
  * 对应后端的事件系统
  */
 
-import { BaseEvent } from '../models/base'
+import type { BaseEvent } from '../models/base'
 
 /**
  * 基础事件类型

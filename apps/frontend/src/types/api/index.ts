@@ -3,7 +3,7 @@
  * 用于前后端 API 通信
  */
 
-import { 
+import type { 
   Novel, 
   Chapter, 
   Character, 
