@@ -50,6 +50,7 @@
   - [ ] 集成 Resend Python SDK
   - [ ] 实现邮件发送基础类
   - [ ] 配置测试/生产环境切换
+  - [ ] 在 EmailService 中基于 ENV.IS_DEV 自动写入 sandbox header，或切换到 Maildev 直投
 - [ ] 创建邮件模板（apps/backend/src/templates/emails/）
   - [ ] 验证邮件模板（HTML + 纯文本）
   - [ ] 密码重置模板（HTML + 纯文本）
@@ -89,9 +90,9 @@
   - [ ] 定义 RegisterRequest/Response 接口
   - [ ] 定义 TokenResponse 接口
 - [ ] 实现认证服务（apps/frontend/src/services/auth.ts）
-  - [ ] 实现 JWT Token 存储（内存 + localStorage）
+  - [ ] 实现 JWT Token 存储（仅内存/Zustand store）
   - [ ] 实现登录/注册/登出方法
-  - [ ] 实现 Token 刷新逻辑
+  - [ ] 实现 Token 刷新逻辑（防并发队列）
 - [ ] 配置 Axios 拦截器
   - [ ] 请求拦截器：自动添加 Authorization header
   - [ ] 响应拦截器：处理 401 错误，自动刷新 Token
@@ -139,10 +140,12 @@
   - [ ] 忘记密码流程测试
   - [ ] 邮件发送测试（Resend sandbox）
   - [ ] Rate Limiting 测试
+  - [ ] CSRF token 校验测试（后端 FastAPI + cookie 双提交）
 - [ ] 编写前端组件测试（Vitest）
   - [ ] 表单组件测试
   - [ ] useAuth Hook 测试
   - [ ] RequireAuth 组件测试
+  - [ ] 前端 axios 发送/刷新 CSRF token 行为测试
 - [ ] 编写 E2E 测试（Playwright）
   - [ ] 完整注册和激活流程
   - [ ] 登录和自动刷新
