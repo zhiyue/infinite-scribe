@@ -48,68 +48,266 @@
 ```mermaid
 graph TD
     subgraph "用户端"
-        User[监督者] --> FE[React前端-Vite-SSE实时更新]
+        User[监督者] --> FE[React前端 Vite]
+    end
+
+    subgraph "入口与API层"
+        APIGW[API网关 FastAPI]
+        FE -- "1. HTTP/REST 命令/查询" --> APIGW
+        APIGW -- "10. SSE 实时事件" --> FE
+    end
+
+    subgraph "核心数据库 PostgreSQL"
+        DB[(PostgreSQL<br/>- command_inbox<br/>- domain_events<br/>- event_outbox<br/>- flow_resume_handles<br/>- 状态快照等)]
+    end
+
+    subgraph "事件与编排核心"
+        Relay[Message Relay]
+        Kafka[事件总线 Kafka]
+        Prefect[工作流编排器 Prefect]
+        CallbackSvc[Prefect回调服务]
+    end
+
+    subgraph "智能体与知识库"
+        Agents[AI智能体集群]
+        KnowledgeBase[知识库<br/>Neo4j, Milvus, Minio]
     end
     
-    subgraph "云平台 / 本地Docker"
-        FE -- "HTTP/REST API" --> APIGW[API网关-FastAPI-控制API和数据查询]
-        APIGW -- "SSE 事件流" --> FE
-        
-        subgraph "数据存储层 (按 Novel ID 隔离)"
-            DB[(PostgreSQL-属性数据-元数据-版本-日志)]
-            VDB[(Milvus-项目级向量嵌入)]
-            GDB[(Neo4j-项目级知识图谱)]
-            S3[(Minio-章节内容-大纲等)]
-        end
-        
-        subgraph "编排与事件层"
-            Orchestrator[工作流编排器-Prefect]
-            Broker[事件总线-Kafka]
-        end
-        
-        subgraph "智能体微服务集群"
-            Agent1[WriterAgent]
-            Agent2[CriticAgent]
-            AgentN[其他Agent]
-        end
-        
-        APIGW --> Orchestrator
-        APIGW --> DB
-        APIGW --> GDB
-        
-        Orchestrator -- "发布任务事件" --> Broker
-        Broker -- "分发任务" --> Agent1
-        Broker -- "分发任务" --> Agent2
-        Broker -- "分发任务" --> AgentN
-        Agent1 -- "读/写" --> DB
-        Agent1 -- "读/写" --> VDB
-        Agent1 -- "读/写" --> GDB
-        Agent1 -- "读/写" --> S3
-        Agent2 -- "读/写" --> DB
-        Agent2 -- "读/写" --> VDB
-        Agent2 -- "读/写" --> GDB
-        Agent2 -- "读/写" --> S3
-        AgentN -- "读/写" --> DB
-        AgentN -- "读/写" --> VDB
-        AgentN -- "读/写" --> GDB
-        AgentN -- "读/写" --> S3
-        Agent1 -- "发布完成/中间事件" --> Broker
-        Agent2 -- "发布完成/中间事件" --> Broker
-        AgentN -- "发布完成/中间事件" --> Broker
-        Broker -- "通知" --> Orchestrator
-        Broker -- "推送事件到" --> APIGW
+    subgraph "缓存"
+        Cache[(Redis<br/>回调句柄缓存)]
+    end
+
+    %% 核心数据流
+    APIGW -- "2. 原子写入命令/事件/发件箱" --> DB
+    DB -- "3. Relay轮询Outbox" --> Relay
+    Relay -- "4. 发布事件到Kafka" --> Kafka
+    
+    Kafka -- "5. Prefect监听并触发Flow" --> Prefect
+    Prefect -- "6. 编排指令,通过Outbox发布" --> DB
+    
+    Kafka -- "7. Agent消费指令" --> Agents
+    Agents -- "8. 执行任务,访问知识库" --> KnowledgeBase
+    Agents -- "8. 写回结果到DB含Outbox" --> DB
+    
+    Kafka -- "9. 结果事件触发回调" --> CallbackSvc
+    CallbackSvc -- "查询/调用" --> Cache
+    CallbackSvc -- "回退查询" --> DB
+    CallbackSvc -- "唤醒Flow" --> Prefect
+    
+    Prefect -- "注册/查询回调" --> Cache
+    Prefect -- "持久化回调" --> DB
+
+    style DB fill:#D6EAF8,stroke:#2E86C1
+    style Kafka fill:#E8DAEF,stroke:#884EA0
+    style Prefect fill:#D5F5E3,stroke:#229954
+```
+
+### 1. 组件交互与技术概览图 (Component Interaction & Tech Overview)
+
+这张图是我们架构的核心视图，展示了所有关键服务模块、它们之间的主要交互路径以及所使用的核心技术。
+
+```mermaid
+graph TD
+    subgraph "用户端"
+        User[监督者] --> FE[React前端 (Vite)];
+    end
+
+    subgraph "入口与API层"
+        APIGW[API网关 (FastAPI)];
+        FE -- "1. HTTP/REST (命令/查询)" --> APIGW;
+        APIGW -- "10. SSE (实时事件)" --> FE;
+    end
+
+    subgraph "核心数据库 (PostgreSQL)"
+        DB[(PostgreSQL<br/>- command_inbox<br/>- domain_events<br/>- event_outbox<br/>- flow_resume_handles<br/>- 状态快照等)];
+    end
+
+    subgraph "事件与编排核心"
+        Relay[Message Relay];
+        Kafka[事件总线 (Kafka)];
+        Prefect[工作流编排器 (Prefect)];
+        CallbackSvc[Prefect回调服务];
+    end
+
+    subgraph "智能体与知识库"
+        Agents[AI智能体集群];
+        KnowledgeBase[知识库<br/>(Neo4j, Milvus, Minio)];
     end
     
-    User -- "通过浏览器访问" --> FE
+    subgraph "缓存"
+        Cache[(Redis<br/>回调句柄缓存)];
+    end
+
+    %% 核心数据流
+    APIGW -- "2. 原子写入命令/事件/发件箱" --> DB;
+    DB -- "3. Relay轮询Outbox" --> Relay;
+    Relay -- "4. 发布事件到Kafka" --> Kafka;
+    
+    Kafka -- "5. Prefect监听并触发Flow" --> Prefect;
+    Prefect -- "6. 编排指令,通过Outbox发布" --> DB;
+    
+    Kafka -- "7. Agent消费指令" --> Agents;
+    Agents -- "8. 执行任务,访问知识库" --> KnowledgeBase;
+    Agents -- "8. 写回结果到DB(含Outbox)" --> DB;
+    
+    Kafka -- "9. 结果事件触发回调" --> CallbackSvc;
+    CallbackSvc -- "查询/调用" --> Cache;
+    CallbackSvc -- "回退查询" --> DB;
+    CallbackSvc -- "唤醒Flow" --> Prefect;
+    
+    Prefect -- "注册/查询回调" --> Cache;
+    Prefect -- "持久化回调" --> DB;
+
+    style DB fill:#D6EAF8,stroke:#2E86C1
+    style Kafka fill:#E8DAEF,stroke:#884EA0
+    style Prefect fill:#D5F5E3,stroke:#229954
+```
+
+### 2. C4模型 - 容器图 (C4 Model - Container Diagram)
+
+这张图从更高的层次描绘了系统的**可部署单元（容器）**以及它们之间的技术交互，非常适合向新加入的开发者或运维人员介绍系统的整体结构。
+
+```mermaid
+!theme C4
+C4Container
+    Person(user, "监督者/作者", "通过Web浏览器与系统交互")
+    
+    System_Boundary(b1, "多智能体写作系统") {
+        Container(spa, "单页应用 (SPA)", "JavaScript, React", "提供用户界面")
+        Container(api, "API网关", "Python, FastAPI", "处理所有入站请求, 提供SSE")
+        Container(agents, "AI智能体集群", "Python", "一组执行具体创作任务的微服务")
+        Container(prefect, "工作流引擎", "Python, Prefect", "编排复杂的业务流程")
+        Container(relay, "消息中继服务", "Python", "可靠地将数据库事件发布到Kafka")
+        Container(callback, "回调服务", "Python", "监听结果事件以恢复暂停的工作流")
+    }
+
+    System_Ext(kafka, "事件总线", "Apache Kafka")
+    System_Db(db, "主数据库", "PostgreSQL")
+    System_Db(neo4j, "图数据库", "Neo4j")
+    System_Db(milvus, "向量数据库", "Milvus")
+    System_Db(redis, "缓存数据库", "Redis")
+    System_Db(minio, "对象存储", "Minio (S3-compatible)")
+    System_Ext(llm, "大语言模型API", "OpenAI, Anthropic, etc.")
+
+    Rel(user, spa, "使用", "HTTPS")
+    Rel(spa, api, "API调用", "HTTPS/JSON")
+    Rel(api, spa, "SSE事件推送")
+
+    Rel(api, db, "读/写", "TCP/IP")
+    Rel(api, prefect, "触发/查询工作流", "HTTP")
+
+    Rel(relay, db, "轮询[event_outbox]", "TCP/IP")
+    Rel(relay, kafka, "发布事件")
+
+    Rel(prefect, kafka, "监听/发布事件")
+    Rel(prefect, redis, "注册/查询回调")
+    Rel(prefect, db, "持久化回调")
+
+    Rel(callback, kafka, "监听结果事件")
+    Rel(callback, redis, "查询回调")
+    Rel(callback, db, "回退查询")
+    Rel(callback, prefect, "恢复工作流", "HTTP")
+
+    Rel(agents, kafka, "消费指令/发布结果")
+    Rel(agents, db, "读/写")
+    Rel(agents, neo4j, "读/写")
+    Rel(agents, milvus, "读/写")
+    Rel(agents, minio, "读/写")
+    Rel(agents, llm, "调用", "HTTPS")
+```
+
+### 3. 核心数据流图 (Core Data Flow Diagram - DFD)
+
+这张图专注于**数据本身**，展示了“小说章节”这份核心数据是如何在系统中一步步被创建、处理和存储的，忽略了具体的服务实现细节。
+
+```mermaid
+graph TD
+    A[用户命令: "生成下一章"] --> B{1. 命令处理};
+    B --> C[2. 创建异步任务];
+    C --> D{3. 编排工作流};
+    D -- "生成大纲指令" --> E[4. 大纲生成];
+    E -- "大纲内容" --> F[5. 场景设计];
+    F -- "场景卡" --> G[6. 角色互动设计];
+    G -- "对话与动作" --> H[7. 章节草稿撰写];
+    H -- "章节草稿" --> I{8. 并行评审};
+    I -- "评分/问题" --> J{9. 决策};
+    J -- "不通过" --> K[10. 修订草稿];
+    K -- "修订版草稿" --> I;
+    J -- "通过" --> L[11. 最终章节内容];
+
+    subgraph "持久化存储"
+        M[(PostgreSQL)];
+        N[(Minio)];
+        O[(Neo4j/Milvus)];
+    end
+
+    E -- "写入" --> M & N;
+    F -- "写入" --> M & N;
+    G -- "写入" --> M & N;
+    H -- "写入" --> M & N;
+    I -- "写入评审结果" --> M;
+    K -- "写入新版本" --> M & N;
+    L -- "更新最终状态" --> M;
+    
+    E & F & G & H & K -- "访问知识库" --> O;
+```
+
+### 4. 概括性时序图 (Simplified Sequence Diagram)
+
+这张图是我们之前详细时序图的高度概括版本，用于快速理解一个核心异步流程的交互顺序，特别是“暂停-恢复”模式。
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant Prefect
+    participant Redis
+    participant Agent
+    participant CallbackSvc
+
+    User->>API: 1. 发起异步命令
+    API-->>User: 2. 接受请求 (202)
+    API->>Prefect: 3. 触发工作流
+
+    Prefect->>Prefect: 4. 执行...
+    Prefect->>Redis: 5. 注册回调句柄
+    Prefect->>Prefect: 6. 暂停自身 (PAUSED)
+
+    Prefect->>Agent: 7. (通过Kafka) 派发任务
+    Agent->>Agent: 8. 执行长时间任务...
+    Agent->>CallbackSvc: 9. (通过Kafka) 报告结果
+
+    CallbackSvc->>Redis: 10. 获取回调句柄
+    CallbackSvc->>Prefect: 11. 调用回调，唤醒工作流
+
+    Prefect->>Prefect: 12. 从暂停点恢复，继续执行...
+    Prefect->>API: 13. (通过SSE) 推送最终状态
+    API-->>User: (SSE) 最终结果
 ```
 
 ### 架构模式
 
-*   **整体架构:** **事件驱动微服务 (Event-Driven Microservices)** - 服务之间通过异步消息解耦，提高了系统的弹性和可扩展性。
-*   **前端模式:** **单页应用 (Single-Page Application - SPA)** - 提供流畅的、类似桌面应用的交互体验，包含项目仪表盘和项目详情视图。
-*   **后端模式:** **智能体模式 (Agent Model)** - 每个服务都是一个具有特定技能的自主智能体。
-*   **集成模式:** **API网关 (API Gateway)** - 为前端提供一个统一、简化的入口点来与复杂的后端系统交互。
-*   **知识表示:** **混合数据模型 (Hybrid Data Model)** - 结构化属性使用PostgreSQL，向量相似性使用Milvus，**特定于项目的复杂关系和知识图谱使用Neo4j**。
+*   **整体架构: 事件驱动微服务 (Event-Driven Microservices)**
+    *   服务之间通过异步消息（Kafka事件）进行解耦，提高了系统的整体弹性和可扩展性。
+
+*   **前端模式: 单页应用 (Single-Page Application - SPA)**
+    *   通过React和Vite构建，为用户提供流畅、动态、类似桌面应用的交互体验，包含项目仪表盘和项目详情等复杂视图。
+
+*   **后端模式: 智能体模式 (Agent Model)**
+    *   每个核心业务能力被封装为一个独立的、具有特定技能的自主智能体微服务（如作家Agent、评论家Agent）。
+
+*   **集成模式: API网关 (API Gateway)**
+    *   为前端提供一个统一、安全且简化的入口点，以与复杂的后端微服务和工作流系统进行交互。
+
+*   **知识表示: 混合数据模型 (Hybrid Data Model)**
+    *   采用多种数据库来最有效地处理不同类型的数据：结构化属性和元数据使用**PostgreSQL**；文本内容的向量相似性搜索使用**Milvus**；而特定于项目的、复杂的实体间关系和知识图谱则由**Neo4j**负责管理。
+
+*   **核心实现模式 (Core Implementation Patterns):**
+    *   **命令查询责任分离 (CQRS):** 严格分离用户的写操作（通过`command_inbox`发起的命令）和读操作（对`genesis_sessions`等状态快照表的查询），优化了系统的性能和复杂性管理。
+    *   **事件溯源 (Event Sourcing):** 以`domain_events`表作为整个系统不可变的、单一的事实来源。所有状态变更都是对这些历史事件响应的结果，提供了极高的可审计性。
+    *   **事务性发件箱 (Transactional Outbox):** 通过`event_outbox`表，利用数据库的原子事务，保证了本地数据状态的变更与向分布式消息系统（Kafka）发布事件这两个动作之间的最终一致性。
+    *   **命令收件箱 (Command Inbox):** 通过`command_inbox`表和数据库的唯一性约束，为所有需要异步处理的、有副作用的命令提供了可靠的幂等性保证，从根本上防止了重复提交。
+    *   **工作流编排 - 暂停与恢复模式 (Pause and Resume):** Prefect工作流通过一个持久化（PostgreSQL）和缓存（Redis）的回调句柄系统，实现了与外部异步事件（如AI任务完成或用户反馈）的非阻塞式交互，极大地提高了系统资源的利用效率。
 
 ## Tech Stack
 
@@ -234,35 +432,21 @@ graph TD
       created_at: Date; // 创建时间
     }
     ```
+
 ### GenesisSession (创世会话) - PostgreSQL
+
+*   **目的:** 作为创世流程的“状态快照”，用于高效查询当前流程的状态。它的状态由`domain_events`驱动更新。
 *   **TypeScript 接口:**
     ```typescript
     interface GenesisSession {
-      id: string; // UUID
-      novel_id: string; // UUID
-      user_id?: string; // UUID
-      status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
-      current_stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE' | 'FINISHED';
-      initial_user_input?: any; // JSONB
-      final_settings?: any; // JSONB
+      id: string; // UUID, 会话的唯一标识符
+      novel_id?: string; // UUID, 流程完成后关联的小说ID
+      user_id?: string; // UUID, 关联的用户
+      status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'; // 整个会话的状态
+      current_stage: 'CONCEPT_SELECTION' | 'STORY_CONCEPTION' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE' | 'FINISHED'; // 当前所处的业务阶段
+      confirmed_data: any; // JSONB, 存储每个阶段已确认的最终数据
       created_at: Date;
       updated_at: Date;
-    }
-    ```
-
-### GenesisStep (创世步骤) - PostgreSQL
-*   **TypeScript 接口:**
-    ```typescript
-    interface GenesisStep {
-      id: string; // UUID
-      session_id: string; // UUID
-      stage: 'INITIAL_PROMPT' | 'WORLDVIEW' | 'CHARACTERS' | 'PLOT_OUTLINE';
-      iteration_count: number;
-      ai_prompt?: string;
-      ai_output: any; // JSONB
-      user_feedback?: string;
-      is_confirmed: boolean;
-      created_at: Date;
     }
     ```
 
@@ -371,184 +555,176 @@ Neo4j将用于存储**每个小说项目内部**的实体间的复杂关系，�
 
 ## Components
 
-### 1. API网关 (API Gateway)
+本系统的组件可以分为两大类：**核心后台服务**，它们是构成系统骨架的技术组件；以及**AI智能体**，它们是执行具体业务逻辑的领域专家。
 
-*   **责任:**
-    *   作为前端UI与后端所有服务的唯一入口点。
-    *   处理所有来自前端的HTTP请求。
-    *   进行身份验证和授权。
-    *   将前端指令（如“开始创世”、“生成章节”）转化为对Prefect工作流的调用。
-    *   提供查询接口，供前端获取工作流状态、结果数据（如章节内容、**项目列表**）、以及**特定项目的Neo4j图数据**。
-*   **关键接口 (部分，参考OpenAPI Spec):**
-    *   `POST /genesis/start`
-    *   `POST /genesis/{session_id}/...`
-    *   `GET /novels` (新增，获取所有小说项目列表)
-    *   `POST /novels/{novel_id}/generate-chapter`
-    *   `GET /chapters/{chapter_id}`
-    *   `GET /workflows/{workflow_run_id}/status` (查询工作流状态)
-    *   `GET /metrics`
-    *   `GET /health`
-    *   `GET /novels/{novel_id}/graph/worldview` (新增，查询指定小说的Neo4j世界观图数据)
-*   **依赖:** PostgreSQL (用于存储创世数据、小说元数据), **Neo4j (用于查询项目级关系图谱)**, Prefect (用于触发工作流), Kafka (可选，用于发布某些UI触发的即时事件)。
-*   **技术栈:** FastAPI, Python, Pydantic。
+### 核心后台服务
 
-### 2. 世界铸造师Agent (Worldsmith Agent)
-*   **责任:**
-    *   在“创世阶段”与人类监督者（通过API网关和UI）交互。
-    *   根据用户的核心创意，调用大模型API生成小说主题、世界观、核心角色阵容和初始剧情弧光的草案。
-    *   辅助用户完成这些初始设定的迭代和确认。
-    *   将最终确认的设定属性写入PostgreSQL，并在Neo4j中创建对应的节点和初始关系 (所有操作均与 `novel_id` 关联)。
-*   **关键接口/事件:**
-    *   **订阅:** (通过内部调用或事件) `GenesisStep.Requested` (例如，请求生成世界观建议，包含 `novel_id`)。
-    *   **发布:** (通过内部调用或事件) `GenesisStep.SuggestionProvided` (包含AI生成的草案)。
-*   **依赖:** 大模型API (通过LiteLLM), PostgreSQL, Neo4j (操作均与 `novel_id` 关联)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+这些服务是整个系统的技术底座，负责流程控制、消息传递和与用户交互。
 
-### 3. 剧情策划师Agent (PlotMaster Agent)
-*   **责任:**
-    *   进行高层次的、战略性的剧情规划 (针对特定 `novel_id`)。
-    *   周期性地（或按需）分析故事的整体进展、节奏和角色弧光。
-    *   发布“高层剧情指令”，如引入新角色、开启新支线、制造情节转折等。
-*   **关键接口/事件:**
-    *   **订阅:** `Novel.AnalysisRequested` (含 `novel_id`), `Chapter.Completed` (含 `novel_id`, 用于计数和触发周期性评估)。
-    *   **发布:** `PlotDirective.Created` (包含具体的剧情指令, 关联 `novel_id`)。
-*   **依赖:** 知识库 (PostgreSQL, Milvus, Neo4j - 所有查询均基于 `novel_id`) 用于获取故事全局信息。
-*   **技术栈:** Python, Pydantic。
+1.  **API网关 (API Gateway)**
+    *   **责任:**
+        *   作为前端UI与后端所有服务的唯一、安全的入口点。
+        *   处理所有来自前端的HTTP请求，包括同步命令（如确认阶段）和异步命令（如请求AI生成）的接收。
+        *   进行身份验证和授权。
+        *   **原子性地**将用户命令写入`command_inbox`，将领域事件写入`domain_events`，并将待发送的Kafka消息写入`event_outbox`。
+        *   提供查询接口，供前端获取状态快照（如`genesis_sessions`）、业务数据（如小说列表、章节内容）以及项目级的Neo4j图数据。
+        *   提供SSE（服务器发送事件）端点，用于向前端实时推送状态更新。
+    *   **关键接口 (部分，参考OpenAPI Spec):**
+        *   `POST /.../commands` (所有用户意图的统一入口)
+        *   `GET /genesis/sessions/{session_id}/state` (获取创世会话状态)
+        *   `GET /novels` (获取所有小说项目列表)
+        *   `GET /chapters/{id}` (获取章节详情)
+        *   `GET /events/stream` (SSE端点)
+    *   **依赖:** PostgreSQL (用于所有原子性写入和状态快照查询)。
+    *   **技术栈:** FastAPI, Python, Pydantic。
 
-### 4. 大纲规划师Agent (Outliner Agent)
-*   **责任:**
-    *   将高层的剧情指令（来自PlotMaster）或简单的“下一章”请求 (均含 `novel_id`)，转化为具体的章节情节大纲。
-*   **关键接口/事件:**
-    *   **订阅:** `OutlineGeneration.Requested` (含 `novel_id`), `PlotDirective.Created` (含 `novel_id`)。
-    *   **发布:** `Outline.Created` (包含章节大纲, 关联 `novel_id`, `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id` 获取上一章结尾和相关上下文)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+2.  **消息中继服务 (Message Relay Service)**
+    *   **责任:**
+        *   作为数据库`event_outbox`表和Kafka之间的可靠桥梁。
+        *   持续轮询`event_outbox`表，查找待发送的消息。
+        *   将消息可靠地发布到Kafka对应的Topic。
+        *   在确认Kafka接收成功后，更新`event_outbox`中消息的状态。
+    *   **技术栈:** Python, `kafka-python`, SQLAlchemy。
 
-### 5. 导演Agent (Director Agent)
-*   **责任:**
-    *   将章节大纲 (关联 `novel_id`, `chapter_id`) 分解为更小的场景序列。
-    *   为每个场景定义核心目标、节奏（紧张、平缓等）、视角（POV）和关键转折点。
-*   **关键接口/事件:**
-    *   **订阅:** `SceneDesign.Requested` (含 `novel_id`, `chapter_id`), `Outline.Created` (含 `novel_id`, `chapter_id`)。
-    *   **发布:** `SceneDesign.Completed` (包含场景卡序列, 关联 `novel_id`, `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id` 获取大纲)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+3.  **工作流编排器 (Workflow Orchestrator - Prefect)**
+    *   **责任:**
+        *   **系统的“大脑”**，负责编排所有复杂的、多步骤的业务流程。
+        *   以一个或多个长时间运行的“守护Flow”的形式，**监听Kafka中的业务请求事件** (如 `Chapter.GenerationRequested`)。
+        *   根据接收到的事件，触发并执行对应的业务工作流（Flow）。
+        *   在Flow内部，通过执行任务（Task）来发布新的、更具体的指令事件到Kafka（通过`event_outbox`），从而驱动AI Agents工作。
+        *   管理Flow的暂停与恢复，通过向`flow_resume_handles`表写入记录来**等待**外部事件（如用户反馈或AI任务完成）。
+    *   **技术栈:** Prefect, Python。
 
-### 6. 角色专家Agent (CharacterExpert Agent)
-*   **责任:**
-    *   根据场景设计 (关联 `novel_id`, `chapter_id`)，规划角色间的具体对话和互动。
-    *   如果场景中出现新角色，负责创建其完整的角色卡（属性入PG, 节点入Neo4j - 均关联 `novel_id`）并触发持久化。
-    *   更新Neo4j中角色间的互动关系 (基于 `novel_id`)。
-*   **关键接口/事件:**
-    *   **订阅:** `CharacterInteractionDesign.Requested` (含 `novel_id`, `chapter_id`), `SceneDesign.Completed` (含 `novel_id`, `chapter_id`)。
-    *   **发布:** `CharacterInteraction.Designed` (关联 `novel_id`, `chapter_id`), `Character.Created` (如果创建了新角色, 关联 `novel_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL获取场景卡、角色属性; Neo4j获取和更新角色关系 - 均基于 `novel_id`)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+4.  **Prefect回调服务 (Prefect Callback Service)**
+    *   **责任:**
+        *   作为外部事件系统与Prefect工作流之间的“唤醒”桥梁。
+        *   监听所有“结果类”的Kafka事件 (如 `Chapter.OutlineCreated`)。
+        *   当收到一个结果事件时，从`flow_resume_handles`表（并利用Redis缓存）中查找是否有正在等待此结果的暂停Flow。
+        *   如果找到，则调用Prefect Server API来恢复对应的Flow，并将结果数据注入其中。
+    *   **技术栈:** Python, `kafka-python`, SQLAlchemy, Redis client, HTTP client。
 
-### 7. 世界观构建师Agent (WorldBuilder Agent)
-*   **责任:**
-    *   在创作过程中，根据需要（例如，导演或作家Agent发现设定不足，针对特定 `novel_id`）扩展和丰富世界观设定。
-    *   确保新的设定属性写入PostgreSQL，并在Neo4j中创建对应的节点和关系 (均关联 `novel_id`)。
-*   **关键接口/事件:**
-    *   **订阅:** `WorldviewExpansion.Requested` (含 `novel_id`)。
-    *   **发布:** `WorldviewEntry.Created` (关联 `novel_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL获取现有世界观属性; Neo4j获取和更新关系 - 均基于 `novel_id`)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+5.  **任务创建服务 (Task Creator Service)**
+    *   **责任:**
+        *   监听Kafka中需要创建异步技术任务的业务请求事件。
+        *   在`async_tasks`表中创建一条任务记录。
+        *   通过`event_outbox`模式，发布一个领域事件（如`Chapter.OutlineGenerationRequested`），该事件包含了新创建的`task_id`，用于通知AI Agent开始工作。
+    *   **技术栈:** Python, `kafka-python`, SQLAlchemy。
+    *   **注:** 在最终实现中，此服务的逻辑可以被吸收为Prefect Flow中的一个可复用任务（Task）。
 
-### 8. 作家Agent (Writer Agent)
-*   **责任:**
-    *   严格遵循导演的场景和节奏指令，并结合角色专家的对话设计 (均关联 `novel_id`, `chapter_id`)，调用大模型API将所有元素渲染成最终的章节草稿。
-*   **关键接口/事件:**
-    *   **订阅:** `ChapterWriting.Requested` (含 `novel_id`, `chapter_id`), `SceneDesign.Completed` (含 `novel_id`, `chapter_id`), `CharacterInteraction.Designed` (含 `novel_id`, `chapter_id`)。
-    *   **发布:** `Chapter.Drafted` (包含章节草稿的URL和元数据, 关联 `novel_id`, `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id` 获取完整的创作指令), Minio (存储草稿, 路径含 `novel_id`)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+### AI智能体 (AI Agents)
 
-### 9. 评论家Agent (Critic Agent)
-*   **责任:**
-    *   对章节草稿 (关联 `novel_id`, `chapter_id`) 的文学质量、节奏感、趣味性和是否符合导演要求进行评估。
-    *   输出结构化的评分和具体的改进建议。
-*   **关键接口/事件:**
-    *   **订阅:** `Critique.Requested` (含 `novel_id`, `chapter_id`), `Chapter.Drafted` (含 `novel_id`, `chapter_id`)。
-    *   **发布:** `Critique.Completed` (包含评分和评论, 关联 `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id` 获取草稿内容)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+这些智能体是**系统的“肌肉”**，每个都是一个独立的微服务，负责执行具体的创作和分析任务。它们都通过消费Kafka中的指令事件来接收任务，并通过`event_outbox`模式来发布描述业务成果的领域事件。
 
-### 10. 事实核查员Agent (FactChecker Agent)
-*   **责任:**
-    *   将章节草稿的内容 (关联 `novel_id`, `chapter_id`) 与知识库中已确立的世界观（PG属性）、角色设定（PG属性）和历史情节（Neo4j关系 - 均基于 `novel_id`）进行比对。
-    *   报告任何发现的不一致之处或逻辑矛盾。
-*   **关键接口/事件:**
-    *   **订阅:** `FactCheck.Requested` (含 `novel_id`, `chapter_id`), `Chapter.Drafted` (含 `novel_id`, `chapter_id`)。
-    *   **发布:** `FactCheck.Completed` (包含一致性报告和问题列表, 关联 `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL, Milvus, Neo4j - 所有查询均基于 `novel_id`)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+6.  **世界铸造师 (Worldsmith Agent)**
+    *   **责任:** 在“创世阶段”与用户交互，根据用户输入或从零开始，生成小说的核心概念、世界观、角色和初始大纲的草案，并响应用户的迭代反馈。
+    *   **关键接口/事件:**
+        *   **订阅:** `Genesis.ConceptGenerationRequested`, `Genesis.WorldviewGenerationRequested`, etc.
+        *   **发布:** `Genesis.ConceptProposed`, `Genesis.WorldviewDrafted`, etc.
+    *   **依赖:** 大模型API (通过LiteLLM), PostgreSQL, Neo4j。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
 
-### 11. 改写者Agent (Rewriter Agent)
-*   **责任:**
-    *   根据评论家Agent的评分和建议，或事实核查员Agent的报告 (均关联 `chapter_id`)，对章节草稿进行针对性的修改和润色。
-*   **关键接口/事件:**
-    *   **订阅:** `Revision.Requested` (通常包含草稿、评论和问题报告, 关联 `chapter_id`)。
-    *   **发布:** `Chapter.Revised` (修改后的草稿，将重新进入评审流程, 关联 `chapter_id`)。
-*   **依赖:** 大模型API (通过LiteLLM), 知识库 (基于 `novel_id`)。
-*   **技术栈:** Python, Pydantic, LiteLLM。
+7.  **剧情策划师 (PlotMaster Agent)**
+    *   **责任:** 进行高层次、战略性的剧情规划。周期性地分析故事全局，并发布“高层剧情指令”。
+    *   **关键接口/事件:**
+        *   **订阅:** `Novel.StrategicReviewRequested`
+        *   **发布:** `Novel.PlotDirectiveCreated`
+    *   **依赖:** 知识库 (PostgreSQL, Milvus, Neo4j) 用于获取故事全局信息。
+    *   **技术栈:** Python, Pydantic。
 
-### Components图
+8.  **大纲规划师 (Outliner Agent)**
+    *   **责任:** 将高层的剧情指令或简单的“下一章”请求，转化为具体的、结构化的章节情节大纲。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.OutlineGenerationRequested`
+        *   **发布:** `Chapter.OutlineCreated`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取上一章结尾和相关上下文)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+9.  **导演 (Director Agent)**
+    *   **责任:** 将章节大纲分解为更小的场景序列，并为每个场景定义核心目标、节奏、视角（POV）和关键转折点。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.SceneDesignRequested`
+        *   **发布:** `Chapter.ScenesDesigned`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取大纲)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+10. **角色专家 (CharacterExpert Agent)**
+    *   **责任:**
+        *   根据场景设计，规划角色间的具体对话和互动。
+        *   如果场景中需要新角色，负责创建其完整的角色卡。
+        *   更新Neo4j中角色间的互动关系。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.CharacterInteractionDesignRequested`
+        *   **发布:** `Chapter.InteractionsDesigned`, `Character.ProfileCreated`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL, Neo4j)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+11. **世界观构建师 (WorldBuilder Agent)**
+    *   **责任:** 在创作过程中，根据需要动态地扩展和丰富世界观设定，并确保其在知识库中的一致性。
+    *   **关键接口/事件:**
+        *   **订阅:** `KnowledgeBase.WorldviewExpansionRequested`
+        *   **发布:** `KnowledgeBase.WorldviewEntryCreated`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL, Neo4j)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+12. **作家 (Writer Agent)**
+    *   **责任:** 最终的“执笔者”。严格遵循导演和角色专家的指令，调用大模型API将所有元素渲染成文笔流畅的章节草稿。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.DraftWritingRequested`
+        *   **发布:** `Chapter.DraftCreated`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取完整的创作指令), Minio (存储草稿)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+13. **评论家 (Critic Agent)**
+    *   **责任:** 对章节草稿的文学质量（如节奏感、趣味性、文笔）进行评估，并输出结构化的评分和改进建议。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.CritiqueRequested`
+        *   **发布:** `Chapter.CritiqueCompleted`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (获取草稿内容)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+14. **事实核查员 (FactChecker Agent)**
+    *   **责任:** 将章节草稿的内容与知识库（PostgreSQL, Neo4j, Milvus）中已确立的事实进行比对，报告任何不一致之处或逻辑矛盾。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.FactCheckRequested`
+        *   **发布:** `Chapter.FactCheckCompleted`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库 (PostgreSQL, Milvus, Neo4j)。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+15. **改写者 (Rewriter Agent)**
+    *   **责任:** 根据评论家或事实核查员的反馈，对章节草稿进行针对性的修改和润色，并生成一个新的版本送回评审流程。
+    *   **关键接口/事件:**
+        *   **订阅:** `Chapter.RevisionRequested`
+        *   **发布:** `Chapter.DraftRevised`
+    *   **依赖:** 大模型API (通过LiteLLM), 知识库。
+    *   **技术栈:** Python, Pydantic, LiteLLM。
+
+### Components图 (概念性)
+
+这张图展示了核心后台服务与AI智能体集群之间的关系。
 
 ```mermaid
 graph TD
-    UI[前端UI<br/>仪表盘, 项目详情] --> APIGW[API网关]
-
-    subgraph "编排层"
-        Orchestrator[Prefect工作流]
-    end
-
-    APIGW --> Orchestrator
-
-    subgraph "事件总线 (Kafka)"
-        KafkaBus[Kafka]
-    end
-
-    Orchestrator -- "触发任务" --> KafkaBus
+    UI[前端UI] --> APIGW[API网关]
     
-    subgraph "智能体集群"
-        WS[世界铸造师]
-        PM[剧情策划师]
-        OL[大纲规划师]
-        DIR[导演]
-        CE[角色专家]
-        WB[世界观构建师]
-        WR[作家]
-        CR[评论家]
-        FC[事实核查员]
-        RW[改写者]
+    subgraph "核心后台服务 (Orchestration & Communication)"
+        APIGW -- "原子写入" --> DB[(PostgreSQL)]
+        DB -- "轮询" --> Relay[Message Relay]
+        Relay -- "发布" --> Kafka[事件总线]
+        Kafka -- "监听" --> Prefect[工作流编排器]
+        Kafka -- "监听" --> CallbackSvc[回调服务]
+        Kafka -- "监听" --> TaskCreator[任务创建服务]
+        Prefect -- "编排指令(via Outbox)" --> DB
+        CallbackSvc -- "唤醒" --> Prefect
     end
 
-    KafkaBus --> WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW
-    WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW --> KafkaBus
-
-    subgraph "支撑服务"
-        LLMGW[LiteLLM网关]
-        LGF[Langfuse]
+    subgraph "AI智能体集群 (Execution)"
+        Agents[...]
     end
+
+    Kafka -- "分派指令" --> Agents
+    Agents -- "发布结果(via Outbox)" --> DB
     
-    subgraph "存储层 (按项目隔离)"
-        PG[(PostgreSQL<br/>小说/章节/角色属性)]
-        MV[(Milvus<br/>项目级文本向量)]
-        N4J[("Neo4j<br/>项目级知识图谱<br/>(世界观,角色关系,情节)")]
-        MN[(Minio<br/>章节文本,大纲文件)]
-    end
-
-    WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW -- "LLM调用" --> LLMGW
-    WS & PM & OL & DIR & CE & WB & WR & CR & FC & RW -- "数据交互 (novel_id scoped)" --> PG & MV & N4J & MN
-    LLMGW -- "日志/追踪" --> LGF
-    APIGW -- "数据查询 (novel_id scoped)" --> PG & N4J
-
-
-    classDef agent fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    classDef support fill:#E8F8F5,stroke:#1ABC9C,stroke-width:2px;
-    class WS,PM,OL,DIR,CE,WB,WR,CR,FC,RW agent;
-    class LLMGW,LGF support;
+    style Agents fill:#D6EAF8,stroke:#2E86C1
 ```
 
 ## External APIs
@@ -563,153 +739,178 @@ graph TD
 *   **速率限制与配额:** 每个LLM提供商都有其速率限制和使用配额。LiteLLM可以帮助我们管理这些限制。
 *   **集成注意事项:** Prompt Engineering, 上下文管理, 错误处理。
 
+## Event Naming Conventions
+
+**核心原则:** 系统中的所有事件都必须是**领域事件（Domain Events）**。它们描述的是在业务领域中**已经发生的事实**，而不是技术实现或未来的指令。事件日志是系统的不可变历史记录，只追加、不修改。
+
+### 1. 命名公式与聚合根 (Naming Formula & Aggregate Root)
+
+所有事件名称必须严格遵循以下结构，并以**真正的聚合根（Aggregate Root）**为核心：
+
+**`<Domain>.<AggregateRoot>.<OptionalSubAggregate>.<ActionInPastTense>`**
+
+*   **`<Domain>` (领域):** 事件所属的最高层级业务上下文。
+    *   **示例:** `Genesis`, `Novel`, `Chapter`, `Character`, `KnowledgeBase`, `Workflow`
+*   **`<AggregateRoot>` (聚合根):** 事件所直接关联的、具有独立生命周期的核心业务实体。**这是事件命名的锚点。**
+    *   **示例:** `Session` (对于创世流程), `Novel` (对于小说本身), `Chapter` (对于章节)
+*   **`<OptionalSubAggregate>` (可选子聚合/实体):** (可选) 用于提高可读性，描述与聚合根紧密相关，但在该事件中是焦点的实体。
+    *   **示例:** `Concept`, `Outline`, `Draft`, `Critique`
+*   **`<ActionInPastTense>` (过去式动作):** 描述已经发生的具体动作。**必须使用官方动词表中的词汇**。
+
+**示例修正 (P0.1):**
+*   **旧:** `Genesis.ConceptGenerationRequested` (不准确，`Concept`不是根)
+*   **新:** `Genesis.Session.ConceptGenerationRequested` (准确，事件挂载在`GenesisSession`这个聚合根上)
+*   **旧:** `Chapter.CritiqueCompleted` (可接受，但可以更精确)
+*   **新:** `Chapter.Review.CritiqueCompleted` (更佳，明确了`Critique`是`Review`的一部分)
+
+### 2. 官方动词表 (Controlled Verb Vocabulary)
+
+为避免歧义和写法不一，所有`<ActionInPastTense>`**必须**从以下官方动词表中选择。
+
+| 动词 (Verb) | 含义 | 适用场景示例 |
+| :--- | :--- | :--- |
+| **`Requested`** | 一个异步流程或操作**被请求**启动。 | `Chapter.GenerationRequested` |
+| **`Created`** | 一个**新的实体**被首次创建并持久化。 | `Character.ProfileCreated` |
+| **`Proposed`** | AI或系统**提出了一个草案**或建议，等待决策。 | `Genesis.Session.ConceptProposed` |
+| **`Submitted`** | 用户**提交了**一份数据或反馈。 | `Genesis.Session.FeedbackSubmitted` |
+| **`Confirmed`** | 一个草案或阶段被用户**最终确认**。 | `Genesis.Session.StageConfirmed` |
+| **`Updated`** | 一个已存在实体的**一个或多个属性**发生了变更。 | `Character.ProfileUpdated` |
+| **`Revised`** | 一个已存在的草案（如章节）被**修订并生成了新版本**。 | `Chapter.DraftRevised` |
+| **`Completed`** | 一个定义明确的、有始有终的**任务或评审**已完成。 | `Chapter.Review.CritiqueCompleted` |
+| **`Finished`** | 一个**完整的、多阶段的业务流程**已成功结束。 | `Genesis.Session.Finished` |
+| **`Failed`** | 一个任务或流程因错误而**异常中止**。 | `Workflow.TaskFailed` |
+
+### 3. 事件版本化策略 (Event Versioning Strategy)
+
+为应对未来业务发展带来的事件结构变更，我们采用**字段版本化**策略，而非名称版本化。
+
+*   **策略:** 每个事件在`domain_events`表中都有一个`event_version`字段（默认为1）。
+*   **演进:**
+    *   当需要对事件的`payload`进行**非破坏性变更**（如增加一个可选字段）时，可以直接修改，`event_version`**保持不变**。
+    *   当需要进行**破坏性变更**（如删除字段、修改字段类型）时，**必须创建一个新的事件类型**，并将其`event_version`**递增为2**。例如，`Chapter.DraftCreated` (v1) -> `Chapter.DraftCreated` (v2)。
+*   **消费者责任:** 事件消费者必须能够识别和处理它们所知道的事件版本。对于不认识的新版本，它们应该优雅地忽略或记录警告。
+*   **禁止:** 严禁使用在事件名称后加`.v2`后缀的方式进行版本管理。
+
+### 4. 强制事件结构 (Mandatory Event Structure)
+
+所有发布到`domain_events`表的事件，其`payload`和`metadata`**必须**包含以下核心上下文字段，以便于追踪和关联。
+
+*   `event_id`: 事件自身的唯一标识符。
+*   `aggregate_id`: 事件所属聚合根的ID。
+*   `aggregate_type`: 事件所属聚合根的类型。
+*   `correlation_id`: 标识一个完整的业务流程（例如，从用户点击到所有副作用完成）。
+*   `causation_id`: 指向触发此事件的上一个事件的`event_id`，形成因果链。
+
+*   **说明:** 具体的`<ActionInPastTense>`体现在消息的`event_type`字段中，由消费者进行过滤，而不是通过不同的Topic来区分。
+
+### 5. 处理复合动作 (Handling Compound Actions)
+
+当一个操作在逻辑上需要更新多个聚合根时，**必须**将其拆分为多个独立的、原子的领域事件。
+
+*   **推荐模式:** 每个聚合根的变更都发布一个自己的事件。例如，一个动作既更新了角色，又推进了故事线，则应发布两个事件：`Character.ProfileUpdated` 和 `Novel.StorylineProgressed`。
+*   **编排:** 由上游的业务逻辑（如Prefect Flow）来保证这两个事件的发布。
+*   **避免:** 避免创建一个模糊的、如`System.StateChanged`的事件，然后在`payload`里塞入大量不同实体的变更。这会破坏事件的单一事实原则。
+
+### 6. 死信队列 (Dead-Letter Queue - DLQ)
+
+*   **策略:** 所有事件消费者在处理事件失败后，**必须**采用带有**指数退避（Exponential Backoff）**策略的重试机制（例如，重试3次，间隔为1s, 2s, 4s）。
+*   **最终失败:** 如果达到最大重试次数后仍然失败，消费者**必须**将这个“毒丸”消息，连同最后的错误信息和堆栈跟踪，一起发送到一个专用的死信队列主题（如 `domain-events.dlq`）。
+*   **确认机制:** 消费者应采用**手动ACK**模式。只有在事件被成功处理（或成功发送到DLQ）后，才向Kafka确认消息消费，以防止消息丢失。
+
 ## Core Workflows
 
-### 1. 创世流程 (Genesis Flow) - UI触发
+本章节通过一系列图表来描绘系统中的核心工作流程。我们将首先展示一个高层次的、面向业务的流程图，以帮助理解“系统在做什么”。随后，我们将提供一个详尽的、包含所有技术实现细节的权威时序图，以精确说明“系统是如何做的”。
+
+### 1. 业务流程：创世流程 (Genesis Flow) - UI触发
+
+这张图描绘了用户从开始创建一个新小说，到通过与AI的多轮交互，最终完成小说核心设定的完整业务旅程。
+
 ```mermaid
 sequenceDiagram
     participant UI as 前端UI
     participant APIGW as API网关
-    participant CS_Agent as 立意构思师Agent
-    participant WS_Agent as 世界铸造师Agent
-    participant PG_DB as PostgreSQL
-    participant N4J_DB as Neo4j
-    participant LLM as 大模型API (通过LiteLLM)
-
-    %% 阶段1: 立意选择 (CONCEPT_SELECTION)
-    %% 用户在UI上填写小说的基本信息并点击"开始创世"
-    UI->>+APIGW: POST /genesis/start (用户偏好, ...)
+    participant DB as PostgreSQL
+    participant Relay as Message Relay
+    participant Kafka as Kafka事件总线
+    participant Prefect as Prefect (Flow Runner)
+    participant PrefectAPI as Prefect Server API
+    participant Redis as Redis (回调缓存)
+    participant CallbackSvc as PrefectCallbackService
+    participant OutlinerAgent as 大纲规划师Agent
+    participant DirectorAgent as 导演Agent
     
-    %% API网关创建创世会话，设置为立意选择阶段
-    APIGW->>+PG_DB: 创建 genesis_session (stage: 'CONCEPT_SELECTION')
-    PG_DB-->>-APIGW: 返回 session_id
-    APIGW-->>-UI: 返回 session_id
+    title 最终架构：基于领域事件和暂停/恢复的完整编排流程
+    
+    %% ======================= 阶段一: 命令接收与请求事件发布 =======================
+    UI->>APIGW: 1. POST /.../commands (command_type: RequestChapterGeneration)
+    APIGW->>DB: 2. (IN TRANSACTION) 写入 command_inbox, domain_events, event_outbox
+    APIGW-->>UI: 3. 返回 202 Accepted
+    
+    Relay->>Kafka: 4. (轮询) 将 "Chapter.GenerationRequested" 事件发布到Kafka
+    
+    %% ======================= 阶段二: Prefect启动并派发首个指令 =======================
+    Kafka-->>+Prefect: 5. Prefect的守护Flow监听到 "Chapter.GenerationRequested"
+    Prefect->>Prefect: 6. 触发 chapter_generation_flow 子流程
+    
+    Note over Prefect: Flow的第一个Task: 通过Outbox发布"生成大纲"指令
+    Prefect->>+DB: 7. (IN TRANSACTION) 创建async_task, 并将 "Chapter.OutlineGenerationRequested" 事件写入outbox
+    DB-->>-Prefect: 确认写入
+    
+    Relay->>Kafka: 8. (轮询) 将 "Chapter.OutlineGenerationRequested" 指令事件发布到Kafka
+    
+    %% ======================= 阶段三: Prefect进入暂停状态，等待大纲完成 =======================
+    Note over Prefect: Flow执行"等待"任务，为"大纲创建"的结果做准备
+    Prefect->>+PrefectAPI: 9. 请求一个恢复句柄 (resume_handle)
+    PrefectAPI-->>-Prefect: 返回句柄
+    
+    Prefect->>+DB: 10. 将回调句柄持久化到 flow_resume_handles (correlation_id: command_id)
+    DB-->>-Prefect: 确认
+    
+    Prefect->>+PrefectAPI: 11. 请求将自身Task Run置为 PAUSED
+    PrefectAPI-->>-Prefect: 确认暂停
+    deactivate Prefect
+    
+    %% ======================= 阶段四: 大纲规划师Agent执行并发布结果 =======================
+    Kafka-->>+OutlinerAgent: 12. 大纲规划师Agent消费到指令
+    OutlinerAgent->>OutlinerAgent: 13. 执行工作...
+    
+    Note over OutlinerAgent: Agent完成工作后，通过Outbox发布领域事件结果
+    OutlinerAgent->>+DB: 14. (IN TRANSACTION) 写入大纲数据, 并将 "Chapter.OutlineCreated" 事件写入outbox
+    DB-->>-OutlinerAgent: 确认
+    deactivate OutlinerAgent
+    
+    %% ======================= 阶段五: 结果事件触发回调，唤醒Flow =======================
+    Relay->>Kafka: 15. (轮询) 发布 "Chapter.OutlineCreated" 结果事件
+    
+    Kafka-->>+CallbackSvc: 16. PrefectCallbackService消费到结果事件
+    CallbackSvc->>CallbackSvc: 17. 解析出关联ID
+    CallbackSvc->>+Redis: 18. 查询并获取回调句柄
+    Redis-->>-CallbackSvc: 返回句柄
+    CallbackSvc->>+PrefectAPI: 19. 调用 resume_task_run(handle, result=event_payload)
+    PrefectAPI-->>-CallbackSvc: 20. 确认任务已恢复
+    deactivate CallbackSvc
+    
+    %% ======================= 阶段六: Flow恢复并继续编排下一步 =======================
+    Note over Prefect: Prefect Worker现在可以继续执行被唤醒的Flow...
+    Prefect->>+Prefect: 21. Flow从暂停点恢复，并获得了 "Chapter.OutlineCreated" 事件的payload
+    
+    Note over Prefect: Flow根据结果，决定并派发下一个指令："场景设计"
+    Prefect->>+DB: 22. (IN TRANSACTION) 创建新的async_task, 并将 "Chapter.SceneDesignRequested" 事件写入outbox
+    DB-->>-Prefect: 确认写入
+    
+    Relay->>Kafka: 23. (轮询) 发布 "Chapter.SceneDesignRequested" 指令事件
+    
+    Kafka-->>DirectorAgent: 24. 导演Agent消费到新指令，开始工作...
+    
+    Note right of Prefect: Flow会再次进入暂停状态，<br>等待 "Chapter.ScenesDesigned" 事件的结果，<br>如此循环，直到整个流程结束。
+    deactivate Prefect
 
-    %% AI异步生成立意选项 (新的SSE模式)
-    UI->>+APIGW: POST /genesis/{sid}/concepts/generate (请求AI生成立意)
-    APIGW->>+PG_DB: 创建异步任务 (genesis_tasks)
-    PG_DB-->>-APIGW: 返回 task_id
-    APIGW-->>-UI: 立即返回 task_id + SSE端点 (202 Accepted)
-
-    %% 建立SSE连接接收实时进度
-    UI->>+APIGW: GET /events/stream?session_id={sid} (建立SSE连接)
-    APIGW-->>-UI: SSE连接建立
-
-    %% 后台异步执行立意生成
-    APIGW->>+CS_Agent: 异步启动立意生成任务
-    CS_Agent->>+PG_DB: 更新任务状态为RUNNING
-    CS_Agent->>+APIGW: 推送 task_started 事件
-    APIGW-->>UI: SSE推送: "开始生成立意..."
-
-    CS_Agent->>+PG_DB: 获取立意模板 (concept_templates)
-    CS_Agent->>+APIGW: 推送 progress_update (0.2, "正在分析用户偏好...")
-    APIGW-->>UI: SSE推送: 进度20%
-
-    CS_Agent->>+LLM: 生成10个立意选项Prompt
-    CS_Agent->>+APIGW: 推送 progress_update (0.6, "正在生成哲学立意...")
-    APIGW-->>UI: SSE推送: 进度60%
-
-    LLM-->>-CS_Agent: 返回立意选项JSON
-    CS_Agent->>+PG_DB: 保存生成步骤 + 完成任务
-    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
-    APIGW-->>UI: SSE推送: 立意生成完成 + 结果数据
-
-    %% 用户选择并提供反馈 (异步迭代优化)
-    UI->>+APIGW: POST /genesis/{sid}/concepts/select (选择的立意ID + 反馈 + action: "iterate")
-    APIGW->>+PG_DB: 保存用户选择 (step_type: 'user_selection')
-    APIGW->>+PG_DB: 创建优化任务 (task_type: 'concept_refinement')
-    PG_DB-->>-APIGW: 返回 refinement_task_id
-    APIGW-->>-UI: 返回 task_id (202 Accepted)
-
-    %% 后台异步执行立意优化
-    APIGW->>+CS_Agent: 异步启动立意优化任务
-    CS_Agent->>+APIGW: 推送 task_started 事件
-    APIGW-->>UI: SSE推送: "开始优化立意..."
-
-    CS_Agent->>+APIGW: 推送 progress_update (0.3, "正在分析用户反馈...")
-    APIGW-->>UI: SSE推送: 进度30%
-
-    CS_Agent->>+LLM: 优化立意Prompt (基于用户反馈)
-    CS_Agent->>+APIGW: 推送 progress_update (0.7, "正在重新生成立意...")
-    APIGW-->>UI: SSE推送: 进度70%
-
-    LLM-->>-CS_Agent: 返回优化后的立意
-    CS_Agent->>+PG_DB: 保存优化步骤 + 完成任务
-    CS_Agent->>+APIGW: 推送 concept_generation_complete 事件
-    APIGW-->>UI: SSE推送: 立意优化完成 + 结果数据
-
-    %% 用户确认最终立意
-    UI->>+APIGW: POST /genesis/{sid}/concepts/confirm (确认最终立意)
-    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'concept_confirmation', is_confirmed: true)
-    PG_DB-->>-APIGW: 确认保存
-    APIGW-->>-UI: 立意确认完成
-
-    %% 阶段2: 故事构思 (STORY_CONCEPTION)
-    UI->>+APIGW: POST /genesis/{sid}/story (请求AI生成故事构思)
-    APIGW->>+PG_DB: 更新会话阶段 (stage: 'STORY_CONCEPTION')
-    PG_DB-->>-APIGW: 确认更新
-    APIGW->>+CS_Agent: 基于确认立意生成故事构思
-    CS_Agent->>+PG_DB: 获取确认的立意数据
-    PG_DB-->>-CS_Agent: 返回立意数据
-    CS_Agent->>+LLM: 生成故事构思Prompt
-    LLM-->>-CS_Agent: 返回故事构思JSON
-    CS_Agent->>+PG_DB: 保存生成步骤 (step_type: 'story_generation')
-    PG_DB-->>-CS_Agent: 确认保存
-    CS_Agent-->>-APIGW: 返回故事构思
-    APIGW-->>-UI: 返回故事构思
-
-    %% 用户反馈并优化故事构思 (可选)
-    UI->>+APIGW: POST /genesis/{sid}/story/refine (用户反馈)
-    APIGW->>+CS_Agent: 根据反馈优化故事构思
-    CS_Agent->>+LLM: 优化故事构思Prompt
-    LLM-->>-CS_Agent: 返回优化构思
-    CS_Agent->>+PG_DB: 保存优化步骤 (step_type: 'story_refinement')
-    PG_DB-->>-CS_Agent: 确认保存
-    CS_Agent-->>-APIGW: 返回优化构思
-    APIGW-->>-UI: 返回优化构思
-
-    %% 用户确认最终故事构思
-    UI->>+APIGW: POST /genesis/{sid}/story/confirm (确认故事构思)
-    APIGW->>+PG_DB: 保存确认步骤 (step_type: 'story_confirmation', is_confirmed: true)
-    PG_DB-->>-APIGW: 确认保存
-    APIGW->>+PG_DB: 创建 Novel 记录 (基于故事构思)
-    APIGW->>+N4J_DB: 创建 :Novel 节点
-    PG_DB-->>-APIGW: 返回 novel_id
-    N4J_DB-->>-APIGW: 确认节点创建
-    APIGW-->>-UI: 故事构思确认完成, 返回 novel_id
-
-    %% 阶段3: 世界观设计 (WORLDVIEW)
-    UI->>+APIGW: POST /genesis/{sid}/worldview (请求AI建议世界观)
-    APIGW->>+PG_DB: 更新会话阶段 (stage: 'WORLDVIEW')
-    PG_DB-->>-APIGW: 确认更新
-    APIGW->>+WS_Agent: 基于故事构思生成世界观
-    WS_Agent->>+PG_DB: 获取确认的故事构思数据
-    PG_DB-->>-WS_Agent: 返回构思数据
-    WS_Agent->>+LLM: 生成世界观草案Prompt
-    LLM-->>-WS_Agent: 返回世界观草案JSON
-    WS_Agent-->>-APIGW: 返回世界观草案
-    APIGW-->>-UI: 返回世界观草案
-
-    %% 用户确认世界观
-    UI->>+APIGW: POST /genesis/{sid}/worldview/confirm (最终世界观数据)
-    APIGW->>+PG_DB: 保存 WorldviewEntry 数据 (关联 novel_id)
-    APIGW->>+N4J_DB: 创建 :WorldviewEntry 节点及关系
-    PG_DB-->>-APIGW: 确认保存
-    N4J_DB-->>-APIGW: 确认创建
-    APIGW-->>-UI: 世界观确认完成
-
-    %% 后续阶段 (CHARACTERS, PLOT_OUTLINE)
-    Note right of UI: 角色设定和剧情大纲流程类似，<br/>基于前序阶段的确认数据<br/>所有操作都关联 novel_id
-
-    %% 完成创世流程
-    UI->>+APIGW: POST /genesis/{sid}/finish
-    APIGW->>+PG_DB: 更新会话状态 (stage: 'FINISHED')
-    APIGW->>+PG_DB: 更新 Novel 状态 (status: 'GENERATING')
-    PG_DB-->>-APIGW: 确认更新
-    APIGW-->>-UI: 创世完成
 ```
 
-### 2. 章节生成流程 (Chapter Generation Flow) - 标准路径
+### 2. 业务流程：章节生成 (Chapter Generation) - 标准路径
+
+这张图展示了一个章节从被请求生成，到经过各个专业Agent流水线处理，最终被评审完成的典型业务流程。
+
 ```mermaid
 sequenceDiagram
     participant APIGW as API网关
@@ -717,138 +918,211 @@ sequenceDiagram
     participant Kafka as 事件总线
     participant OL_Agent as 大纲规划师
     participant DIR_Agent as 导演Agent
-    participant CE_Agent as 角色专家Agent
     participant WR_Agent as 作家Agent
     participant CR_Agent as 评论家Agent
     participant FC_Agent as 事实核查员Agent
     participant PG_DB as PostgreSQL
-    participant N4J_DB as Neo4j
-    participant Minio as 对象存储
-    participant LLM as 大模型API
 
-    %% 流程由API网关触发，调用Prefect启动一个工作流
-    APIGW->>+Prefect: 触发 "生成第N章" 工作流 (novel_id, chapter_num)
+    APIGW->>+Prefect: (通过事件) 触发 "生成第N章" 工作流
     
-    %% Prefect作为编排器，发布第一个任务事件到Kafka
-    Prefect->>+Kafka: 发布 OutlineGeneration.Requested 事件 (含 novel_id)
+    Prefect->>+Kafka: 发布 Chapter.OutlineGenerationRequested 事件
+    Kafka-->>OL_Agent: 消费事件
+    OL_Agent->>OL_Agent: 生成大纲...
+    OL_Agent->>+Kafka: 发布 Chapter.OutlineCreated 事件
     
-    %% 大纲规划师Agent消费该事件，开始工作
-    Kafka-->>OL_Agent: 消费事件 (含 novel_id)
+    Note right of Kafka: 导演、角色专家等Agent<br/>遵循类似模式...
     
-    %% Agent从知识库（PG和Neo4j）中检索必要的上下文信息
-    OL_Agent->>PG_DB & N4J_DB: 获取上下文 (novel_id, 上一章, 世界观, 角色关系)
-    
-    %% Agent调用大模型生成大纲
-    OL_Agent->>LLM: 生成大纲Prompt
-    LLM-->>OL_Agent: 返回大纲
-    
-    %% Agent将产出物存储到对象存储和数据库
-    OL_Agent->>Minio: 存储大纲内容 (路径含 novel_id)
-    OL_Agent->>PG_DB: 记录大纲元数据 (关联 novel_id)
-    
-    %% Agent发布完成事件，触发工作流的下一步
-    OL_Agent->>+Kafka: 发布 Outline.Created 事件 (含 novel_id)
-    
-    %% ... 后续的导演、角色专家等Agent遵循类似的模式 ...
-    %% 消费上一步的完成事件 -> 检索上下文 -> 调用LLM -> 持久化产出 -> 发布自己的完成事件
-    Note right of Kafka: 后续Agent交互类似，<br/>所有数据操作和知识库查询<br/>都基于 novel_id
-    
-    %% 作家Agent完成最终草稿的撰写
-    Kafka-->>WR_Agent: 消费事件 (含 novel_id)
-    WR_Agent->>Minio: 获取场景卡, 互动设计 (基于 novel_id)
-    WR_Agent->>LLM: 生成章节草稿Prompt
-    LLM-->>WR_Agent: 返回章节草稿
-    WR_Agent->>Minio: 存储章节草稿 (路径含 novel_id)
-    WR_Agent->>PG_DB: 记录章节元数据 (关联 novel_id)
-    WR_Agent->>+Kafka: 发布 Chapter.Drafted 事件 (含 novel_id, chapter_id)
+    Kafka-->>WR_Agent: 消费事件
+    WR_Agent->>WR_Agent: 撰写草稿...
+    WR_Agent->>+Kafka: 发布 Chapter.DraftCreated 事件
 
-    %% 评论家Agent和事实核查员Agent并行开始评审
-    Kafka-->>CR_Agent: 消费事件 (含 novel_id, chapter_id)
-    CR_Agent->>Minio: 获取章节草稿 (基于 novel_id, chapter_id)
-    CR_Agent->>LLM: 生成评论Prompt
-    LLM-->>CR_Agent: 返回评分和评论
-    CR_Agent->>PG_DB: 存储Review记录 (关联 chapter_id)
-    CR_Agent->>+Kafka: 发布 Critique.Completed 事件
+    %% 并行评审
+    Kafka-->>CR_Agent: 消费事件
+    CR_Agent->>CR_Agent: 进行文学评审...
+    CR_Agent->>+Kafka: 发布 Chapter.CritiqueCompleted 事件
     
-    Kafka-->>FC_Agent: 消费事件 (含 novel_id, chapter_id)
-    FC_Agent->>Minio: 获取章节草稿 (基于 novel_id, chapter_id)
-    FC_Agent->>PG_DB & N4J_DB: 获取世界观/角色/关系进行比对 (基于 novel_id)
-    FC_Agent->>LLM: (可选) 辅助判断一致性
-    LLM-->>FC_Agent: 返回一致性分析
-    FC_Agent->>PG_DB: 存储Review记录 (关联 chapter_id)
-    FC_Agent->>+Kafka: 发布 FactCheck.Completed 事件
+    Kafka-->>FC_Agent: 消费事件
+    FC_Agent->>FC_Agent: 进行事实核查...
+    FC_Agent->>+Kafka: 发布 FactCheckCompleted 事件
 
-    %% Prefect编排器等待两个评审事件都完成后，进行决策
-    Kafka-->>Prefect: 消费 Critique.Completed 和 FactCheck.Completed
+    Kafka-->>Prefect: 消费评审结果事件
     Prefect->>Prefect: (决策逻辑) 假设评审通过
-    
-    %% 决策通过后，更新章节最终状态
-    Prefect->>PG_DB: 更新章节状态为 'PUBLISHED' (chapter_id)
-    
-    %% 通知API网关，工作流已完成，UI可以更新最终状态
-    Prefect-->>-APIGW: 工作流完成
+    Prefect->>PG_DB: 更新章节状态为 'PUBLISHED'
+    Prefect-->>-APIGW: (通过事件) 通知工作流完成
 ```
 
-### 3. SSE实时更新流程 (SSE Real-time Update Flow)
+### 3. 技术实现：包含所有机制的权威时序图
+
+这张最终的、最详尽的图表展示了我们系统所有核心技术组件是如何协同工作的，特别是**事务性发件箱**和**Prefect的暂停/恢复机制**。这是对系统“如何工作”的最精确描述。
+
 ```mermaid
 sequenceDiagram
+    actor Alice as 用户Alice
     participant UI as 前端UI
     participant APIGW as API网关
-    participant Kafka as 事件总线
-    participant Agent as 后端Agent服务
+    participant DB as PostgreSQL
+    participant Relay as Message Relay
+    participant Kafka as Kafka事件总线
+    participant Prefect as Prefect (Flow Runner)
+    participant PrefectAPI as Prefect Server API
+    participant Redis as Redis (回调缓存)
+    participant CallbackSvc as PrefectCallbackService
+    participant Agent as AI Agent
 
-    UI->>+APIGW: GET /events/stream (建立SSE长连接)
-    APIGW-->>-UI: Connection Established (HTTP 200 OK)
+    title 最终架构：基于领域事件和暂停/恢复机制的完整流程
 
-    Note right of Agent: Agent完成任务...
-    Agent->>+Kafka: 发布 Chapter.StatusUpdated 事件
-    Kafka-->>-APIGW: (API网关消费事件)
-    APIGW-->>UI: 推送SSE消息 (event: chapter_status_update, data: {...})
+    %% ======================= 阶段一: 命令接收与请求事件发布 =======================
+    UI->>APIGW: 1. POST /.../commands (command_type: RequestChapterGeneration)
+    APIGW->>DB: 2. (IN TRANSACTION) 写入 command_inbox, domain_events, event_outbox
+    APIGW-->>UI: 3. 返回 202 Accepted
 
-    Note left of UI: UI监听到事件, 自动更新状态
+    Relay->>Kafka: 4. (轮询) 将 "Chapter.GenerationRequested" 事件发布到Kafka
+
+    %% ======================= 阶段二: Prefect启动工作流并派发首个指令 =======================
+    Kafka-->>+Prefect: 5. Prefect的守护Flow监听到 "Chapter.GenerationRequested"
+    Prefect->>Prefect: 6. 根据事件类型，触发一个具体的子流程 (e.g., chapter_generation_flow)
+    
+    Note over Prefect: Flow的第一个Task: 通过Outbox发布"生成大纲"指令
+    Prefect->>+DB: 7. (IN TRANSACTION) 创建async_task, 并将 "Chapter.OutlineGenerationRequested" 事件写入outbox
+    DB-->>-Prefect: 确认写入
+    
+    Relay->>Kafka: 8. (轮询) 发布 "Chapter.OutlineGenerationRequested" 指令事件
+
+    %% ======================= 阶段三: Prefect进入暂停状态，等待结果 =======================
+    Note over Prefect: 关键：Flow现在执行"等待"任务
+    Prefect->>+PrefectAPI: 9. 请求一个恢复句柄 (resume_handle)
+    PrefectAPI-->>-Prefect: 返回句柄
+    
+    Prefect->>+DB: 10. 将回调句柄持久化到 flow_resume_handles (status: PENDING_PAUSE)
+    DB-->>-Prefect: 确认
+    
+    Prefect->>+Redis: 11. (可选) 缓存回调句柄
+    Redis-->>-Prefect: 确认
+    
+    Prefect->>+PrefectAPI: 12. 请求将自身Task Run置为 PAUSED
+    PrefectAPI-->>-Prefect: 确认暂停 (Flow Worker已释放)
+    deactivate Prefect
+    
+    %% ======================= 阶段四: Agent执行并发布结果事件 =======================
+    Kafka-->>+Agent: 13. 大纲规划师Agent消费到指令
+    Agent->>Agent: 14. 执行工作...
+    
+    Note over Agent: Agent完成工作后，通过Outbox发布领域事件结果
+    Agent->>+DB: 15. (IN TRANSACTION) 写入大纲数据, 并将 "Chapter.OutlineCreated" 事件写入outbox
+    DB-->>-Agent: 确认
+    deactivate Agent
+
+    %% ======================= 阶段五: 结果事件触发回调，唤醒Flow =======================
+    Relay->>Kafka: 16. (轮询) 发布 "Chapter.OutlineCreated" 结果事件
+
+    Kafka-->>+CallbackSvc: 17. PrefectCallbackService消费到结果事件
+    CallbackSvc->>CallbackSvc: 18. 从事件payload中解析出关联ID (e.g., source_command_id)
+    
+    CallbackSvc->>+Redis: 19. 尝试从缓存获取回调句柄
+    Redis-->>-CallbackSvc: 20. 命中缓存，返回句柄 (或回退到DB查询)
+    
+    CallbackSvc->>+PrefectAPI: 21. 调用 resume_task_run(handle, result=event_payload)
+    PrefectAPI->>PrefectAPI: 22. 找到暂停的任务，注入结果，状态改为RUNNING
+    PrefectAPI-->>-CallbackSvc: 23. 返回成功响应
+    deactivate CallbackSvc
+
+    %% ======================= 阶段六: Flow恢复并继续执行 =======================
+    Note over Prefect: Prefect Worker现在可以继续执行被唤醒的Flow...
+    Prefect->>+Prefect: 24. Flow从暂停点恢复，并获得了 "Chapter.OutlineCreated" 事件的payload
+    Prefect->>Prefect: 25. 根据结果，触发流程的下一步 (e.g., 发布 "Chapter.SceneDesignRequested" 指令)...
+    deactivate Prefect
 ```
 
-# REST API Spec
+## REST API Spec
+
 ```yaml
 openapi: 3.0.0
 info:
   title: 多智能体网络小说自动写作系统 - 控制API
-  version: v1.5.0 
+  version: 2.2.0
   description: |
-    用于前端UI与后端工作流系统交互的控制API。
+    用于前端UI与后端工作流系统交互的、基于命令驱动和状态查询的控制API。
     
-    ## 创世流程说明
-    新的创世流程包含以下阶段：
-    1. **CONCEPT_SELECTION** - 立意选择与迭代阶段
-    2. **STORY_CONCEPTION** - 故事构思阶段
-    3. **WORLDVIEW** - 世界观创建阶段
-    4. **CHARACTERS** - 角色设定阶段
-    5. **PLOT_OUTLINE** - 情节大纲阶段
-    6. **FINISHED** - 完成阶段
-    
-    ## 异步处理模式
-    AI agent 交互操作（立意生成、故事构思等）采用异步处理模式：
-    1. 客户端发起请求，服务器立即返回任务ID (202 Accepted)
-    2. 客户端通过SSE订阅实时进度和结果推送
-    3. 服务器通过SSE推送处理进度、阶段更新和最终结果
-    4. 客户端可通过任务状态端点查询任务详情
-
-    前两个阶段支持用户反馈和迭代优化，每次迭代都是异步处理。
-
-    ## SSE最佳实践
-    - **连接管理**: 支持按session_id和task_id灵活订阅
-    - **进度粒度**: 合理的进度更新频率，避免过度推送
-    - **断线重连**: 客户端自动重连机制，任务状态持久化
-    - **错误处理**: 实时错误反馈和重试建议
-    - **心跳机制**: 定期心跳保持连接活跃
-servers:
-  - url: http://localhost:8000/api/v1 
-    description: 本地开发服务器
-  - url: https://your-production-domain.com/api/v1 
-    description: 生产环境服务器
+    ## 核心交互模式
+    1.  **发起操作:** 所有需要后台处理的用户意图，都通过向一个统一的命令端点 `POST /.../commands` 发送一个**命令**来完成。
+    2.  **异步处理:** 对于耗时的操作（如AI生成），API会立即返回 `202 Accepted`，表示命令已被接收。
+    3.  **实时更新:** 客户端应通过 `GET /events/stream` 订阅服务器发送事件（SSE），以接收所有任务的实时进度和状态更新。
+    4.  **状态恢复:** 当UI需要恢复一个流程（如用户刷新页面）时，它应调用对应的状态查询端点（如 `GET /genesis/sessions/{id}/state`）来获取完整的当前上下文。
 
 components:
   schemas:
+    # --- Command & Task Schemas ---
+    CommandRequest:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          description: "命令的唯一类型标识, e.g., 'RequestConceptGeneration', 'ConfirmStage'"
+        payload:
+          type: object
+          description: "与命令相关的具体数据"
+    CommandResponse:
+      type: object
+      properties:
+        command_id:
+          type: string
+          format: uuid
+          description: "被创建的命令的唯一ID"
+        message:
+          type: string
+          description: "确认消息"
+    AsyncTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_type:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED]
+        progress:
+          type: number
+          format: float
+        result_data:
+          type: object
+        error_data:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # --- Genesis Schemas ---
+    GenesisSessionState:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        current_stage:
+          type: string
+          enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+        is_pending:
+          type: boolean
+          description: "当前会话是否正在等待一个后台任务或命令完成"
+        pending_command_type:
+          type: string
+          nullable: true
+          description: "如果is_pending为true, 当前等待的命令类型"
+        confirmed_data:
+          type: object
+          description: "已确认的各阶段数据"
+        last_result:
+          type: object
+          nullable: true
+          description: "上一个完成的AI任务的结果，供UI展示"
+
+    # --- Novel & Chapter Schemas ---
     Novel:
       type: object
       properties:
@@ -930,9 +1204,9 @@ components:
           type: string
           format: uuid
           description: 被评审章节的ID
-        agent_id:
+        agent_type:
           type: string
-          description: 执行评审的Agent的ID
+          description: 执行评审的Agent的类型
         review_type:
           type: string
           enum: [CRITIC, FACT_CHECK]
@@ -956,6 +1230,17 @@ components:
           type: string
           format: date-time
           description: 评审创建时间戳
+    ChapterDetail:
+      type: object
+      properties:
+        chapter:
+          $ref: '#/components/schemas/Chapter'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+
+    # --- Knowledge Base & Metrics Schemas ---
     WorldviewNode: 
       type: object
       properties:
@@ -994,265 +1279,6 @@ components:
         properties: 
           type: object
           description: 关系的属性
-    ConceptTemplate:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: 立意模板唯一标识符
-        core_idea:
-          type: string
-          description: 核心抽象思想，如"知识与无知的深刻对立"
-        description:
-          type: string
-          description: 立意的深层含义阐述
-        philosophical_depth:
-          type: string
-          description: 哲学思辨的深度表达
-        emotional_core:
-          type: string
-          description: 情感核心与内在冲突
-        philosophical_category:
-          type: string
-          description: 哲学类别，如"存在主义"、"人道主义"
-        thematic_tags:
-          type: array
-          items:
-            type: string
-          description: 主题标签数组
-        complexity_level:
-          type: string
-          enum: [simple, medium, complex]
-          description: 思辨复杂度
-        usage_count:
-          type: integer
-          description: 被选择使用的次数统计
-        average_rating:
-          type: number
-          format: float
-          description: 平均用户评分
-    GenesisStartRequest:
-      type: object
-      required:
-        - user_preferences
-      properties:
-        user_preferences:
-          type: object
-          description: 用户偏好设定，如题材、风格、复杂度等
-          properties:
-            preferred_genres:
-              type: array
-              items:
-                type: string
-              description: 偏好的题材类型
-            complexity_preference:
-              type: string
-              enum: [simple, medium, complex]
-              description: 思辨复杂度偏好
-            emotional_themes:
-              type: array
-              items:
-                type: string
-              description: 期望的情感主题
-    GenesisStartResponse:
-      type: object
-      properties:
-        novel_id:
-          type: string
-          format: uuid
-          description: 新创建的小说的ID
-        genesis_session_id:
-          type: string
-          format: uuid
-          description: 用于后续创世步骤的会话ID
-        current_stage:
-          type: string
-          enum: [CONCEPT_SELECTION]
-          description: 当前创世阶段
-    ConceptSelectionRequest:
-      type: object
-      properties:
-        selected_concept_ids:
-          type: array
-          items:
-            type: integer
-          description: 用户选择的立意临时ID列表
-        user_feedback:
-          type: string
-          description: 用户对立意的反馈和要求
-        action:
-          type: string
-          enum: [iterate, confirm]
-          description: 下一步操作：继续迭代或确认立意
-    StoryConceptionRequest:
-      type: object
-      properties:
-        user_feedback:
-          type: string
-          description: 用户对故事构思的反馈
-        specific_adjustments:
-          type: object
-          description: 具体调整要求
-        action:
-          type: string
-          enum: [refine, confirm]
-          description: 下一步操作：优化或确认故事构思
-    GenesisStepRequest: 
-      type: object
-      properties:
-        data:
-          type: object 
-          description: 具体步骤的数据，如世界观条目数组或角色对象数组
-    AsyncTaskResponse:
-      type: object
-      properties:
-        task_id:
-          type: string
-          format: uuid
-          description: 异步任务ID，用于跟踪进度
-        message:
-          type: string
-          description: 任务启动确认消息
-        sse_endpoint:
-          type: string
-          description: SSE端点URL，用于接收实时进度
-    ConceptGenerationResponse:
-      type: object
-      properties:
-        step_type:
-          type: string
-          enum: [ai_generation, concept_refinement]
-          description: 步骤类型
-        generated_concepts:
-          type: array
-          items:
-            type: object
-            properties:
-              temp_id:
-                type: integer
-                description: 临时ID，用于用户选择
-              core_idea:
-                type: string
-                description: 核心抽象思想
-              description:
-                type: string
-                description: 立意描述
-              philosophical_depth:
-                type: string
-                description: 哲学深度
-              emotional_core:
-                type: string
-                description: 情感核心
-        iteration_count:
-          type: integer
-          description: 当前迭代次数
-    StoryConceptionResponse:
-      type: object
-      properties:
-        step_type:
-          type: string
-          enum: [story_generation, story_refinement]
-          description: 步骤类型
-        story_concept:
-          type: object
-          properties:
-            title_suggestions:
-              type: array
-              items:
-                type: string
-              description: 标题建议
-            core_concept:
-              type: string
-              description: 核心故事概念
-            main_themes:
-              type: array
-              items:
-                type: string
-              description: 主要主题
-            target_audience:
-              type: string
-              description: 目标读者群体
-            estimated_length:
-              type: string
-              description: 预计长度
-            genre_suggestions:
-              type: array
-              items:
-                type: string
-              description: 题材建议
-        iteration_count:
-          type: integer
-          description: 当前迭代次数
-    SSEProgressEvent:
-      type: object
-      properties:
-        event:
-          type: string
-          enum: [task_started, progress_update, concept_generation_complete, story_conception_complete, task_complete, task_error]
-          description: 事件类型
-        data:
-          type: object
-          description: 事件数据
-          properties:
-            task_id:
-              type: string
-              format: uuid
-              description: 任务ID
-            session_id:
-              type: string
-              format: uuid
-              description: 会话ID
-            progress:
-              type: number
-              format: float
-              minimum: 0
-              maximum: 1
-              description: 进度百分比 (0.0-1.0)
-            message:
-              type: string
-              description: 进度描述信息
-            stage:
-              type: string
-              description: 当前处理阶段
-            result:
-              type: object
-              description: 处理结果（仅在完成事件中）
-            error:
-              type: object
-              description: 错误信息（仅在错误事件中）
-    GenesisStepResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: 操作是否成功
-        message:
-          type: string
-          description: 相关的状态或错误信息
-        current_stage:
-          type: string
-          enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
-          description: 当前创世阶段
-        next_stage:
-          type: string
-          description: 下一个阶段（如果有）
-    WorkflowStatus:
-      type: object
-      properties:
-        task_id:
-          type: string
-          description: 被查询的工作流任务ID
-        status:
-          type: string
-          description: 工作流的当前状态
-        progress:
-          type: number
-          format: float
-          description: 工作流的完成进度 (0.0 到 1.0)
-        details:
-          type: string
-          description: 关于当前状态的详细描述
     Metrics:
       type: object
       properties:
@@ -1271,12 +1297,12 @@ components:
           type: number
           format: float
           description: 章节需要修订的比例
+
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: 用于API认证的JWT令牌
 
 security:
   - BearerAuth: []
@@ -1285,7 +1311,7 @@ paths:
   /health:
     get:
       summary: 健康检查
-      description: 检查API服务及其依赖项（如数据库）是否正常运行。
+      description: 检查API服务及其依赖项是否正常运行。
       responses:
         '200':
           description: 服务正常
@@ -1297,246 +1323,15 @@ paths:
                   status:
                     type: string
                     example: ok
-  /genesis/start:
+
+  # ================= GENESIS WORKFLOW =================
+  /genesis/sessions:
     post:
-      summary: 启动新的创世流程
-      description: 开始一个新的小说项目，创建初始记录并返回会话ID。新流程从立意选择阶段开始。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenesisStartRequest'
+      summary: 启动一个新的创世会话
+      description: 开始一个新的小说项目，创建会话记录，并返回会话ID。
       responses:
         '201':
-          description: 创世流程已成功启动
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStartResponse'
-        '400':
-          description: 无效请求，例如请求体格式错误
-  /genesis/{session_id}/concepts/generate:
-    post:
-      summary: 异步生成立意选项
-      description: |
-        基于用户偏好异步生成抽象哲学立意选项。该操作会立即返回任务ID，
-        实际生成过程通过SSE推送进度和结果。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      responses:
-        '202':
-          description: 立意生成任务已启动
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncTaskResponse'
-        '400':
-          description: 请求无效或会话状态不正确
-  /genesis/{session_id}/concepts/select:
-    post:
-      summary: 异步提交立意选择
-      description: |
-        用户选择立意并提供反馈，可选择继续迭代或确认立意。
-        如果选择迭代，将异步处理优化过程并通过SSE推送结果。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ConceptSelectionRequest'
-      responses:
-        '200':
-          description: 立意确认成功，可进入下一阶段
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-        '202':
-          description: 立意优化任务已启动
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncTaskResponse'
-  /genesis/{session_id}/story/generate:
-    post:
-      summary: 异步生成故事构思
-      description: |
-        基于确认的立意异步生成具体的故事框架和构思。
-        生成过程通过SSE推送进度和结果。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      responses:
-        '202':
-          description: 故事构思生成任务已启动
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncTaskResponse'
-        '400':
-          description: 请求无效或会话状态不正确
-  /genesis/{session_id}/story/refine:
-    post:
-      summary: 异步优化故事构思
-      description: |
-        根据用户反馈优化或确认故事构思。
-        如果选择优化，将异步处理并通过SSE推送结果。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StoryConceptionRequest'
-      responses:
-        '200':
-          description: 故事构思确认成功，可进入下一阶段
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-        '202':
-          description: 故事构思优化任务已启动
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncTaskResponse'
-  /genesis/{session_id}/worldview:
-    post:
-      summary: 提交世界观设定
-      description: 在创世流程中，基于确认的故事构思设计并保存世界观设定。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenesisStepRequest' 
-      responses:
-        '200':
-          description: 世界观已保存
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-  /genesis/{session_id}/characters:
-    post:
-      summary: 提交核心角色
-      description: 在创世流程中，基于世界观和故事构思设计并保存核心角色设定。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenesisStepRequest' 
-      responses:
-        '200':
-          description: 核心角色已保存
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-  /genesis/{session_id}/plot:
-    post:
-      summary: 提交初始剧情弧光
-      description: 在创世流程中，基于角色设定和故事构思制定并保存初始的剧情大纲或故事弧。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenesisStepRequest' 
-      responses:
-        '200':
-          description: 初始剧情已保存
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-  /genesis/{session_id}/finish:
-    post:
-      summary: 完成并结束创世流程
-      description: 标记创世流程结束，小说项目状态变为待生成。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      responses:
-        '200':
-          description: 创世已完成，小说待生成
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenesisStepResponse'
-  /genesis/{session_id}/status:
-    get:
-      summary: 获取创世会话状态
-      description: 获取当前创世会话的状态和进度信息。
-      parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 创世会话ID
-      responses:
-        '200':
-          description: 成功获取会话状态
+          description: 会话成功创建
           content:
             application/json:
               schema:
@@ -1545,52 +1340,61 @@ paths:
                   session_id:
                     type: string
                     format: uuid
-                    description: 会话ID
-                  current_stage:
-                    type: string
-                    enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
-                    description: 当前阶段
-                  status:
-                    type: string
-                    enum: [IN_PROGRESS, COMPLETED, ABANDONED]
-                    description: 会话状态
-                  confirmed_concepts:
-                    type: array
-                    description: 已确认的立意
-                  confirmed_story_concept:
-                    type: object
-                    description: 已确认的故事构思
-  /concept-templates:
+
+  /genesis/sessions/{session_id}/state:
     get:
-      summary: 获取立意模板
-      description: 获取可用的立意模板列表，支持筛选和排序。
+      summary: 获取或恢复一个创世会话的状态
+      description: 当UI需要恢复创世流程时调用，以获取完整的当前上下文。
       parameters:
-        - name: category
-          in: query
+        - name: session_id
+          in: path
+          required: true
           schema:
             type: string
-          description: 按哲学类别筛选
-        - name: complexity
-          in: query
-          schema:
-            type: string
-            enum: [simple, medium, complex]
-          description: 按复杂度筛选
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-          description: 返回数量限制
+            format: uuid
       responses:
         '200':
-          description: 成功获取立意模板
+          description: 创世会话的当前状态
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ConceptTemplate'
+                $ref: '#/components/schemas/GenesisSessionState'
+        '404':
+          description: 会话未找到
+
+  /genesis/sessions/{session_id}/commands:
+    post:
+      summary: 向创世会话发送一个命令
+      description: |
+        这是创世流程中所有用户意图的统一入口。
+        - 对于异步命令 (如 `RequestConceptGeneration`), 返回 202 Accepted。
+        - 对于同步命令 (如 `ConfirmStage`), 返回 200 OK。
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandRequest'
+      responses:
+        '200':
+          description: 同步命令成功执行
+        '202':
+          description: 异步命令已接受，正在后台处理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '409':
+          description: 冲突。例如，当一个同类型的命令已在处理中时。
+
+  # ================= NOVEL & CHAPTER WORKFLOWS =================
   /novels: 
     get:
       summary: 获取所有小说项目列表
@@ -1604,10 +1408,11 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Novel'
-  /novels/{novel_id}/generate-chapter:
+
+  /novels/{novel_id}/commands:
     post:
-      summary: 触发指定小说生成下一章
-      description: 接受请求，并异步启动一个用于生成指定小说下一章的工作流。
+      summary: 向指定小说发送一个命令
+      description: 用于触发针对已存在小说的操作，如“生成下一章”。
       parameters:
         - name: novel_id
           in: path
@@ -1615,21 +1420,20 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 要生成章节的小说的ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandRequest'
       responses:
         '202':
-          description: 章节生成任务已接受，正在后台处理
+          description: 异步命令已接受
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  task_id: 
-                    type: string
-                    description: 启动的后台工作流任务ID，可用于查询状态
-                  message:
-                    type: string
-                    description: 确认消息
+                $ref: '#/components/schemas/CommandResponse'
+
   /chapters/{chapter_id}:
     get:
       summary: 获取指定章节内容及其评审
@@ -1641,55 +1445,18 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 要获取详情的章节ID
       responses:
         '200':
           description: 成功获取章节详情
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  chapter:
-                    $ref: '#/components/schemas/Chapter'
-                  reviews:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Review'
-  /workflows/{workflow_run_id}/status:
-    get:
-      summary: 查询指定工作流的状态
-      description: 根据从触发任务时获取的ID，查询后台工作流的实时状态。
-      parameters:
-        - name: workflow_run_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 要查询状态的工作流运行ID
-      responses:
-        '200':
-          description: 成功获取工作流状态
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStatus'
-  /metrics:
-    get:
-      summary: 获取系统关键性能与成本指标
-      description: 返回关于系统整体性能和成本的关键指标。
-      responses:
-        '200':
-          description: 成功获取指标
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Metrics'
+                $ref: '#/components/schemas/ChapterDetail'
+
   /novels/{novel_id}/graph/worldview: 
     get:
       summary: 获取指定小说的世界观图谱数据 (用于可视化)
-      description: 从Neo4j中查询并返回特定小说的知识图谱数据，用于前端进行可视化展示。
+      description: 从Neo4j中查询并返回特定小说的知识图谱数据。
       parameters:
         - name: novel_id
           in: path
@@ -1697,7 +1464,6 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 要获取图谱数据的小说ID
       responses:
         '200':
           description: 成功获取图谱数据
@@ -1714,55 +1480,52 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/WorldviewRelationship'
-  /agents/configurations:
+
+  # ================= GENERIC & UTILITY ENDPOINTS =================
+  /tasks/{task_id}:
     get:
-      summary: 获取所有 Agent 的当前配置
-      description: 返回系统中所有Agent的配置信息。
-      responses:
-        '200':
-          description: 成功获取配置列表
-    post:
-      summary: 更新 Agent 配置
-      description: 批量或单个更新Agent的配置项。
-      responses:
-        '200':
-          description: 配置已更新
-  /agents/{agent_type}/configurations:
-    get:
-      summary: 获取特定 Agent 的配置历史
-      description: 返回指定类型Agent的所有配置及其历史记录。
+      summary: 查询指定异步任务的状态
+      description: (可选的回退方案) 如果SSE连接中断，可以用此接口轮询任务状态。
       parameters:
-        - name: agent_type
+        - name: task_id
           in: path
           required: true
           schema:
             type: string
-          description: 要查询配置的Agent类型
+            format: uuid
       responses:
         '200':
-          description: 成功获取特定Agent的配置
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncTask'
+
+  /metrics:
+    get:
+      summary: 获取系统关键性能与成本指标
+      description: 返回关于系统整体性能和成本的关键指标。
+      responses:
+        '200':
+          description: 成功获取指标
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+
   /events/stream:
     get:
       summary: 订阅实时事件流 (SSE)
       description: |
         与此端点建立一个持久连接以接收服务器发送的实时事件。
-        客户端应使用 EventSource API 来消费此流。
-        事件将包含事件类型 (event) 和JSON数据 (data)。
-      security:
-        - BearerAuth: []
+        可以通过查询参数过滤你感兴趣的事件源。
       parameters:
-        - name: session_id
+        - name: context_id
           in: query
           schema:
             type: string
             format: uuid
-          description: 订阅特定创世会话的事件（可选）
-        - name: task_id
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: 订阅特定任务的事件（可选）
+          description: "只订阅与此上下文ID（如session_id）相关的事件"
       responses:
         '200':
           description: 成功建立事件流连接。
@@ -1771,89 +1534,11 @@ paths:
               schema:
                 type: string
                 example: |
-                  event: task_started
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "message": "开始生成立意选项..."}
+                  event: genesis.state.updated
+                  data: {"session_id": "...", "current_stage": "STORY_CONCEPTION", "is_pending": false}
 
-                  event: progress_update
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.3, "message": "正在分析用户偏好...", "stage": "preference_analysis"}
-
-                  event: progress_update
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 0.6, "message": "正在生成哲学立意...", "stage": "concept_generation"}
-
-                  event: concept_generation_complete
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "ai_generation", "generated_concepts": [...]}}
-
-                  event: story_conception_complete
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "progress": 1.0, "result": {"step_type": "story_generation", "story_concept": {...}}}
-
-                  event: task_error
-                  data: {"task_id": "uuid-...", "session_id": "uuid-...", "error": {"code": "GENERATION_FAILED", "message": "立意生成失败"}}
-
-                  event: workflow_status_update
-                  data: {"workflow_run_id": "uuid-...", "status": "RUNNING", "details": "DirectorAgent is processing..."}
-
-                  event: chapter_status_update
-                  data: {"chapter_id": "uuid-...", "status": "REVIEWING"}
-        '401':
-          description: 未经授权
-  /genesis/tasks/{task_id}/status:
-    get:
-      summary: 查询创世任务状态
-      description: 查询特定创世任务的当前状态和进度。
-      parameters:
-        - name: task_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: 任务ID
-      responses:
-        '200':
-          description: 成功获取任务状态
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  task_id:
-                    type: string
-                    format: uuid
-                    description: 任务ID
-                  session_id:
-                    type: string
-                    format: uuid
-                    description: 关联的会话ID
-                  status:
-                    type: string
-                    enum: [PENDING, RUNNING, COMPLETED, FAILED]
-                    description: 任务状态
-                  progress:
-                    type: number
-                    format: float
-                    description: 进度百分比 (0.0-1.0)
-                  stage:
-                    type: string
-                    description: 当前处理阶段
-                  message:
-                    type: string
-                    description: 状态描述
-                  result:
-                    type: object
-                    description: 任务结果（仅在完成时）
-                  error:
-                    type: object
-                    description: 错误信息（仅在失败时）
-                  created_at:
-                    type: string
-                    format: date-time
-                    description: 任务创建时间
-                  updated_at:
-                    type: string
-                    format: date-time
-                    description: 最后更新时间
-        '404':
-          description: 任务未找到
+                  event: task.progress.updated
+                  data: {"task_id": "...", "progress": 50.0, "message": "正在分析角色关系..."}
 ```
 
 
@@ -1861,9 +1546,11 @@ paths:
 
 ### PostgreSQL
 
-#### 混合外键策略说明
-*   **核心领域模型**: 在代表小说核心结构和内容的表之间（如`novels`, `chapters`, `characters`等），**保留**数据库内建的外键约束（`REFERENCES`），以保证数据的强一致性和引用完整性。
-*   **追踪与日志系统**: 在高吞吐量的追踪和日志类表（如`agent_activities`, `events`, `workflow_runs`）中，**不使用**内建外键约束。关联ID将作为普通字段存储，由应用层负责维护其有效性，以获得更好的写入性能和未来扩展的灵活性。
+#### 核心设计原则
+*   **统一事件日志:** `domain_events` 表是整个系统所有业务事实的唯一、不可变来源。
+*   **状态快照:** 核心业务表（如 `novels`, `chapters`, `genesis_sessions`）存储实体的当前状态快照，用于高效查询，其状态由领域事件驱动更新。
+*   **可靠的异步通信:** `command_inbox` (幂等性), `event_outbox` (事务性事件发布), 和 `flow_resume_handles` (工作流恢复) 这三张表共同构成了我们健壮的异步通信和编排的基石。
+*   **混合外键策略:** 在代表核心领域模型的表之间保留数据库级外键约束以保证强一致性。在高吞吐量的日志和追踪类表中，则不使用外键以获得更好的写入性能和灵活性。
 
 #### SQL 定义
 ```sql
@@ -1878,94 +1565,16 @@ $$ LANGUAGE plpgsql;
 
 -- ENUM 类型定义
 CREATE TYPE agent_type AS ENUM ('worldsmith', 'plotmaster', 'outliner', 'director', 'character_expert', 'worldbuilder', 'writer', 'critic', 'fact_checker', 'rewriter');
-CREATE TYPE activity_status AS ENUM ('STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'RETRYING');
-CREATE TYPE workflow_status AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED');
-CREATE TYPE event_status AS ENUM ('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED', 'DEAD_LETTER');
 CREATE TYPE novel_status AS ENUM ('GENESIS', 'GENERATING', 'PAUSED', 'COMPLETED', 'FAILED');
 CREATE TYPE chapter_status AS ENUM ('DRAFT', 'REVIEWING', 'REVISING', 'PUBLISHED');
+CREATE TYPE command_status AS ENUM ('RECEIVED', 'PROCESSING', 'COMPLETED', 'FAILED');
+CREATE TYPE task_status AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED');
+CREATE TYPE outbox_status AS ENUM ('PENDING', 'SENT');
+CREATE TYPE handle_status AS ENUM ('PENDING_PAUSE', 'PAUSED', 'RESUMED', 'EXPIRED');
+CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
+CREATE TYPE genesis_stage AS ENUM ('CONCEPT_SELECTION', 'STORY_CONCEPTION', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED');
 
-CREATE TYPE task_status AS ENUM (
-    'PENDING',    -- 等待处理
-    'RUNNING',    -- 正在运行
-    'COMPLETED',  -- 已完成
-    'FAILED',     -- 失败
-    'CANCELLED'   -- 已取消
-);
-CREATE TYPE genesis_task_type AS ENUM (
-    'concept_generation',     -- 立意生成
-    'concept_refinement',     -- 立意优化
-    'story_generation',       -- 故事构思生成
-    'story_refinement',       -- 故事构思优化
-    'worldview_generation',   -- 世界观生成
-    'character_generation',   -- 角色生成
-    'plot_generation'         -- 剧情生成
-);
-
---- 核心实体表 ---
-
--- 异步任务管理表（用于创世流程中的AI agent交互）
-CREATE TABLE genesis_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务唯一标识符
-    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE, -- 关联的创世会话ID
-    target_stage genesis_stage NOT NULL, -- 任务对应的创世阶段
-    task_type genesis_task_type NOT NULL, -- 任务类型
-    status task_status NOT NULL DEFAULT 'PENDING', -- 任务当前状态
-    progress DECIMAL(4,3) NOT NULL DEFAULT 0.000, -- 任务进度百分比 (0.000-1.000)
-    current_stage VARCHAR(100), -- 当前处理阶段的内部标识
-    message TEXT, -- 面向用户的状态描述消息
-    input_data JSONB NOT NULL, -- 任务输入数据
-    result_data JSONB, -- 任务执行结果
-    error_data JSONB, -- 任务失败时的错误信息
-    result_step_id UUID REFERENCES genesis_steps(id) ON DELETE SET NULL, -- 任务成功时创建的genesis_step记录ID
-    agent_type agent_type, -- 执行任务的Agent类型
-    estimated_duration_seconds INTEGER, -- 预估任务执行时间（秒）
-    actual_duration_seconds INTEGER, -- 实际任务执行时间（秒）
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    started_at TIMESTAMPTZ, -- 任务开始执行时间
-    completed_at TIMESTAMPTZ, -- 任务完成时间
-    
-    -- 约束条件
-    CONSTRAINT progress_range CHECK (progress >= 0.000 AND progress <= 1.000),
-    CONSTRAINT valid_completed_task CHECK (
-        status != 'COMPLETED' OR (result_data IS NOT NULL AND completed_at IS NOT NULL)
-    ),
-    CONSTRAINT valid_failed_task CHECK (
-        status != 'FAILED' OR error_data IS NOT NULL
-    ),
-    CONSTRAINT valid_running_task CHECK (
-        status != 'RUNNING' OR started_at IS NOT NULL
-    )
-);
-
--- 立意模板表（存储AI生成的抽象哲学立意供用户选择）
-CREATE TABLE concept_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 立意模板唯一标识符
-    core_idea VARCHAR(200) NOT NULL, -- 核心抽象思想
-    description VARCHAR(800) NOT NULL, -- 立意的深层含义阐述
-    philosophical_depth VARCHAR(1000) NOT NULL, -- 哲学思辨的深度表达
-    emotional_core VARCHAR(500) NOT NULL, -- 情感核心与内在冲突
-    philosophical_category VARCHAR(100), -- 哲学类别
-    thematic_tags TEXT[] DEFAULT '{}', -- 主题标签数组
-    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium', -- 思辨复杂度
-    universal_appeal BOOLEAN NOT NULL DEFAULT true, -- 是否具有普遍意义
-    cultural_specificity VARCHAR(100), -- 文化特异性
-    usage_count INTEGER NOT NULL DEFAULT 0, -- 被选择使用的次数统计
-    rating_sum INTEGER NOT NULL DEFAULT 0, -- 用户评分总和
-    rating_count INTEGER NOT NULL DEFAULT 0, -- 评分人数
-    is_active BOOLEAN NOT NULL DEFAULT true, -- 是否启用（用于软删除）
-    created_by VARCHAR(50), -- 创建者
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    
-    -- 约束条件
-    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
-    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
-    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
-    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
-    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
-    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
-);
+--- 核心业务实体表 ---
 
 CREATE TABLE novels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 小说唯一ID
@@ -1976,11 +1585,10 @@ CREATE TABLE novels (
     target_chapters INTEGER NOT NULL DEFAULT 0, -- 目标章节数
     completed_chapters INTEGER NOT NULL DEFAULT 0, -- 已完成章节数
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE novels IS '存储每个独立小说项目的核心元数据。';
 
 CREATE TABLE chapter_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 章节版本的唯一ID
@@ -1995,6 +1603,7 @@ CREATE TABLE chapter_versions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 版本创建时间
     UNIQUE(chapter_id, version_number)
 );
+COMMENT ON TABLE chapter_versions IS '存储一个章节的每一次具体内容的迭代版本，实现版本控制。';
 
 CREATE TABLE chapters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 章节唯一ID
@@ -2004,14 +1613,14 @@ CREATE TABLE chapters (
     status chapter_status NOT NULL DEFAULT 'DRAFT', -- 章节当前状态
     published_version_id UUID REFERENCES chapter_versions(id) ON DELETE SET NULL, -- 指向当前已发布版本的ID
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
     UNIQUE (novel_id, chapter_number)
 );
+COMMENT ON TABLE chapters IS '存储章节的元数据，与具体的版本内容分离。';
 
 ALTER TABLE chapter_versions ADD CONSTRAINT fk_chapter_versions_chapter_id FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE;
+ALTER TABLE chapters ADD CONSTRAINT check_published_version CHECK (published_version_id IS NULL OR EXISTS (SELECT 1 FROM chapter_versions cv WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id));
 
 CREATE TABLE characters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 角色唯一ID
@@ -2023,26 +1632,24 @@ CREATE TABLE characters (
     personality_traits TEXT[], -- 性格特点列表
     goals TEXT[], -- 角色的主要目标列表
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE characters IS '存储小说中所有角色的详细设定信息。';
 
 CREATE TABLE worldview_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 世界观条目唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- 所属小说的ID
+    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- 所属小শনেরID
     entry_type VARCHAR(50) NOT NULL, -- 条目类型 (如 'LOCATION', 'ORGANIZATION')
     name VARCHAR(255) NOT NULL, -- 条目名称
     description TEXT, -- 详细描述
     tags TEXT[], -- 标签，用于分类和检索
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
     UNIQUE (novel_id, name, entry_type)
 );
+COMMENT ON TABLE worldview_entries IS '存储世界观中的所有设定条目，如地点、组织、物品等。';
 
 CREATE TABLE story_arcs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 故事弧唯一ID
@@ -2053,17 +1660,15 @@ CREATE TABLE story_arcs (
     end_chapter_number INTEGER, -- 结束章节号
     status VARCHAR(50) DEFAULT 'PLANNED', -- 状态 (如 'PLANNED', 'ACTIVE', 'COMPLETED')
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE story_arcs IS '存储主要的情节线或故事阶段的规划。';
 
 CREATE TABLE reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 评审记录唯一ID
     chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- 关联的章节ID
     chapter_version_id UUID NOT NULL REFERENCES chapter_versions(id) ON DELETE CASCADE, -- 评审针对的具体章节版本ID
-    workflow_run_id UUID, -- 关联的工作流运行ID (无外键)
     agent_type agent_type NOT NULL, -- 执行评审的Agent类型
     review_type VARCHAR(50) NOT NULL, -- 评审类型 (如 'CRITIC', 'FACT_CHECK')
     score NUMERIC(3, 1), -- 评论家评分
@@ -2072,208 +1677,96 @@ CREATE TABLE reviews (
     issues_found TEXT[], -- 事实核查员发现的问题列表
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 评审创建时间
 );
+COMMENT ON TABLE reviews IS '记录每一次对章节草稿的评审结果。';
 
---- 中间产物表 ---
-
-CREATE TABLE outlines (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 大纲唯一ID
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- 关联的章节ID
-    created_by_agent_type agent_type, -- 创建此大纲的Agent类型
-    version INTEGER NOT NULL DEFAULT 1, -- 大纲版本号
-    content TEXT NOT NULL, -- 大纲文本内容
-    content_url TEXT, -- 指向Minio中存储的大纲文件URL
-    metadata JSONB, -- 额外的结构化元数据
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    UNIQUE(chapter_id, version)
-);
-
-CREATE TABLE scene_cards (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 场景卡唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- (冗余) 所属小说ID，用于性能优化
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- (冗余) 所属章节ID，用于性能优化
-    outline_id UUID NOT NULL REFERENCES outlines(id) ON DELETE CASCADE, -- 关联的大纲ID
-    created_by_agent_type agent_type, -- 创建此场景卡的Agent类型
-    scene_number INTEGER NOT NULL, -- 场景在章节内的序号
-    pov_character_id UUID REFERENCES characters(id), -- 视角角色ID
-    content JSONB NOT NULL, -- 场景的详细设计 (如节奏、目标、转折点)
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 创建时间
-);
-
-CREATE TABLE character_interactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 角色互动唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- (冗余) 所属小说ID
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- (冗余) 所属章节ID
-    scene_card_id UUID NOT NULL REFERENCES scene_cards(id) ON DELETE CASCADE, -- 关联的场景卡ID
-    created_by_agent_type agent_type, -- 创建此互动的Agent类型
-    interaction_type VARCHAR(50), -- 互动类型 (如 'dialogue', 'action')
-    content JSONB NOT NULL, -- 互动的详细内容 (如对话文本)
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 创建时间
-);
-
---- 追踪与配置表 (无外键) ---
-
-CREATE TABLE workflow_runs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 工作流运行实例的唯一ID
-    novel_id UUID NOT NULL, -- 关联的小说ID
-    workflow_type VARCHAR(100) NOT NULL, -- 工作流类型 (如 'chapter_generation')
-    status workflow_status NOT NULL, -- 工作流当前状态
-    parameters JSONB, -- 启动工作流时传入的参数
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 开始时间
-    completed_at TIMESTAMPTZ, -- 完成时间
-    error_details JSONB -- 如果失败，记录错误详情
-);
-
-CREATE TABLE agent_activities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Agent活动的唯一ID
-    workflow_run_id UUID, -- 关联的工作流运行ID
-    novel_id UUID NOT NULL, -- 关联的小说ID
-    target_entity_id UUID, -- 活动操作的目标实体ID (如 chapter_id, character_id)
-    target_entity_type VARCHAR(50), -- 目标实体类型 (如 'CHAPTER', 'CHARACTER')
-    agent_type agent_type, -- 执行活动的Agent类型
-    activity_type VARCHAR(100) NOT NULL, -- 活动类型 (如 'GENERATE_OUTLINE', 'WRITE_DRAFT')
-    status activity_status NOT NULL, -- 活动状态
-    input_data JSONB, -- 活动的输入数据摘要
-    output_data JSONB, -- 活动的输出数据摘要
-    error_details JSONB, -- 如果失败，记录错误详情
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 开始时间
-    completed_at TIMESTAMPTZ, -- 完成时间
-    duration_seconds INTEGER GENERATED ALWAYS AS (EXTRACT(EPOCH FROM (completed_at - started_at))::INTEGER) STORED, -- 持续时间（秒）
-    llm_tokens_used INTEGER, -- 调用LLM消耗的Token数
-    llm_cost_estimate DECIMAL(10, 6), -- 调用LLM的估算成本
-    retry_count INTEGER DEFAULT 0 -- 重试次数
-) PARTITION BY RANGE (started_at);
-
-CREATE TABLE events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 事件唯一ID
-    event_type VARCHAR(100) NOT NULL, -- 事件类型 (如 'Outline.Created')
-    novel_id UUID, -- 关联的小说ID
-    workflow_run_id UUID, -- 关联的工作流运行ID
-    payload JSONB NOT NULL, -- 事件的完整载荷
-    status event_status NOT NULL DEFAULT 'PENDING', -- 事件处理状态
-    processed_by_agent_type agent_type, -- 处理此事件的Agent类型
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 事件创建时间
-    processed_at TIMESTAMPTZ, -- 事件处理完成时间
-    error_details JSONB -- 如果处理失败，记录错误详情
-);
-
-CREATE TABLE agent_configurations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 配置项唯一ID
-    novel_id UUID, -- 关联的小说ID (NULL表示全局配置)
-    agent_type agent_type, -- 配置作用的Agent类型
-    config_key VARCHAR(255) NOT NULL, -- 配置项名称 (如 'llm_model')
-    config_value TEXT NOT NULL, -- 配置项的值
-    is_active BOOLEAN DEFAULT true, -- 是否启用此配置
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    UNIQUE(novel_id, agent_type, config_key)
-);
-
---- 创世流程追踪表 ---
-
-CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
-CREATE TYPE genesis_stage AS ENUM (
-    'CONCEPT_SELECTION',  -- 立意选择与迭代阶段：用户从AI生成的抽象立意中选择并优化
-    'STORY_CONCEPTION',   -- 故事构思阶段：将确认的立意转化为具体故事框架
-    'WORLDVIEW',          -- 世界观创建阶段：基于故事构思设计详细世界观
-    'CHARACTERS',         -- 角色设定阶段：设计主要角色
-    'PLOT_OUTLINE',       -- 情节大纲阶段：制定整体剧情框架
-    'FINISHED'            -- 完成阶段：创世过程结束
-);
-
--- 立意模板表：存储AI生成的抽象哲学立意供用户选择
-CREATE TABLE concept_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- 核心立意内容（抽象哲学思想）
-    core_idea VARCHAR(200) NOT NULL,
-    description VARCHAR(800) NOT NULL,
-    
-    -- 哲学维度
-    philosophical_depth VARCHAR(1000) NOT NULL,
-    emotional_core VARCHAR(500) NOT NULL,
-    
-    -- 分类标签（抽象层面）
-    philosophical_category VARCHAR(100),
-    thematic_tags TEXT[] DEFAULT '{}',
-    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium',
-    
-    -- 适用性
-    universal_appeal BOOLEAN NOT NULL DEFAULT true,
-    cultural_specificity VARCHAR(100),
-    
-    -- 使用统计
-    usage_count INTEGER NOT NULL DEFAULT 0,
-    rating_sum INTEGER NOT NULL DEFAULT 0,
-    rating_count INTEGER NOT NULL DEFAULT 0,
-    
-    -- 元数据
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_by VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- 约束条件
-    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
-    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
-    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
-    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
-    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
-    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
-);
+--- 状态快照表 ---
 
 CREATE TABLE genesis_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
-    user_id UUID,
-    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS',
-    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION',
-    initial_user_input JSONB,
-    final_settings JSONB,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 会话的唯一标识符
+    novel_id UUID REFERENCES novels(id) ON DELETE SET NULL, -- 流程完成后关联的小说ID
+    user_id UUID, -- 关联的用户ID
+    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS', -- 整个会话的状态
+    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION', -- 当前所处的业务阶段
+    confirmed_data JSONB, -- 存储每个阶段已确认的最终数据
+    version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+COMMENT ON TABLE genesis_sessions IS '作为创世流程的“状态快照”，用于高效查询当前流程的状态，其状态由领域事件驱动更新。';
 
-CREATE TABLE genesis_steps (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE,
-    stage genesis_stage NOT NULL,
-    iteration_count INTEGER NOT NULL,
-    ai_prompt TEXT,
-    ai_output JSONB NOT NULL,
-    user_feedback TEXT,
-    is_confirmed BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_iteration_per_stage UNIQUE (session_id, stage, iteration_count)
+--- 核心架构机制表 ---
+
+CREATE TABLE domain_events (
+    id BIGSERIAL PRIMARY KEY, -- 使用自增整数，保证事件的严格顺序
+    event_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(), -- 事件的全局唯一标识符
+    correlation_id UUID, -- 用于追踪一个完整的业务流程或请求链
+    causation_id UUID,   -- 指向触发此事件的上一个事件的event_id，形成因果链
+    event_type TEXT NOT NULL, -- 事件的唯一类型标识 (e.g., 'genesis.concept.proposed')
+    event_version INTEGER NOT NULL DEFAULT 1, -- 事件模型的版本号
+    aggregate_type TEXT NOT NULL, -- 聚合根类型 (e.g., 'GENESIS_SESSION', 'NOVEL')
+    aggregate_id TEXT NOT NULL,   -- 聚合根的ID
+    payload JSONB, -- 事件的具体数据
+    metadata JSONB, -- 附加元数据 (如 user_id, source_service)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+COMMENT ON TABLE domain_events IS '统一的领域事件日志，是整个系统所有业务事实的唯一、不可变来源（Source of Truth）。';
 
---- 索引定义 ---
+CREATE TABLE command_inbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 命令的唯一ID
+    session_id UUID NOT NULL, -- 关联的会话ID，用于限定作用域
+    command_type TEXT NOT NULL, -- 命令类型 (e.g., 'RequestConceptGeneration')
+    idempotency_key TEXT NOT NULL, -- 用于防止重复的幂等键
+    payload JSONB, -- 命令的参数
+    status command_status NOT NULL DEFAULT 'RECEIVED', -- 命令处理状态
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE command_inbox IS '命令收件箱，通过唯一性约束为需要异步处理的命令提供幂等性保证。';
+CREATE UNIQUE INDEX idx_command_inbox_unique_pending_command ON command_inbox (session_id, command_type) WHERE status IN ('RECEIVED', 'PROCESSING');
+
+
+CREATE TABLE async_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务的唯一ID
+    task_type TEXT NOT NULL, -- 任务类型 (e.g., 'genesis.concept_generation')
+    triggered_by_command_id UUID, -- 触发此任务的命令ID
+    status task_status NOT NULL DEFAULT 'PENDING', -- 任务执行状态
+    progress DECIMAL(5, 2) NOT NULL DEFAULT 0.0, -- 任务进度
+    input_data JSONB, -- 任务的输入参数
+    result_data JSONB, -- 任务成功后的结果
+    error_data JSONB, -- 任务失败时的错误信息
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE async_tasks IS '通用的异步任务表，用于追踪所有后台技术任务（如调用LLM）的执行状态。';
+
+CREATE TABLE event_outbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 发件箱记录ID
+    topic TEXT NOT NULL, -- 目标Kafka主题
+    key TEXT, -- Kafka消息的Key
+    payload JSONB NOT NULL, -- 消息的完整内容
+    status outbox_status NOT NULL DEFAULT 'PENDING', -- 消息发送状态
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE event_outbox IS '事务性发件箱，保证数据库写入与向Kafka发布事件之间的原子性。';
+
+CREATE TABLE flow_resume_handles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 句柄记录ID
+    correlation_id TEXT NOT NULL, -- 用于查找的关联ID (如task_id, command_id)
+    resume_handle JSONB NOT NULL, -- Prefect提供的、用于恢复的完整JSON对象
+    status handle_status NOT NULL DEFAULT 'PENDING_PAUSE', -- 回调句柄的状态
+    resume_payload JSONB, -- 用于存储提前到达的恢复数据，解决竞态条件
+    expires_at TIMESTAMPTZ, -- 过期时间
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE flow_resume_handles IS '持久化存储Prefect工作流的暂停/恢复句柄，以应对缓存失效，确保系统容错性。';
+CREATE UNIQUE INDEX idx_flow_resume_handles_unique_correlation ON flow_resume_handles (correlation_id) WHERE status IN ('PENDING_PAUSE', 'PAUSED');
+
+--- 索引与触发器 ---
 
 -- 性能关键索引
-CREATE INDEX idx_agent_activities_novel_agent ON agent_activities(novel_id, agent_type, started_at DESC);
-CREATE INDEX idx_workflow_runs_novel_status ON workflow_runs(novel_id, status);
-CREATE INDEX idx_events_type_status ON events(event_type, status);
-CREATE INDEX idx_chapter_versions_chapter ON chapter_versions(chapter_id, version_number DESC);
-
--- 用于关联查询的索引
+CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
+CREATE INDEX idx_async_tasks_status_type ON async_tasks(status, task_type);
 CREATE INDEX idx_reviews_chapter_version ON reviews(chapter_id, chapter_version_id);
-CREATE INDEX idx_scene_cards_chapter ON scene_cards(chapter_id, scene_number);
-CREATE INDEX idx_outlines_chapter ON outlines(chapter_id);
-CREATE INDEX idx_character_interactions_scene ON character_interactions(scene_card_id);
-
--- 创世流程相关索引
-CREATE INDEX idx_genesis_sessions_stage_status ON genesis_sessions(current_stage, status) WHERE status = 'IN_PROGRESS';
-CREATE INDEX idx_genesis_steps_session_stage_confirmed ON genesis_steps(session_id, stage, is_confirmed);
-CREATE INDEX idx_genesis_steps_ai_output_step_type ON genesis_steps USING GIN ((ai_output->'step_type'));
-CREATE INDEX idx_genesis_steps_confirmed_created_at ON genesis_steps(created_at) WHERE is_confirmed = true;
-
--- 立意模板相关索引
-CREATE INDEX idx_concept_templates_philosophical_category ON concept_templates(philosophical_category) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_complexity_level ON concept_templates(complexity_level) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_thematic_tags ON concept_templates USING GIN(thematic_tags) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_usage_count ON concept_templates(usage_count DESC) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_rating ON concept_templates((rating_sum::float / NULLIF(rating_count, 0)) DESC NULLS LAST) WHERE is_active = true AND rating_count > 0;
-
---- 触发器定义 ---
 
 -- 为所有有 updated_at 的表创建触发器
 CREATE TRIGGER set_timestamp_novels BEFORE UPDATE ON novels FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -2281,82 +1774,10 @@ CREATE TRIGGER set_timestamp_chapters BEFORE UPDATE ON chapters FOR EACH ROW EXE
 CREATE TRIGGER set_timestamp_characters BEFORE UPDATE ON characters FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_worldview_entries BEFORE UPDATE ON worldview_entries FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_story_arcs BEFORE UPDATE ON story_arcs FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
-CREATE TRIGGER set_timestamp_agent_configurations BEFORE UPDATE ON agent_configurations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
-CREATE TRIGGER set_timestamp_concept_templates BEFORE UPDATE ON concept_templates FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_genesis_sessions BEFORE UPDATE ON genesis_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_async_tasks BEFORE UPDATE ON async_tasks FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_handles FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
---- 数据完整性约束 ---
-
--- 确保 published_version_id 指向的版本属于同一章节
-ALTER TABLE chapters ADD CONSTRAINT check_published_version 
-CHECK (published_version_id IS NULL OR EXISTS (
-    SELECT 1 FROM chapter_versions cv 
-    WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id
-));
-
--- 确保创世流程新阶段的数据完整性
--- 确保 CONCEPT_SELECTION 阶段的 ai_output 包含有效的 step_type
-ALTER TABLE genesis_steps 
-ADD CONSTRAINT valid_concept_selection_data 
-CHECK (
-    stage != 'CONCEPT_SELECTION' OR (
-        ai_output ? 'step_type' AND 
-        ai_output->>'step_type' IN ('ai_generation', 'user_selection', 'concept_refinement', 'concept_confirmation')
-    )
-);
-
--- 确保 STORY_CONCEPTION 阶段的 ai_output 包含有效的 step_type
-ALTER TABLE genesis_steps 
-ADD CONSTRAINT valid_story_conception_data 
-CHECK (
-    stage != 'STORY_CONCEPTION' OR (
-        ai_output ? 'step_type' AND 
-        ai_output->>'step_type' IN ('story_generation', 'story_refinement', 'story_confirmation')
-    )
-);
-
--- 确保每个阶段只能有一个已确认的最终步骤
-CREATE UNIQUE INDEX idx_genesis_steps_unique_confirmed_per_stage 
-    ON genesis_steps(session_id, stage) 
-    WHERE is_confirmed = true;
-
---- 未来扩展性规划 (Post-MVP) ---
-
--- 分区表示例: 为 agent_activities 表自动创建每月分区
-CREATE OR REPLACE FUNCTION create_monthly_partition(target_table TEXT)
-RETURNS void AS $$
-DECLARE
-    start_date date;
-    end_date date;
-    partition_name text;
-BEGIN
-    start_date := date_trunc('month', CURRENT_DATE);
-    end_date := start_date + interval '1 month';
-    partition_name := target_table || '_' || to_char(start_date, 'YYYY_MM');
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = partition_name) THEN
-        EXECUTE format(
-            'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L)',
-            partition_name, target_table, start_date, end_date
-        );
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
--- 注意: 需要一个定时任务 (如 pg_cron) 来定期调用此函数，例如: SELECT create_monthly_partition('agent_activities');
-
--- 可选的通用审计日志表
--- 目的: 提供一个更低级别的、由数据库触发器驱动的审计日志，记录所有表的变更。
--- 这与 agent_activities 表形成互补：agent_activities 记录“业务活动”，而 audit_log 记录“数据变更”。
-CREATE TABLE audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 审计日志唯一ID
-    table_name VARCHAR(63) NOT NULL, -- 发生变更的表名
-    record_id UUID NOT NULL, -- 发生变更的记录ID
-    operation VARCHAR(10) NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')), -- 操作类型
-    changed_by_agent_type agent_type, -- 执行变更的Agent类型 (需要通过 session 变量等方式传入)
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 变更发生时间
-    old_values JSONB, -- 对于UPDATE和DELETE，记录旧值
-    new_values JSONB -- 对于INSERT和UPDATE，记录新值
-);
 ```
 
 ### Neo4j

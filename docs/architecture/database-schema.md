@@ -2,9 +2,11 @@
 
 ## PostgreSQL
 
-### 混合外键策略说明
-*   **核心领域模型**: 在代表小说核心结构和内容的表之间（如`novels`, `chapters`, `characters`等），**保留**数据库内建的外键约束（`REFERENCES`），以保证数据的强一致性和引用完整性。
-*   **追踪与日志系统**: 在高吞吐量的追踪和日志类表（如`agent_activities`, `events`, `workflow_runs`）中，**不使用**内建外键约束。关联ID将作为普通字段存储，由应用层负责维护其有效性，以获得更好的写入性能和未来扩展的灵活性。
+### 核心设计原则
+*   **统一事件日志:** `domain_events` 表是整个系统所有业务事实的唯一、不可变来源。
+*   **状态快照:** 核心业务表（如 `novels`, `chapters`, `genesis_sessions`）存储实体的当前状态快照，用于高效查询，其状态由领域事件驱动更新。
+*   **可靠的异步通信:** `command_inbox` (幂等性), `event_outbox` (事务性事件发布), 和 `flow_resume_handles` (工作流恢复) 这三张表共同构成了我们健壮的异步通信和编排的基石。
+*   **混合外键策略:** 在代表核心领域模型的表之间保留数据库级外键约束以保证强一致性。在高吞吐量的日志和追踪类表中，则不使用外键以获得更好的写入性能和灵活性。
 
 ### SQL 定义
 ```sql
@@ -19,94 +21,16 @@ $$ LANGUAGE plpgsql;
 
 -- ENUM 类型定义
 CREATE TYPE agent_type AS ENUM ('worldsmith', 'plotmaster', 'outliner', 'director', 'character_expert', 'worldbuilder', 'writer', 'critic', 'fact_checker', 'rewriter');
-CREATE TYPE activity_status AS ENUM ('STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'RETRYING');
-CREATE TYPE workflow_status AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED');
-CREATE TYPE event_status AS ENUM ('PENDING', 'PROCESSING', 'PROCESSED', 'FAILED', 'DEAD_LETTER');
 CREATE TYPE novel_status AS ENUM ('GENESIS', 'GENERATING', 'PAUSED', 'COMPLETED', 'FAILED');
 CREATE TYPE chapter_status AS ENUM ('DRAFT', 'REVIEWING', 'REVISING', 'PUBLISHED');
+CREATE TYPE command_status AS ENUM ('RECEIVED', 'PROCESSING', 'COMPLETED', 'FAILED');
+CREATE TYPE task_status AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED');
+CREATE TYPE outbox_status AS ENUM ('PENDING', 'SENT');
+CREATE TYPE handle_status AS ENUM ('PENDING_PAUSE', 'PAUSED', 'RESUMED', 'EXPIRED');
+CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
+CREATE TYPE genesis_stage AS ENUM ('CONCEPT_SELECTION', 'STORY_CONCEPTION', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED');
 
-CREATE TYPE task_status AS ENUM (
-    'PENDING',    -- 等待处理
-    'RUNNING',    -- 正在运行
-    'COMPLETED',  -- 已完成
-    'FAILED',     -- 失败
-    'CANCELLED'   -- 已取消
-);
-CREATE TYPE genesis_task_type AS ENUM (
-    'concept_generation',     -- 立意生成
-    'concept_refinement',     -- 立意优化
-    'story_generation',       -- 故事构思生成
-    'story_refinement',       -- 故事构思优化
-    'worldview_generation',   -- 世界观生成
-    'character_generation',   -- 角色生成
-    'plot_generation'         -- 剧情生成
-);
-
---- 核心实体表 ---
-
--- 异步任务管理表（用于创世流程中的AI agent交互）
-CREATE TABLE genesis_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务唯一标识符
-    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE, -- 关联的创世会话ID
-    target_stage genesis_stage NOT NULL, -- 任务对应的创世阶段
-    task_type genesis_task_type NOT NULL, -- 任务类型
-    status task_status NOT NULL DEFAULT 'PENDING', -- 任务当前状态
-    progress DECIMAL(4,3) NOT NULL DEFAULT 0.000, -- 任务进度百分比 (0.000-1.000)
-    current_stage VARCHAR(100), -- 当前处理阶段的内部标识
-    message TEXT, -- 面向用户的状态描述消息
-    input_data JSONB NOT NULL, -- 任务输入数据
-    result_data JSONB, -- 任务执行结果
-    error_data JSONB, -- 任务失败时的错误信息
-    result_step_id UUID REFERENCES genesis_steps(id) ON DELETE SET NULL, -- 任务成功时创建的genesis_step记录ID
-    agent_type agent_type, -- 执行任务的Agent类型
-    estimated_duration_seconds INTEGER, -- 预估任务执行时间（秒）
-    actual_duration_seconds INTEGER, -- 实际任务执行时间（秒）
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    started_at TIMESTAMPTZ, -- 任务开始执行时间
-    completed_at TIMESTAMPTZ, -- 任务完成时间
-    
-    -- 约束条件
-    CONSTRAINT progress_range CHECK (progress >= 0.000 AND progress <= 1.000),
-    CONSTRAINT valid_completed_task CHECK (
-        status != 'COMPLETED' OR (result_data IS NOT NULL AND completed_at IS NOT NULL)
-    ),
-    CONSTRAINT valid_failed_task CHECK (
-        status != 'FAILED' OR error_data IS NOT NULL
-    ),
-    CONSTRAINT valid_running_task CHECK (
-        status != 'RUNNING' OR started_at IS NOT NULL
-    )
-);
-
--- 立意模板表（存储AI生成的抽象哲学立意供用户选择）
-CREATE TABLE concept_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 立意模板唯一标识符
-    core_idea VARCHAR(200) NOT NULL, -- 核心抽象思想
-    description VARCHAR(800) NOT NULL, -- 立意的深层含义阐述
-    philosophical_depth VARCHAR(1000) NOT NULL, -- 哲学思辨的深度表达
-    emotional_core VARCHAR(500) NOT NULL, -- 情感核心与内在冲突
-    philosophical_category VARCHAR(100), -- 哲学类别
-    thematic_tags TEXT[] DEFAULT '{}', -- 主题标签数组
-    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium', -- 思辨复杂度
-    universal_appeal BOOLEAN NOT NULL DEFAULT true, -- 是否具有普遍意义
-    cultural_specificity VARCHAR(100), -- 文化特异性
-    usage_count INTEGER NOT NULL DEFAULT 0, -- 被选择使用的次数统计
-    rating_sum INTEGER NOT NULL DEFAULT 0, -- 用户评分总和
-    rating_count INTEGER NOT NULL DEFAULT 0, -- 评分人数
-    is_active BOOLEAN NOT NULL DEFAULT true, -- 是否启用（用于软删除）
-    created_by VARCHAR(50), -- 创建者
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    
-    -- 约束条件
-    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
-    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
-    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
-    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
-    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
-    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
-);
+--- 核心业务实体表 ---
 
 CREATE TABLE novels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 小说唯一ID
@@ -117,11 +41,10 @@ CREATE TABLE novels (
     target_chapters INTEGER NOT NULL DEFAULT 0, -- 目标章节数
     completed_chapters INTEGER NOT NULL DEFAULT 0, -- 已完成章节数
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE novels IS '存储每个独立小说项目的核心元数据。';
 
 CREATE TABLE chapter_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 章节版本的唯一ID
@@ -136,6 +59,7 @@ CREATE TABLE chapter_versions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 版本创建时间
     UNIQUE(chapter_id, version_number)
 );
+COMMENT ON TABLE chapter_versions IS '存储一个章节的每一次具体内容的迭代版本，实现版本控制。';
 
 CREATE TABLE chapters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 章节唯一ID
@@ -145,14 +69,14 @@ CREATE TABLE chapters (
     status chapter_status NOT NULL DEFAULT 'DRAFT', -- 章节当前状态
     published_version_id UUID REFERENCES chapter_versions(id) ON DELETE SET NULL, -- 指向当前已发布版本的ID
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
     UNIQUE (novel_id, chapter_number)
 );
+COMMENT ON TABLE chapters IS '存储章节的元数据，与具体的版本内容分离。';
 
 ALTER TABLE chapter_versions ADD CONSTRAINT fk_chapter_versions_chapter_id FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE;
+ALTER TABLE chapters ADD CONSTRAINT check_published_version CHECK (published_version_id IS NULL OR EXISTS (SELECT 1 FROM chapter_versions cv WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id));
 
 CREATE TABLE characters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 角色唯一ID
@@ -164,26 +88,24 @@ CREATE TABLE characters (
     personality_traits TEXT[], -- 性格特点列表
     goals TEXT[], -- 角色的主要目标列表
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE characters IS '存储小说中所有角色的详细设定信息。';
 
 CREATE TABLE worldview_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 世界观条目唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- 所属小说的ID
+    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- 所属小শনেরID
     entry_type VARCHAR(50) NOT NULL, -- 条目类型 (如 'LOCATION', 'ORGANIZATION')
     name VARCHAR(255) NOT NULL, -- 条目名称
     description TEXT, -- 详细描述
     tags TEXT[], -- 标签，用于分类和检索
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
     UNIQUE (novel_id, name, entry_type)
 );
+COMMENT ON TABLE worldview_entries IS '存储世界观中的所有设定条目，如地点、组织、物品等。';
 
 CREATE TABLE story_arcs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 故事弧唯一ID
@@ -194,17 +116,15 @@ CREATE TABLE story_arcs (
     end_chapter_number INTEGER, -- 结束章节号
     status VARCHAR(50) DEFAULT 'PLANNED', -- 状态 (如 'PLANNED', 'ACTIVE', 'COMPLETED')
     version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
-    created_by_agent_type agent_type, -- 创建此记录的Agent类型
-    updated_by_agent_type agent_type, -- 最后更新此记录的Agent类型
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 最后更新时间
 );
+COMMENT ON TABLE story_arcs IS '存储主要的情节线或故事阶段的规划。';
 
 CREATE TABLE reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 评审记录唯一ID
     chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- 关联的章节ID
     chapter_version_id UUID NOT NULL REFERENCES chapter_versions(id) ON DELETE CASCADE, -- 评审针对的具体章节版本ID
-    workflow_run_id UUID, -- 关联的工作流运行ID (无外键)
     agent_type agent_type NOT NULL, -- 执行评审的Agent类型
     review_type VARCHAR(50) NOT NULL, -- 评审类型 (如 'CRITIC', 'FACT_CHECK')
     score NUMERIC(3, 1), -- 评论家评分
@@ -213,208 +133,96 @@ CREATE TABLE reviews (
     issues_found TEXT[], -- 事实核查员发现的问题列表
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 评审创建时间
 );
+COMMENT ON TABLE reviews IS '记录每一次对章节草稿的评审结果。';
 
---- 中间产物表 ---
-
-CREATE TABLE outlines (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 大纲唯一ID
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- 关联的章节ID
-    created_by_agent_type agent_type, -- 创建此大纲的Agent类型
-    version INTEGER NOT NULL DEFAULT 1, -- 大纲版本号
-    content TEXT NOT NULL, -- 大纲文本内容
-    content_url TEXT, -- 指向Minio中存储的大纲文件URL
-    metadata JSONB, -- 额外的结构化元数据
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    UNIQUE(chapter_id, version)
-);
-
-CREATE TABLE scene_cards (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 场景卡唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- (冗余) 所属小说ID，用于性能优化
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- (冗余) 所属章节ID，用于性能优化
-    outline_id UUID NOT NULL REFERENCES outlines(id) ON DELETE CASCADE, -- 关联的大纲ID
-    created_by_agent_type agent_type, -- 创建此场景卡的Agent类型
-    scene_number INTEGER NOT NULL, -- 场景在章节内的序号
-    pov_character_id UUID REFERENCES characters(id), -- 视角角色ID
-    content JSONB NOT NULL, -- 场景的详细设计 (如节奏、目标、转折点)
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 创建时间
-);
-
-CREATE TABLE character_interactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 角色互动唯一ID
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE, -- (冗余) 所属小说ID
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE, -- (冗余) 所属章节ID
-    scene_card_id UUID NOT NULL REFERENCES scene_cards(id) ON DELETE CASCADE, -- 关联的场景卡ID
-    created_by_agent_type agent_type, -- 创建此互动的Agent类型
-    interaction_type VARCHAR(50), -- 互动类型 (如 'dialogue', 'action')
-    content JSONB NOT NULL, -- 互动的详细内容 (如对话文本)
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- 创建时间
-);
-
---- 追踪与配置表 (无外键) ---
-
-CREATE TABLE workflow_runs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 工作流运行实例的唯一ID
-    novel_id UUID NOT NULL, -- 关联的小说ID
-    workflow_type VARCHAR(100) NOT NULL, -- 工作流类型 (如 'chapter_generation')
-    status workflow_status NOT NULL, -- 工作流当前状态
-    parameters JSONB, -- 启动工作流时传入的参数
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 开始时间
-    completed_at TIMESTAMPTZ, -- 完成时间
-    error_details JSONB -- 如果失败，记录错误详情
-);
-
-CREATE TABLE agent_activities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Agent活动的唯一ID
-    workflow_run_id UUID, -- 关联的工作流运行ID
-    novel_id UUID NOT NULL, -- 关联的小说ID
-    target_entity_id UUID, -- 活动操作的目标实体ID (如 chapter_id, character_id)
-    target_entity_type VARCHAR(50), -- 目标实体类型 (如 'CHAPTER', 'CHARACTER')
-    agent_type agent_type, -- 执行活动的Agent类型
-    activity_type VARCHAR(100) NOT NULL, -- 活动类型 (如 'GENERATE_OUTLINE', 'WRITE_DRAFT')
-    status activity_status NOT NULL, -- 活动状态
-    input_data JSONB, -- 活动的输入数据摘要
-    output_data JSONB, -- 活动的输出数据摘要
-    error_details JSONB, -- 如果失败，记录错误详情
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 开始时间
-    completed_at TIMESTAMPTZ, -- 完成时间
-    duration_seconds INTEGER GENERATED ALWAYS AS (EXTRACT(EPOCH FROM (completed_at - started_at))::INTEGER) STORED, -- 持续时间（秒）
-    llm_tokens_used INTEGER, -- 调用LLM消耗的Token数
-    llm_cost_estimate DECIMAL(10, 6), -- 调用LLM的估算成本
-    retry_count INTEGER DEFAULT 0 -- 重试次数
-) PARTITION BY RANGE (started_at);
-
-CREATE TABLE events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 事件唯一ID
-    event_type VARCHAR(100) NOT NULL, -- 事件类型 (如 'Outline.Created')
-    novel_id UUID, -- 关联的小说ID
-    workflow_run_id UUID, -- 关联的工作流运行ID
-    payload JSONB NOT NULL, -- 事件的完整载荷
-    status event_status NOT NULL DEFAULT 'PENDING', -- 事件处理状态
-    processed_by_agent_type agent_type, -- 处理此事件的Agent类型
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 事件创建时间
-    processed_at TIMESTAMPTZ, -- 事件处理完成时间
-    error_details JSONB -- 如果处理失败，记录错误详情
-);
-
-CREATE TABLE agent_configurations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 配置项唯一ID
-    novel_id UUID, -- 关联的小说ID (NULL表示全局配置)
-    agent_type agent_type, -- 配置作用的Agent类型
-    config_key VARCHAR(255) NOT NULL, -- 配置项名称 (如 'llm_model')
-    config_value TEXT NOT NULL, -- 配置项的值
-    is_active BOOLEAN DEFAULT true, -- 是否启用此配置
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 创建时间
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 最后更新时间
-    UNIQUE(novel_id, agent_type, config_key)
-);
-
---- 创世流程追踪表 ---
-
-CREATE TYPE genesis_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'ABANDONED');
-CREATE TYPE genesis_stage AS ENUM (
-    'CONCEPT_SELECTION',  -- 立意选择与迭代阶段：用户从AI生成的抽象立意中选择并优化
-    'STORY_CONCEPTION',   -- 故事构思阶段：将确认的立意转化为具体故事框架
-    'WORLDVIEW',          -- 世界观创建阶段：基于故事构思设计详细世界观
-    'CHARACTERS',         -- 角色设定阶段：设计主要角色
-    'PLOT_OUTLINE',       -- 情节大纲阶段：制定整体剧情框架
-    'FINISHED'            -- 完成阶段：创世过程结束
-);
-
--- 立意模板表：存储AI生成的抽象哲学立意供用户选择
-CREATE TABLE concept_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- 核心立意内容（抽象哲学思想）
-    core_idea VARCHAR(200) NOT NULL,
-    description VARCHAR(800) NOT NULL,
-    
-    -- 哲学维度
-    philosophical_depth VARCHAR(1000) NOT NULL,
-    emotional_core VARCHAR(500) NOT NULL,
-    
-    -- 分类标签（抽象层面）
-    philosophical_category VARCHAR(100),
-    thematic_tags TEXT[] DEFAULT '{}',
-    complexity_level VARCHAR(20) NOT NULL DEFAULT 'medium',
-    
-    -- 适用性
-    universal_appeal BOOLEAN NOT NULL DEFAULT true,
-    cultural_specificity VARCHAR(100),
-    
-    -- 使用统计
-    usage_count INTEGER NOT NULL DEFAULT 0,
-    rating_sum INTEGER NOT NULL DEFAULT 0,
-    rating_count INTEGER NOT NULL DEFAULT 0,
-    
-    -- 元数据
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_by VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- 约束条件
-    CONSTRAINT complexity_level_check CHECK (complexity_level IN ('simple', 'medium', 'complex')),
-    CONSTRAINT usage_count_non_negative CHECK (usage_count >= 0),
-    CONSTRAINT rating_sum_non_negative CHECK (rating_sum >= 0),
-    CONSTRAINT rating_count_non_negative CHECK (rating_count >= 0),
-    CONSTRAINT core_idea_not_empty CHECK (LENGTH(TRIM(core_idea)) > 0),
-    CONSTRAINT description_not_empty CHECK (LENGTH(TRIM(description)) > 0)
-);
+--- 状态快照表 ---
 
 CREATE TABLE genesis_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
-    user_id UUID,
-    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS',
-    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION',
-    initial_user_input JSONB,
-    final_settings JSONB,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 会话的唯一标识符
+    novel_id UUID REFERENCES novels(id) ON DELETE SET NULL, -- 流程完成后关联的小说ID
+    user_id UUID, -- 关联的用户ID
+    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS', -- 整个会话的状态
+    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION', -- 当前所处的业务阶段
+    confirmed_data JSONB, -- 存储每个阶段已确认的最终数据
+    version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+COMMENT ON TABLE genesis_sessions IS '作为创世流程的“状态快照”，用于高效查询当前流程的状态，其状态由领域事件驱动更新。';
 
-CREATE TABLE genesis_steps (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES genesis_sessions(id) ON DELETE CASCADE,
-    stage genesis_stage NOT NULL,
-    iteration_count INTEGER NOT NULL,
-    ai_prompt TEXT,
-    ai_output JSONB NOT NULL,
-    user_feedback TEXT,
-    is_confirmed BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_iteration_per_stage UNIQUE (session_id, stage, iteration_count)
+--- 核心架构机制表 ---
+
+CREATE TABLE domain_events (
+    id BIGSERIAL PRIMARY KEY, -- 使用自增整数，保证事件的严格顺序
+    event_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(), -- 事件的全局唯一标识符
+    correlation_id UUID, -- 用于追踪一个完整的业务流程或请求链
+    causation_id UUID,   -- 指向触发此事件的上一个事件的event_id，形成因果链
+    event_type TEXT NOT NULL, -- 事件的唯一类型标识 (e.g., 'genesis.concept.proposed')
+    event_version INTEGER NOT NULL DEFAULT 1, -- 事件模型的版本号
+    aggregate_type TEXT NOT NULL, -- 聚合根类型 (e.g., 'GENESIS_SESSION', 'NOVEL')
+    aggregate_id TEXT NOT NULL,   -- 聚合根的ID
+    payload JSONB, -- 事件的具体数据
+    metadata JSONB, -- 附加元数据 (如 user_id, source_service)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+COMMENT ON TABLE domain_events IS '统一的领域事件日志，是整个系统所有业务事实的唯一、不可变来源（Source of Truth）。';
 
---- 索引定义 ---
+CREATE TABLE command_inbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 命令的唯一ID
+    session_id UUID NOT NULL, -- 关联的会话ID，用于限定作用域
+    command_type TEXT NOT NULL, -- 命令类型 (e.g., 'RequestConceptGeneration')
+    idempotency_key TEXT NOT NULL, -- 用于防止重复的幂等键
+    payload JSONB, -- 命令的参数
+    status command_status NOT NULL DEFAULT 'RECEIVED', -- 命令处理状态
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE command_inbox IS '命令收件箱，通过唯一性约束为需要异步处理的命令提供幂等性保证。';
+CREATE UNIQUE INDEX idx_command_inbox_unique_pending_command ON command_inbox (session_id, command_type) WHERE status IN ('RECEIVED', 'PROCESSING');
+
+
+CREATE TABLE async_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 任务的唯一ID
+    task_type TEXT NOT NULL, -- 任务类型 (e.g., 'genesis.concept_generation')
+    triggered_by_command_id UUID, -- 触发此任务的命令ID
+    status task_status NOT NULL DEFAULT 'PENDING', -- 任务执行状态
+    progress DECIMAL(5, 2) NOT NULL DEFAULT 0.0, -- 任务进度
+    input_data JSONB, -- 任务的输入参数
+    result_data JSONB, -- 任务成功后的结果
+    error_data JSONB, -- 任务失败时的错误信息
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE async_tasks IS '通用的异步任务表，用于追踪所有后台技术任务（如调用LLM）的执行状态。';
+
+CREATE TABLE event_outbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 发件箱记录ID
+    topic TEXT NOT NULL, -- 目标Kafka主题
+    key TEXT, -- Kafka消息的Key
+    payload JSONB NOT NULL, -- 消息的完整内容
+    status outbox_status NOT NULL DEFAULT 'PENDING', -- 消息发送状态
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE event_outbox IS '事务性发件箱，保证数据库写入与向Kafka发布事件之间的原子性。';
+
+CREATE TABLE flow_resume_handles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 句柄记录ID
+    correlation_id TEXT NOT NULL, -- 用于查找的关联ID (如task_id, command_id)
+    resume_handle JSONB NOT NULL, -- Prefect提供的、用于恢复的完整JSON对象
+    status handle_status NOT NULL DEFAULT 'PENDING_PAUSE', -- 回调句柄的状态
+    resume_payload JSONB, -- 用于存储提前到达的恢复数据，解决竞态条件
+    expires_at TIMESTAMPTZ, -- 过期时间
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE flow_resume_handles IS '持久化存储Prefect工作流的暂停/恢复句柄，以应对缓存失效，确保系统容错性。';
+CREATE UNIQUE INDEX idx_flow_resume_handles_unique_correlation ON flow_resume_handles (correlation_id) WHERE status IN ('PENDING_PAUSE', 'PAUSED');
+
+--- 索引与触发器 ---
 
 -- 性能关键索引
-CREATE INDEX idx_agent_activities_novel_agent ON agent_activities(novel_id, agent_type, started_at DESC);
-CREATE INDEX idx_workflow_runs_novel_status ON workflow_runs(novel_id, status);
-CREATE INDEX idx_events_type_status ON events(event_type, status);
-CREATE INDEX idx_chapter_versions_chapter ON chapter_versions(chapter_id, version_number DESC);
-
--- 用于关联查询的索引
+CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
+CREATE INDEX idx_async_tasks_status_type ON async_tasks(status, task_type);
 CREATE INDEX idx_reviews_chapter_version ON reviews(chapter_id, chapter_version_id);
-CREATE INDEX idx_scene_cards_chapter ON scene_cards(chapter_id, scene_number);
-CREATE INDEX idx_outlines_chapter ON outlines(chapter_id);
-CREATE INDEX idx_character_interactions_scene ON character_interactions(scene_card_id);
-
--- 创世流程相关索引
-CREATE INDEX idx_genesis_sessions_stage_status ON genesis_sessions(current_stage, status) WHERE status = 'IN_PROGRESS';
-CREATE INDEX idx_genesis_steps_session_stage_confirmed ON genesis_steps(session_id, stage, is_confirmed);
-CREATE INDEX idx_genesis_steps_ai_output_step_type ON genesis_steps USING GIN ((ai_output->'step_type'));
-CREATE INDEX idx_genesis_steps_confirmed_created_at ON genesis_steps(created_at) WHERE is_confirmed = true;
-
--- 立意模板相关索引
-CREATE INDEX idx_concept_templates_philosophical_category ON concept_templates(philosophical_category) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_complexity_level ON concept_templates(complexity_level) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_thematic_tags ON concept_templates USING GIN(thematic_tags) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_usage_count ON concept_templates(usage_count DESC) WHERE is_active = true;
-CREATE INDEX idx_concept_templates_rating ON concept_templates((rating_sum::float / NULLIF(rating_count, 0)) DESC NULLS LAST) WHERE is_active = true AND rating_count > 0;
-
---- 触发器定义 ---
 
 -- 为所有有 updated_at 的表创建触发器
 CREATE TRIGGER set_timestamp_novels BEFORE UPDATE ON novels FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -422,82 +230,10 @@ CREATE TRIGGER set_timestamp_chapters BEFORE UPDATE ON chapters FOR EACH ROW EXE
 CREATE TRIGGER set_timestamp_characters BEFORE UPDATE ON characters FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_worldview_entries BEFORE UPDATE ON worldview_entries FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_story_arcs BEFORE UPDATE ON story_arcs FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
-CREATE TRIGGER set_timestamp_agent_configurations BEFORE UPDATE ON agent_configurations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
-CREATE TRIGGER set_timestamp_concept_templates BEFORE UPDATE ON concept_templates FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_genesis_sessions BEFORE UPDATE ON genesis_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_async_tasks BEFORE UPDATE ON async_tasks FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_handles FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
---- 数据完整性约束 ---
-
--- 确保 published_version_id 指向的版本属于同一章节
-ALTER TABLE chapters ADD CONSTRAINT check_published_version 
-CHECK (published_version_id IS NULL OR EXISTS (
-    SELECT 1 FROM chapter_versions cv 
-    WHERE cv.id = chapters.published_version_id AND cv.chapter_id = chapters.id
-));
-
--- 确保创世流程新阶段的数据完整性
--- 确保 CONCEPT_SELECTION 阶段的 ai_output 包含有效的 step_type
-ALTER TABLE genesis_steps 
-ADD CONSTRAINT valid_concept_selection_data 
-CHECK (
-    stage != 'CONCEPT_SELECTION' OR (
-        ai_output ? 'step_type' AND 
-        ai_output->>'step_type' IN ('ai_generation', 'user_selection', 'concept_refinement', 'concept_confirmation')
-    )
-);
-
--- 确保 STORY_CONCEPTION 阶段的 ai_output 包含有效的 step_type
-ALTER TABLE genesis_steps 
-ADD CONSTRAINT valid_story_conception_data 
-CHECK (
-    stage != 'STORY_CONCEPTION' OR (
-        ai_output ? 'step_type' AND 
-        ai_output->>'step_type' IN ('story_generation', 'story_refinement', 'story_confirmation')
-    )
-);
-
--- 确保每个阶段只能有一个已确认的最终步骤
-CREATE UNIQUE INDEX idx_genesis_steps_unique_confirmed_per_stage 
-    ON genesis_steps(session_id, stage) 
-    WHERE is_confirmed = true;
-
---- 未来扩展性规划 (Post-MVP) ---
-
--- 分区表示例: 为 agent_activities 表自动创建每月分区
-CREATE OR REPLACE FUNCTION create_monthly_partition(target_table TEXT)
-RETURNS void AS $$
-DECLARE
-    start_date date;
-    end_date date;
-    partition_name text;
-BEGIN
-    start_date := date_trunc('month', CURRENT_DATE);
-    end_date := start_date + interval '1 month';
-    partition_name := target_table || '_' || to_char(start_date, 'YYYY_MM');
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = partition_name) THEN
-        EXECUTE format(
-            'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L)',
-            partition_name, target_table, start_date, end_date
-        );
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
--- 注意: 需要一个定时任务 (如 pg_cron) 来定期调用此函数，例如: SELECT create_monthly_partition('agent_activities');
-
--- 可选的通用审计日志表
--- 目的: 提供一个更低级别的、由数据库触发器驱动的审计日志，记录所有表的变更。
--- 这与 agent_activities 表形成互补：agent_activities 记录“业务活动”，而 audit_log 记录“数据变更”。
-CREATE TABLE audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 审计日志唯一ID
-    table_name VARCHAR(63) NOT NULL, -- 发生变更的表名
-    record_id UUID NOT NULL, -- 发生变更的记录ID
-    operation VARCHAR(10) NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')), -- 操作类型
-    changed_by_agent_type agent_type, -- 执行变更的Agent类型 (需要通过 session 变量等方式传入)
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- 变更发生时间
-    old_values JSONB, -- 对于UPDATE和DELETE，记录旧值
-    new_values JSONB -- 对于INSERT和UPDATE，记录新值
-);
 ```
 
 ## Neo4j
