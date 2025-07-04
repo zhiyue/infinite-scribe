@@ -26,18 +26,19 @@
 - [x] Create require_admin dependency
 - [x] Add proper JWT validation and blacklist checking
 
-## 5. API Endpoints 🚧
-- [ ] POST /api/v1/auth/register - User registration
-- [ ] POST /api/v1/auth/login - User login
-- [ ] POST /api/v1/auth/logout - User logout
-- [ ] POST /api/v1/auth/refresh - Refresh access token
-- [ ] GET /api/v1/auth/verify-email - Verify email address
-- [ ] POST /api/v1/auth/resend-verification - Resend verification email
-- [ ] POST /api/v1/auth/forgot-password - Request password reset
-- [ ] POST /api/v1/auth/reset-password - Reset password
-- [ ] GET /api/v1/auth/me - Get current user
-- [ ] PUT /api/v1/auth/me - Update current user profile
-- [ ] PUT /api/v1/auth/change-password - Change password
+## 5. API Endpoints ✅
+- [x] POST /api/v1/auth/register - User registration
+- [x] POST /api/v1/auth/login - User login
+- [x] POST /api/v1/auth/logout - User logout
+- [x] POST /api/v1/auth/refresh - Refresh access token
+- [x] GET /api/v1/auth/verify-email - Verify email address
+- [x] POST /api/v1/auth/resend-verification - Resend verification email
+- [x] POST /api/v1/auth/forgot-password - Request password reset (基础版本)
+- [x] POST /api/v1/auth/reset-password - Reset password (基础版本)
+- [x] GET /api/v1/auth/me - Get current user
+- [x] PUT /api/v1/auth/me - Update current user profile (基础版本)
+- [x] PUT /api/v1/auth/change-password - Change password (基础版本)
+- [x] POST /api/v1/auth/validate-password - Password strength validation
 
 ## 6. Rate Limiting & Security 📅
 - [ ] Implement rate limiting for registration
@@ -48,10 +49,10 @@
 
 ## 7. Testing ✅
 - [x] Unit tests for PasswordService (14 tests)
-- [x] Unit tests for JWTService (19 tests)
+- [x] Unit tests for JWTService (19 tests + 8 refresh tests)
 - [x] Unit tests for UserService (13 tests)
 - [x] Unit tests for authentication middleware (10 tests)
-- [ ] Integration tests for API endpoints
+- [x] Integration tests for API endpoints (13 tests)
 - [ ] End-to-end authentication flow tests
 
 ## 8. Documentation 📅
@@ -74,9 +75,24 @@
 - [ ] Performance optimization
 
 ## Progress Summary
-- ✅ Completed: Setup, Models, Services, Middleware, Unit Tests (56 tests passing)
-- 🚧 In Progress: API Endpoints
-- 📅 Planned: Rate Limiting, Documentation, Frontend Integration, Production Setup
+- ✅ Completed: Setup, Models, Services, Middleware, API Endpoints, Tests (77 tests passing)
+- 🚧 In Progress: Rate Limiting & Security
+- 📅 Planned: Documentation, Frontend Integration, Production Setup
+
+## 最新更新 (当前进展)
+### 已完成的新功能
+- ✅ JWT Token刷新功能完整实现
+- ✅ 所有11个认证API端点创建完成
+- ✅ 13个集成测试全部通过
+- ✅ 8个JWT刷新功能单元测试
+- ✅ Token轮换和黑名单机制
+- ✅ 完整的API schemas定义
+- ✅ 邮件模板创建
+
+### 测试覆盖统计
+- 单元测试：64个 (PasswordService: 14 + JWTService: 27 + UserService: 13 + AuthMiddleware: 10)
+- 集成测试：13个 (API端点测试)
+- **总计：77个测试全部通过**
 
 ## 进行中
 <!-- 当前正在处理的任务 -->
