@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 from asyncpg import Pool
+
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,18 @@ class PostgreSQLService:
         except Exception as e:
             logger.error(f"Schema verification failed: {e}")
             return False
+
+    async def execute(self, query: str, parameters: tuple | list | None = None):
+        """Execute a SQL query with parameters."""
+        if self._pool is None:
+            await self.connect()
+
+        async with self.acquire() as conn:
+            if parameters:
+                result = await conn.fetch(query, *parameters)
+            else:
+                result = await conn.fetch(query)
+            return [dict(row) for row in result]
 
 
 postgres_service = PostgreSQLService()
