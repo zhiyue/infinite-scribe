@@ -60,6 +60,10 @@
 
 ## 已完成
 
+- [x] 创建 feature/refactor-shared-types 任务文档结构
+- [x] 分析 shared-types 包的当前使用情况
+- [x] 更新架构文档中的 Source Tree（docs/architecture.md 和 docs/architecture/source-tree.md）
+
 ## 注意事项
 
 1. 每完成一个主要步骤后进行测试，确保没有破坏现有功能

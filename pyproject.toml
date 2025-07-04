@@ -123,7 +123,6 @@ pythonpath = [
     ".",
     "apps/backend",
     "apps/frontend",
-    "packages/shared-types/src",
 ]
 testpaths = ["tests", "apps/*/tests"]
 asyncio_mode = "auto"

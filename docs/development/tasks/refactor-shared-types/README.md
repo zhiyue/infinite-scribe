@@ -35,15 +35,20 @@
 - 所有引用了 `@infinitescribe/shared-types` 的前端文件
 - 所有引用了 `packages.shared_types` 的后端文件
 
+
 ## 参考资料
 
 - [pnpm workspace 文档](https://pnpm.io/workspaces)
 - [TypeScript 项目结构最佳实践](https://www.typescriptlang.org/docs/handbook/project-references.html)
 - [Python 项目结构最佳实践](https://docs.python-guide.org/writing/structure/)
+- 项目架构文档：`docs/architecture/`
+- 数据库定义：`infrastructure/docker/init/postgres/`
 
 ## 注意事项
 
 1. 在迁移过程中需要确保不破坏现有功能
 2. 前后端的类型定义虽然分离，但需要保持逻辑上的一致性
-3. 考虑创建文档来记录前后端接口的契约
-4. 可能需要设置 CI/CD 检查来确保接口的一致性
+3. 迁移的类型定义必须与现有的数据库架构（infrastructure/docker/init/postgres/）保持一致
+4. 需要参考 docs/architecture/ 中的架构文档，确保类型定义符合整体架构设计
+5. 考虑创建文档来记录前后端接口的契约
+6. 可能需要设置 CI/CD 检查来确保接口的一致性
