@@ -1,197 +1,224 @@
 # SSE 实现任务清单
 
-> **MVP 说明**：当前项目处于 MVP 阶段，仅需实施 P0 优先级的核心功能。P1 和 P2 任务将在 MVP 验证成功后的后续版本中实施。
+> **MVP 说明**：当前项目处于 MVP 阶段，P0 包含让 SSE 端到端工作的最小功能集。P1 包含完善和优化，P2 包含生产级别的要求。
 
-## P0 - 立即实施（MVP 必须）
+## P0 - MVP 核心功能（端到端工作）
 
-### 数据模型与契约定义
-- [ ] **创建 SSE 事件模型** [2h]
+> **P0 必须功能**：心跳保活、基础认证、简单事件分发、前端自动缓存更新
+
+### 1. 基础事件模型 [4h]
+- [ ] **创建简化的 SSE 事件模型**
   - [ ] 创建 `/packages/shared-types/src/sse_events.py`
-  - [ ] 定义 SSEMessage 基类（包含 event, data, id, retry, scope, version 字段）
-  - [ ] 定义具体事件类型（TaskProgressEvent, TaskStatusChangeEvent, SystemNotificationEvent, ContentUpdateEvent, SSEErrorEvent）
+  - [ ] 定义 SSEMessage 基类（包含 event, data, id, scope 字段）
+  - [ ] 使用 kebab-case.verb-past 命名规范
+  - [ ] 定义核心事件类型（TaskProgressEvent, TaskStatusChangeEvent, ErrorEvent）
   - [ ] 实现 to_sse_format() 方法
-  - [ ] 更新 `/packages/shared-types/src/index.ts` 添加 TypeScript 类型
+  - [ ] 更新 TypeScript 类型定义（含 scope 路由）
 
-- [ ] **创建 Kafka → SSE 映射文档** [1h]
-  - [ ] 在 `docs/development/sse-event-mapping.md` 创建映射表
-  - [ ] 定义事件命名规范（domain.action-past）
-  - [ ] 明确每个 Kafka 事件对应的 SSE 事件格式
-  - [ ] 定义数据转换规则（精简字段、权限过滤）
+- [ ] **创建基础 Kafka → SSE 映射**
+  - [ ] 创建简单的映射文档
+  - [ ] 定义 2-3 个核心事件的映射规则
+  - [ ] 包含 scope 和过滤 key
 
-### 事件补偿机制
-- [ ] **设计事件补偿方案** [3h]
-  - [ ] 实现事件 ID 生成器（格式：{source}:{partition}:{offset}）
-  - [ ] 设计 Redis 事件缓存结构（使用 Redis Stream）
-  - [ ] 实现 Last-Event-ID 解析器
-  - [ ] 实现事件重放逻辑（从 Kafka/Redis 获取历史事件）
-
-### 核心后端组件
-- [ ] **创建目录结构** [0.5h]
+### 2. 后端最小实现 [6h]
+- [ ] **创建基础目录结构**
   - [ ] `/apps/backend/src/api/v1/events/`
   - [ ] `/apps/backend/src/services/sse/`
-  - [ ] `/apps/backend/src/adapters/events/`
 
-- [ ] **实现 EventBus 接口（Protocol/ABC）** [2h]
-  - [ ] 定义抽象接口，支持多种消息中间件
+- [ ] **实现简单的 SSEManager** 
+  - [ ] 基础连接管理（dict 存储连接）
+  - [ ] JWT 认证检查
+  - [ ] 发送事件到指定用户
+  - [ ] 心跳机制（每 15s 发送 `:\n\n`）
+
+- [ ] **实现 SSE 端点**
+  - [ ] `/api/v1/events/stream` GET 端点
+  - [ ] FastAPI StreamingResponse
+  - [ ] 基础错误处理
+
+- [ ] **创建简单的事件触发器**
+  - [ ] 任务进度更新时触发 SSE 事件
+  - [ ] 直接调用 SSEManager（不需要复杂的 EventBus）
+
+### 3. 前端最小实现 [5h]
+- [ ] **实现基础 SSE 客户端**
+  - [ ] 创建 `/apps/frontend/src/services/sse/client.ts`
+  - [ ] EventSource 包装（带 JWT token）
+  - [ ] 基础的自动重连（固定延迟）
+
+- [ ] **React 集成**
+  - [ ] 创建 useSSE Hook
+  - [ ] 处理任务进度事件
+  - [ ] 更新 UI 显示实时进度
+  - [ ] 与 TanStack Query 基础集成（invalidate queries）
+
+- [ ] **替换一个轮询示例**
+  - [ ] 找到一个具体的轮询场景
+  - [ ] 用 SSE 替换验证效果
+
+### 4. 基础测试 [2h]
+- [ ] **手动测试流程文档**
+  - [ ] 如何触发事件
+  - [ ] 如何验证前端接收
+  - [ ] 常见问题排查
+
+- [ ] **一个端到端测试**
+  - [ ] 后端发送事件
+  - [ ] 前端接收并更新 UI
+
+## P1 - 功能完善与优化
+
+> **P1 增强功能**：背压控制、事件补偿、多标签订阅、连接管理、完整监控
+
+### 1. 完整的事件系统 [8h]
+- [ ] **扩展事件类型**
+  - [ ] 添加所有业务事件类型
+  - [ ] 实现事件版本控制（version 字段）
+  - [ ] 实现事件作用域（scope 字段）
+
+- [ ] **实现 EventBus 抽象**
+  - [ ] 定义 Protocol/ABC 接口
   - [ ] 实现 Kafka 适配器
   - [ ] 实现 Redis 适配器
-  - [ ] 确保与 Transactional Outbox 集成
+  - [ ] Event Adapter 层（格式转换、权限过滤）
 
-- [ ] **实现 Event Adapter 层** [3h]
-  - [ ] Kafka 事件 → SSE 事件转换器
-  - [ ] 权限过滤器（基于 user_id, novel_id, session_id）
-  - [ ] 数据精简处理（移除敏感字段）
-  - [ ] 批量转换优化
+- [ ] **完整 Kafka → SSE 映射**
+  - [ ] 扩展映射文档到所有事件类型
+  - [ ] 实现自动事件转换（保持命名规范）
+  - [ ] 批量处理和性能优化
+  - [ ] 错误事件的特殊处理
 
-- [ ] **实现 SSEManager 核心功能** [4h]
-  - [ ] 连接池管理（使用 asyncio.Queue）
-  - [ ] 基于 JWT 的认证检查
-  - [ ] 多标签订阅支持
-  - [ ] ~~背压机制（队列满时丢弃低优先级事件）~~ *[后期实施]*
-  - [ ] ~~心跳机制（每 15s 发送 `:\n\n`）~~ *[后期实施]*
+### 2. 高级连接管理 [8h]
+- [ ] **增强 SSEManager**
+  - [ ] 使用 asyncio.Queue 管理事件队列
+  - [ ] 实现背压处理（队列满时丢弃/合并）
+  - [ ] 添加连接统计和监控指标
+  - [ ] 多标签订阅支持（动态 filter set）
+  - [ ] 连接数限制（--max-clients）
 
-- [ ] **实现 SSE 端点** [3h]
-  - [ ] `/api/v1/events/stream` GET 端点
-  - [ ] StreamingResponse 实现
-  - [ ] Last-Event-ID 头部处理
-  - [ ] 查询参数解析（filter context）
-  - [ ] ~~速率限制中间件（20 连接/分钟）~~ *[后期实施]*
+- [ ] **事件补偿机制（Last-Event-ID）** [2h]
+  - [ ] 实现 Last-Event-ID 支持
+  - [ ] 短时间窗口的事件缓存（5分钟）
+  - [ ] 简单的事件重放
+  - [ ] 与 Kafka offset 集成
 
-## P1 - 实现前完善（后期实施）
+### 3. 前端增强 [5h]
+- [ ] **完善 SSE 客户端**
+  - [ ] 指数退避重连策略
+  - [ ] 连接状态管理（30s 无数据自动重连）
+  - [ ] 错误处理和用户提示
+  - [ ] SSEProvider Context
+  - [ ] 完整的 TanStack Query 集成（entity_type → invalidate）
 
-### 前端实现
-- [ ] **实现 SSE 客户端基础** [3h]
-  - [ ] 创建 `/apps/frontend/src/services/sse/SSEClient.ts`
-  - [ ] EventSource 封装（包含认证头）
-  - [ ] 自动重连（指数退避）
-  - [ ] Last-Event-ID 持久化
-
-- [ ] **实现 React 集成** [4h]
-  - [ ] 创建 SSEProvider Context
-  - [ ] 实现 useSSE Hook
-  - [ ] 事件类型安全处理
-  - [ ] 与 TanStack Query 集成（自动 invalidate）
-
-- [ ] **替换现有轮询** [2h]
+- [ ] **全面替换轮询**
   - [ ] 识别所有轮询代码
-  - [ ] 逐步替换为 SSE 订阅
-  - [ ] 保留降级到轮询的开关
+  - [ ] 逐步替换为 SSE
+  - [ ] 保留降级开关
 
-### 监控与可观测性
-- [ ] **实现 Prometheus 指标** [3h]
-  - [ ] sse_current_connections
-  - [ ] sse_connection_duration
-  - [ ] sse_events_sent_total
-  - [ ] sse_event_delivery_lag
-  - [ ] sse_queue_size
-  - [ ] sse_queue_overflow_total
-
-- [ ] **实现结构化日志** [2h]
-  - [ ] 连接建立/断开日志
-  - [ ] 事件发送日志
-  - [ ] 错误和异常日志
-  - [ ] 性能采样日志
-
-- [ ] **创建 Grafana Dashboard** [2h]
-  - [ ] 连接监控面板
-  - [ ] 性能监控面板
-  - [ ] 错误监控面板
-  - [ ] 业务指标面板
-
-### 测试
-- [ ] **单元测试** [4h]
+### 4. 测试覆盖 [6h]
+- [ ] **单元测试**
   - [ ] SSEManager 测试
-  - [ ] EventBus 测试
-  - [ ] Event Adapter 测试
-  - [ ] 事件补偿逻辑测试
+  - [ ] 事件转换测试
+  - [ ] 前端 Hook 测试
 
-- [ ] **集成测试** [4h]
-  - [ ] 端到端事件流测试
+- [ ] **集成测试**
+  - [ ] 完整的事件流测试
   - [ ] 断线重连测试
-  - [ ] 权限拒绝测试
-  - [ ] 事件重放测试
+  - [ ] 多用户隔离测试
 
-- [ ] **前端测试** [3h]
-  - [ ] SSEProvider 测试
-  - [ ] useSSE Hook 测试
-  - [ ] 模拟断线场景
-  - [ ] TanStack Query 集成测试
+### 5. 完整目录结构 [2h]
+- [ ] **创建完整的项目目录结构**
+  - [ ] `/apps/backend/src/api/v1/events/` - 事件相关的 API 端点
+  - [ ] `/apps/backend/src/services/sse/` - SSE 服务实现
+  - [ ] `/apps/backend/src/adapters/` - Event Adapter 层
+  - [ ] `/apps/backend/src/interfaces/` - EventBus 接口定义
+  - [ ] `/apps/frontend/src/services/sse/` - 前端 SSE 服务
+  - [ ] `/apps/frontend/src/hooks/sse/` - SSE 相关 Hooks
+  - [ ] `/apps/frontend/src/contexts/sse/` - SSE Context
 
-### 文档
-- [ ] **API 文档更新** [2h]
-  - [ ] SSE 端点文档
+### 6. 日志与文档 [4h]
+- [ ] **结构化日志完善**
+  - [ ] 详细的连接日志
+  - [ ] 事件发送日志
+  - [ ] 错误日志
+  - [ ] 调试信息
+
+- [ ] **开发文档**
+  - [ ] API 使用指南
   - [ ] 事件类型说明
-  - [ ] 认证要求
-  - [ ] 示例代码
-
-- [ ] **开发者指南** [2h]
-  - [ ] SSE 使用指南
-  - [ ] 事件订阅示例
   - [ ] 故障排除指南
-  - [ ] 最佳实践
 
-## P2 - 上线前优化（后期实施）
+## P2 - 生产就绪（后期实施）
 
-### 性能优化
-- [ ] **压力测试** [4h]
-  - [ ] 5k 并发连接测试
-  - [ ] 10k 并发连接测试
-  - [ ] 内存使用分析
-  - [ ] CPU 使用分析
-  - [ ] 网络带宽测试
+> **P2 生产特性**：高性能优化、高级监控、安全加固、灰度发布支持
 
-- [ ] **性能调优** [3h]
-  - [ ] 考虑使用 uvloop
-  - [ ] 实现连接分片（如需要）
-  - [ ] 优化事件序列化
-  - [ ] 实现事件批处理
+### 1. 性能优化 [10h]
+- [ ] **压力测试**
+  - [ ] 1k/5k/10k 并发连接测试
+  - [ ] 内存和 CPU 使用分析
+  - [ ] 网络带宽优化
+  - [ ] 连接池调优
 
-### 运维配置
-- [ ] **负载均衡器配置** [2h]
-  - [ ] Nginx proxy_read_timeout 设置
-  - [ ] ALB/NLB idle timeout 配置
-  - [ ] 缓冲区优化
-  - [ ] Keep-alive 设置
+- [ ] **高级优化**
+  - [ ] 使用 uvloop 提升性能
+  - [ ] 事件批处理
+  - [ ] 连接分片（如需要）
+  - [ ] 背压机制完整实现
+  - [ ] 心跳保活机制
 
-- [ ] **灰度发布支持** [3h]
-  - [ ] 实现版本标识头（X-Server-Version）
-  - [ ] 连接迁移策略
-  - [ ] 蓝绿部署脚本
-  - [ ] 回滚方案
+### 2. 高级功能 [8h]
+- [ ] **完整的事件补偿**
+  - [ ] 基于 Kafka offset 的精确重放
+  - [ ] 长时间窗口的事件存储
+  - [ ] 复杂的权限和过滤逻辑
 
-### 安全加固
-- [ ] **安全审计** [2h]
-  - [ ] 权限检查完整性
-  - [ ] 速率限制有效性
-  - [ ] 输入验证
-  - [ ] XSS 防护
+- [ ] **监控和告警**（后期考虑）
+  - [ ] 自定义指标收集
+  - [ ] 性能分析工具
+  - [ ] 自动告警规则
+  - [ ] 健康检查端点
 
-- [ ] **DDoS 防护** [2h]
-  - [ ] 连接数限制
-  - [ ] IP 黑名单
-  - [ ] 异常检测
-  - [ ] 自动熔断
+### 3. 安全和运维 [6h]
+- [ ] **安全加固**
+  - [ ] 速率限制
+  - [ ] DDoS 防护
+  - [ ] 安全审计
+  - [ ] 输入验证加强
 
-### E2E 场景测试
-- [ ] **核心场景覆盖** [4h]
-  - [ ] 正常事件流
-  - [ ] 断线重连 + 事件补偿
-  - [ ] 权限变更
-  - [ ] 高负载降级
-  - [ ] 跨版本兼容性
+- [ ] **运维支持**
+  - [ ] 蓝绿部署
+  - [ ] 优雅关闭
+  - [ ] 配置热更新
+  - [ ] 故障自动恢复
 
 ## 任务统计
 
 ### MVP 阶段（当前）
-- **P0 任务**：12 项，预计 29.5 小时（MVP 必须完成）
+- **P0 任务**：4 大项，预计 18 小时（包含必要特性的 MVP）
+  - 基础事件模型：4h
+  - 后端最小实现：6h（含心跳机制）
+  - 前端最小实现：5h（含 TanStack Query 集成）
+  - 基础测试：2h
 
-### 后续版本
-- **P1 任务**：13 项，预计 35 小时（功能完善）  
-- **P2 任务**：10 项，预计 24 小时（性能优化）
+### 功能完善
+- **P1 任务**：6 大项，预计 33 小时
+  - 完整事件系统：8h
+  - 高级连接管理：8h（含事件补偿机制）
+  - 前端增强：5h
+  - 测试覆盖：6h
+  - 完整目录结构：2h
+  - 日志与文档：4h
+
+### 生产优化
+- **P2 任务**：3 大项，预计 24 小时
+  - 性能优化：10h
+  - 高级功能：8h
+  - 安全和运维：6h
 
 ### 总计
-- **MVP 工作量**：29.5 小时
-- **全部工作量**：88.5 小时
+- **真正的 MVP**：17 小时
+- **完整功能**：50 小时（P0+P1）
+- **生产就绪**：74 小时（P0+P1+P2）
 
 ## 进行中
 

@@ -192,15 +192,19 @@ classDiagram
    - 实现心跳机制检测断开的连接
    - 限制每个用户的最大连接数
 
-2. **事件过滤**
-   - 基于 session_id 过滤事件
-   - 支持事件类型订阅
-   - 实现权限检查
+2. **事件过滤与授权**
+   - **多标签订阅**：连接建立后通过 POST /events/subscribe 动态增删 filter set
+   - **RBAC 检查**：在 JWT 中包含 user_id，SSEManager 中进行权限验证
+   - **分级广播**：SystemNotification 等全局事件使用单独 channel
+   - 支持同时订阅多个 novel/task 的事件
 
 3. **性能优化**
    - 使用连接池管理数据库连接
    - 批量处理事件减少网络开销
    - 实现事件去重机制
+   - **背压机制**：当队列长度 > N 时，丢弃低优先级事件或合并增量（如进度条只保留最后一条）
+   - **心跳保活**：每 15 秒发送 `:\n\n` 保持连接活跃，前端 30 秒无数据则重连
+   - **连接限制**：设置 --max-clients 参数，超出限制回退到轮询模式
 
 ### 前端实现要点
 
@@ -218,6 +222,11 @@ classDiagram
    - 捕获网络错误并自动重试
    - 提供降级到轮询的备选方案
    - 显示连接状态指示器
+
+4. **与 TanStack Query 集成**
+   - 约定事件字段 `entity_type` + `action`
+   - 前端统一映射到 `queryClient.invalidateQueries(['entity_type', id])`
+   - 减少手工 wiring，自动处理缓存失效
 
 ## 数据模型设计
 
@@ -257,11 +266,11 @@ classDiagram
 # 基础 SSE 消息格式
 class SSEMessage(BaseModel):
     """SSE 消息格式（遵循 W3C 规范）"""
-    event: str  # 事件类型，使用 domain.action-past 格式
+    event: str  # 事件类型，使用 kebab-case.verb-past 格式（如 task.progress-updated）
     data: Dict[str, Any]  # 事件数据
     id: Optional[str] = None  # 事件 ID，格式：{source}:{partition}:{offset}
     retry: Optional[int] = None  # 重连延迟（毫秒）
-    scope: Literal["user", "session", "novel", "global"]  # 事件作用域
+    scope: Literal["user", "session", "novel", "global"]  # 事件作用域，用于前端路由
     version: str = "1.0"  # 事件版本，用于兼容性
     
     def to_sse_format(self) -> str:
@@ -308,6 +317,14 @@ class ContentUpdateEvent(BaseModel):
     entity_id: str
     action: Literal["created", "updated", "deleted"]
     summary: Optional[str]
+
+class ErrorEvent(BaseModel):
+    """错误/告警事件"""
+    level: Literal["warning", "error", "critical"]
+    code: str  # 错误码，如 "SSE_CONNECTION_LIMIT"
+    message: str  # 用户友好的错误信息
+    correlation_id: Optional[str] = None  # 关联请求 ID，用于追踪
+    details: Optional[Dict[str, Any]] = None  # 额外的错误上下文
 ```
 
 ### TypeScript 类型定义
@@ -317,8 +334,11 @@ class ContentUpdateEvent(BaseModel):
 ```typescript
 // SSE 事件类型
 export interface SSEMessage {
-  event: string;
-  data: Record<string, any>;
+  event: string;  // kebab-case.verb-past 格式
+  data: Record<string, any> & {
+    _scope: 'user' | 'session' | 'novel' | 'global';
+    _version: string;
+  };
   id?: string;
   retry?: number;
 }
@@ -327,6 +347,7 @@ export interface TaskProgressEvent {
   task_id: string;
   progress: number;
   message?: string;
+  task_type?: string;
 }
 
 export interface TaskStatusChangeEvent {
@@ -334,6 +355,14 @@ export interface TaskStatusChangeEvent {
   old_status: string;
   new_status: string;
   timestamp: string;
+}
+
+export interface ErrorEvent {
+  level: 'warning' | 'error' | 'critical';
+  code: string;
+  message: string;
+  correlation_id?: string;
+  details?: Record<string, any>;
 }
 
 // ... 其他事件类型
@@ -387,20 +416,23 @@ export interface TaskStatusChangeEvent {
 
 ### 映射规则表
 
-| Kafka Event Type | SSE Event | 过滤条件 | 数据转换 |
-|-----------------|-----------|---------|---------|
-| NovelCreatedEvent | novel.created | user_id | 精简为 {id, title, status} |
-| ChapterDraftCreatedEvent | chapter.draft-created | novel_id | 包含 {chapter_id, number, title} |
-| TaskProgressUpdateEvent | task.progress-updated | task_id, user_id | 保留 {progress, message} |
-| GenesisStepCompletedEvent | genesis.step-completed | session_id | 提取 {stage, status, summary} |
-| WorkflowStatusChangedEvent | workflow.status-changed | novel_id | 状态转换信息 |
+| Kafka Event Type | SSE Event | 过滤 Key | Scope | 数据转换 |
+|-----------------|-----------|----------|-------|----------|
+| NovelCreatedEvent | novel.created | user_id | user | 精简为 {id, title, status} |
+| ChapterDraftCreatedEvent | chapter.draft-created | novel_id | novel | 包含 {chapter_id, number, title} |
+| TaskProgressUpdateEvent | task.progress-updated | task_id, user_id | session | 保留 {progress, message, task_type} |
+| GenesisStepCompletedEvent | genesis.step-completed | session_id | session | 提取 {stage, status, summary} |
+| WorkflowStatusChangedEvent | workflow.status-changed | novel_id | novel | 状态转换信息 |
+| SystemMaintenanceEvent | system.maintenance-scheduled | - | global | 通知内容 |
+| TaskFailedEvent | task.failed | task_id, user_id | session | 错误信息（转为 ErrorEvent）|
 
 ### 事件格式规范
 
 1. **事件命名约定**
-   - 使用 `domain.action-past` 格式
-   - 域名小写，动作使用过去时
-   - 示例：`task.progress-updated`, `novel.status-changed`
+   - 使用 `kebab-case.verb-past` 格式，与 Kafka DomainEvent 保持一致
+   - 域名使用 kebab-case，动作使用过去时
+   - 示例：`task.progress-updated`, `novel.status-changed`, `chapter.draft-created`
+   - 错误事件：`error.connection-limit-exceeded`, `error.auth-failed`
 
 2. **事件作用域（scope）**
    - `user` - 仅推送给特定用户
@@ -482,6 +514,26 @@ export interface TaskStatusChangeEvent {
    - 弱网环境测试
    - 代理服务器测试
    - 防火墙穿透测试
+
+## 性能与资源管理
+
+### 内存估算
+- 单连接内存占用：Queue + 缓冲区 ≈ 10-50 KB
+- 10k 连接场景：平均队列 20 条 × 1KB/条 = ~200 MB（可接受）
+- 建议使用 uvloop 或 trio 降低调度开销
+
+### 监控指标（基础版）
+```python
+# 核心指标（无需 Prometheus，可用内存变量）
+sse_metrics = {
+    "current_connections": 0,
+    "total_connections": 0,
+    "events_sent": 0,
+    "queue_overflow_count": 0,
+    "max_queue_size": 0,
+    "connection_errors": 0
+}
+```
 
 ## 结构化日志（MVP）
 
