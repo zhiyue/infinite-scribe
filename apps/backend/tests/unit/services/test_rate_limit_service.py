@@ -2,7 +2,7 @@
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from src.common.services.rate_limit_service import RateLimitService, RateLimitExceeded
 from tests.unit.test_mocks import mock_redis
@@ -11,7 +11,6 @@ from tests.unit.test_mocks import mock_redis
 class TestRateLimitService:
     """Test cases for rate limiting service."""
     
-    @patch('src.common.services.rate_limit_service.redis_client', mock_redis)
     def test_init_service(self):
         """Test rate limit service initialization."""
         # Act
@@ -22,7 +21,6 @@ class TestRateLimitService:
         assert hasattr(service, 'check_rate_limit')
         assert hasattr(service, 'reset_rate_limit')
     
-    @patch('src.common.services.rate_limit_service.redis_client', mock_redis)
     def test_check_rate_limit_first_request(self):
         """Test rate limit check for first request."""
         # Arrange
