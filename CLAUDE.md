@@ -463,6 +463,28 @@ pnpm test
 
 5. **任务恢复**：下次继续任务时，先查看任务文档了解上下文和进度
 
+6. **使用自定义命令**（推荐）：
+   
+   项目已配置了任务管理的自定义命令，可以快速管理任务：
+   
+   - `/project:task` - 查看任务管理帮助
+   - `/project:task-new <任务名>` - 创建新任务文档结构
+   - `/project:task-list` - 列出所有任务及进度
+   - `/project:task-review <任务名>` - 查看特定任务详情
+   - `/project:task-summary <任务名>` - 创建任务总结
+   
+   示例：
+   ```bash
+   # 创建新任务
+   /project:task-new implement-oauth
+   
+   # 查看任务详情
+   /project:task-review implement-oauth
+   
+   # 任务完成后创建总结
+   /project:task-summary implement-oauth
+   ```
+
 这种文档化方式确保：
 - 任务上下文不会丢失
 - 便于任务交接和协作
