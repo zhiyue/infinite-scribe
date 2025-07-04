@@ -24,18 +24,18 @@ allowed-tools: Read, Write, Edit, TodoWrite, Bash(cat:*, grep:*, date:*)
 基于上述任务上下文，我将：
 
 1. **理解任务目标**：根据 README 和实现方案了解任务需求
-2. **检查当前进度**：查看 todo-list 中的待办事项
+2. **检查当前进度**：查看 todo-list 和 todo-list.md 文档 中的待办事项
 3. **继续开发工作**：实现待办事项中的功能
 4. **更新任务状态**：
-   - 将进行中的任务标记在 todo-list
-   - 完成后更新 todo-list 状态
+   - 将进行中的任务标记在 todo-list 和 todo-list.md 文档
+   - 完成后更新 todo-list 状态 和 todo-list.md 文档
    - 在 progress.md 中记录进度
 
 ### 自动进度跟踪
 
 我会在开发过程中：
 - 使用 TodoWrite 工具跟踪当前工作项
-- 完成每个功能后更新 todo-list.md
+- 完成每个功能后更新 todo-list.md 文档
 - 定期在 progress.md 中添加进度记录
 
 ### 任务完成后

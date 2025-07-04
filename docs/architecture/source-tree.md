@@ -33,7 +33,12 @@ novel-ai-writer/
 │   │   │   ├── services/       # API调用服务 (e.g., novelService.ts, chapterService.ts, graphService.ts)
 │   │   │   ├── store/          # Zustand状态管理 (e.g., authStore.ts, projectStore.ts)
 │   │   │   ├── styles/         # 全局样式, Tailwind配置
-│   │   │   ├── types/          # 前端特定类型 (如果不能从shared-types导入或需要扩展)
+│   │   │   ├── types/          # 前端类型定义
+│   │   │   │   ├── models/     # 数据模型类型
+│   │   │   │   ├── api/        # API 请求/响应类型
+│   │   │   │   ├── events/     # 事件类型
+│   │   │   │   ├── enums/      # 枚举类型
+│   │   │   │   └── index.ts    # 类型导出入口
 │   │   │   ├── utils/          # 前端工具函数
 │   │   │   └── App.tsx
 │   │   │   └── main.tsx
@@ -63,20 +68,18 @@ novel-ai-writer/
 │       │   │   ├── config.py   # 统一配置管理
 │       │   │   ├── database.py # 数据库连接
 │       │   │   └── messaging.py # Kafka等消息队列
+│       │   ├── models/         # 数据模型定义
+│       │   │   ├── __init__.py
+│       │   │   ├── db.py       # 数据库模型 (SQLAlchemy)
+│       │   │   ├── api.py      # API 请求/响应模型 (Pydantic)
+│       │   │   ├── events.py   # 事件模型
+│       │   │   └── sse.py      # SSE 事件模型
 │       │   └── common/         # 共享业务逻辑
-│       │       ├── services/   # 共享服务 (e.g., neo4j_service.py)
-│       │       └── models/     # 共享数据模型
+│       │       └── services/   # 共享服务 (e.g., neo4j_service.py)
 │       ├── tests/              # 统一测试目录
 │       ├── pyproject.toml      # 后端统一依赖配置
 │       └── Dockerfile          # 统一Dockerfile (通过SERVICE_TYPE环境变量选择服务)
 ├── packages/                   # 存放共享的代码包
-│   ├── shared-types/           # Pydantic模型, TypeScript接口, 事件Schema
-│   │   ├── src/
-│   │   │   ├── models_db.py    # Pydantic数据模型 (对应PG表)
-│   │   │   ├── models_api.py   # Pydantic API请求/响应模型
-│   │   │   ├── events.py       # Kafka事件Schema (Pydantic)
-│   │   │   └── index.ts        # TypeScript类型导出 (基于Pydantic模型生成或手动编写)
-│   │   └── package.json
 │   ├── eslint-config-custom/   # 共享ESLint配置
 │   │   └── index.js
 │   ├── tsconfig-custom/        # 共享TypeScript配置

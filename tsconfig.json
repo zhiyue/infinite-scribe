@@ -2,18 +2,17 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@infinite-scribe/shared-types": ["packages/shared-types/src"],
-      "@infinite-scribe/common-utils": ["packages/common-utils/ts_utils"],
-      "@infinite-scribe/eslint-config": ["packages/eslint-config-custom"],
-      "@infinite-scribe/tsconfig": ["packages/tsconfig-custom"]
+      "@infinite-scribe/eslint-config": [
+        "packages/eslint-config-custom"
+      ],
+      "@infinite-scribe/tsconfig": [
+        "packages/tsconfig-custom"
+      ]
     }
   },
   "references": [
-    { "path": "./apps/frontend" },
-    { "path": "./apps/api-gateway" },
-    { "path": "./packages/shared-types" },
-    { "path": "./packages/common-utils" },
-    { "path": "./packages/eslint-config-custom" },
-    { "path": "./packages/tsconfig-custom" }
+    {
+      "path": "./apps/frontend"
+    }
   ]
 }

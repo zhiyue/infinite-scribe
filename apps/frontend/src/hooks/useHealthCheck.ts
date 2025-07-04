@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { healthService, type HealthCheckResponse } from '@/services/healthService'
+import { healthService } from '@/services/healthService'
+import type { HealthCheckResponse } from '@/types'
 
 // 健康检查Hook
 export function useHealthCheck() {

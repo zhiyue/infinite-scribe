@@ -1,34 +1,28 @@
 """
-单元测试：事件溯源相关的 Pydantic 模型
+单元测试: 事件溯源相关的 Pydantic 模型
 测试 Story 2.1 中定义的所有数据模型
 """
 
 import json
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
-# 添加项目根目录到 Python 路径
-root_dir = Path(__file__).resolve().parents[4]  # 向上4级到项目根目录
-sys.path.insert(0, str(root_dir / "packages/shared-types/src"))
-
-from models_db import (
+from src.models.db import (
     AsyncTaskModel,
     CommandInboxModel,
+    # 枚举类型
+    CommandStatus,
     DomainEventModel,
     EventOutboxModel,
     FlowResumeHandleModel,
     GenesisSessionModel,
-    # 枚举类型
-    CommandStatus,
-    TaskStatus,
-    OutboxStatus,
-    HandleStatus,
-    GenesisStatus,
     GenesisStage,
+    GenesisStatus,
+    HandleStatus,
+    OutboxStatus,
+    TaskStatus,
 )
 
 
@@ -43,6 +37,9 @@ class TestDomainEventModel:
             aggregate_type="Novel",
             event_type="NovelCreated",
             payload={"title": "测试小说"},
+            correlation_id=None,
+            causation_id=None,
+            metadata=None,
         )
 
         assert event.id == 1
@@ -96,6 +93,9 @@ class TestDomainEventModel:
             aggregate_type="Test",
             event_type="TestEvent",
             payload=complex_data,
+            correlation_id=None,
+            causation_id=None,
+            metadata=None,
         )
 
         # 确保可以正确序列化为JSON
@@ -117,7 +117,8 @@ class TestCommandInboxModel:
             session_id=uuid4(),
             command_type="CreateNovel",
             idempotency_key=str(uuid4()),
-            payload={"title": "新小说"}
+            payload={"title": "新小说"},
+            error_message=None,
         )
 
         assert command.id is not None
@@ -147,12 +148,13 @@ class TestCommandInboxModel:
         now = datetime.now(UTC)
         command = CommandInboxModel(
             id=uuid4(),
-            session_id=uuid4(), 
+            session_id=uuid4(),
             command_type="Test",
             idempotency_key=str(uuid4()),
             payload={},
             status=CommandStatus.COMPLETED,
-            updated_at=now  # 使用 updated_at 而不是 processed_at
+            updated_at=now,  # 使用 updated_at 而不是 processed_at
+            error_message=None,
         )
 
         assert command.updated_at == now
@@ -164,10 +166,17 @@ class TestAsyncTaskModel:
     def test_create_async_task_minimal(self):
         """测试创建最小化的异步任务"""
         from decimal import Decimal
-        
+
         task = AsyncTaskModel(
             id=uuid4(),
-            task_type="llm.generate_text"
+            task_type="llm.generate_text",
+            triggered_by_command_id=None,
+            input_data=None,
+            result_data=None,
+            error_data=None,
+            execution_node=None,
+            started_at=None,
+            completed_at=None,
         )
 
         assert task.id is not None
@@ -179,7 +188,7 @@ class TestAsyncTaskModel:
     def test_create_async_task_with_progress(self):
         """测试创建带进度的异步任务"""
         from decimal import Decimal
-        
+
         task = AsyncTaskModel(
             id=uuid4(),
             task_type="batch.process_chapters",
@@ -188,6 +197,10 @@ class TestAsyncTaskModel:
             input_data={"chapter_ids": [1, 2, 3]},
             execution_node="worker-01",
             started_at=datetime.now(UTC),
+            triggered_by_command_id=None,
+            result_data=None,
+            error_data=None,
+            completed_at=None,
         )
 
         assert task.status == TaskStatus.RUNNING
@@ -198,7 +211,7 @@ class TestAsyncTaskModel:
     def test_async_task_completion(self):
         """测试异步任务完成状态"""
         from decimal import Decimal
-        
+
         completed_at = datetime.now(UTC)
         task = AsyncTaskModel(
             id=uuid4(),
@@ -207,10 +220,16 @@ class TestAsyncTaskModel:
             progress=Decimal("100.00"),
             result_data={"sentiment": "positive", "score": 0.95},
             completed_at=completed_at,
+            triggered_by_command_id=None,
+            input_data=None,
+            error_data=None,
+            execution_node=None,
+            started_at=None,
         )
 
         assert task.status == TaskStatus.COMPLETED
         assert task.progress == Decimal("100.00")
+        assert task.result_data is not None
         assert task.result_data["score"] == 0.95
         assert task.completed_at == completed_at
 
@@ -227,10 +246,17 @@ class TestAsyncTaskModel:
                 "error_message": "Request timeout after 30s",
                 "stack_trace": "...",
             },
+            triggered_by_command_id=None,
+            input_data=None,
+            result_data=None,
+            execution_node=None,
+            started_at=None,
+            completed_at=None,
         )
 
         assert task.status == TaskStatus.FAILED
         assert task.retry_count == task.max_retries
+        assert task.error_data is not None
         assert task.error_data["error_code"] == "TIMEOUT"
 
 
@@ -242,7 +268,13 @@ class TestEventOutboxModel:
         event = EventOutboxModel(
             id=uuid4(),
             topic="novel.created",
-            payload={"novel_id": str(uuid4()), "title": "测试"}
+            payload={"novel_id": str(uuid4()), "title": "测试"},
+            key=None,
+            partition_key=None,
+            headers=None,
+            last_error=None,
+            scheduled_at=None,
+            sent_at=None,
         )
 
         assert event.id is not None
@@ -259,9 +291,14 @@ class TestEventOutboxModel:
             payload={"chapter_id": str(uuid4()), "novel_id": aggregate_id},
             partition_key=aggregate_id,
             headers={"content-type": "application/json"},
+            key=None,
+            last_error=None,
+            scheduled_at=None,
+            sent_at=None,
         )
 
         assert event.partition_key == aggregate_id
+        assert event.headers is not None
         assert event.headers["content-type"] == "application/json"
 
 
@@ -275,7 +312,13 @@ class TestFlowResumeHandleModel:
             id=uuid4(),
             flow_run_id=flow_run_id,
             correlation_id=f"chapter-generation-{uuid4()}",
-            resume_handle={"key": "handle_data"}
+            resume_handle={"key": "handle_data"},
+            task_name=None,
+            resume_payload=None,
+            timeout_seconds=None,
+            context_data=None,
+            expires_at=None,
+            resumed_at=None,
         )
 
         assert handle.id is not None
@@ -292,9 +335,15 @@ class TestFlowResumeHandleModel:
             status=HandleStatus.PAUSED,
             context_data={"chapter_id": str(uuid4()), "review_round": 2, "last_score": 7.5},
             resume_handle={"next_step": "apply_feedback"},
+            task_name=None,
+            resume_payload=None,
+            timeout_seconds=None,
+            expires_at=None,
+            resumed_at=None,
         )
 
         assert handle.status == HandleStatus.PAUSED
+        assert handle.context_data is not None
         assert handle.context_data["review_round"] == 2
         assert handle.resume_handle["next_step"] == "apply_feedback"
 
@@ -306,7 +355,12 @@ class TestFlowResumeHandleModel:
             flow_run_id=str(uuid4()),
             correlation_id="test-expiry",
             resume_handle={},
-            expires_at=future_time
+            expires_at=future_time,
+            task_name=None,
+            resume_payload=None,
+            timeout_seconds=None,
+            context_data=None,
+            resumed_at=None,
         )
 
         assert handle.expires_at == future_time
@@ -320,7 +374,9 @@ class TestGenesisSessionModel:
         user_id = uuid4()
         session = GenesisSessionModel(
             id=uuid4(),
-            user_id=user_id
+            user_id=user_id,
+            novel_id=None,
+            confirmed_data=None,
         )
 
         assert session.id is not None
@@ -346,6 +402,7 @@ class TestGenesisSessionModel:
 
         assert session.novel_id == novel_id
         assert session.current_stage == GenesisStage.CHARACTERS
+        assert session.confirmed_data is not None
         assert session.confirmed_data["characters_created"] == 3
 
     def test_genesis_session_completion(self):
@@ -356,6 +413,7 @@ class TestGenesisSessionModel:
             novel_id=uuid4(),
             status=GenesisStatus.COMPLETED,
             current_stage=GenesisStage.FINISHED,
+            confirmed_data=None,
         )
 
         assert session.status == GenesisStatus.COMPLETED
@@ -369,7 +427,7 @@ class TestModelValidation:
     def test_domain_event_invalid_data(self):
         """测试领域事件无效数据验证"""
         from pydantic import ValidationError
-        
+
         with pytest.raises(ValidationError):
             # payload 必须是字典
             DomainEventModel(
@@ -377,20 +435,30 @@ class TestModelValidation:
                 aggregate_id=str(uuid4()),
                 aggregate_type="Test",
                 event_type="TestEvent",
-                payload="not a dict",  # type: ignore
+                payload="not a dict",
+                correlation_id=None,
+                causation_id=None,
+                metadata=None,
             )
 
     def test_async_task_invalid_progress(self):
         """测试异步任务无效进度验证"""
         from decimal import Decimal
-        
-        # 注意：这个测试可能需要在模型中添加验证器
+
+        # 注意: 这个测试可能需要在模型中添加验证器
         task = AsyncTaskModel(
             id=uuid4(),
             task_type="test",
             progress=Decimal("150.00"),  # 超出范围
+            triggered_by_command_id=None,
+            input_data=None,
+            result_data=None,
+            error_data=None,
+            execution_node=None,
+            started_at=None,
+            completed_at=None,
         )
-        # 如果模型没有验证器，这个值会被接受
+        # 如果模型没有验证器, 这个值会被接受
         # 实际应用中应该添加 @field_validator
         assert task.progress == Decimal("150.00")
 
@@ -402,17 +470,29 @@ class TestModelValidation:
             id=uuid4(),
             flow_run_id=str(uuid4()),
             correlation_id="test-correlation",
-            resume_handle={}
+            resume_handle={},
+            task_name=None,
+            resume_payload=None,
+            timeout_seconds=None,
+            context_data=None,
+            expires_at=None,
+            resumed_at=None,
         )
 
         handle2 = FlowResumeHandleModel(
             id=uuid4(),
             flow_run_id=str(uuid4()),
             correlation_id="test-correlation",  # 相同的correlation_id
-            resume_handle={}
+            resume_handle={},
+            task_name=None,
+            resume_payload=None,
+            timeout_seconds=None,
+            context_data=None,
+            expires_at=None,
+            resumed_at=None,
         )
 
-        # 模型层面允许创建，数据库层面会拒绝
+        # 模型层面允许创建, 数据库层面会拒绝
         assert handle1.correlation_id == handle2.correlation_id
 
 

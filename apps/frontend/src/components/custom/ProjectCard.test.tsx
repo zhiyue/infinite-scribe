@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
-import { ProjectCard, type Project } from './ProjectCard'
+import { ProjectCard } from './ProjectCard'
+import type { Project } from '@/types'
 
 // 包装组件以提供路由上下文
 const renderWithRouter = (component: React.ReactElement) => {

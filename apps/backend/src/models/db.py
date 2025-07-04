@@ -105,6 +105,16 @@ class HandleStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class WorkflowStatus(str, Enum):
+    """工作流状态枚举"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
 class WorldviewEntryType(str, Enum):
     """世界观条目类型枚举"""
 
