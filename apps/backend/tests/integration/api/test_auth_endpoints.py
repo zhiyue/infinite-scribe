@@ -232,8 +232,24 @@ class TestAuthRefresh:
     
     def test_refresh_success(self, client_with_mocks):
         """Test successful token refresh."""
-        # This will be implemented after login endpoint is working
-        pass
+        # Arrange - Create a refresh token using JWT service directly
+        from src.common.services.jwt_service import jwt_service
+        user_id = "123"
+        refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        
+        # Act
+        data = {"refresh_token": refresh_token}
+        response = client_with_mocks.post("/api/v1/auth/refresh", json=data)
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "access_token" in data
+        assert "refresh_token" in data
+        
+        # Verify tokens are different from original
+        assert data["refresh_token"] != refresh_token
     
     def test_refresh_invalid_token(self, client_with_mocks):
         """Test refresh with invalid token."""
@@ -244,4 +260,7 @@ class TestAuthRefresh:
         response = client_with_mocks.post("/api/v1/auth/refresh", json=data)
         
         # Assert
-        assert response.status_code == 501  # Not implemented yet
+        assert response.status_code == 401
+        data = response.json()
+        assert "detail" in data
+        assert "invalid" in data["detail"].lower()

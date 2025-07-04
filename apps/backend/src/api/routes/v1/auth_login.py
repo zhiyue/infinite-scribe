@@ -161,12 +161,14 @@ async def logout_user(
 )
 async def refresh_access_token(
     request: RefreshTokenRequest,
+    req: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Union[TokenResponse, ErrorResponse]:
     """Refresh access token using refresh token.
     
     Args:
         request: Refresh token request
+        req: FastAPI request object (for extracting old access token)
         db: Database session
         
     Returns:
@@ -176,12 +178,30 @@ async def refresh_access_token(
         HTTPException: If refresh fails
     """
     try:
-        # TODO: Implement refresh token logic
-        # This requires additional methods in UserService
+        # Extract old access token from header if present
+        authorization = req.headers.get("Authorization")
+        old_access_token = None
+        if authorization:
+            from src.common.services.jwt_service import jwt_service
+            old_access_token = jwt_service.extract_token_from_header(authorization)
         
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Token refresh not yet implemented"
+        # Refresh the token
+        from src.common.services.jwt_service import jwt_service
+        result = jwt_service.refresh_access_token(
+            request.refresh_token, 
+            old_access_token
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=result["error"]
+            )
+        
+        return TokenResponse(
+            success=True,
+            access_token=result["access_token"],
+            refresh_token=result["refresh_token"]
         )
         
     except HTTPException:
