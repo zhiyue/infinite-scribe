@@ -7,7 +7,7 @@ from enum import Enum
 from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Index
 from sqlalchemy.orm import relationship
 
-from src.models.db import BaseModel
+from src.models.base import BaseModel
 
 
 class VerificationPurpose(str, Enum):
@@ -54,7 +54,7 @@ class EmailVerification(BaseModel):
     @classmethod
     def generate_token(cls) -> str:
         """Generate a secure random token."""
-        return secrets.urlsafe_token_urlsafe(32)
+        return secrets.token_urlsafe(32)
     
     @classmethod
     def create_for_user(
