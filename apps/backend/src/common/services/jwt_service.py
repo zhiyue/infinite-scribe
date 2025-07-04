@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from redis import Redis
 
 from src.core.auth_config import auth_config
@@ -13,11 +12,10 @@ from src.core.config import settings
 
 
 class JWTService:
-    """Service for JWT token management and password hashing."""
+    """Service for JWT token management."""
 
     def __init__(self):
         """Initialize JWT service."""
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.secret_key = auth_config.JWT_SECRET_KEY
         self.algorithm = auth_config.JWT_ALGORITHM
         self.access_token_expire_minutes = auth_config.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -38,31 +36,6 @@ class JWTService:
             )
         return self._redis_client
 
-    # Password hashing methods
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash.
-        
-        Args:
-            plain_password: Plain text password
-            hashed_password: Hashed password
-            
-        Returns:
-            True if password matches, False otherwise
-        """
-        return self.pwd_context.verify(plain_password, hashed_password)
-
-    def get_password_hash(self, password: str) -> str:
-        """Hash a password.
-        
-        Args:
-            password: Plain text password
-            
-        Returns:
-            Hashed password
-        """
-        return self.pwd_context.hash(password)
-
-    # JWT token methods
     def create_access_token(
         self, 
         subject: str, 

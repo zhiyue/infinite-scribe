@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Index
 from sqlalchemy.orm import relationship
 
-from src.models.db import BaseModel
+from src.models.base import BaseModel
 
 
 class Session(BaseModel):

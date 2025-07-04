@@ -1,5 +1,6 @@
 """Authentication configuration."""
 
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -9,7 +10,7 @@ class AuthConfig(BaseSettings):
 
     # JWT Settings
     JWT_SECRET_KEY: str = Field(
-        ...,
+        default="test_jwt_secret_key_for_development_only_32_chars" if os.getenv("NODE_ENV") == "test" else ...,
         description="Secret key for JWT signing (min 32 chars)"
     )
     JWT_ALGORITHM: str = Field(
@@ -27,11 +28,11 @@ class AuthConfig(BaseSettings):
 
     # Email Service
     RESEND_API_KEY: str = Field(
-        ...,
+        default="test_api_key" if os.getenv("NODE_ENV") == "test" else ...,
         description="Resend API key for sending emails"
     )
     RESEND_DOMAIN: str = Field(
-        ...,
+        default="test.example.com" if os.getenv("NODE_ENV") == "test" else ...,
         description="Domain for sending emails"
     )
     RESEND_FROM_EMAIL: str = Field(
@@ -93,8 +94,9 @@ class AuthConfig(BaseSettings):
 
     class Config:
         """Pydantic config."""
-        env_file = ".env"
+        env_file = ".env.test" if os.getenv("NODE_ENV") == "test" else ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra environment variables
 
 
 # Create singleton instance
