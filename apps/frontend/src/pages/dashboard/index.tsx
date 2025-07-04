@@ -1,8 +1,9 @@
 import { PlusCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useHealthCheck } from '@/hooks/useHealthCheck'
-import { ProjectCard, type Project } from '@/components/custom/ProjectCard'
+import { ProjectCard } from '@/components/custom/ProjectCard'
 import { EmptyProjectGuide } from '@/components/custom/EmptyProjectGuide'
+import type { Project } from '@/types'
 
 // 模拟项目数据（后续将从API获取）
 const mockProjects: Project[] = []

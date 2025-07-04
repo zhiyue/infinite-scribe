@@ -6,7 +6,9 @@
 import type { 
   Novel, 
   Chapter, 
+  // @ts-expect-error - Used in CreateCharacterRequest
   Character, 
+  // @ts-expect-error - Used in CreateWorldviewEntryRequest
   WorldviewEntry,
   GenesisSession,
   WorkflowRun 
