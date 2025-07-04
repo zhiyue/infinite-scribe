@@ -44,7 +44,26 @@
 /project:task-review concept-template-model
 ```
 
-### 4. 创建任务总结
+### 4. 开发任务（重要）
+
+使用此命令开始或继续开发任务，它会自动加载任务上下文并在开发过程中更新进度：
+
+```
+/project:task-dev <任务名称>
+```
+
+例如：
+```
+/project:task-dev implement-user-auth
+```
+
+这个命令会：
+- 自动加载任务的 README、实现方案和当前进度
+- 使用 TodoWrite 工具跟踪开发进度
+- 自动更新 todo-list.md 中的任务状态
+- 在 progress.md 中记录开发进度
+
+### 5. 创建任务总结
 
 任务完成后，创建总结文档：
 
@@ -129,6 +148,7 @@ sequenceDiagram
 | `/project:task-new` | 创建新任务 |
 | `/project:task-list` | 列出所有任务 |
 | `/project:task-review` | 查看任务详情 |
+| `/project:task-dev` | 开发任务（自动加载上下文并更新进度） |
 | `/project:task-summary` | 创建任务总结 |
 
 ## 任务生命周期
@@ -136,8 +156,10 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> 创建: /project:task-new
-    创建 --> 开发: 更新 todo-list.md
-    开发 --> 开发: 更新 progress.md
+    创建 --> 开发: /project:task-dev
+    开发 --> 开发: 自动更新进度
+    开发 --> 查看: /project:task-review
+    查看 --> 开发: 继续开发
     开发 --> 完成: 所有任务完成
     完成 --> 总结: /project:task-summary
     总结 --> [*]

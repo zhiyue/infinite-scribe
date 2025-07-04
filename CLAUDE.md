@@ -471,12 +471,16 @@ pnpm test
    - `/project:task-new <任务名>` - 创建新任务文档结构
    - `/project:task-list` - 列出所有任务及进度
    - `/project:task-review <任务名>` - 查看特定任务详情
+   - `/project:task-dev <任务名>` - 开始/继续开发任务（自动加载上下文并更新进度）
    - `/project:task-summary <任务名>` - 创建任务总结
    
    示例：
    ```bash
    # 创建新任务
    /project:task-new implement-oauth
+   
+   # 开始开发任务（自动加载上下文）
+   /project:task-dev implement-oauth
    
    # 查看任务详情
    /project:task-review implement-oauth
