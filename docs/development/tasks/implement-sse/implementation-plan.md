@@ -30,39 +30,52 @@ retry: 5000
 
 ## 架构设计
 
+### 改进后的系统架构
+
+基于评审建议，在原有架构基础上增加了以下改进：
+1. 在 EventBus 和 SSEManager 之间新增 **Adapter/Formatter 层**
+2. 增加了 **事件补偿机制** 支持断线重连后的事件重放
+3. 明确了与 **Transactional Outbox** 的集成关系
+
 ### 系统架构图
 
 ```mermaid
 graph TB
     subgraph "前端 Frontend"
         UI[React UI]
-        ES[EventSource Client]
+        ES[EventSource Client<br/>with Last-Event-ID]
         CTX[SSE Context]
         HOOK[useSSE Hook]
+        QC[Query Client<br/>TanStack Query]
     end
     
     subgraph "后端 Backend"
-        API[FastAPI SSE Endpoint]
-        MGR[SSE Manager]
-        EB[Event Bus]
+        API[FastAPI SSE Endpoint<br/>+ Auth Middleware]
+        MGR[SSE Manager<br/>连接池 + 权限检查]
+        ADAPT[Event Adapter<br/>格式转换 + 过滤]
+        EB[Event Bus Interface<br/>Protocol/ABC]
         
         subgraph "事件源 Event Sources"
-            KAFKA[Kafka Consumer]
-            REDIS[Redis Subscriber]
-            DB[Database Triggers]
+            KAFKA[Kafka Consumer<br/>+ Offset Tracking]
+            REDIS[Redis Subscriber<br/>+ 幂等处理]
+            DB[Outbox Poller<br/>保证一致性]
         end
     end
     
     subgraph "消息中间件"
         KF[Kafka Broker]
         RD[Redis Pub/Sub]
+        OUT[Transactional<br/>Outbox Table]
     end
     
     UI --> CTX
+    CTX --> HOOK
+    HOOK --> QC
     CTX --> ES
-    ES -.SSE Connection.-> API
+    ES -.SSE Connection<br/>with JWT.-> API
     API --> MGR
-    MGR --> EB
+    MGR --> ADAPT
+    ADAPT --> EB
     
     KAFKA --> EB
     REDIS --> EB
@@ -70,10 +83,12 @@ graph TB
     
     KF --> KAFKA
     RD --> REDIS
+    OUT --> DB
     
     style ES fill:#f9f,stroke:#333,stroke-width:2px
     style API fill:#f9f,stroke:#333,stroke-width:2px
     style MGR fill:#bbf,stroke:#333,stroke-width:2px
+    style ADAPT fill:#bfb,stroke:#333,stroke-width:2px
 ```
 
 ### SSE 连接流程图
@@ -204,6 +219,206 @@ classDiagram
    - 提供降级到轮询的备选方案
    - 显示连接状态指示器
 
+## 数据模型设计
+
+### 事件模型架构决策
+
+经过分析，SSE 事件模型将放置在 `packages/shared-types/src/sse_events.py` 中，原因如下：
+
+1. **关注点分离**
+   - `events.py` - 专注于 Kafka 事件（微服务间通信）
+   - `sse_events.py` - 专注于 SSE 事件（服务器到浏览器推送）
+   - 两种事件用途和格式完全不同，应该分开管理
+
+2. **格式差异**
+   ```python
+   # Kafka 事件 - 复杂业务对象
+   class NovelCreatedEvent(BaseEvent):
+       novel_data: NovelModel
+       created_by: str
+   
+   # SSE 事件 - W3C 标准文本流格式
+   class SSEMessage(BaseModel):
+       event: str  # 事件类型
+       data: Dict[str, Any]  # 事件数据（将序列化为 JSON）
+       id: Optional[str]  # 事件 ID
+       retry: Optional[int]  # 重连延迟
+   ```
+
+3. **前后端共享需求**
+   - SSE 事件类型需要在 TypeScript 中定义
+   - 确保前后端类型安全和契约一致性
+
+### SSE 事件类型定义
+
+```python
+# packages/shared-types/src/sse_events.py
+
+# 基础 SSE 消息格式
+class SSEMessage(BaseModel):
+    """SSE 消息格式（遵循 W3C 规范）"""
+    event: str  # 事件类型，使用 domain.action-past 格式
+    data: Dict[str, Any]  # 事件数据
+    id: Optional[str] = None  # 事件 ID，格式：{source}:{partition}:{offset}
+    retry: Optional[int] = None  # 重连延迟（毫秒）
+    scope: Literal["user", "session", "novel", "global"]  # 事件作用域
+    version: str = "1.0"  # 事件版本，用于兼容性
+    
+    def to_sse_format(self) -> str:
+        """转换为标准 SSE 文本格式"""
+        lines = []
+        if self.id:
+            lines.append(f"id: {self.id}")
+        lines.append(f"event: {self.event}")
+        # 添加 scope 和 version 到 data
+        data_with_meta = {
+            **self.data,
+            "_scope": self.scope,
+            "_version": self.version
+        }
+        lines.append(f"data: {json.dumps(data_with_meta, ensure_ascii=False)}")
+        if self.retry:
+            lines.append(f"retry: {self.retry}")
+        lines.append("")  # 空行结束
+        return "\n".join(lines)
+
+# 具体事件类型
+class TaskProgressEvent(BaseModel):
+    """任务进度更新"""
+    task_id: str
+    progress: int  # 0-100
+    message: Optional[str]
+
+class TaskStatusChangeEvent(BaseModel):
+    """任务状态变更"""
+    task_id: str
+    old_status: str
+    new_status: str
+    timestamp: datetime
+
+class SystemNotificationEvent(BaseModel):
+    """系统通知"""
+    level: Literal["info", "warning", "error"]
+    title: str
+    message: str
+
+class ContentUpdateEvent(BaseModel):
+    """内容更新通知"""
+    entity_type: str  # "novel", "chapter", "character" 等
+    entity_id: str
+    action: Literal["created", "updated", "deleted"]
+    summary: Optional[str]
+```
+
+### TypeScript 类型定义
+
+相应的 TypeScript 类型将添加到 `packages/shared-types/src/index.ts`：
+
+```typescript
+// SSE 事件类型
+export interface SSEMessage {
+  event: string;
+  data: Record<string, any>;
+  id?: string;
+  retry?: number;
+}
+
+export interface TaskProgressEvent {
+  task_id: string;
+  progress: number;
+  message?: string;
+}
+
+export interface TaskStatusChangeEvent {
+  task_id: string;
+  old_status: string;
+  new_status: string;
+  timestamp: string;
+}
+
+// ... 其他事件类型
+```
+
+## 事件补偿机制（P0）
+
+### 设计原理
+
+为保证断线重连后不丢失事件，实现基于 `Last-Event-ID` 的事件补偿：
+
+1. **事件 ID 设计**
+   - 使用 Kafka offset 或递增 cursor 作为事件 ID
+   - 格式：`{source}:{partition}:{offset}` 或 `{timestamp}:{sequence}`
+
+2. **客户端重连流程**
+   ```javascript
+   const eventSource = new EventSource('/api/v1/events/stream', {
+     headers: {
+       'Authorization': `Bearer ${token}`,
+       'Last-Event-ID': lastEventId  // 断线前最后接收的事件 ID
+     }
+   });
+   ```
+
+3. **服务端事件重放**
+   ```python
+   async def replay_events(last_event_id: str, client_id: str):
+       # 解析 last_event_id 获取 offset
+       source, partition, offset = parse_event_id(last_event_id)
+       
+       # 从 Kafka 重放事件
+       if source == "kafka":
+           events = await kafka_consumer.seek_and_fetch(partition, offset)
+       # 从 Redis Stream 重放
+       elif source == "redis":
+           events = await redis.xrange(stream_key, start=offset)
+       
+       # 过滤并推送给客户端
+       for event in events:
+           if await check_permission(event, client_id):
+               await send_to_client(client_id, event)
+   ```
+
+4. **事件缓存策略**
+   - 在 Redis 中维护最近 N 分钟的事件缓存
+   - 使用 Redis Stream 或 Sorted Set 存储
+   - 超过时间窗口的事件从 Kafka 获取
+
+## Kafka → SSE 事件映射（P0）
+
+### 映射规则表
+
+| Kafka Event Type | SSE Event | 过滤条件 | 数据转换 |
+|-----------------|-----------|---------|---------|
+| NovelCreatedEvent | novel.created | user_id | 精简为 {id, title, status} |
+| ChapterDraftCreatedEvent | chapter.draft-created | novel_id | 包含 {chapter_id, number, title} |
+| TaskProgressUpdateEvent | task.progress-updated | task_id, user_id | 保留 {progress, message} |
+| GenesisStepCompletedEvent | genesis.step-completed | session_id | 提取 {stage, status, summary} |
+| WorkflowStatusChangedEvent | workflow.status-changed | novel_id | 状态转换信息 |
+
+### 事件格式规范
+
+1. **事件命名约定**
+   - 使用 `domain.action-past` 格式
+   - 域名小写，动作使用过去时
+   - 示例：`task.progress-updated`, `novel.status-changed`
+
+2. **事件作用域（scope）**
+   - `user` - 仅推送给特定用户
+   - `session` - 推送给特定会话
+   - `novel` - 推送给订阅特定小说的用户
+   - `global` - 系统级广播
+
+3. **错误事件格式**
+   ```python
+   class SSEErrorEvent(BaseModel):
+       """SSE 错误事件"""
+       level: Literal["warning", "error", "critical"]
+       code: str  # 错误码
+       message: str  # 用户友好的错误信息
+       correlation_id: Optional[str]  # 关联请求 ID
+       retry_after: Optional[int]  # 建议重试时间（秒）
+   ```
+
 ## 风险评估
 
 ### 技术风险
@@ -267,3 +482,23 @@ classDiagram
    - 弱网环境测试
    - 代理服务器测试
    - 防火墙穿透测试
+
+## 结构化日志（MVP）
+
+```python
+# SSE 连接生命周期日志
+logger.info("sse_connection_established", extra={
+    "client_id": client_id,
+    "user_id": user_id,
+    "ip": client_ip,
+    "user_agent": user_agent,
+    "last_event_id": last_event_id
+})
+
+logger.info("sse_connection_closed", extra={
+    "client_id": client_id,
+    "duration": duration,
+    "events_sent": events_sent,
+    "reason": close_reason
+})
+```
