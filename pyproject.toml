@@ -10,30 +10,32 @@ dependencies = [
     "pydantic~=2.11.7",
     "pydantic-settings~=2.6.0",
     "uvicorn[standard]~=0.32.0",
-    
     # Databases
     "asyncpg~=0.30.0",
-    "neo4j~=5.26.0", 
+    "neo4j~=5.26.0",
     "redis~=5.2.0",
     "pymilvus~=2.4.9",
-    
     # AI/ML Providers
     "openai~=1.54.0",
     "anthropic~=0.39.0",
     "litellm~=1.52.0",
     "langfuse~=2.25.0",
-    
     # Infrastructure
     "aiokafka~=0.11.0",
     "prefect~=2.19.0",
     "minio~=7.2.10",
-    
     # Utilities
     "python-dotenv~=1.0.1",
     "structlog~=24.4.0",
     "httpx~=0.27.0",
     "tenacity~=9.0.0",
     "pyyaml~=6.0.2",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.20",
+    "resend>=2.10.0",
+    "slowapi>=0.1.9",
+    "alembic>=1.16.2",
 ]
 
 [dependency-groups]

@@ -9,6 +9,11 @@ from .api import *
 from .events import *
 from .sse import *
 
+# Auth models
+from src.models.user import User
+from src.models.session import Session
+from src.models.email_verification import EmailVerification, VerificationPurpose
+
 __all__ = [
     # 从 db 模块导出
     'BaseDBModel',
@@ -60,4 +65,9 @@ __all__ = [
     'ChapterProgressSSE',
     'AgentStatusSSE',
     'ErrorSSE',
+    # Auth models
+    "User",
+    "Session",
+    "EmailVerification",
+    "VerificationPurpose",
 ]

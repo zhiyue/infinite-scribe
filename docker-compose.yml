@@ -54,6 +54,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # Maildev - Email Testing Service (Development Only)
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: infinite-scribe-maildev
+    profiles:
+      - development
+    ports:
+      - "1080:1080"   # Web UI
+      - "1025:1025"   # SMTP Server
+    networks:
+      - infinite-scribe-network
+    environment:
+      - MAILDEV_SMTP_PORT=1025
+      - MAILDEV_WEB_PORT=1080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Neo4j Graph Database
   neo4j:
     image: neo4j:5
