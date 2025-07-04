@@ -9,23 +9,28 @@ class MockRedis:
     def __init__(self):
         self.data = {}
     
-    async def set(self, key: str, value: str, ex: int = None):
+    def set(self, key: str, value: str, ex: int = None):
         """Mock set method."""
         self.data[key] = value
         return True
     
-    async def get(self, key: str):
+    def setex(self, key: str, ex: int, value: str):
+        """Mock setex method."""
+        self.data[key] = value
+        return True
+    
+    def get(self, key: str):
         """Mock get method."""
         return self.data.get(key)
     
-    async def delete(self, key: str):
+    def delete(self, key: str):
         """Mock delete method."""
         if key in self.data:
             del self.data[key]
             return 1
         return 0
     
-    async def exists(self, key: str):
+    def exists(self, key: str):
         """Mock exists method."""
         return 1 if key in self.data else 0
     

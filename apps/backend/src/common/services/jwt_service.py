@@ -87,6 +87,7 @@ class JWTService:
             "sub": str(subject),
             "exp": expires_at,
             "iat": datetime.utcnow(),
+            "jti": secrets.token_urlsafe(16),  # Add JTI for uniqueness
             "token_type": "refresh",
         }
         
@@ -175,6 +176,80 @@ class JWTService:
             return None
             
         return parts[1]
+
+    def refresh_access_token(
+        self, 
+        refresh_token: str, 
+        old_access_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Refresh access token using refresh token.
+        
+        Args:
+            refresh_token: Valid refresh token
+            old_access_token: Optional old access token to blacklist
+            
+        Returns:
+            Dictionary with success status and new tokens or error message
+        """
+        try:
+            # Verify refresh token
+            payload = self.verify_token(refresh_token, "refresh")
+            user_id = payload.get("sub")
+            
+            if not user_id:
+                return {
+                    "success": False,
+                    "error": "Invalid refresh token: missing subject"
+                }
+            
+            # Create new access token
+            new_access_token, new_jti, access_expires_at = self.create_access_token(user_id)
+            
+            # Create new refresh token (token rotation for security)
+            new_refresh_token, refresh_expires_at = self.create_refresh_token(user_id)
+            
+            # Blacklist old access token if provided
+            if old_access_token:
+                try:
+                    old_payload = self.verify_token(old_access_token, "access")
+                    old_jti = old_payload.get("jti")
+                    if old_jti:
+                        # Calculate expiration from old token
+                        old_exp = datetime.fromtimestamp(old_payload.get("exp", 0))
+                        self.blacklist_token(old_jti, old_exp)
+                except JWTError:
+                    # Old token is already invalid, ignore
+                    pass
+            
+            return {
+                "success": True,
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+                "expires_at": access_expires_at.isoformat()
+            }
+            
+        except JWTError as e:
+            error_msg = str(e).lower()
+            if "expired" in error_msg:
+                return {
+                    "success": False,
+                    "error": "Refresh token has expired"
+                }
+            elif "token type" in error_msg:
+                return {
+                    "success": False,
+                    "error": "Invalid token type. Expected refresh token"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Invalid refresh token"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Token refresh failed: {str(e)}"
+            }
 
 
 # Create singleton instance
