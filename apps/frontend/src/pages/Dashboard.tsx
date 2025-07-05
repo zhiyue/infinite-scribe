@@ -187,7 +187,7 @@ const DashboardPage: React.FC = () => {
                                 <div className="text-sm">
                                     <strong>Current Token:</strong>
                                     <div className="mt-1 p-2 bg-gray-100 rounded text-xs font-mono break-all">
-                                        {localStorage.getItem('access_token') || 'No token found'}
+                                        {user?.accessToken || 'No token found'}
                                     </div>
                                 </div>
 
