@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Auth System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+
+        .content {
+            margin-bottom: 30px;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+            margin-top: 30px;
+        }
+
+        .features {
+            background-color: #f9fafb;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .feature-item {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .feature-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #16a34a;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Auth System</div>
+            <h1 class="title">Welcome to Auth System!</h1>
+        </div>
+
+        <div class="content">
+            <p>Hello {{ username or 'User' }},</p>
+
+            <p>🎉 <strong>Congratulations!</strong> Your email has been successfully verified and your account is now
+                active.</p>
+
+            <p>You can now enjoy all the features of our authentication system:</p>
+
+            <div class="features">
+                <div class="feature-item">Secure user authentication</div>
+                <div class="feature-item">Password reset functionality</div>
+                <div class="feature-item">Profile management</div>
+                <div class="feature-item">Session management</div>
+            </div>
+
+            <p>Ready to get started? Click the button below to access your dashboard:</p>
+
+            <div style="text-align: center;">
+                <a href="{{ dashboard_url }}" class="button">Go to Dashboard</a>
+            </div>
+
+            <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+
+            <p>Thank you for choosing Auth System!</p>
+        </div>
+
+        <div class="footer">
+            <p>Best regards,<br>The Auth System Team</p>
+            <p>This is an automated message, please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+
+</html>

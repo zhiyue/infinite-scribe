@@ -160,10 +160,14 @@ class Settings(BaseSettings):
     # Service identification
     SERVICE_NAME: str = "infinite-scribe-backend"
     SERVICE_TYPE: str = "api-gateway"
+    NODE_ENV: str = "development"
 
     # API Settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    
+    # Frontend URL
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # CORS
     ALLOWED_ORIGINS: list[str] = ["*"]
