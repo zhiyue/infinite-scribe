@@ -3,9 +3,8 @@
   // Note: $schema field removed to avoid "unknown config option" errors
   // Note: stubPath removed - type stubs are installed via uv (types-redis, types-pyyaml)
   "include": [
-    "apps/backend/src",
-    "apps/backend/tests",
-    "packages"
+    "src",
+    "tests"
   ],
   "exclude": [
     "**/__pycache__",
@@ -48,7 +47,7 @@
   "reportUnnecessaryTypeIgnoreComment": false,
   "executionEnvironments": [
     {
-      "root": "apps/backend",
+      "root": ".",
       "pythonVersion": "3.11",
       "pythonPlatform": "Linux",
       "extraPaths": [

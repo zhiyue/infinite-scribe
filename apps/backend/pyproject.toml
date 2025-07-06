@@ -1,5 +1,5 @@
 [project]
-name = "infinite-scribe"
+name = "infinite-scribe-backend"
 version = "0.1.0"
 description = "Infinite Scribe - AI-powered collaborative novel creation platform"
 requires-python = ">=3.11"
@@ -36,6 +36,7 @@ dependencies = [
     "resend>=2.10.0",
     "slowapi>=0.1.9",
     "alembic>=1.16.2",
+    "sqlalchemy[mypy]>=2.0.41",
 ]
 
 [dependency-groups]
@@ -46,14 +47,12 @@ dev = [
     "pytest-cov~=6.0.0",
     "pytest-mock~=3.14.0",
     "testcontainers~=4.8.0",
-    
     # Code Quality
     "ruff~=0.7.2",
     "black~=24.10.0",
     "mypy~=1.13.0",
     "types-pyyaml~=6.0.12",
     "types-redis~=4.6.0",
-    
     # Development Tools
     "ipdb~=0.13.13",
     "rich~=13.9.2",
@@ -66,23 +65,22 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["apps", "packages"]
-
+packages = ["src"]
 
 # Ruff configuration
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 exclude = [
     ".venv",
     "build",
     "dist",
-    "apps/*/tests/fixtures",
+    "tests/fixtures",
     ".git",
     "__pycache__",
     "*.egg-info",
 ]
-src = ["apps/backend/src", "apps/frontend", "packages"]
+src = ["src"]
 
 [tool.ruff.lint]
 select = [
@@ -114,7 +112,7 @@ exclude = '''
   | \.venv
   | build
   | dist
-  | apps/.*/migrations
+  | .*/migrations
   | __pycache__
 )/
 '''
@@ -123,10 +121,9 @@ exclude = '''
 [tool.pytest.ini_options]
 pythonpath = [
     ".",
-    "apps/backend",
-    "apps/frontend",
+    "src",
 ]
-testpaths = ["tests", "apps/*/tests"]
+testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
@@ -154,9 +151,13 @@ no_implicit_reexport = true
 disallow_untyped_defs = false
 disallow_any_generics = false
 
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
+ignore_missing_imports = true
+
 # Coverage configuration
 [tool.coverage.run]
-source = ["apps", "packages"]
+source = ["src"]
 omit = [
     "*/tests/*",
     "*/__pycache__/*",
