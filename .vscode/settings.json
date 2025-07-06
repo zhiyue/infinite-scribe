@@ -1,13 +1,12 @@
 {
     // Python 配置
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.defaultInterpreterPath": "${workspaceFolder}/apps/backend/.venv/bin/python",
     // Pyright/Pylance 配置
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoSearchPaths": true,
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/apps/backend/src",
-        "${workspaceFolder}/packages"
+        "apps/backend/src"
     ],
     "python.analysis.diagnosticMode": "workspace",
     "python.analysis.indexing": true,
@@ -25,8 +24,12 @@
     "ruff.lint.enable": true,
     "ruff.format.enable": true,
     "ruff.organizeImports": true,
-    "ruff.path": ["${workspaceFolder}/.venv/bin/ruff"],
-    "ruff.interpreter": ["${workspaceFolder}/.venv/bin/python"],
+    "ruff.path": [
+        "${workspaceFolder}/apps/backend/.venv/bin/ruff"
+    ],
+    "ruff.interpreter": [
+        "${workspaceFolder}/apps/backend/.venv/bin/python"
+    ],
     // 编辑器配置
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
@@ -38,7 +41,7 @@
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
         "editor.rulers": [
-            100
+            120
         ]
     },
     // 文件关联
