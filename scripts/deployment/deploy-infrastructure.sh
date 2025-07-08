@@ -137,7 +137,7 @@ else
     
     # Sync files to dev server
     echo -e "${YELLOW}📤 Syncing files to dev server...${NC}"
-    rsync -avz --exclude 'node_modules' --exclude '.git' \
+    rsync -avz --delete --exclude 'node_modules' --exclude '.git' \
         --exclude '*.log' --exclude '.env.local' --exclude '.env.test' \
         --exclude '.venv' --exclude '__pycache__' \
         ./ "${SSH_USER}@${INFRA_HOST}:~/workspace/mvp/infinite-scribe/"

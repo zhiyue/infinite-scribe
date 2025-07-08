@@ -80,6 +80,7 @@ exclude = [
     ".git",
     "__pycache__",
     "*.egg-info",
+    "alembic/versions/",
 ]
 src = ["src"]
 
@@ -182,6 +183,7 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/migrations/*",
+    "*/alembic/versions/*",
     "*/.venv/*",
     "*/conftest.py",
 ]
@@ -204,7 +206,7 @@ directory = "htmlcov"
 
 # Bandit security linter configuration
 [tool.bandit]
-exclude_dirs = ["tests", ".venv", "venv", "__pycache__"]
+exclude_dirs = ["tests", ".venv", "venv", "__pycache__", "alembic/versions"]
 skips = ["B101"]  # Skip assert_used test
 
 # Pyright configuration for Python type checking
