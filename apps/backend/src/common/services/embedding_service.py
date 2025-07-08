@@ -66,9 +66,7 @@ class EmbeddingService:
                 raise ValueError(f"Unexpected response format: {result}")
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Embedding API error: {e.response.status_code} - {e.response.text}"
-            ) from e
+            raise RuntimeError(f"Embedding API error: {e.response.status_code} - {e.response.text}") from e
         except Exception as e:
             raise RuntimeError(f"Failed to get embedding: {e!s}") from e
 

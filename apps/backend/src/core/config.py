@@ -53,7 +53,7 @@ def get_project_root() -> Path:
 
     # 如果所有方法都失败了, 抛出明确错误而不是使用脆弱的硬编码路径
     raise FileNotFoundError(
-        "无法找到项目根目录，请检查环境或设置 PROJECT_ROOT 变量。"
+        "无法找到项目根目录,请检查环境或设置 PROJECT_ROOT 变量。"
         "查找的标记文件包括: pyproject.toml, .git, package.json, docker-compose.yml, "
         "pnpm-workspace.yaml, README.md, Makefile"
     )
@@ -63,9 +63,9 @@ def get_backend_root() -> Path:
     """
     获取 backend 服务根目录路径。
 
-    使用多种方法确保健壮性：
+    使用多种方法确保健壮性:
     1. 从项目根目录构建 apps/backend 路径
-    2. 如果失败，则查找包含配置文件的目录
+    2. 如果失败,则查找包含配置文件的目录
     3. 最后使用环境变量备选方案
 
     Returns:
@@ -90,24 +90,20 @@ def get_backend_root() -> Path:
             return backend_root
 
     except FileNotFoundError:
-        pass  # 项目根目录未找到，尝试其他方法
+        pass  # 项目根目录未找到,尝试其他方法
 
     # 方法2: 从当前文件向上查找 backend 根目录
     current_path = Path(__file__).resolve()
     for parent in current_path.parents:
         # 检查是否是 backend 根目录 (包含 src 目录和标记文件)
-        if (
-            parent.name == "backend"
-            and (parent / "src").exists()
-            and (parent / "src" / "__init__.py").exists()
-        ):
+        if parent.name == "backend" and (parent / "src").exists() and (parent / "src" / "__init__.py").exists():
             return parent
 
     # 方法3: 环境变量备选方案
     if backend_root_env := os.getenv("BACKEND_ROOT"):
         return Path(backend_root_env)
 
-    # 如果所有方法都失败了，抛出明确错误
+    # 如果所有方法都失败了,抛出明确错误
     raise FileNotFoundError(
         "无法找到 backend 根目录。请检查项目结构或设置 BACKEND_ROOT 环境变量。"
         "期望的目录结构: PROJECT_ROOT/apps/backend/ 或包含 src/core/config.py 的目录"
@@ -165,7 +161,7 @@ class Settings(BaseSettings):
     # API Settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    
+
     # Frontend URL
     FRONTEND_URL: str = "http://localhost:3000"
 

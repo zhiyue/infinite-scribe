@@ -1,7 +1,7 @@
 """
 异步任务管理服务
 
-管理创世流程中的异步任务，包括任务创建、进度更新、状态管理等。
+管理创世流程中的异步任务,包括任务创建、进度更新、状态管理等。
 """
 
 import asyncio
@@ -93,7 +93,7 @@ class TaskService:
 
         # 更新任务状态为运行中
         query = """
-        UPDATE genesis_tasks 
+        UPDATE genesis_tasks
         SET status = $1, started_at = $2, updated_at = $3, message = $4
         WHERE id = $5
         """
@@ -113,21 +113,17 @@ class TaskService:
 
         # 更新数据库
         query = """
-        UPDATE genesis_tasks 
+        UPDATE genesis_tasks
         SET progress = $1, current_stage = $2, message = $3, updated_at = $4
         WHERE id = $5
         """
 
-        await postgres_service.execute(
-            query, (progress, stage, message, datetime.utcnow(), task_id)
-        )
+        await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))
 
         # 获取任务信息用于SSE推送
         task_info = await self.get_task_info(task_id)
         if task_info:
-            await sse_service.send_progress_update(
-                task_id, task_info["session_id"], progress, stage, message
-            )
+            await sse_service.send_progress_update(task_id, task_info["session_id"], progress, stage, message)
 
         logger.debug(f"Updated task {task_id} progress: {progress:.2f} - {message}")
 
@@ -149,7 +145,7 @@ class TaskService:
 
         # 更新数据库
         query = """
-        UPDATE genesis_tasks 
+        UPDATE genesis_tasks
         SET status = $1, progress = $2, result_data = $3, result_step_id = $4,
             completed_at = $5, updated_at = $6, actual_duration_seconds = $7
         WHERE id = $8
@@ -172,9 +168,7 @@ class TaskService:
 
         # SSE推送完成事件
         if task_info:
-            await sse_service.send_task_complete(
-                task_id, task_info["session_id"], result_data, event_type
-            )
+            await sse_service.send_task_complete(task_id, task_info["session_id"], result_data, event_type)
 
         # 清理运行中的任务引用
         if task_id in self.running_tasks:
@@ -194,7 +188,7 @@ class TaskService:
 
         # 更新数据库
         query = """
-        UPDATE genesis_tasks 
+        UPDATE genesis_tasks
         SET status = $1, error_data = $2, completed_at = $3, updated_at = $4,
             actual_duration_seconds = $5
         WHERE id = $6
@@ -225,7 +219,7 @@ class TaskService:
 
         # 更新数据库状态
         query = """
-        UPDATE genesis_tasks 
+        UPDATE genesis_tasks
         SET status = $1, updated_at = $2
         WHERE id = $3 AND status IN ($4, $5)
         """
@@ -272,50 +266,40 @@ class TaskService:
         ORDER BY created_at DESC
         """
 
-        result = await postgres_service.execute(
-            query, (session_id, TaskStatus.PENDING, TaskStatus.RUNNING)
-        )
+        result = await postgres_service.execute(query, (session_id, TaskStatus.PENDING, TaskStatus.RUNNING))
 
         return result
 
     async def cleanup_old_tasks(self, days: int = 30):
         """清理旧的已完成任务"""
 
-        query = (
-            """
-        DELETE FROM genesis_tasks 
-        WHERE status IN ($1, $2, $3) 
-        AND completed_at < NOW() - INTERVAL '%s days'
+        query = f"""
+        DELETE FROM genesis_tasks
+        WHERE status IN ($1, $2, $3)
+        AND completed_at < NOW() - INTERVAL '{days} days'
         """
-            % days
-        )
 
-        result = await postgres_service.execute(
-            query, (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
-        )
+        result = await postgres_service.execute(query, (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED))
 
         logger.info(f"Cleaned up old tasks, affected rows: {len(result)}")
 
     async def get_task_performance_stats(self, days: int = 7) -> dict[str, Any]:
         """获取任务性能统计"""
 
-        query = (
-            """
-        SELECT 
+        query = f"""
+        SELECT
             task_type,
             COUNT(*) as total_tasks,
             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_tasks,
             COUNT(CASE WHEN status = 'FAILED' THEN 1 END) as failed_tasks,
-            AVG(CASE WHEN actual_duration_seconds IS NOT NULL 
+            AVG(CASE WHEN actual_duration_seconds IS NOT NULL
                 THEN actual_duration_seconds END) as avg_duration_seconds,
             MAX(actual_duration_seconds) as max_duration_seconds
         FROM genesis_tasks
-        WHERE created_at >= NOW() - INTERVAL '%s days'
+        WHERE created_at >= NOW() - INTERVAL '{days} days'
         GROUP BY task_type
         ORDER BY total_tasks DESC
         """
-            % days
-        )
 
         result = await postgres_service.execute(query)
 
@@ -330,9 +314,7 @@ class TaskService:
         }
 
         if stats["summary"]["total_tasks"] > 0:
-            stats["summary"]["success_rate"] = (
-                stats["summary"]["total_completed"] / stats["summary"]["total_tasks"]
-            )
+            stats["summary"]["success_rate"] = stats["summary"]["total_completed"] / stats["summary"]["total_tasks"]
 
         return stats
 

@@ -3,18 +3,15 @@
 import asyncio
 import os
 import sys
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
 from src.api.main import app
 from src.database import get_db
 from src.models.base import Base
@@ -180,13 +177,13 @@ async def test_engine():
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
-    
+
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     # Cleanup
     await engine.dispose()
 
@@ -199,7 +196,7 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    
+
     async with async_session() as session:
         yield session
 
@@ -207,14 +204,15 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 def client(test_session):
     """Create test client."""
+
     def override_get_db():
         return test_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     with TestClient(app) as test_client:
         yield test_client
-    
+
     # Cleanup
     app.dependency_overrides.clear()
 
@@ -222,14 +220,15 @@ def client(test_session):
 @pytest.fixture
 async def async_client(test_session):
     """Create async test client."""
+
     def override_get_db():
         return test_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
-    
+
     # Cleanup
     app.dependency_overrides.clear()
 
@@ -240,23 +239,29 @@ def setup_test_env():
     # Set test environment
     os.environ["NODE_ENV"] = "test"
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-    
+
     # Set required API keys for testing (fake values)
     os.environ["SECRET_KEY"] = "test_secret_key_at_least_32_characters_long"
     os.environ["REDIS_URL"] = "redis://fake:6379/0"  # Will be mocked
     os.environ["FRONTEND_URL"] = "http://localhost:3000"
-    
+
     # Email settings for testing
     os.environ["EMAIL_FROM"] = "test@example.com"
     os.environ["EMAIL_FROM_NAME"] = "Test App"
     os.environ["RESEND_API_KEY"] = "fake_resend_key"
-    
+
     yield
-    
+
     # Cleanup - remove test environment variables
     test_env_vars = [
-        "NODE_ENV", "DATABASE_URL", "SECRET_KEY", "REDIS_URL", 
-        "FRONTEND_URL", "EMAIL_FROM", "EMAIL_FROM_NAME", "RESEND_API_KEY"
+        "NODE_ENV",
+        "DATABASE_URL",
+        "SECRET_KEY",
+        "REDIS_URL",
+        "FRONTEND_URL",
+        "EMAIL_FROM",
+        "EMAIL_FROM_NAME",
+        "RESEND_API_KEY",
     ]
     for var in test_env_vars:
         if var in os.environ:

@@ -37,6 +37,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "alembic>=1.16.2",
     "sqlalchemy[mypy]>=2.0.41",
+    "psycopg2-binary>=2.9.10",
 ]
 
 [dependency-groups]
@@ -100,6 +101,20 @@ ignore = [
     "B008",   # do not perform function calls in argument defaults
     "RUF012", # mutable class attributes should be annotated with ClassVar
 ]
+fixable = ["ALL"]
+
+[tool.ruff.format]
+# 引号风格
+quote-style = "double"  # 可选: "double" (默认), "single", "preserve"
+
+# 缩进风格
+indent-style = "space"  # 可选: "space" (默认), "tab"
+
+# 跳过魔术逗号
+skip-magic-trailing-comma = false
+
+# 行尾处理
+line-ending = "auto"
 
 # Black configuration
 [tool.black]
@@ -141,6 +156,7 @@ markers = [
 
 # Mypy configuration
 [tool.mypy]
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
 python_version = "3.11"
 ignore_missing_imports = true
 strict_optional = true
@@ -154,6 +170,10 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = "sqlalchemy.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
 
 # Coverage configuration
 [tool.coverage.run]

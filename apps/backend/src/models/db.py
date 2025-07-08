@@ -176,12 +176,8 @@ class NovelModel(BaseDBModel):
     target_chapters: int = Field(default=0, ge=0, description="目标章节数")
     completed_chapters: int = Field(default=0, ge=0, description="已完成章节数")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
     @model_validator(mode="after")
     def validate_completed_chapters(self):
@@ -201,12 +197,8 @@ class ChapterModel(BaseDBModel):
     status: ChapterStatus = Field(default=ChapterStatus.DRAFT, description="章节当前状态")
     published_version_id: UUID | None = Field(None, description="指向当前已发布版本的ID")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class ChapterVersionModel(BaseDBModel):
@@ -221,9 +213,7 @@ class ChapterVersionModel(BaseDBModel):
     change_reason: str | None = Field(None, description="修改原因")
     parent_version_id: UUID | None = Field(None, description="指向上一个版本的ID")
     metadata: dict[str, Any] | None = Field(None, description="版本相关的额外元数据")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间")
 
 
 class CharacterModel(BaseDBModel):
@@ -238,12 +228,8 @@ class CharacterModel(BaseDBModel):
     personality_traits: None | list[str] = Field(None, description="性格特点列表")
     goals: None | list[str] = Field(None, description="角色的主要目标列表")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class WorldviewEntryModel(BaseDBModel):
@@ -256,12 +242,8 @@ class WorldviewEntryModel(BaseDBModel):
     description: str | None = Field(None, description="详细描述")
     tags: None | list[str] = Field(None, description="标签, 用于分类和检索")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class StoryArcModel(BaseDBModel):
@@ -275,12 +257,8 @@ class StoryArcModel(BaseDBModel):
     end_chapter_number: int | None = Field(None, ge=1, description="结束章节号")
     status: str = Field(default="PLANNED", max_length=50, description="状态")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
     @model_validator(mode="after")
     def validate_chapter_numbers(self):
@@ -302,15 +280,13 @@ class ReviewModel(BaseDBModel):
     chapter_version_id: UUID = Field(..., description="评审针对的具体章节版本ID")
     agent_type: AgentType = Field(..., description="执行评审的Agent类型")
     review_type: str = Field(..., max_length=50, description="评审类型")
-    score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = (
-        Field(None, description="评论家评分")
+    score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(
+        None, description="评论家评分"
     )
     comment: str | None = Field(None, description="评论家评语")
     is_consistent: bool | None = Field(None, description="事实核查员判断是否一致")
     issues_found: None | list[str] = Field(None, description="事实核查员发现的问题列表")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间")
 
 
 # 架构机制表模型
@@ -320,9 +296,7 @@ class DomainEventModel(BaseDBModel):
     """领域事件表模型"""
 
     id: int  # 自增序号, 保证严格的时间顺序
-    event_id: UUID = Field(
-        default_factory=lambda: __import__("uuid").uuid4(), description="事件的全局唯一标识符"
-    )
+    event_id: UUID = Field(default_factory=lambda: __import__("uuid").uuid4(), description="事件的全局唯一标识符")
     correlation_id: UUID | None = Field(None, description="用于追踪一个完整的业务流程或请求链")
     causation_id: UUID | None = Field(None, description="指向触发此事件的上一个事件的event_id")
     event_type: str = Field(..., description="事件的唯一类型标识")
@@ -331,9 +305,7 @@ class DomainEventModel(BaseDBModel):
     aggregate_id: str = Field(..., description="聚合根的ID")
     payload: dict[str, Any] | None = Field(None, description="事件的具体数据")
     metadata: dict[str, Any] | None = Field(None, description="附加元数据")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间")
 
 
 class CommandInboxModel(BaseDBModel):
@@ -347,12 +319,8 @@ class CommandInboxModel(BaseDBModel):
     status: CommandStatus = Field(default=CommandStatus.RECEIVED, description="命令处理状态")
     error_message: str | None = Field(None, description="处理失败时的错误信息")
     retry_count: int = Field(default=0, ge=0, description="重试次数")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class AsyncTaskModel(BaseDBModel):
@@ -371,12 +339,8 @@ class AsyncTaskModel(BaseDBModel):
     max_retries: int = Field(default=3, ge=0, description="最大重试次数")
     started_at: datetime | None = Field(None, description="任务开始执行时间")
     completed_at: datetime | None = Field(None, description="任务完成时间")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class EventOutboxModel(BaseDBModel):
@@ -394,9 +358,7 @@ class EventOutboxModel(BaseDBModel):
     last_error: str | None = Field(None, description="最后一次发送失败的错误信息")
     scheduled_at: datetime | None = Field(None, description="计划发送时间")
     sent_at: datetime | None = Field(None, description="实际发送成功时间")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
 
 
 class FlowResumeHandleModel(BaseDBModel):
@@ -413,12 +375,8 @@ class FlowResumeHandleModel(BaseDBModel):
     context_data: dict[str, Any] | None = Field(None, description="额外的上下文信息")
     expires_at: datetime | None = Field(None, description="过期时间")
     resumed_at: datetime | None = Field(None, description="实际恢复时间")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 # 创世流程相关表模型
@@ -439,9 +397,7 @@ class ConceptTemplateModel(BaseDBModel):
     philosophical_category: str | None = Field(
         None, max_length=100, description="哲学类别,如'存在主义','人道主义','理想主义'"
     )
-    thematic_tags: list[str] = Field(
-        default_factory=list, description="主题标签,如['成长','选择','牺牲','真理']"
-    )
+    thematic_tags: list[str] = Field(default_factory=list, description="主题标签,如['成长','选择','牺牲','真理']")
     complexity_level: str = Field(
         default="medium", max_length=20, description="思辨复杂度,如'simple','medium','complex'"
     )
@@ -455,12 +411,8 @@ class ConceptTemplateModel(BaseDBModel):
     # 元数据
     is_active: bool = Field(default=True, description="是否启用")
     created_by: str | None = Field(None, max_length=50, description="创建者,如'system','admin'")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 class GenesisSessionModel(BaseDBModel):
@@ -470,17 +422,11 @@ class GenesisSessionModel(BaseDBModel):
     novel_id: UUID | None = Field(None, description="流程完成后关联的小说ID")
     user_id: UUID | None = Field(None, description="用户ID")
     status: GenesisStatus = Field(default=GenesisStatus.IN_PROGRESS, description="会话状态")
-    current_stage: GenesisStage = Field(
-        default=GenesisStage.CONCEPT_SELECTION, description="当前阶段"
-    )
+    current_stage: GenesisStage = Field(default=GenesisStage.CONCEPT_SELECTION, description="当前阶段")
     confirmed_data: dict[str, Any] | None = Field(None, description="存储每个阶段已确认的最终数据")
     version: int = Field(default=1, ge=1, description="乐观锁版本号")
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="创建时间"
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="创建时间")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间")
 
 
 # 导出所有模型类和枚举

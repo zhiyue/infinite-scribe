@@ -1,103 +1,102 @@
 """Pydantic schemas for authentication endpoints."""
 
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # Request schemas
 class UserRegisterRequest(BaseModel):
     """User registration request schema."""
-    
+
     username: str = Field(..., min_length=3, max_length=50, description="Username")
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., min_length=8, description="Password")
-    first_name: Optional[str] = Field(None, max_length=100, description="First name")
-    last_name: Optional[str] = Field(None, max_length=100, description="Last name")
+    first_name: str | None = Field(None, max_length=100, description="First name")
+    last_name: str | None = Field(None, max_length=100, description="Last name")
 
 
 class UserLoginRequest(BaseModel):
     """User login request schema."""
-    
+
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., description="Password")
 
 
 class RefreshTokenRequest(BaseModel):
     """Refresh token request schema."""
-    
+
     refresh_token: str = Field(..., description="Refresh token")
 
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request schema."""
-    
+
     email: EmailStr = Field(..., description="Email address")
 
 
 class ResetPasswordRequest(BaseModel):
     """Reset password request schema."""
-    
+
     token: str = Field(..., description="Reset token")
     new_password: str = Field(..., min_length=8, description="New password")
 
 
 class ChangePasswordRequest(BaseModel):
     """Change password request schema."""
-    
+
     current_password: str = Field(..., description="Current password")
     new_password: str = Field(..., min_length=8, description="New password")
 
 
 class UpdateProfileRequest(BaseModel):
     """Update user profile request schema."""
-    
-    first_name: Optional[str] = Field(None, max_length=100, description="First name")
-    last_name: Optional[str] = Field(None, max_length=100, description="Last name")
-    bio: Optional[str] = Field(None, max_length=1000, description="Bio")
+
+    first_name: str | None = Field(None, max_length=100, description="First name")
+    last_name: str | None = Field(None, max_length=100, description="Last name")
+    bio: str | None = Field(None, max_length=1000, description="Bio")
 
 
 class ResendVerificationRequest(BaseModel):
     """Resend verification email request schema."""
-    
+
     email: EmailStr = Field(..., description="Email address")
 
 
 # Response schemas
 class UserResponse(BaseModel):
     """User response schema."""
-    
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     username: str
     email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    bio: Optional[str] = None
+    first_name: str | None = None
+    last_name: str | None = None
+    bio: str | None = None
     is_active: bool
     is_verified: bool
     is_superuser: bool
     created_at: datetime
     updated_at: datetime
-    email_verified_at: Optional[datetime] = None
-    last_login_at: Optional[datetime] = None
+    email_verified_at: datetime | None = None
+    last_login_at: datetime | None = None
 
 
 class AuthResponse(BaseModel):
     """Authentication response schema."""
-    
+
     success: bool
     access_token: str
     refresh_token: str
     user: UserResponse
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class RegisterResponse(BaseModel):
     """Registration response schema."""
-    
+
     success: bool
     user: UserResponse
     message: str
@@ -105,7 +104,7 @@ class RegisterResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     """Token response schema."""
-    
+
     success: bool
     access_token: str
     refresh_token: str
@@ -113,22 +112,22 @@ class TokenResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Generic message response schema."""
-    
+
     success: bool
     message: str
 
 
 class ErrorResponse(BaseModel):
     """Error response schema."""
-    
+
     success: bool = False
     error: str
-    details: Optional[dict] = None
+    details: dict | None = None
 
 
 class PasswordStrengthResponse(BaseModel):
     """Password strength validation response."""
-    
+
     is_valid: bool
     score: int
     errors: list[str]

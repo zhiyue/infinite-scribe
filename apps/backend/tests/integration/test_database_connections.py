@@ -43,9 +43,7 @@ async def test_postgres_connection_failure():
     """Test PostgreSQL connection failure handling."""
     # Mock settings with invalid PostgreSQL URL
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = (
-            "postgresql+asyncpg://invalid:invalid@invalid-host:5432/invalid"
-        )
+        mock_settings.POSTGRES_URL = "postgresql+asyncpg://invalid:invalid@invalid-host:5432/invalid"
 
         service = PostgreSQLService()
 
@@ -116,9 +114,7 @@ async def test_redis_connection_success(redis_service):
     with patch("src.common.services.redis_service.settings") as mock_settings:
         mock_settings.REDIS_URL = f"redis://{config['host']}:{config['port']}"
         if config.get("password"):
-            mock_settings.REDIS_URL = (
-                f"redis://:{config['password']}@{config['host']}:{config['port']}"
-            )
+            mock_settings.REDIS_URL = f"redis://:{config['password']}@{config['host']}:{config['port']}"
 
         service = RedisService()
 
@@ -171,9 +167,7 @@ async def test_concurrent_database_connections(postgres_service, neo4j_service, 
     redis_config = redis_service
     redis_url = f"redis://{redis_config['host']}:{redis_config['port']}"
     if redis_config.get("password"):
-        redis_url = (
-            f"redis://:{redis_config['password']}@{redis_config['host']}:{redis_config['port']}"
-        )
+        redis_url = f"redis://:{redis_config['password']}@{redis_config['host']}:{redis_config['port']}"
 
     # Mock settings for all services
     with (
@@ -341,4 +335,3 @@ async def test_postgres_transaction_rollback(postgres_service):
             await conn.execute("DROP TABLE IF EXISTS rollback_test_table")
 
         await service.disconnect()
-
