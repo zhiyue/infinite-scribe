@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "ms-python.vscode-python-envs",
+    "ms-python.mypy-type-checker",
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "ms-python.debugpy"
+  ]
+}
