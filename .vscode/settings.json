@@ -12,17 +12,25 @@
     "python.analysis.indexing": true,
     "python.analysis.inlayHints.functionReturnTypes": true,
     "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.enableTroubleshootMissingImports": true,
+    "cursorpyright.analysis.extraPaths": [
+        "apps/backend/src"
+    ],
+    "cursorpyright.analysis.diagnosticMode": "workspace",
+    "cursor.general.gitGraphIndexing": "enabled",
+    "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
+    "cursorpyright.analysis.inlayHints.variableTypes": true,
     // 禁用其他 linter，避免冲突
     "python.linting.enabled": false,
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": false,
     "python.linting.mypyEnabled": false,
+    "python.linting.ruffEnabled": true,
     // 禁用 Python 扩展的格式化，避免冲突
     "python.formatting.provider": "none",
     // 使用 Ruff 作为主要的 linter/formatter
     "ruff.enable": true,
     "ruff.lint.enable": true,
-    "ruff.format.enable": true,
     "ruff.organizeImports": true,
     "ruff.path": [
         "${workspaceFolder}/apps/backend/.venv/bin/ruff"
@@ -40,6 +48,10 @@
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        },
         "editor.rulers": [
             120
         ]
@@ -55,5 +67,22 @@
         "**/.pytest_cache": true,
         "**/.mypy_cache": true,
         "**/.ruff_cache": true
-    }
+    },
+    "mypy-type-checker.cwd": "${workspaceFolder}/apps/backend",
+    "mypy-type-checker.preferDaemon": true,
+    "mypy-type-checker.args": [
+        "--config-file=${workspaceFolder}/apps/backend/pyproject.toml"
+    ],
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "mypy-type-checker.interpreter": [
+        "${workspaceFolder}/apps/backend/.venv/bin/python"
+    ],
+    "mypy-type-checker.reportingScope": "workspace",
+    "mypy-type-checker.ignorePatterns": [
+        "apps/frontend/**",
+        "packages/**",
+        "infrastructure/**",
+        "docs/**"
+    ],
+    "files.autoSave": "onFocusChange"
 }
