@@ -108,9 +108,6 @@ COMMENT ON COLUMN chapter_versions.parent_version_id IS '指向上一个版本�
 COMMENT ON COLUMN chapter_versions.metadata IS '存储与此版本相关的额外元数据，JSONB格式';
 COMMENT ON COLUMN chapter_versions.created_at IS '版本创建时间';
 
--- 现在可以添加chapters表的published_version_id外键约束
-ALTER TABLE chapters ADD CONSTRAINT fk_chapters_published_version 
-    FOREIGN KEY (published_version_id) REFERENCES chapter_versions(id) ON DELETE SET NULL;
 
 -- 注意：检查published_version_id是否属于该章节的验证需要在应用层实现
 -- PostgreSQL不支持在CHECK约束中使用子查询
