@@ -1,0 +1,133 @@
+name: Python Backend CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/python-backend-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/python-backend-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  lint:
+    name: Linting (Ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Ruff
+      uses: astral-sh/ruff-action@v3
+      with:
+        src: "./apps/backend"
+        args: "check --output-format=github"
+    
+    - name: Run Ruff format check
+      uses: astral-sh/ruff-action@v3
+      with:
+        src: "./apps/backend"
+        args: "format --check --diff"
+    
+  type-check:
+    name: Type Checking (MyPy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.11"
+        enable-cache: true
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+    
+    - name: Type check with mypy
+      run: |
+        uv run mypy apps/backend/src/ --ignore-missing-imports
+    
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.11"
+        enable-cache: true
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+    
+    - name: Run unit tests
+      env:
+        USE_EXTERNAL_SERVICES: false
+      run: |
+        cd apps/backend
+        uv run python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./apps/backend/coverage.xml
+        flags: backend-unit
+        name: backend-unit-coverage
+  
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.11"
+        enable-cache: true
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+    
+    - name: Run integration tests
+      env:
+        USE_EXTERNAL_SERVICES: false
+      run: |
+        cd apps/backend
+        uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./apps/backend/coverage.xml
+        flags: backend-integration
+        name: backend-integration-coverage

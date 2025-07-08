@@ -103,17 +103,17 @@ ignore = [
 
 # Black configuration
 [tool.black]
-line-length = 100
-target-version = ["py311"]
-include = '\.pyi?$'
-exclude = '''
+line-length = 120                      # 与 Ruff 保持一致
+target-version = ["py311"]             # 目标 Python 版本 3.11
+extend-exclude = '''
 /(
     \.git
   | \.venv
-  | build
-  | dist
-  | .*/migrations
   | __pycache__
+  | \.pytest_cache
+  | \.mypy_cache
+  | \.ruff_cache
+  | .*\.egg-info
 )/
 '''
 
@@ -186,3 +186,54 @@ directory = "htmlcov"
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv", "__pycache__"]
 skips = ["B101"]  # Skip assert_used test
+
+# Pyright configuration for Python type checking
+# Note: $schema field removed to avoid "unknown config option" errors
+# Note: stubPath removed - type stubs are installed via uv (types-redis, types-pyyaml)
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/*.egg-info",
+    ".venv",
+    "venv",
+    "node_modules",
+    "build",
+    "dist",
+]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "basic"                            # 类型检查模式: basic(基础)、standard(标准)、strict(严格)
+reportMissingImports = "none"                         # 是否报告缺失的导入(none: 不报告)
+reportMissingTypeStubs = "none"                       # 是否报告缺失的类型存根文件(none: 不报告)
+reportPrivateImportUsage = "none"                     # 是否报告私有导入的使用(none: 不报告)
+reportUnusedImport = "warning"                        # 是否报告未使用的导入(warning: 警告)
+reportUnusedVariable = "warning"                      # 是否报告未使用的变量(warning: 警告)
+reportDuplicateImport = "warning"                     # 是否报告重复的导入(warning: 警告)
+reportOptionalMemberAccess = "warning"                # 是否报告可选成员访问(如 Optional[T] 的属性访问)(warning: 警告)
+reportGeneralTypeIssues = "error"                     # 是否报告一般类型问题(error: 错误)
+reportUntypedFunctionDecorator = "none"               # 是否报告未标注类型的函数装饰器(none: 不报告)
+reportUntypedClassDecorator = "none"                  # 是否报告未标注类型的类装饰器(none: 不报告)
+reportUntypedBaseClass = "none"                       # 是否报告未标注类型的基类(none: 不报告)
+reportUnknownParameterType = "none"                   # 是否报告未知的参数类型(none: 不报告)
+reportUnknownVariableType = "none"                    # 是否报告未知的变量类型(none: 不报告)
+reportUnknownMemberType = "none"                      # 是否报告未知的成员类型(none: 不报告)
+reportMissingParameterType = "none"                   # 是否报告缺失的参数类型(none: 不报告)
+reportUnnecessaryIsInstance = "warning"               # 是否报告不必要的 isinstance 调用(warning: 警告)
+reportUnnecessaryCast = "warning"                     # 是否报告不必要的类型转换(warning: 警告)
+reportImplicitStringConcatenation = "none"            # 是否报告隐式字符串连接(none: 不报告)
+reportCallInDefaultInitializer = "none"               # 是否报告在默认初始化器中的调用(none: 不报告)
+reportUnnecessaryComparison = "warning"               # 是否报告不必要的比较(warning: 警告)
+reportSelfClsParameterName = "warning"                # 是否报告 self/cls 参数名错误(warning: 警告)
+reportImplicitOverride = "none"                       # 是否报告隐式重写(none: 不报告)
+reportShadowedImports = "warning"                     # 是否报告被遮蔽的导入(warning: 警告)
+useLibraryCodeForTypes = true                         # 是否使用库代码进行类型推断(true: 是)
+reportUnnecessaryTypeIgnoreComment = false            # 是否报告不必要的 type: ignore 注释(false: 否)
+
+[[tool.pyright.executionEnvironments]]
+root = "."
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+extraPaths = ["src"]
