@@ -108,18 +108,10 @@ async def test_health_check_exception_handling():
 async def test_readiness_check_success():
     """Test readiness check endpoint returns success when all services are ready."""
     with (
-        patch(
-            "src.common.services.postgres_service.postgres_service.check_connection"
-        ) as mock_pg_conn,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.check_connection"
-        ) as mock_neo4j_conn,
-        patch(
-            "src.common.services.postgres_service.postgres_service.verify_schema"
-        ) as mock_pg_schema,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.verify_constraints"
-        ) as mock_neo4j_constraints,
+        patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg_conn,
+        patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j_conn,
+        patch("src.common.services.postgres_service.postgres_service.verify_schema") as mock_pg_schema,
+        patch("src.common.services.neo4j_service.neo4j_service.verify_constraints") as mock_neo4j_constraints,
     ):
         mock_pg_conn.return_value = True
         mock_neo4j_conn.return_value = True
@@ -137,12 +129,8 @@ async def test_readiness_check_success():
 async def test_readiness_check_connection_failure():
     """Test readiness check when database connections are not established."""
     with (
-        patch(
-            "src.common.services.postgres_service.postgres_service.check_connection"
-        ) as mock_pg_conn,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.check_connection"
-        ) as mock_neo4j_conn,
+        patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg_conn,
+        patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j_conn,
     ):
         mock_pg_conn.return_value = False
         mock_neo4j_conn.return_value = True
@@ -160,18 +148,10 @@ async def test_readiness_check_connection_failure():
 async def test_readiness_check_schema_failure():
     """Test readiness check when schema verification fails."""
     with (
-        patch(
-            "src.common.services.postgres_service.postgres_service.check_connection"
-        ) as mock_pg_conn,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.check_connection"
-        ) as mock_neo4j_conn,
-        patch(
-            "src.common.services.postgres_service.postgres_service.verify_schema"
-        ) as mock_pg_schema,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.verify_constraints"
-        ) as mock_neo4j_constraints,
+        patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg_conn,
+        patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j_conn,
+        patch("src.common.services.postgres_service.postgres_service.verify_schema") as mock_pg_schema,
+        patch("src.common.services.neo4j_service.neo4j_service.verify_constraints") as mock_neo4j_constraints,
     ):
         mock_pg_conn.return_value = True
         mock_neo4j_conn.return_value = True
@@ -192,12 +172,8 @@ async def test_readiness_check_schema_failure():
 async def test_readiness_check_exception():
     """Test readiness check handles exceptions gracefully."""
     with (
-        patch(
-            "src.common.services.postgres_service.postgres_service.check_connection"
-        ) as mock_pg_conn,
-        patch(
-            "src.common.services.neo4j_service.neo4j_service.check_connection"
-        ) as mock_neo4j_conn,
+        patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg_conn,
+        patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j_conn,
     ):
         mock_pg_conn.side_effect = Exception("Database error")
         mock_neo4j_conn.return_value = True

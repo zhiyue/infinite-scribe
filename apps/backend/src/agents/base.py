@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 class BaseAgent(ABC):
     """Base class for all agent services with Kafka integration."""
 
-    def __init__(
-        self, name: str, consume_topics: list[str], produce_topics: list[str] | None = None
-    ):
+    def __init__(self, name: str, consume_topics: list[str], produce_topics: list[str] | None = None):
         self.name = name
         self.config = settings
         self.consume_topics = consume_topics
@@ -32,9 +30,7 @@ class BaseAgent(ABC):
         self.is_running = False
 
         # Kafka 配置
-        self.kafka_bootstrap_servers = getattr(
-            settings, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"
-        )
+        self.kafka_bootstrap_servers = getattr(settings, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
         self.kafka_group_id = f"{self.name}-agent-group"
 
     @abstractmethod
@@ -90,7 +86,7 @@ class BaseAgent(ABC):
                     )
 
                     # 处理消息
-                    result = await self.process_message(msg.value)
+                    result: dict[str, Any] | None = await self.process_message(msg.value)
 
                     # 如果有返回结果,发送到对应主题
                     if result and self.producer:
@@ -162,8 +158,6 @@ class BaseAgent(ABC):
 
     async def on_start(self):
         """启动时的钩子方法,子类可以重写"""
-        pass
 
     async def on_stop(self):
         """停止时的钩子方法,子类可以重写"""
-        pass

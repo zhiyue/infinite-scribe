@@ -20,7 +20,7 @@
 - ✅ 用户模型 (User)
 - ✅ 会话模型 (Session) 
 - ✅ 邮箱验证模型 (EmailVerification)
-- ✅ 数据库迁移脚本
+- ✅ 数据库迁移脚本 (Alembic migration 已生成: 86c52aea2834)
 - ✅ 测试数据库连接
 
 ## 3. 核心服务

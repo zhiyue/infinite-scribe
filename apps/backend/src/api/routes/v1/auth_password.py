@@ -1,21 +1,20 @@
 """Authentication endpoints for password management."""
 
 import logging
-from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import (
-    ForgotPasswordRequest,
-    ResetPasswordRequest,
     ChangePasswordRequest,
-    MessageResponse,
     ErrorResponse,
+    ForgotPasswordRequest,
+    MessageResponse,
     PasswordStrengthResponse,
+    ResetPasswordRequest,
 )
-from src.common.services.user_service import UserService
 from src.common.services.password_service import PasswordService
+from src.common.services.user_service import UserService
 from src.database import get_db
 from src.middleware.auth import get_current_user
 from src.models.user import User
@@ -29,62 +28,59 @@ password_service = PasswordService()
 
 @router.post(
     "/forgot-password",
-    response_model=Union[MessageResponse, ErrorResponse],
+    response_model=MessageResponse | ErrorResponse,
     summary="Forgot password",
     description="Send password reset email to user",
 )
 async def forgot_password(
     request: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
-) -> Union[MessageResponse, ErrorResponse]:
+) -> MessageResponse | ErrorResponse:
     """Send password reset email to user.
-    
+
     Args:
         request: Forgot password request with email
         db: Database session
-        
+
     Returns:
         Success or error message
-        
+
     Raises:
         HTTPException: If sending reset email fails
     """
     try:
         # For security, we don't reveal if email exists or not
         # TODO: Implement actual password reset logic
-        
-        return MessageResponse(
-            success=True,
-            message="If the email exists, a password reset link has been sent"
-        )
-        
+
+        return MessageResponse(success=True, message="If the email exists, a password reset link has been sent")
+
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while processing the request"
-        )
+            detail="An error occurred while processing the request",
+        ) from None
 
 
 @router.post(
     "/reset-password",
-    response_model=Union[MessageResponse, ErrorResponse],
+    response_model=MessageResponse | ErrorResponse,
     summary="Reset password",
     description="Reset user password using reset token",
 )
 async def reset_password(
     request: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
-) -> Union[MessageResponse, ErrorResponse]:
+) -> MessageResponse | ErrorResponse:
     """Reset user password using reset token.
-    
+
     Args:
         request: Reset password request with token and new password
         db: Database session
-        
+
     Returns:
         Success or error message
-        
+
     Raises:
         HTTPException: If password reset fails
     """
@@ -94,30 +90,27 @@ async def reset_password(
         if not validation_result["is_valid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password is too weak: {', '.join(validation_result['errors'])}"
+                detail=f"Password is too weak: {', '.join(validation_result['errors'])}",
             )
-        
+
         # TODO: Implement actual password reset logic
         # This requires additional methods in UserService
-        
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Password reset not yet implemented"
-        )
-        
+
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Password reset not yet implemented")
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Reset password error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during password reset"
-        )
+            detail="An error occurred during password reset",
+        ) from None
 
 
 @router.post(
     "/change-password",
-    response_model=Union[MessageResponse, ErrorResponse],
+    response_model=MessageResponse | ErrorResponse,
     summary="Change password",
     description="Change user password (requires authentication)",
 )
@@ -125,17 +118,17 @@ async def change_password(
     request: ChangePasswordRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> Union[MessageResponse, ErrorResponse]:
+) -> MessageResponse | ErrorResponse:
     """Change user password (authenticated users only).
-    
+
     Args:
         request: Change password request
         db: Database session
         current_user: Current authenticated user
-        
+
     Returns:
         Success or error message
-        
+
     Raises:
         HTTPException: If password change fails
     """
@@ -145,39 +138,36 @@ async def change_password(
         if not validation_result["is_valid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password is too weak: {', '.join(validation_result['errors'])}"
+                detail=f"Password is too weak: {', '.join(validation_result['errors'])}",
             )
-        
+
         # Verify current password
-        if not password_service.verify_password(request.current_password, current_user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect"
-            )
-        
+        if not password_service.verify_password(request.current_password, str(current_user.password_hash)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
         # Check if new password is the same as current
-        if password_service.verify_password(request.new_password, current_user.password_hash):
+        if password_service.verify_password(request.new_password, str(current_user.password_hash)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New password must be different from current password"
+                detail="New password must be different from current password",
             )
-        
+
         # TODO: Implement actual password change logic
         # This requires additional methods in UserService
-        
+
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Password change not yet implemented"
+            detail="Password change not yet implemented",
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Change password error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during password change"
-        )
+            detail="An error occurred during password change",
+        ) from None
 
 
 @router.post(
@@ -190,23 +180,23 @@ async def validate_password_strength(
     password: str,
 ) -> PasswordStrengthResponse:
     """Validate password strength and return suggestions.
-    
+
     Args:
         password: Password to validate
-        
+
     Returns:
         Password strength validation result
     """
     try:
         result = password_service.validate_password_strength(password)
-        
+
         return PasswordStrengthResponse(
             is_valid=result["is_valid"],
             score=result["score"],
             errors=result["errors"],
-            suggestions=result["suggestions"]
+            suggestions=result["suggestions"],
         )
-        
+
     except Exception as e:
         logger.error(f"Password validation error: {e}")
         # Return a safe default response
@@ -214,5 +204,5 @@ async def validate_password_strength(
             is_valid=False,
             score=0,
             errors=["Unable to validate password"],
-            suggestions=["Please try again"]
+            suggestions=["Please try again"],
         )

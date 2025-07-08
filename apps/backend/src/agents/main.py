@@ -66,7 +66,7 @@ def check_dependencies(agent_names: list[str]) -> list[str]:
         add_dependencies(agent)
 
     # 返回按优先级排序的列表
-    return sorted(list(required_agents), key=lambda x: AGENT_PRIORITY.get(x, 999))
+    return sorted(required_agents, key=lambda x: AGENT_PRIORITY.get(x, 999))
 
 
 def main():

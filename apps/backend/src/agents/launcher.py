@@ -11,9 +11,7 @@ from ..agents.base import BaseAgent
 from .agent_config import AGENT_PRIORITY, AGENT_TOPICS
 
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # 从配置中获取所有可用的 agents
@@ -68,9 +66,7 @@ class AgentLauncher:
                         "message_type": message.get("type"),
                     }
 
-            return GenericAgent(
-                name=agent_name, consume_topics=consume_topics, produce_topics=produce_topics
-            )
+            return GenericAgent(name=agent_name, consume_topics=consume_topics, produce_topics=produce_topics)
 
         except Exception as e:
             logger.error(f"加载 agent {agent_name} 时出错: {e}")
@@ -139,7 +135,9 @@ class AgentLauncher:
 
         def signal_handler(sig, frame):
             logger.info(f"收到信号 {sig},正在停止 agents...")
-            asyncio.create_task(self.stop_all())
+            task = asyncio.create_task(self.stop_all())
+            # 任务会在事件循环中运行，不需要等待
+            _ = task
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)

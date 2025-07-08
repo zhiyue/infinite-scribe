@@ -24,9 +24,7 @@ class DirectorAgent(BaseAgent):
             "story.outline.request",  # 大纲请求(发给 outliner)
         ]
 
-        super().__init__(
-            name="director", consume_topics=consume_topics, produce_topics=produce_topics
-        )
+        super().__init__(name="director", consume_topics=consume_topics, produce_topics=produce_topics)
 
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """处理消息"""

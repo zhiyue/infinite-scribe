@@ -71,8 +71,7 @@ class Neo4jService:
 
                 # Check for novel_id uniqueness constraint
                 has_novel_constraint = any(
-                    c.get("labelsOrTypes") == ["Novel"] and c.get("properties") == ["novel_id"]
-                    for c in constraints
+                    c.get("labelsOrTypes") == ["Novel"] and c.get("properties") == ["novel_id"] for c in constraints
                 )
 
                 if not has_novel_constraint:

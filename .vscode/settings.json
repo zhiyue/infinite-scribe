@@ -71,7 +71,8 @@
     "mypy-type-checker.cwd": "${workspaceFolder}/apps/backend",
     "mypy-type-checker.preferDaemon": true,
     "mypy-type-checker.args": [
-        "--config-file=${workspaceFolder}/apps/backend/pyproject.toml"
+        "--config-file=${workspaceFolder}/apps/backend/pyproject.toml",
+        "--python-executable=${workspaceFolder}/apps/backend/.venv/bin/python"
     ],
     "mypy-type-checker.importStrategy": "fromEnvironment",
     "mypy-type-checker.interpreter": [
@@ -84,5 +85,7 @@
         "infrastructure/**",
         "docs/**"
     ],
-    "files.autoSave": "onFocusChange"
+    "files.autoSave": "onFocusChange",
+    // GitHub Actions 配置 - 禁用 linting 以避免误报
+    // "github-actions.workflows.linting.enabled": false
 }

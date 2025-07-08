@@ -22,9 +22,7 @@ class WriterAgent(BaseAgent):
             "story.review.request",  # 发送给评审的请求
         ]
 
-        super().__init__(
-            name="writer", consume_topics=consume_topics, produce_topics=produce_topics
-        )
+        super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
 
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
         """处理消息"""

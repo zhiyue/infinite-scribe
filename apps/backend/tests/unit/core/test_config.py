@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from src.core.config import Settings, get_backend_root
+from src.core.config import get_backend_root
 
 
 class MockSettings(BaseSettings):
     """Test-specific Settings class that doesn't load from .env file."""
-    
+
     model_config = SettingsConfigDict(
         env_file=None,  # Disable .env file loading for tests
         env_file_encoding="utf-8",
@@ -128,13 +128,13 @@ def clean_environment():
     """Clear database-related environment variables for tests."""
     env_vars_to_clear = [
         "POSTGRES_HOST",
-        "POSTGRES_PORT", 
+        "POSTGRES_PORT",
         "POSTGRES_USER",
         "POSTGRES_PASSWORD",
         "POSTGRES_DB",
         "NEO4J_HOST",
         "NEO4J_PORT",
-        "NEO4J_USER", 
+        "NEO4J_USER",
         "NEO4J_PASSWORD",
         "NEO4J_URI",
         "REDIS_HOST",
@@ -259,17 +259,14 @@ def test_case_sensitive_environment_variables():
 def test_litellm_configuration():
     """Test LiteLLM configuration."""
     settings = MockSettings()
-    
+
     # Test default values
     assert settings.LITELLM_API_HOST == ""
     assert settings.LITELLM_API_KEY == ""
     assert settings.LITELLM_API_URL == ""
-    
+
     # Test with environment variable override
-    with patch.dict(os.environ, {
-        "LITELLM_API_HOST": "https://api.example.com",
-        "LITELLM_API_KEY": "test-key"
-    }):
+    with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com", "LITELLM_API_KEY": "test-key"}):
         settings = MockSettings()
         assert settings.LITELLM_API_HOST == "https://api.example.com"
         assert settings.LITELLM_API_KEY == "test-key"
@@ -281,7 +278,7 @@ def test_litellm_url_with_trailing_slash():
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com/"}):
         settings = MockSettings()
         assert settings.LITELLM_API_URL == "https://api.example.com/"
-    
+
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com"}):
         settings = MockSettings()
         assert settings.LITELLM_API_URL == "https://api.example.com/"
@@ -293,13 +290,13 @@ class TestBackendRoot:
     def test_get_backend_root_from_project_root(self):
         """Test backend root detection from project root."""
         backend_root = get_backend_root()
-        
+
         # Should be a valid Path
         assert isinstance(backend_root, Path)
-        
+
         # Should end with 'backend'
         assert backend_root.name == "backend"
-        
+
         # Should contain expected structure
         assert (backend_root / "src").exists()
         assert (backend_root / "src" / "__init__.py").exists()
@@ -308,18 +305,16 @@ class TestBackendRoot:
     def test_get_backend_root_has_expected_markers(self):
         """Test backend root contains expected marker files."""
         backend_root = get_backend_root()
-        
+
         # Check for at least one expected marker
         markers = [
             "src/core/config.py",
-            "src/__init__.py", 
+            "src/__init__.py",
             "Dockerfile",
         ]
-        
-        has_markers = [
-            (backend_root / marker).exists() for marker in markers
-        ]
-        
+
+        has_markers = [(backend_root / marker).exists() for marker in markers]
+
         # Should have at least one marker file
         assert any(has_markers), f"Backend root {backend_root} should contain at least one marker file"
 
@@ -328,17 +323,17 @@ class TestBackendRoot:
         """Test backend root detection with environment variable."""
         mock_backend_path = "/custom/backend/path"
         mock_getenv.return_value = mock_backend_path
-        
+
         # Mock the project root to fail
         with patch("src.core.config.get_project_root") as mock_project_root:
             mock_project_root.side_effect = FileNotFoundError("Test failure")
-            
+
             # Mock the path traversal to fail
             with patch("src.core.config.Path") as mock_path:
                 mock_current = MagicMock()
                 mock_current.parents = []  # No parents to search
                 mock_path(__file__).resolve.return_value = mock_current
                 mock_path.return_value = Path(mock_backend_path)
-                
+
                 result = get_backend_root()
                 assert str(result) == mock_backend_path

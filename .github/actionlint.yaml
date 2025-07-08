@@ -1,0 +1,12 @@
+# actionlint 配置文件
+# 用于配置 GitHub Actions 的 linting 规则
+
+# 忽略特定的错误
+ignore:
+  # 忽略无法解析 action 的错误（VSCode 扩展误报）
+  - "unable to resolve action"
+  
+# 信任的第三方 actions
+# 这些 actions 被认为是安全的，不会触发警告
+self-hosted-runner:
+  labels: []

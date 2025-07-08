@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import auth_register, auth_login, auth_password, auth_profile
+from . import auth_login, auth_password, auth_profile, auth_register
 
 router = APIRouter()
 
