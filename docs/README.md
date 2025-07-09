@@ -43,6 +43,7 @@
 |------|------|----------|
 | [详细开发指南](./development/detailed-development-guide.md) | **主要文档** - 完整的技术配置和详细说明 | ⭐⭐⭐ |
 | [Python 开发快速入门](./development/python-dev-quickstart.md) | 后端开发环境搭建 | ⭐⭐⭐ |
+| [后端模型架构重构](./development/backend-models-restructure.md) | 模型层架构设计和 CQRS 实现 | ⭐⭐⭐ |
 | [本地开发调试指南](./development/local-development-guide.md) | 调试技巧和问题排查 | ⭐⭐ |
 | [CI/CD 和 Pre-commit 配置](./development/ci-cd-and-pre-commit.md) | 持续集成配置 | ⭐⭐ |
 | [类型检查配置指南](./development/type-checking-setup.md) | TypeScript/Python 类型检查 | ⭐ |
