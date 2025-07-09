@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
-from src.common.services.rate_limit_service import RateLimitExceeded, RateLimitService
+from src.common.services.rate_limit_service import RateLimitExceededError, RateLimitService
 from tests.unit.test_mocks import mock_redis
 
 
@@ -95,7 +95,7 @@ class TestRateLimitService:
             service.check_rate_limit(key, limit, window)
 
         # Act & Assert - Should raise exception
-        with pytest.raises(RateLimitExceeded) as exc_info:
+        with pytest.raises(RateLimitExceededError) as exc_info:
             service.check_rate_limit(key, limit, window, raise_exception=True)
 
         assert "Rate limit exceeded" in str(exc_info.value)

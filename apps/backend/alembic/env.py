@@ -11,30 +11,26 @@ sys.path.insert(0, str(backend_path))
 
 # 导入项目配置和模型
 from src.core.config import settings  # noqa: E402
-from src.models.base import Base  # noqa: E402
+from src.db.sql.base import Base  # noqa: E402
+from src.models.chapter import Chapter, ChapterVersion, Review  # noqa: F401, E402
+from src.models.character import Character  # noqa: F401, E402
 
 # 导入认证相关模型
 from src.models.email_verification import EmailVerification  # noqa: F401, E402
+from src.models.event import DomainEvent  # noqa: F401, E402
+from src.models.genesis import ConceptTemplate, GenesisSession  # noqa: F401, E402
 
 # 导入核心业务模型
-from src.models.orm_models import (  # noqa: F401, E402
-    AsyncTask,
-    Chapter,
-    ChapterVersion,
-    Character,
-    CommandInbox,
-    ConceptTemplate,
-    DomainEvent,
-    EventOutbox,
-    FlowResumeHandle,
-    GenesisSession,
-    Novel,
-    Review,
-    StoryArc,
-    WorldviewEntry,
-)
+from src.models.novel import Novel  # noqa: F401, E402
 from src.models.session import Session  # noqa: F401, E402
 from src.models.user import User  # noqa: F401, E402
+from src.models.workflow import (  # noqa: F401, E402
+    AsyncTask,
+    CommandInbox,
+    EventOutbox,
+    FlowResumeHandle,
+)
+from src.models.worldview import StoryArc, WorldviewEntry  # noqa: F401, E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

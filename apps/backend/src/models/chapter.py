@@ -60,7 +60,12 @@ class Chapter(Base):
     # 关系
     novel = relationship("Novel", back_populates="chapters")
     versions = relationship("ChapterVersion", back_populates="chapter", foreign_keys="ChapterVersion.chapter_id")
-    published_version = relationship("ChapterVersion", foreign_keys=[published_version_id], post_update=True)
+    published_version = relationship(
+        "ChapterVersion",
+        primaryjoin="Chapter.published_version_id == ChapterVersion.id",
+        foreign_keys=[published_version_id],
+        post_update=True,
+    )
     reviews = relationship("Review", back_populates="chapter", cascade="all, delete-orphan")
 
 

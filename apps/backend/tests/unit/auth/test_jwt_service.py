@@ -7,6 +7,8 @@ import pytest
 from jose import JWTError
 from src.common.services.jwt_service import JWTService
 
+from common.services.jwt_service import JWTService
+
 
 class TestJWTService:
     """Test cases for JWTService."""
@@ -20,13 +22,13 @@ class TestJWTService:
             yield mock
 
     @pytest.fixture
-    def jwt_service(self, mock_redis):
+    def jwt_service(self, mock_redis) -> JWTService:
         """Create JWT service instance with mocked Redis."""
         service = JWTService()
         service._redis_client = mock_redis
         return service
 
-    def test_create_access_token_basic(self, jwt_service):
+    def test_create_access_token_basic(self, jwt_service: JWTService):
         """Test creating an access token with basic parameters."""
         user_id = "12345"
         token, jti, expires_at = jwt_service.create_access_token(user_id)

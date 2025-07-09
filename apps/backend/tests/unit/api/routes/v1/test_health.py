@@ -11,19 +11,31 @@ from src.api.main import app
 @pytest.mark.asyncio
 async def test_health_check_success():
     """Test health check endpoint returns success when all services are healthy."""
-    # Mock successful database connections
+    # Mock all service connections
     with (
         patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,
         patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j,
+        patch("src.common.services.redis_service.redis_service.check_connection") as mock_redis,
+        patch("src.common.services.embedding_service.embedding_service.check_connection") as mock_embedding,
     ):
         mock_pg.return_value = True
         mock_neo4j.return_value = True
+        mock_redis.return_value = True
+        mock_embedding.return_value = True
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "timestamp" in data
+        assert data["services"] == {
+            "database": "healthy",
+            "neo4j": "healthy",
+            "redis": "healthy",
+            "embedding": "healthy",
+        }
 
 
 @pytest.mark.asyncio
@@ -32,9 +44,13 @@ async def test_health_check_postgres_failure():
     with (
         patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,
         patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j,
+        patch("src.common.services.redis_service.redis_service.check_connection") as mock_redis,
+        patch("src.common.services.embedding_service.embedding_service.check_connection") as mock_embedding,
     ):
         mock_pg.return_value = False
         mock_neo4j.return_value = True
+        mock_redis.return_value = True
+        mock_embedding.return_value = True
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/health")
@@ -42,8 +58,10 @@ async def test_health_check_postgres_failure():
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
         assert data["status"] == "unhealthy"
-        assert data["postgres"] is False
-        assert data["neo4j"] is True
+        assert data["services"]["database"] == "unhealthy"
+        assert data["services"]["neo4j"] == "healthy"
+        assert "failed" in data
+        assert "database" in data["failed"]
 
 
 @pytest.mark.asyncio
@@ -52,9 +70,13 @@ async def test_health_check_neo4j_failure():
     with (
         patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,
         patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j,
+        patch("src.common.services.redis_service.redis_service.check_connection") as mock_redis,
+        patch("src.common.services.embedding_service.embedding_service.check_connection") as mock_embedding,
     ):
         mock_pg.return_value = True
         mock_neo4j.return_value = False
+        mock_redis.return_value = True
+        mock_embedding.return_value = True
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/health")
@@ -62,8 +84,10 @@ async def test_health_check_neo4j_failure():
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
         assert data["status"] == "unhealthy"
-        assert data["postgres"] is True
-        assert data["neo4j"] is False
+        assert data["services"]["database"] == "healthy"
+        assert data["services"]["neo4j"] == "unhealthy"
+        assert "failed" in data
+        assert "neo4j" in data["failed"]
 
 
 @pytest.mark.asyncio
@@ -72,9 +96,13 @@ async def test_health_check_all_services_failure():
     with (
         patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,
         patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j,
+        patch("src.common.services.redis_service.redis_service.check_connection") as mock_redis,
+        patch("src.common.services.embedding_service.embedding_service.check_connection") as mock_embedding,
     ):
         mock_pg.return_value = False
         mock_neo4j.return_value = False
+        mock_redis.return_value = False
+        mock_embedding.return_value = False
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/health")
@@ -82,8 +110,11 @@ async def test_health_check_all_services_failure():
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
         assert data["status"] == "unhealthy"
-        assert data["postgres"] is False
-        assert data["neo4j"] is False
+        assert data["services"]["database"] == "unhealthy"
+        assert data["services"]["neo4j"] == "unhealthy"
+        assert data["services"]["redis"] == "unhealthy"
+        assert data["services"]["embedding"] == "unhealthy"
+        assert len(data["failed"]) == 4
 
 
 @pytest.mark.asyncio
@@ -92,9 +123,13 @@ async def test_health_check_exception_handling():
     with (
         patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,
         patch("src.common.services.neo4j_service.neo4j_service.check_connection") as mock_neo4j,
+        patch("src.common.services.redis_service.redis_service.check_connection") as mock_redis,
+        patch("src.common.services.embedding_service.embedding_service.check_connection") as mock_embedding,
     ):
         mock_pg.side_effect = Exception("Connection failed")
         mock_neo4j.return_value = True
+        mock_redis.return_value = True
+        mock_embedding.return_value = True
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/health")
