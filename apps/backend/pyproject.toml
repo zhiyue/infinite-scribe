@@ -101,6 +101,7 @@ ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults
     "RUF012", # mutable class attributes should be annotated with ClassVar
+    "RUF003", # 
 ]
 fixable = ["ALL"]
 

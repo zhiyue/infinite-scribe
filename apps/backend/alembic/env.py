@@ -6,11 +6,35 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # 添加项目路径到系统路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+backend_path = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_path))
 
 # 导入项目配置和模型
-from src.core.config import settings
-from src.models.base import Base
+from src.core.config import settings  # noqa: E402
+from src.models.base import Base  # noqa: E402
+
+# 导入认证相关模型
+from src.models.email_verification import EmailVerification  # noqa: F401, E402
+
+# 导入核心业务模型
+from src.models.orm_models import (  # noqa: F401, E402
+    AsyncTask,
+    Chapter,
+    ChapterVersion,
+    Character,
+    CommandInbox,
+    ConceptTemplate,
+    DomainEvent,
+    EventOutbox,
+    FlowResumeHandle,
+    GenesisSession,
+    Novel,
+    Review,
+    StoryArc,
+    WorldviewEntry,
+)
+from src.models.session import Session  # noqa: F401, E402
+from src.models.user import User  # noqa: F401, E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -35,6 +59,52 @@ config.set_main_option("sqlalchemy.url", database_url)
 # ... etc.
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """决定是否在自动生成中包含对象
+
+    这个函数用于过滤掉通过 SQL 文件创建的表,
+    只让 Alembic 管理新创建的表。
+    """
+    # 通过 SQL 文件创建的表列表
+    sql_managed_tables = {
+        # # 核心业务表
+        # "novels",
+        # "chapters",
+        # "chapter_versions",
+        # "characters",
+        # "story_arcs",
+        # "worldview_entries",
+        # "reviews",
+        # # 创世会话
+        # "genesis_sessions",
+        # "concept_templates",
+        # # 事件源和任务
+        # "domain_events",
+        # "async_tasks",
+        # "command_inbox",
+        # "event_outbox",
+        # "flow_resume_handles",
+    }
+
+    # 如果是表，检查是否在 SQL 管理的列表中
+    if type_ == "table" and name in sql_managed_tables:
+        return False
+
+    # 如果是索引或其他对象，检查其关联的表
+    if type_ in ["index", "unique_constraint", "foreign_key_constraint"]:
+        # 获取表名
+        table_name = None
+        if hasattr(object, "table"):
+            table_name = object.table.name
+        elif hasattr(object, "table_name"):
+            table_name = object.table_name
+
+        if table_name and table_name in sql_managed_tables:
+            return False
+
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -53,6 +123,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -73,7 +144,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
