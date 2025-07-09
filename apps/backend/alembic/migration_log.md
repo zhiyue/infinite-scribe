@@ -85,3 +85,56 @@ python scripts/verify_tables.py
 # 查看表详细信息
 python scripts/show_table_info.py
 ```
+
+## 2025-07-09 - 添加列注释 Migration
+
+### Migration ID: cdbb7c721fea
+
+### 执行结果
+✅ **成功** - 所有列注释已成功添加到数据库
+
+### 更新内容
+
+为所有表的列添加了中文注释，提高数据库的可维护性和文档化程度：
+
+**更新的表（14个）：**
+- ✓ novels - 添加了 10 个列注释
+- ✓ chapters - 添加了 9 个列注释
+- ✓ chapter_versions - 添加了 10 个列注释
+- ✓ characters - 添加了 11 个列注释
+- ✓ worldview_entries - 添加了 9 个列注释
+- ✓ story_arcs - 添加了 10 个列注释
+- ✓ reviews - 添加了 10 个列注释
+- ✓ genesis_sessions - 添加了 9 个列注释
+- ✓ concept_templates - 添加了 14 个列注释
+- ✓ domain_events - 添加了 11 个列注释
+- ✓ command_inbox - 添加了 10 个列注释
+- ✓ async_tasks - 添加了 15 个列注释
+- ✓ event_outbox - 添加了 13 个列注释
+- ✓ flow_resume_handles - 添加了 14 个列注释
+
+### 主要改进
+
+1. **数据库文档化**
+   - 每个列都有清晰的中文注释
+   - 注释包含字段用途、数据格式、示例等信息
+   - 便于开发人员理解数据库结构
+
+2. **迁移生成改进**
+   - 未来的迁移将自动包含列注释
+   - 提高了数据库的可维护性
+   - 便于团队协作和知识传递
+
+### 验证
+
+```bash
+# 确认迁移已应用
+uv run alembic current
+# 输出: cdbb7c721fea (head)
+
+# 查看迁移历史
+uv run alembic history
+# 显示两个迁移：
+# - cdbb7c721fea -> add_column_comments_to_all_tables
+# - 3b8fe0c17290 -> initial_migration_for_core_business_
+```
