@@ -6,9 +6,9 @@ Neo4j 会话管理
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, LiteralString, cast
 
-from neo4j import AsyncSession
+from neo4j import AsyncSession, Query
 
 from .driver import neo4j_driver
 
@@ -77,7 +77,11 @@ async def execute_query(
         查询结果列表
     """
     async with create_neo4j_session(database=database) as session:
-        result = await session.run(query, parameters or {})
+        # Wrap the dynamic Cypher string in a `Query` object to satisfy
+        # the updated Neo4j type stubs that expect either a `LiteralString`
+        # or a `neo4j.Query` instance.
+        cypher_query = Query(cast(LiteralString, query), parameters or {})
+        result = await session.run(cypher_query)
         return await result.data()
 
 

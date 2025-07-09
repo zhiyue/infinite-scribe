@@ -1,13 +1,10 @@
 """Base model for authentication-related database models."""
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import Column, DateTime, Integer
-from sqlalchemy.ext.declarative import declarative_base
 
-# Create the declarative base
-Base: Any = declarative_base()
+from src.db.sql.base import Base
 
 
 class BaseModel(Base):

@@ -1,7 +1,7 @@
 """JWT service for token management."""
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -49,12 +49,12 @@ class JWTService:
             Tuple of (token, jti, expires_at)
         """
         jti = secrets.token_urlsafe(16)
-        expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+        expires_at = datetime.now(UTC) + timedelta(minutes=self.access_token_expire_minutes)
 
         to_encode = {
             "sub": str(subject),
             "exp": expires_at,
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(UTC),
             "jti": jti,
             "token_type": "access",
         }
@@ -77,12 +77,12 @@ class JWTService:
         Returns:
             Tuple of (token, expires_at)
         """
-        expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)
+        expires_at = datetime.now(UTC) + timedelta(days=self.refresh_token_expire_days)
 
         to_encode = {
             "sub": str(subject),
             "exp": expires_at,
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(UTC),
             "jti": secrets.token_urlsafe(16),  # Add JTI for uniqueness
             "token_type": "refresh",
         }
@@ -133,7 +133,7 @@ class JWTService:
             return
 
         # Calculate TTL for Redis
-        ttl = int((expires_at - datetime.utcnow()).total_seconds())
+        ttl = int((expires_at - datetime.now(UTC)).total_seconds())
         if ttl > 0:
             self.redis_client.setex(f"blacklist:{jti}", ttl, "1")
 
@@ -200,7 +200,7 @@ class JWTService:
                     old_jti = old_payload.get("jti")
                     if old_jti:
                         # Calculate expiration from old token
-                        old_exp = datetime.fromtimestamp(old_payload.get("exp", 0))
+                        old_exp = datetime.fromtimestamp(old_payload.get("exp", 0), tz=UTC)
                         self.blacklist_token(old_jti, old_exp)
                 except JWTError:
                     # Old token is already invalid, ignore
