@@ -1,126 +1,52 @@
 """
-后端模型定义包
-从 packages/shared-types 迁移而来
+SQLAlchemy ORM 模型定义包
 """
 
-# 导入所有模型以便于使用
-# Auth models
-from src.models.base import Base as AuthBase
+# 基础模型
+from src.db.sql.base import Base
+from src.db.sql.base import Base as AuthBase  # 兼容旧名称
 from src.models.base import BaseModel as AuthBaseModel
+from src.models.chapter import Chapter, ChapterVersion, Review
+from src.models.character import Character
+
+# 认证相关模型
 from src.models.email_verification import EmailVerification, VerificationPurpose
+from src.models.event import DomainEvent
+from src.models.genesis import ConceptTemplate, GenesisSession
+
+# 业务领域模型
+from src.models.novel import Novel
 from src.models.session import Session
 from src.models.user import User
-
-# 暂时保留 star imports 以避免破坏现有代码
-# TODO: 后续需要改为显式导入
-from .api import *  # noqa: F403
-from .db import *  # noqa: F403
-from .events import *  # noqa: F403
-
-# 导入 ORM 模型
-from .orm_models import (
+from src.models.workflow import (
     AsyncTask,
-    Chapter,
-    ChapterVersion,
-    Character,
     CommandInbox,
-    ConceptTemplate,
-    DomainEvent,
     EventOutbox,
     FlowResumeHandle,
-    GenesisSession,
-    Novel,
-    Review,
-    StoryArc,
-    WorldviewEntry,
 )
-from .sse import *  # noqa: F403
+from src.models.worldview import StoryArc, WorldviewEntry
 
-__all__ = [  # noqa: F405
-    # 从 db 模块导出
-    "BaseDBModel",
-    "init_db",
-    "get_db",
-    "AsyncSessionLocal",
-    "Base",
-    "create_database_tables",
-    "drop_database_tables",
-    "recreate_database",
-    "check_database_connection",
-    "shutdown_database",
-    "NovelModel",
-    "ChapterModel",
-    "ChapterVersionModel",
-    "CharacterModel",
-    "WorldviewEntryModel",
-    "StoryArcModel",
-    "ReviewModel",
-    "OutlineModel",
-    "SceneCardModel",
-    "CharacterInteractionModel",
-    "WorkflowRunModel",
-    "AgentActivityModel",
-    "EventModel",
-    "AgentConfigurationModel",
-    "GenesisSessionModel",
-    "GenesisStepModel",
-    "AuditLogModel",
-    # 从 api 模块导出
-    "BaseAPIModel",
-    "NovelCreateRequest",
-    "NovelUpdateRequest",
-    "ChapterCreateRequest",
-    "ChapterUpdateRequest",
-    "CharacterCreateRequest",
-    "CharacterUpdateRequest",
-    "WorldviewEntryCreateRequest",
-    "WorldviewEntryUpdateRequest",
-    "GenesisStartRequest",
-    "GenesisFeedbackRequest",
-    "WorkflowStartRequest",
-    # 从 events 模块导出
-    "BaseEvent",
-    "NovelCreatedEvent",
-    "ChapterUpdatedEvent",
-    "WorkflowStartedEvent",
-    "WorkflowCompletedEvent",
-    "AgentActivityEvent",
-    "GenesisProgressEvent",
-    "ChapterCompletedEvent",
-    "ChapterRevisedEvent",
-    "ReviewCreatedEvent",
-    "GenesisSessionStartedEvent",
-    "GenesisSessionCompletedEvent",
-    "GenesisStageCompletedEvent",
-    "ConceptIterationApprovedEvent",
-    "ConceptIterationRejectedEvent",
-    "StoryFrameworkGeneratedEvent",
-    "WorldviewGeneratedEvent",
-    "CharactersGeneratedEvent",
-    "OutlineGeneratedEvent",
-    # 从 sse 模块导出
-    "SSEEvent",
-    "SSEEventType",
-    "SSEMessage",
-    "NovelProgressSSE",
-    "ChapterProgressSSE",
-    "AgentStatusSSE",
-    "ErrorSSE",
-    # Auth models
+# Pydantic 模型已迁移到 schemas 模块
+# 使用 from src.schemas import * 导入
+
+__all__ = [
+    # 基础模型
     "AuthBase",
     "AuthBaseModel",
+    "Base",
+    # 认证模型
     "User",
     "Session",
     "EmailVerification",
     "VerificationPurpose",
-    # ORM models
+    # 业务领域模型
     "Novel",
     "Chapter",
     "ChapterVersion",
+    "Review",
     "Character",
     "WorldviewEntry",
     "StoryArc",
-    "Review",
     "GenesisSession",
     "ConceptTemplate",
     "DomainEvent",

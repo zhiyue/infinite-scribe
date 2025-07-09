@@ -1,47 +1,30 @@
-"""Database session management."""
+"""
+数据库会话管理 - 兼容层
 
-from collections.abc import AsyncGenerator
+此文件保留用于向后兼容，新代码应该使用 src.db 模块
+"""
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
-
-from src.core.config import settings
-from src.models.base import Base
-
-# Create async engine
-engine = create_async_engine(
-    settings.POSTGRES_URL,
-    echo=False,
-    poolclass=NullPool,  # Use NullPool for better connection management
-)
-
-# Create async session factory
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session.
-
-    Yields:
-        Database session
-    """
-    async with async_session_maker() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+from src.db.sql import Base, async_session_maker, engine
+from src.db.sql.session import get_sql_session as get_db
 
 
 async def init_db() -> None:
-    """Initialize database (create tables)."""
+    """初始化数据库（创建表）"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def close_db() -> None:
-    """Close database connections."""
+    """关闭数据库连接"""
     await engine.dispose()
+
+
+# 导出向后兼容的接口
+__all__ = [
+    "Base",
+    "engine",
+    "async_session_maker",
+    "get_db",
+    "init_db",
+    "close_db",
+]
