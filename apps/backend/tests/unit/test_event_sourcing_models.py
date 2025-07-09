@@ -8,20 +8,27 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from src.models.db import (
-    AsyncTaskModel,
-    CommandInboxModel,
-    # 枚举类型
+from src.schemas.domain_event import DomainEventResponse as DomainEventModel
+from src.schemas.enums import (
     CommandStatus,
-    DomainEventModel,
-    EventOutboxModel,
-    FlowResumeHandleModel,
-    GenesisSessionModel,
     GenesisStage,
     GenesisStatus,
     HandleStatus,
     OutboxStatus,
     TaskStatus,
+)
+from src.schemas.genesis import GenesisSessionResponse as GenesisSessionModel
+from src.schemas.workflow import (
+    AsyncTaskResponse as AsyncTaskModel,
+)
+from src.schemas.workflow import (
+    CommandInboxResponse as CommandInboxModel,
+)
+from src.schemas.workflow import (
+    EventOutboxResponse as EventOutboxModel,
+)
+from src.schemas.workflow import (
+    FlowResumeHandleResponse as FlowResumeHandleModel,
 )
 
 
