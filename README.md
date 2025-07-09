@@ -70,11 +70,19 @@ infinite-scribe/
 │       │   │   ├── critic/          # 评论家Agent
 │       │   │   ├── factchecker/     # 事实核查员Agent
 │       │   │   └── rewriter/        # 改写者Agent
-│       │   ├── models/       # Python数据模型
-│       │   │   ├── api.py    # API模型
-│       │   │   ├── db.py     # 数据库模型
-│       │   │   ├── events.py # 事件模型
-│       │   │   └── sse.py    # SSE事件模型
+│       │   ├── db/            # 数据库基础设施层
+│       │   │   ├── sql/       # PostgreSQL 连接管理
+│       │   │   ├── graph/     # Neo4j 连接管理
+│       │   │   └── vector/    # 向量数据库（预留）
+│       │   ├── models/       # SQLAlchemy ORM模型
+│       │   │   ├── user.py    # 用户相关模型
+│       │   │   ├── novel.py   # 小说相关模型
+│       │   │   ├── chapter.py # 章节相关模型
+│       │   │   └── ...        # 其他领域模型
+│       │   ├── schemas/      # Pydantic DTOs (API层)
+│       │   │   ├── novel/     # 小说CQRS模式 DTOs
+│       │   │   ├── chapter/   # 章节CQRS模式 DTOs
+│       │   │   └── ...        # 其他领域 DTOs
 │       │   ├── core/         # 核心配置
 │       │   └── common/       # 共享逻辑
 │       ├── Dockerfile        # 统一Docker镜像

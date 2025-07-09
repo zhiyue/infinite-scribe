@@ -68,12 +68,42 @@ novel-ai-writer/
 │       │   │   ├── config.py   # 统一配置管理
 │       │   │   ├── database.py # 数据库连接
 │       │   │   └── messaging.py # Kafka等消息队列
-│       │   ├── models/         # 数据模型定义
-│       │   │   ├── __init__.py
-│       │   │   ├── db.py       # 数据库模型 (SQLAlchemy)
-│       │   │   ├── api.py      # API 请求/响应模型 (Pydantic)
-│       │   │   ├── events.py   # 事件模型
-│       │   │   └── sse.py      # SSE 事件模型
+│       │   ├── db/             # 数据库基础设施层
+│       │   │   ├── sql/        # PostgreSQL 基础设施
+│       │   │   │   ├── base.py # DeclarativeBase 和 metadata
+│       │   │   │   ├── engine.py # 引擎创建和配置
+│       │   │   │   └── session.py # 会话管理
+│       │   │   ├── graph/      # Neo4j 基础设施
+│       │   │   │   ├── driver.py # 驱动创建和管理
+│       │   │   │   └── session.py # 会话管理
+│       │   │   └── vector/     # 向量数据库（预留）
+│       │   ├── models/         # SQLAlchemy ORM 模型定义
+│       │   │   ├── base.py     # 基础模型类（认证相关）
+│       │   │   ├── user.py     # 用户模型
+│       │   │   ├── session.py  # 会话模型
+│       │   │   ├── email_verification.py # 邮箱验证模型
+│       │   │   ├── novel.py    # 小说模型
+│       │   │   ├── chapter.py  # 章节相关模型
+│       │   │   ├── character.py # 角色模型
+│       │   │   ├── worldview.py # 世界观模型
+│       │   │   ├── genesis.py  # 创世流程模型
+│       │   │   ├── event.py    # 领域事件模型
+│       │   │   └── workflow.py # 工作流相关模型
+│       │   ├── schemas/        # Pydantic DTOs (API 数据传输对象)
+│       │   │   ├── base.py     # 基础 Pydantic 模型
+│       │   │   ├── enums.py    # 共享枚举类型
+│       │   │   ├── events.py   # 事件系统模型
+│       │   │   ├── sse.py      # SSE 推送事件模型
+│       │   │   ├── domain_event.py # 领域事件 DTO
+│       │   │   ├── novel/      # 小说相关 schemas
+│       │   │   │   ├── create.py # 创建请求 DTO
+│       │   │   │   ├── update.py # 更新请求 DTO
+│       │   │   │   └── read.py   # 查询响应 DTO
+│       │   │   ├── chapter/    # 章节相关 schemas
+│       │   │   ├── character/  # 角色相关 schemas
+│       │   │   ├── worldview/  # 世界观相关 schemas
+│       │   │   ├── genesis/    # 创世相关 schemas
+│       │   │   └── workflow/   # 工作流相关 schemas
 │       │   └── common/         # 共享业务逻辑
 │       │       └── services/   # 共享服务 (e.g., neo4j_service.py)
 │       ├── tests/              # 统一测试目录
