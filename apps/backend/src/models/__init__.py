@@ -16,6 +16,24 @@ from src.models.user import User
 from .api import *  # noqa: F403
 from .db import *  # noqa: F403
 from .events import *  # noqa: F403
+
+# 导入 ORM 模型
+from .orm_models import (
+    AsyncTask,
+    Chapter,
+    ChapterVersion,
+    Character,
+    CommandInbox,
+    ConceptTemplate,
+    DomainEvent,
+    EventOutbox,
+    FlowResumeHandle,
+    GenesisSession,
+    Novel,
+    Review,
+    StoryArc,
+    WorldviewEntry,
+)
 from .sse import *  # noqa: F403
 
 __all__ = [  # noqa: F405
@@ -95,4 +113,19 @@ __all__ = [  # noqa: F405
     "Session",
     "EmailVerification",
     "VerificationPurpose",
+    # ORM models
+    "Novel",
+    "Chapter",
+    "ChapterVersion",
+    "Character",
+    "WorldviewEntry",
+    "StoryArc",
+    "Review",
+    "GenesisSession",
+    "ConceptTemplate",
+    "DomainEvent",
+    "CommandInbox",
+    "AsyncTask",
+    "EventOutbox",
+    "FlowResumeHandle",
 ]
