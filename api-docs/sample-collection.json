@@ -1,0 +1,122 @@
+{
+  "v": 2,
+  "name": "Infinite Scribe API",
+  "folders": [
+    {
+      "v": 2,
+      "name": "Health Check",
+      "folders": [],
+      "requests": [
+        {
+          "v": "3",
+          "endpoint": "{{base_url}}/health",
+          "name": "Check API Health",
+          "method": "GET",
+          "auth": {
+            "authType": "none",
+            "authActive": true
+          },
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          }
+        }
+      ]
+    },
+    {
+      "v": 2,
+      "name": "Authentication",
+      "folders": [],
+      "requests": [
+        {
+          "v": "3",
+          "endpoint": "{{base_url}}/api/{{api_version}}/auth/register",
+          "name": "Register User",
+          "method": "POST",
+          "auth": {
+            "authType": "none",
+            "authActive": true
+          },
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+          },
+          "testScript": "// 测试状态码\ntest(\"Status code is 201\", () => {\n  expect(response.status).toBe(201);\n});\n\n// 测试响应格式\ntest(\"Response has user data\", () => {\n  const data = response.json();\n  expect(data).toHaveProperty(\"user\");\n  expect(data.user).toHaveProperty(\"email\");\n});"
+        },
+        {
+          "v": "3",
+          "endpoint": "{{base_url}}/api/{{api_version}}/auth/login",
+          "name": "Login",
+          "method": "POST",
+          "auth": {
+            "authType": "none",
+            "authActive": true
+          },
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+          },
+          "testScript": "// 测试状态码\ntest(\"Status code is 200\", () => {\n  expect(response.status).toBe(200);\n});\n\n// 测试响应包含 token\ntest(\"Response has access_token\", () => {\n  const data = response.json();\n  expect(data).toHaveProperty(\"access_token\");\n});\n\n// 保存 token 到环境变量\nif (response.status === 200) {\n  const data = response.json();\n  setEnvironmentVariable(\"access_token\", data.access_token);\n  console.log(\"Token saved to environment\");\n}"
+        },
+        {
+          "v": "3",
+          "endpoint": "{{base_url}}/api/{{api_version}}/auth/profile",
+          "name": "Get Profile",
+          "method": "GET",
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "{{access_token}}"
+          },
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "testScript": "// 测试认证是否成功\ntest(\"Status code is 200\", () => {\n  expect(response.status).toBe(200);\n});\n\n// 测试返回用户信息\ntest(\"Response has user profile\", () => {\n  const data = response.json();\n  expect(data).toHaveProperty(\"email\");\n  expect(data).toHaveProperty(\"id\");\n});"
+        },
+        {
+          "v": "3",
+          "endpoint": "{{base_url}}/api/{{api_version}}/auth/password/reset",
+          "name": "Reset Password Request",
+          "method": "POST",
+          "auth": {
+            "authType": "none",
+            "authActive": true
+          },
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"email\": \"test@example.com\"\n}"
+          }
+        }
+      ]
+    }
+  ]
+}
