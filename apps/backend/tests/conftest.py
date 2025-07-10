@@ -212,11 +212,48 @@ async def test_engine():
     await engine.dispose()
 
 
+@pytest.fixture(scope="session")
+async def postgres_test_engine(postgres_service):
+    """Create PostgreSQL test database engine for integration tests."""
+    # 构建 PostgreSQL URL
+    db_url = (
+        f"postgresql+asyncpg://{postgres_service['user']}:{postgres_service['password']}"
+        f"@{postgres_service['host']}:{postgres_service['port']}/{postgres_service['database']}"
+    )
+    engine = create_async_engine(db_url)
+
+    # Create tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    # Drop all tables after tests
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    # Cleanup
+    await engine.dispose()
+
+
 @pytest.fixture
 async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create test database session."""
     async_session = sessionmaker(
         test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async with async_session() as session:
+        yield session
+
+
+@pytest.fixture
+async def postgres_test_session(postgres_test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Create PostgreSQL test database session for integration tests."""
+    async_session = sessionmaker(
+        postgres_test_engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
@@ -247,6 +284,22 @@ async def async_client(test_session):
 
     def override_get_db():
         return test_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+    # Cleanup
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def postgres_async_client(postgres_test_session):
+    """Create async test client with PostgreSQL for integration tests."""
+
+    def override_get_db():
+        return postgres_test_session
 
     app.dependency_overrides[get_db] = override_get_db
 
