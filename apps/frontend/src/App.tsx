@@ -8,6 +8,8 @@ import LoginPage from './pages/auth/Login';
 import RegisterPage from './pages/auth/Register';
 import ResetPasswordPage from './pages/auth/ResetPassword';
 import DashboardPage from './pages/Dashboard';
+import ProfilePage from './pages/Profile';
+import ChangePasswordPage from './pages/ChangePassword';
 
 // Global styles
 import './index.css';
@@ -30,6 +32,22 @@ function App() {
             element={
               <RequireAuth>
                 <DashboardPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth>
+                <ProfilePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/change-password"
+            element={
+              <RequireAuth>
+                <ChangePasswordPage />
               </RequireAuth>
             }
           />

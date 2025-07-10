@@ -52,7 +52,7 @@ const DashboardPage: React.FC = () => {
                     {/* Welcome Section */}
                     <div className="mb-8">
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                            Welcome back!
+                            Welcome back{user?.first_name ? `, ${user.first_name}` : ''}!
                         </h2>
                         <p className="text-gray-600">
                             You have successfully logged in to your account.
@@ -122,6 +122,18 @@ const DashboardPage: React.FC = () => {
                                     <span className="text-sm text-gray-600">{user?.email}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium">Username:</span>
+                                    <span className="text-sm text-gray-600">{user?.username}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium">Full Name:</span>
+                                    <span className="text-sm text-gray-600">
+                                        {user?.first_name || user?.last_name 
+                                            ? `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
+                                            : 'Not set'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium">User ID:</span>
                                     <span className="text-sm text-gray-600">{user?.id}</span>
                                 </div>
@@ -185,9 +197,9 @@ const DashboardPage: React.FC = () => {
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="text-sm">
-                                    <strong>Current Token:</strong>
-                                    <div className="mt-1 p-2 bg-gray-100 rounded text-xs font-mono break-all">
-                                        {user?.accessToken || 'No token found'}
+                                    <strong>Authentication Status:</strong>
+                                    <div className="mt-1 p-2 bg-gray-100 rounded text-xs">
+                                        {user ? 'Authenticated' : 'Not authenticated'}
                                     </div>
                                 </div>
 
