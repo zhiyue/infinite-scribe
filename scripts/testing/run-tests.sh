@@ -12,6 +12,7 @@
 #   -u, --unit          Run unit tests only (no linting)
 #   -i, --integration   Run integration tests only (no linting)
 #   -a, --all           Run all tests (unit + integration + linting)
+#   -f, --file <path>   Run specific test file(s) (can be used multiple times)
 #   --remote            Use pre-deployed services on test machine (default: TEST_MACHINE_IP env var or 192.168.2.202)
 #   --docker-host       Use test machine Docker (default: DOCKER_HOST_IP env var or TEST_MACHINE_IP)
 #   --coverage          Generate coverage report
@@ -37,6 +38,7 @@ USE_COVERAGE=false
 USE_REMOTE_SERVICES=false
 USE_DOCKER_HOST=false
 LINT_ONLY=false
+TEST_FILES=()
 
 # Test machine configuration (can be overridden by environment variable)
 TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"
@@ -86,8 +88,17 @@ while [[ $# -gt 0 ]]; do
             RUN_LINT=false
             shift
             ;;
+        -f|--file)
+            if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+                TEST_FILES+=("$2")
+                shift 2
+            else
+                echo "Error: --file requires a file path"
+                exit 1
+            fi
+            ;;
         -h|--help)
-            head -n 15 "$0" | tail -n 13
+            head -n 22 "$0" | tail -n 21
             exit 0
             ;;
         *)
@@ -100,6 +111,13 @@ done
 
 # Get project root directory
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# If specific test files are provided, override default behavior
+if [ ${#TEST_FILES[@]} -gt 0 ]; then
+    RUN_UNIT=false
+    RUN_INTEGRATION=false
+    echo -e "${YELLOW}Running specific test file(s)${NC}"
+fi
 
 # Configure environment based on options
 if [ "$USE_REMOTE_SERVICES" = true ]; then
@@ -201,6 +219,15 @@ fi
 if [ "$RUN_INTEGRATION" = true ]; then
     echo -e "\n${GREEN}=== Running integration tests ===${NC}"
     uv run pytest tests/integration/ $PYTEST_OPTS
+fi
+
+# Run specific test files
+if [ ${#TEST_FILES[@]} -gt 0 ]; then
+    echo -e "\n${GREEN}=== Running specific test files ===${NC}"
+    for test_file in "${TEST_FILES[@]}"; do
+        echo -e "${YELLOW}Running: $test_file${NC}"
+        uv run pytest "$test_file" $PYTEST_OPTS
+    done
 fi
 
 # Clean up if using Docker host
