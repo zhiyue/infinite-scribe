@@ -112,37 +112,40 @@ class TestAuthPasswordEndpoints:
     async def test_change_password_weak_password(self):
         """Test change password with weak password."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.password_hash = "current_hash"
         request = ChangePasswordRequest(current_password="currentpass", new_password="weakpass")
 
-        with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
-            mock_password_service.validate_password_strength.return_value = {
-                "is_valid": False,
-                "errors": ["Too short", "No uppercase"],
-            }
+        with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
+            mock_user_service.change_password = AsyncMock(
+                return_value={"success": False, "error": "Too short; No uppercase"}
+            )
 
             with pytest.raises(HTTPException) as exc_info:
-                await change_password(request, mock_db, mock_user)
+                await change_password(request, mock_background_tasks, mock_db, mock_user)
 
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-            assert "Password is too weak" in exc_info.value.detail
-            assert "Too short, No uppercase" in exc_info.value.detail
+            assert exc_info.value.detail == "Too short; No uppercase"
 
     @pytest.mark.asyncio
     async def test_change_password_incorrect_current_password(self):
         """Test change password with incorrect current password."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.password_hash = "current_hash"
         request = ChangePasswordRequest(current_password="wrong_password", new_password="NewPassword123!")
 
-        with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
-            mock_password_service.validate_password_strength.return_value = {"is_valid": True, "errors": []}
-            mock_password_service.verify_password.return_value = False
+        with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
+            mock_user_service.change_password = AsyncMock(
+                return_value={"success": False, "error": "Current password is incorrect"}
+            )
 
             with pytest.raises(HTTPException) as exc_info:
-                await change_password(request, mock_db, mock_user)
+                await change_password(request, mock_background_tasks, mock_db, mock_user)
 
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
             assert exc_info.value.detail == "Current password is incorrect"
@@ -151,55 +154,62 @@ class TestAuthPasswordEndpoints:
     async def test_change_password_same_as_current(self):
         """Test change password when new password is same as current."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.password_hash = "current_hash"
         request = ChangePasswordRequest(current_password="currentpass", new_password="currentpass")
 
-        with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
-            mock_password_service.validate_password_strength.return_value = {"is_valid": True, "errors": []}
-            # First call (verify current password) returns True
-            # Second call (check if new password is same) returns True
-            mock_password_service.verify_password.side_effect = [True, True]
+        with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
+            mock_user_service.change_password = AsyncMock(
+                return_value={"success": False, "error": "New password must be different from current password"}
+            )
 
             with pytest.raises(HTTPException) as exc_info:
-                await change_password(request, mock_db, mock_user)
+                await change_password(request, mock_background_tasks, mock_db, mock_user)
 
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
             assert exc_info.value.detail == "New password must be different from current password"
 
     @pytest.mark.asyncio
-    async def test_change_password_not_implemented(self):
-        """Test change password returns not implemented error."""
+    async def test_change_password_success(self):
+        """Test change password with successful change."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.password_hash = "current_hash"
         request = ChangePasswordRequest(current_password="currentpass", new_password="NewPassword123!")
 
-        with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
-            mock_password_service.validate_password_strength.return_value = {"is_valid": True, "errors": []}
-            # First call (verify current password) returns True
-            # Second call (check if new password is same) returns False
-            mock_password_service.verify_password.side_effect = [True, False]
+        with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
+            mock_user_service.change_password = AsyncMock(
+                return_value={"success": True, "message": "Password changed successfully"}
+            )
 
-            with pytest.raises(HTTPException) as exc_info:
-                await change_password(request, mock_db, mock_user)
+            result = await change_password(request, mock_background_tasks, mock_db, mock_user)
 
-            assert exc_info.value.status_code == status.HTTP_501_NOT_IMPLEMENTED
-            assert exc_info.value.detail == "Password change not yet implemented"
+            assert isinstance(result, MessageResponse)
+            assert result.success is True
+            assert result.message == "Password has been changed successfully"
+            mock_user_service.change_password.assert_called_once_with(
+                mock_db, 1, "currentpass", "NewPassword123!", mock_background_tasks
+            )
 
     @pytest.mark.asyncio
     async def test_change_password_service_exception(self):
         """Test change password when service raises exception."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.password_hash = "current_hash"
         request = ChangePasswordRequest(current_password="currentpass", new_password="NewPassword123!")
 
-        with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
-            mock_password_service.validate_password_strength.side_effect = Exception("Service error")
+        with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
+            mock_user_service.change_password = AsyncMock(side_effect=Exception("Service error"))
 
             with pytest.raises(HTTPException) as exc_info:
-                await change_password(request, mock_db, mock_user)
+                await change_password(request, mock_background_tasks, mock_db, mock_user)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert exc_info.value.detail == "An error occurred during password change"

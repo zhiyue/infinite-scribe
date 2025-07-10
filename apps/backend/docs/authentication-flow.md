@@ -542,9 +542,9 @@ graph TB
 | `/api/v1/auth/login` | POST | 用户登录 | ❌ | ✅ 已实现 |
 | `/api/v1/auth/refresh` | POST | 刷新令牌 | ❌ | ✅ 已实现 |
 | `/api/v1/auth/logout` | POST | 用户登出 | ✅ | ✅ 已实现 |
-| `/api/v1/auth/forgot-password` | POST | 忘记密码 | ❌ | ⚠️ 部分实现 |
-| `/api/v1/auth/reset-password` | POST | 重置密码 | ❌ | ❌ 待实现 |
-| `/api/v1/auth/change-password` | POST | 修改密码 | ✅ | ❌ 待实现 |
+| `/api/v1/auth/forgot-password` | POST | 忘记密码 | ❌ | ✅ 已实现 |
+| `/api/v1/auth/reset-password` | POST | 重置密码 | ❌ | ✅ 已实现 |
+| `/api/v1/auth/change-password` | POST | 修改密码 | ✅ | ✅ 已实现 |
 | `/api/v1/auth/validate-password` | POST | 验证密码强度 | ❌ | ✅ 已实现 |
 | `/api/v1/auth/me` | GET | 获取当前用户信息 | ✅ | ✅ 已实现 |
 | `/api/v1/auth/me` | PUT | 更新用户资料 | ✅ | ❌ 待实现 |
