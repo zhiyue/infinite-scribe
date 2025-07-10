@@ -116,6 +116,5 @@ pip-delete-this-directory.txt
 
 # Environment files (keep tracked for development)
 # Note: These are tracked for team development setup
-
 apps/frontend/.env.dev
 .env.dev
