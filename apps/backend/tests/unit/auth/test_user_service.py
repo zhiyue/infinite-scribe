@@ -407,3 +407,209 @@ class TestUserService:
         assert result["success"] is True
         mock_jwt_service.blacklist_token.assert_called_once_with("jti123", session.access_token_expires_at)
         mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    @patch("src.common.services.user_service.select")
+    @patch("src.common.services.user_service.EmailVerification")
+    @patch("src.common.services.user_service.User")
+    @patch("src.common.services.user_service.email_tasks")
+    async def test_register_user_with_background_tasks(
+        self,
+        mock_email_tasks,
+        mock_user_model,
+        mock_email_verification,
+        mock_select,
+        user_service,
+        mock_db_session,
+        mock_password_service,
+    ):
+        """Test user registration with background tasks for async email sending."""
+        # Arrange
+        from fastapi import BackgroundTasks
+
+        background_tasks = Mock(spec=BackgroundTasks)
+
+        user_data = {
+            "username": "newuser",
+            "email": "newuser@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "New",
+            "last_name": "User",
+        }
+
+        # Mock User instance
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.email = user_data["email"]
+        mock_user.full_name = f"{user_data['first_name']} {user_data['last_name']}"
+        mock_user.to_dict = Mock(
+            return_value={
+                "id": 1,
+                "username": user_data["username"],
+                "email": user_data["email"],
+                "is_active": True,
+                "is_verified": False,
+            }
+        )
+        mock_user_model.return_value = mock_user
+
+        # Mock EmailVerification
+        mock_verification = Mock()
+        mock_verification.token = "test_token"
+        mock_email_verification.create_for_user.return_value = mock_verification
+
+        # Mock select query
+        mock_select.return_value.where.return_value = "mock_query"
+        mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=None)))
+
+        # Mock email tasks
+        mock_email_tasks.send_verification_email_async = AsyncMock()
+
+        # Act
+        result = await user_service.register_user(mock_db_session, user_data, background_tasks)
+
+        # Assert
+        assert result["success"] is True
+        mock_email_tasks.send_verification_email_async.assert_called_once_with(
+            background_tasks,
+            user_data["email"],
+            mock_user.full_name,
+            f"{user_service.frontend_url}/auth/verify-email?token=test_token",
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.common.services.user_service.EmailVerification")
+    @patch("src.common.services.user_service.email_tasks")
+    async def test_request_password_reset_with_background_tasks(
+        self, mock_email_tasks, mock_email_verification, user_service, mock_db_session, sample_user
+    ):
+        """Test password reset request with background tasks for async email sending."""
+        # Arrange
+        from fastapi import BackgroundTasks
+
+        background_tasks = Mock(spec=BackgroundTasks)
+
+        # Mock EmailVerification
+        mock_verification = Mock()
+        mock_verification.token = "reset_token"
+        mock_email_verification.create_for_user.return_value = mock_verification
+
+        # Set full_name before the service call
+        sample_user.full_name = "Test User"
+        mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=sample_user)))
+
+        # Mock email tasks
+        mock_email_tasks.send_password_reset_email_async = AsyncMock()
+
+        # Act
+        result = await user_service.request_password_reset(mock_db_session, "test@example.com", background_tasks)
+
+        # Assert
+        assert result["success"] is True
+        mock_email_tasks.send_password_reset_email_async.assert_called_once_with(
+            background_tasks,
+            sample_user.email,
+            sample_user.full_name,
+            f"{user_service.frontend_url}/auth/reset-password?token=reset_token",
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.common.services.user_service.email_tasks")
+    async def test_verify_email_with_background_tasks(
+        self, mock_email_tasks, user_service, mock_db_session, sample_user
+    ):
+        """Test email verification with background tasks for welcome email."""
+        # Arrange
+        from fastapi import BackgroundTasks
+
+        background_tasks = Mock(spec=BackgroundTasks)
+
+        verification = Mock()
+        verification.user_id = 1
+        verification.token = "valid_token"
+        verification.purpose = VerificationPurpose.EMAIL_VERIFY
+        verification.expires_at = datetime.utcnow() + timedelta(hours=1)
+        verification.email = "test@example.com"
+        verification.is_expired = False
+        verification.is_used = False
+        verification.is_valid = True
+        verification.mark_as_used = Mock()
+        sample_user.is_verified = False
+        sample_user.full_name = "Test User"  # Set full_name before the call
+
+        mock_db_session.execute = AsyncMock(
+            side_effect=[
+                Mock(scalar_one_or_none=Mock(return_value=verification)),
+                Mock(scalar_one_or_none=Mock(return_value=sample_user)),
+            ]
+        )
+
+        # Mock email tasks
+        mock_email_tasks.send_welcome_email_async = AsyncMock()
+
+        # Act
+        result = await user_service.verify_email(mock_db_session, "valid_token", background_tasks)
+
+        # Assert
+        assert result["success"] is True
+        mock_email_tasks.send_welcome_email_async.assert_called_once_with(
+            background_tasks, sample_user.email, sample_user.full_name
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.common.services.user_service.select")
+    @patch("src.common.services.user_service.EmailVerification")
+    @patch("src.common.services.user_service.User")
+    async def test_register_user_without_background_tasks(
+        self,
+        mock_user_model,
+        mock_email_verification,
+        mock_select,
+        user_service,
+        mock_db_session,
+        mock_password_service,
+        mock_email_service,
+    ):
+        """Test user registration without background tasks (sync email sending)."""
+        # Arrange
+        user_data = {
+            "username": "newuser",
+            "email": "newuser@example.com",
+            "password": "SecurePassword123!",
+            "first_name": "New",
+            "last_name": "User",
+        }
+
+        # Mock User instance
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.email = user_data["email"]
+        mock_user.full_name = f"{user_data['first_name']} {user_data['last_name']}"
+        mock_user.to_dict = Mock(
+            return_value={
+                "id": 1,
+                "username": user_data["username"],
+                "email": user_data["email"],
+                "is_active": True,
+                "is_verified": False,
+            }
+        )
+        mock_user_model.return_value = mock_user
+
+        # Mock EmailVerification
+        mock_verification = Mock()
+        mock_verification.token = "test_token"
+        mock_email_verification.create_for_user.return_value = mock_verification
+
+        # Mock select query
+        mock_select.return_value.where.return_value = "mock_query"
+        mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=None)))
+
+        # Act - no background_tasks parameter
+        result = await user_service.register_user(mock_db_session, user_data)
+
+        # Assert - should use sync email sending
+        assert result["success"] is True
+        mock_email_service.send_verification_email.assert_called_once_with(
+            user_data["email"], mock_user.full_name, f"{user_service.frontend_url}/auth/verify-email?token=test_token"
+        )

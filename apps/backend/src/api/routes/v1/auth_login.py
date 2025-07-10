@@ -65,7 +65,19 @@ async def login_user(
             elif "verify" in result["error"].lower():
                 status_code = status.HTTP_403_FORBIDDEN
 
-            raise HTTPException(status_code=status_code, detail=result["error"])
+            # 构建错误响应，包含额外信息
+            error_detail = {
+                "message": result["error"],
+                "error": result["error"],  # 保持向后兼容
+            }
+
+            # 添加额外的错误信息
+            if "remaining_attempts" in result:
+                error_detail["remaining_attempts"] = result["remaining_attempts"]
+            if "locked_until" in result:
+                error_detail["locked_until"] = result["locked_until"]
+
+            raise HTTPException(status_code=status_code, detail=error_detail)
 
         # Create response
         user_response = UserResponse.model_validate(result["user"])
@@ -170,7 +182,7 @@ async def refresh_access_token(
         # Refresh the token
         from src.common.services.jwt_service import jwt_service
 
-        result = jwt_service.refresh_access_token(request.refresh_token, old_access_token)
+        result = await jwt_service.refresh_access_token(db, request.refresh_token, old_access_token)
 
         if not result["success"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=result["error"])

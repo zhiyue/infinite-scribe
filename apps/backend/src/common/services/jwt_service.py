@@ -169,10 +169,13 @@ class JWTService:
 
         return parts[1]
 
-    def refresh_access_token(self, refresh_token: str, old_access_token: str | None = None) -> dict[str, Any]:
+    async def refresh_access_token(
+        self, db: Any, refresh_token: str, old_access_token: str | None = None
+    ) -> dict[str, Any]:
         """Refresh access token using refresh token.
 
         Args:
+            db: Database session
             refresh_token: Valid refresh token
             old_access_token: Optional old access token to blacklist
 
@@ -180,6 +183,9 @@ class JWTService:
             Dictionary with success status and new tokens or error message
         """
         try:
+            # Import here to avoid circular dependency
+            from src.common.services.session_service import session_service
+
             # Verify refresh token
             payload = self.verify_token(refresh_token, "refresh")
             user_id = payload.get("sub")
@@ -187,11 +193,22 @@ class JWTService:
             if not user_id:
                 return {"success": False, "error": "Invalid refresh token: missing subject"}
 
+            # Find session by refresh token
+            session = await session_service.get_session_by_refresh_token(db, refresh_token)
+            if not session or not session.is_valid:
+                return {"success": False, "error": "Invalid or expired session"}
+
             # Create new access token
-            new_access_token, _, access_expires_at = self.create_access_token(user_id)
+            new_access_token, new_jti, access_expires_at = self.create_access_token(
+                user_id,
+                {
+                    "email": session.user.email if session.user else None,
+                    "username": session.user.username if session.user else None,
+                },
+            )
 
             # Create new refresh token (token rotation for security)
-            new_refresh_token, _ = self.create_refresh_token(user_id)
+            new_refresh_token, refresh_expires_at = self.create_refresh_token(user_id)
 
             # Blacklist old access token if provided
             if old_access_token:
@@ -205,6 +222,16 @@ class JWTService:
                 except JWTError:
                     # Old token is already invalid, ignore
                     pass
+
+            # Update session with new tokens
+            session.jti = new_jti
+            session.refresh_token = new_refresh_token
+            session.access_token_expires_at = access_expires_at
+            session.refresh_token_expires_at = refresh_expires_at
+            await db.commit()
+
+            # Update cache
+            await session_service._cache_session(session)
 
             return {
                 "success": True,
