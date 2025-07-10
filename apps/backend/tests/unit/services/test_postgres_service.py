@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from src.common.services.postgres_service import PostgreSQLService, postgres_service
+from tests.conftest import create_async_context_mock
 
 
 class TestPostgreSQLService:
@@ -125,16 +126,8 @@ class TestPostgreSQLService:
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_conn
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the acquire method to return an actual context manager instance
-        mock_pool.acquire = lambda: MockAsyncContext()
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
 
         # Mock the async fetchval method
         mock_conn.fetchval = AsyncMock(return_value=1)
@@ -155,16 +148,8 @@ class TestPostgreSQLService:
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_conn
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the acquire method to return an actual context manager instance
-        mock_pool.acquire = lambda: MockAsyncContext()
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
 
         # Mock the async fetchval method
         mock_conn.fetchval = AsyncMock(return_value=2)  # Wrong value
@@ -184,16 +169,8 @@ class TestPostgreSQLService:
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_conn
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the acquire method to return an actual context manager instance
-        mock_pool.acquire = lambda: MockAsyncContext()
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
 
         # Mock the async fetchval method to raise exception
         mock_conn.fetchval = AsyncMock(side_effect=Exception("Query failed"))
@@ -220,16 +197,8 @@ class TestPostgreSQLService:
 
         mock_connect.side_effect = mock_connect_side_effect
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_conn
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the acquire method to return an actual context manager instance
-        mock_pool.acquire = lambda: MockAsyncContext()
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
 
         # Execute
         async with service.acquire() as conn:
@@ -245,16 +214,8 @@ class TestPostgreSQLService:
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_conn
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the acquire method to return an actual context manager instance
-        mock_pool.acquire = lambda: MockAsyncContext()
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
 
         service._pool = mock_pool
 
