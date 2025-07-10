@@ -122,7 +122,7 @@ const RegisterPage: React.FC = () => {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="w-full max-w-md">
-                <Card>
+                <Card data-testid="register-card">
                     <CardHeader className="space-y-1">
                         <CardTitle className="text-2xl text-center">Create account</CardTitle>
                         <CardDescription className="text-center">
@@ -130,7 +130,7 @@ const RegisterPage: React.FC = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="register-form">
                             {error && (
                                 <div className="rounded-md bg-red-50 border border-red-200 p-4" role="alert">
                                     <div className="flex">
@@ -157,6 +157,7 @@ const RegisterPage: React.FC = () => {
                                     type="email"
                                     placeholder="Enter your email"
                                     autoComplete="email"
+                                    data-testid="email-input"
                                 />
                                 {errors.email && (
                                     <p className="text-sm text-destructive error-message" role="alert">{errors.email.message}</p>
@@ -171,6 +172,7 @@ const RegisterPage: React.FC = () => {
                                     type="text"
                                     placeholder="Choose a username"
                                     autoComplete="username"
+                                    data-testid="username-input"
                                 />
                                 {errors.username && (
                                     <p className="text-sm text-destructive error-message" role="alert">{errors.username.message}</p>
@@ -186,6 +188,7 @@ const RegisterPage: React.FC = () => {
                                         type="text"
                                         placeholder="First name"
                                         autoComplete="given-name"
+                                        data-testid="first-name-input"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -196,6 +199,7 @@ const RegisterPage: React.FC = () => {
                                         type="text"
                                         placeholder="Last name"
                                         autoComplete="family-name"
+                                        data-testid="last-name-input"
                                     />
                                 </div>
                             </div>
@@ -210,6 +214,7 @@ const RegisterPage: React.FC = () => {
                                         placeholder="Create a password"
                                         autoComplete="new-password"
                                         className="pr-10"
+                                        data-testid="password-input"
                                     />
                                     <Button
                                         type="button"
@@ -239,7 +244,7 @@ const RegisterPage: React.FC = () => {
                                                     style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                                                 />
                                             </div>
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-xs text-muted-foreground" data-testid="password-strength-text">
                                                 {getPasswordStrengthText(passwordStrength.score)}
                                             </span>
                                         </div>
@@ -275,6 +280,7 @@ const RegisterPage: React.FC = () => {
                                         placeholder="Confirm your password"
                                         autoComplete="new-password"
                                         className="pr-10"
+                                        data-testid="confirm-password-input"
                                     />
                                     <Button
                                         type="button"
@@ -295,14 +301,14 @@ const RegisterPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading}>
+                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="register-submit-button">
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Create account
                             </Button>
 
                             <div className="text-center text-sm">
                                 Already have an account?{' '}
-                                <Link to="/login" className="text-primary hover:underline">
+                                <Link to="/login" className="text-primary hover:underline" data-testid="login-link">
                                     Sign in
                                 </Link>
                             </div>

@@ -97,14 +97,14 @@ test.describe('已登录用户修改密码', () => {
   test('新密码强度验证', async ({ page }) => {
     await changePasswordPage.navigate();
     
-    // 测试弱密码
-    await page.fill('input[name="currentPassword"]', testUser.password);
-    await page.fill('input[name="newPassword"]', '123456');
-    await page.click('button[type="submit"]');
+    // 测试弱密码（长度满足但缺少大写字母和数字）
+    await page.locator('[data-testid="current-password-input"]').fill(testUser.password);
+    await page.locator('[data-testid="new-password-input"]').fill('weakpassword');
+    await page.locator('[data-testid="change-password-submit-button"]').click();
     
     const errorMessage = await changePasswordPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
-    expect(errorMessage).toMatch(/密码.*强度|password.*strength/i);
+    expect(errorMessage).toMatch(/uppercase.*lowercase.*number|must contain.*uppercase.*lowercase.*number/i);
   });
 
   test('密码确认不匹配', async ({ page }) => {
@@ -128,13 +128,13 @@ test.describe('已登录用户修改密码', () => {
     await changePasswordPage.navigate();
     
     // 测试空表单提交
-    await page.click('button[type="submit"]');
+    await page.locator('[data-testid="change-password-submit-button"]').click();
     const errorMessage = await changePasswordPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
     
     // 测试只填写部分字段
-    await page.fill('input[name="currentPassword"]', testUser.password);
-    await page.click('button[type="submit"]');
+    await page.locator('[data-testid="current-password-input"]').fill(testUser.password);
+    await page.locator('[data-testid="change-password-submit-button"]').click();
     const partialError = await changePasswordPage.getErrorMessage();
     expect(partialError).toBeTruthy();
   });
@@ -197,11 +197,17 @@ test.describe('已登录用户修改密码', () => {
     // 清除登录状态
     await context.clearCookies();
     
+    // 清除localStorage中的认证状态
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    
     // 尝试直接访问修改密码页面
     await page.goto('/change-password');
     
     // 应该被重定向到登录页
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
   test.skip('密码历史验证（TODO: 等待后端实现）', async ({ page }) => {

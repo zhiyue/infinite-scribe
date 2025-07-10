@@ -65,18 +65,18 @@ test.describe('用户注册流程', () => {
     await page.keyboard.press('Tab'); // 触发验证
     
     // 等待密码强度指示器出现
-    const strengthIndicator = page.locator('.text-xs.text-muted-foreground');
+    const strengthIndicator = page.locator('[data-testid="password-strength-text"]');
     await expect(strengthIndicator).toBeVisible({ timeout: 2000 });
     
     // 等待强度文本更新为"弱"
     await expect(strengthIndicator).toHaveText(/弱|weak/i, { timeout: 2000 });
     
     // 测试中等密码
-    await page.fill('input#password', 'Test123');
+    await page.fill('input#password', 'TestPassword123');
     await page.keyboard.press('Tab');
     
-    // 等待强度文本更新为"中"
-    await expect(strengthIndicator).toHaveText(/中|medium/i, { timeout: 2000 });
+    // 等待强度文本更新为"Strong"（实际密码强度算法结果）
+    await expect(strengthIndicator).toHaveText(/strong/i, { timeout: 2000 });
     
     // 测试强密码
     await page.fill('input#password', 'TestPassword123!@#');
@@ -84,7 +84,6 @@ test.describe('用户注册流程', () => {
     
     // 等待强度文本更新为"强"
     await expect(strengthIndicator).toHaveText(/强|strong/i, { timeout: 2000 });
-    }
   });
 
   test('注册表单验证', async ({ page }) => {

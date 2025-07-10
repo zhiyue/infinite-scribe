@@ -95,7 +95,7 @@ const ResetPasswordPage: React.FC = () => {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
                 <div className="w-full max-w-md">
-                    <Card>
+                    <Card data-testid="reset-password-invalid-token-card">
                         <CardHeader className="text-center">
                             <CardTitle className="text-2xl text-destructive">Invalid Reset Link</CardTitle>
                             <CardDescription className="error-message text-red-500">
@@ -104,10 +104,10 @@ const ResetPasswordPage: React.FC = () => {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                <Button asChild className="w-full">
+                                <Button asChild className="w-full" data-testid="request-new-reset-link-button">
                                     <Link to="/forgot-password">Request new reset link</Link>
                                 </Button>
-                                <Button asChild variant="outline" className="w-full">
+                                <Button asChild variant="outline" className="w-full" data-testid="back-to-login-button">
                                     <Link to="/login">Back to login</Link>
                                 </Button>
                             </div>
@@ -122,18 +122,18 @@ const ResetPasswordPage: React.FC = () => {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
                 <div className="w-full max-w-md">
-                    <Card>
+                    <Card data-testid="reset-password-success-card">
                         <CardHeader className="text-center">
                             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
                                 <CheckCircle className="h-6 w-6 text-green-600" />
                             </div>
                             <CardTitle className="text-2xl">Password Reset Successful!</CardTitle>
-                            <CardDescription className="success-message text-green-500">
+                            <CardDescription className="success-message text-green-500" data-testid="success-message">
                                 Your password has been successfully reset. You can now sign in with your new password.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button asChild className="w-full">
+                            <Button asChild className="w-full" data-testid="sign-in-button">
                                 <Link to="/login">Sign in</Link>
                             </Button>
                         </CardContent>
@@ -146,7 +146,7 @@ const ResetPasswordPage: React.FC = () => {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="w-full max-w-md">
-                <Card>
+                <Card data-testid="reset-password-card">
                     <CardHeader className="space-y-1">
                         <CardTitle className="text-2xl text-center">Reset password</CardTitle>
                         <CardDescription className="text-center">
@@ -154,7 +154,7 @@ const ResetPasswordPage: React.FC = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="reset-password-form">
                             {error && (
                                 <div className="rounded-md bg-destructive/15 p-3" role="alert">
                                     <div className="text-sm text-destructive error-message">
@@ -173,6 +173,7 @@ const ResetPasswordPage: React.FC = () => {
                                         placeholder="Enter your new password"
                                         autoComplete="new-password"
                                         className="pr-10"
+                                        data-testid="password-input"
                                     />
                                     <Button
                                         type="button"
@@ -202,7 +203,7 @@ const ResetPasswordPage: React.FC = () => {
                                                     style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                                                 />
                                             </div>
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-xs text-muted-foreground" data-testid="password-strength-text">
                                                 {getPasswordStrengthText(passwordStrength.score)}
                                             </span>
                                         </div>
@@ -238,6 +239,7 @@ const ResetPasswordPage: React.FC = () => {
                                         placeholder="Confirm your new password"
                                         autoComplete="new-password"
                                         className="pr-10"
+                                        data-testid="confirm-password-input"
                                     />
                                     <Button
                                         type="button"
@@ -258,7 +260,7 @@ const ResetPasswordPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading}>
+                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="reset-password-submit-button">
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Reset password
                             </Button>
@@ -267,6 +269,7 @@ const ResetPasswordPage: React.FC = () => {
                                 <Link
                                     to="/login"
                                     className="text-sm text-muted-foreground hover:text-primary"
+                                    data-testid="back-to-login-link"
                                 >
                                     Back to login
                                 </Link>

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { generateTestUser } from '../utils/test-helpers';
+import { DashboardPage } from '../pages/auth-pages';
 
 test.describe('用户登录流程', () => {
   // 使用 fixture 自动创建并验证用户
