@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.common.services.redis_service import redis_service
 from src.models.session import Session
@@ -182,9 +183,10 @@ class SessionService:
         # Check cache first
         cached_data = await self._get_cached_session(jti=jti)
         if cached_data and cached_data.get("is_active") and not cached_data.get("revoked_at"):
-            # Return cached data (would need to reconstruct Session object in real implementation)
-            # For now, we'll still query the DB but the cache helps reduce Redis lookups
-            pass
+            # 从缓存重建 Session 对象
+            session = await self._reconstruct_session_from_cache(db, cached_data)
+            if session:
+                return session
 
         # Query database
         result = await db.execute(select(Session).where(Session.jti == jti, Session.is_active.is_(True)))
@@ -209,8 +211,10 @@ class SessionService:
         # Check cache first
         cached_data = await self._get_cached_session(refresh_token=refresh_token)
         if cached_data and cached_data.get("is_active") and not cached_data.get("revoked_at"):
-            # Return cached data (would need to reconstruct Session object in real implementation)
-            pass
+            # 从缓存重建 Session 对象
+            session = await self._reconstruct_session_from_cache(db, cached_data)
+            if session:
+                return session
 
         # Query database
         result = await db.execute(
@@ -252,6 +256,50 @@ class SessionService:
 
         # Refresh cache
         await self._cache_session(session)
+
+    async def _reconstruct_session_from_cache(self, db: AsyncSession, cached_data: dict[str, Any]) -> Session | None:
+        """Reconstruct Session object from cached data.
+
+        注意：这是一个简化实现。在生产环境中，您可能需要：
+        1. 缓存更多字段以避免查询
+        2. 使用更复杂的序列化/反序列化策略
+        3. 处理关联对象的延迟加载
+
+        Args:
+            db: Database session
+            cached_data: Cached session data
+
+        Returns:
+            Session object or None
+        """
+        try:
+            # 对于关键操作（如刷新令牌），我们仍需要查询数据库以确保数据一致性
+            # 但对于简单的验证（如检查会话是否有效），缓存数据就足够了
+
+            # 如果只需要验证会话状态，可以创建一个轻量级的 Session 对象
+            session = Session()
+            session.id = cached_data.get("id")
+            session.user_id = cached_data.get("user_id")
+            session.jti = cached_data.get("jti")
+            session.refresh_token = cached_data.get("refresh_token")
+            session.is_active = cached_data.get("is_active", False)
+            session.revoked_at = cached_data.get("revoked_at")
+
+            # 对于需要完整对象的场景，查询数据库
+            # 这里我们选择查询数据库以确保数据完整性
+            if session.id:
+                result = await db.execute(
+                    select(Session)
+                    .options(selectinload(Session.user))  # 预加载用户信息
+                    .where(Session.id == session.id)
+                )
+                return result.scalar_one_or_none()
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to reconstruct session from cache: {e}")
+            return None
 
 
 # Create singleton instance
