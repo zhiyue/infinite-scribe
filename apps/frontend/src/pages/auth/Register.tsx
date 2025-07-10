@@ -9,8 +9,8 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
-import { authService } from '../../services/auth';
 import type { RegisterFormData } from '../../types/auth';
+import { PasswordValidator } from '../../utils/passwordValidator';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +28,8 @@ const registerSchema = z.object({
         .min(8, 'Password must be at least 8 characters')
         .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
     confirmPassword: z.string(),
-    full_name: z.string().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
@@ -41,7 +42,8 @@ const RegisterPage: React.FC = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<{
         score: number;
-        feedback: string[];
+        errors: string[];
+        suggestions: string[];
     } | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
 
@@ -58,21 +60,12 @@ const RegisterPage: React.FC = () => {
 
     // Check password strength as user types
     React.useEffect(() => {
-        const checkPasswordStrength = async () => {
-            if (watchPassword && watchPassword.length >= 3) {
-                try {
-                    const result = await authService.validatePassword({ password: watchPassword });
-                    setPasswordStrength(result);
-                } catch (error) {
-                    // Ignore validation errors during typing
-                }
-            } else {
-                setPasswordStrength(null);
-            }
-        };
-
-        const debounceTimer = setTimeout(checkPasswordStrength, 300);
-        return () => clearTimeout(debounceTimer);
+        if (watchPassword && watchPassword.length > 0) {
+            const result = PasswordValidator.validate(watchPassword);
+            setPasswordStrength(result);
+        } else {
+            setPasswordStrength(null);
+        }
     }, [watchPassword]);
 
     const onSubmit = async (data: RegisterFormData) => {
@@ -82,26 +75,23 @@ const RegisterPage: React.FC = () => {
                 email: data.email,
                 username: data.username,
                 password: data.password,
-                full_name: data.full_name || undefined,
+                first_name: data.first_name || undefined,
+                last_name: data.last_name || undefined,
             });
             setIsRegistered(true);
         } catch (error) {
-            // Error is handled by the auth store
+            // 错误已经被 auth store 处理并设置到 error state
+            // 不需要额外处理，错误会自动显示在 UI 中
             console.error('Registration failed:', error);
         }
     };
 
     const getPasswordStrengthColor = (score: number) => {
-        if (score < 3) return 'bg-destructive';
-        if (score < 4) return 'bg-yellow-500';
-        return 'bg-green-500';
+        return PasswordValidator.getStrengthColor(score);
     };
 
     const getPasswordStrengthText = (score: number) => {
-        if (score < 2) return 'Very Weak';
-        if (score < 3) return 'Weak';
-        if (score < 4) return 'Good';
-        return 'Strong';
+        return PasswordValidator.getStrengthText(score);
     };
 
     if (isRegistered) {
@@ -142,9 +132,19 @@ const RegisterPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             {error && (
-                                <div className="rounded-md bg-destructive/15 p-3">
-                                    <div className="text-sm text-destructive">
-                                        {error}
+                                <div className="rounded-md bg-red-50 border border-red-200 p-4">
+                                    <div className="flex">
+                                        <div className="flex-shrink-0">
+                                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div className="ml-3">
+                                            <h3 className="text-sm font-medium text-red-800">Registration Error</h3>
+                                            <div className="mt-1 text-sm text-red-700">
+                                                {error}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -177,15 +177,27 @@ const RegisterPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="full_name">Full Name (Optional)</Label>
-                                <Input
-                                    {...register('full_name')}
-                                    id="full_name"
-                                    type="text"
-                                    placeholder="Enter your full name"
-                                    autoComplete="name"
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="first_name">First Name (Optional)</Label>
+                                    <Input
+                                        {...register('first_name')}
+                                        id="first_name"
+                                        type="text"
+                                        placeholder="First name"
+                                        autoComplete="given-name"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="last_name">Last Name (Optional)</Label>
+                                    <Input
+                                        {...register('last_name')}
+                                        id="last_name"
+                                        type="text"
+                                        placeholder="Last name"
+                                        autoComplete="family-name"
+                                    />
+                                </div>
                             </div>
 
                             <div className="space-y-2">
@@ -224,19 +236,30 @@ const RegisterPage: React.FC = () => {
                                             <div className="flex-1 bg-gray-200 rounded-full h-2">
                                                 <div
                                                     className={`h-2 rounded-full transition-all duration-300 ${getPasswordStrengthColor(passwordStrength.score)}`}
-                                                    style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                                                    style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                                                 />
                                             </div>
                                             <span className="text-xs text-muted-foreground">
                                                 {getPasswordStrengthText(passwordStrength.score)}
                                             </span>
                                         </div>
-                                        {passwordStrength.feedback.length > 0 && (
-                                            <ul className="text-xs text-muted-foreground space-y-1">
-                                                {passwordStrength.feedback.map((feedback, index) => (
-                                                    <li key={index}>• {feedback}</li>
-                                                ))}
-                                            </ul>
+                                        {(passwordStrength.errors.length > 0 || passwordStrength.suggestions.length > 0) && (
+                                            <div className="space-y-2">
+                                                {passwordStrength.errors.length > 0 && (
+                                                    <ul className="text-xs text-red-600 space-y-1">
+                                                        {passwordStrength.errors.map((error, index) => (
+                                                            <li key={index}>• {error}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                                {passwordStrength.suggestions.length > 0 && (
+                                                    <ul className="text-xs text-muted-foreground space-y-1">
+                                                        {passwordStrength.suggestions.map((suggestion, index) => (
+                                                            <li key={index}>• {suggestion}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}

@@ -9,7 +9,6 @@ import type {
     ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
-    PasswordValidationResponse,
     RegisterRequest,
     RegisterResponse,
     ResendVerificationRequest,
@@ -17,7 +16,6 @@ import type {
     TokenResponse,
     UpdateProfileRequest,
     User,
-    ValidatePasswordRequest,
 } from '../types/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -217,14 +215,6 @@ class AuthService {
         }
     }
 
-    async validatePassword(data: ValidatePasswordRequest): Promise<PasswordValidationResponse> {
-        try {
-            const response: AxiosResponse<PasswordValidationResponse> = await this.api.post('/validate-password', data);
-            return response.data;
-        } catch (error: any) {
-            throw this.handleApiError(error);
-        }
-    }
 
     // Token management
     getAccessToken(): string | null {
@@ -241,25 +231,35 @@ class AuthService {
     }
 
     private handleApiError(error: any): ApiError {
-        if (error.response?.data) {
-            return {
-                detail: error.response.data.detail || 'An error occurred',
-                status_code: error.response.status,
-                retry_after: error.response.data.retry_after,
-            };
-        }
-
-        if (error.request) {
-            return {
-                detail: 'Network error - please check your connection',
-                status_code: 0,
-            };
-        }
-
-        return {
-            detail: error.message || 'An unexpected error occurred',
+        // 保留原始错误以便组件可以检查状态码
+        const apiError: ApiError = {
+            detail: 'An unexpected error occurred',
             status_code: 0,
         };
+
+        if (error.response?.data) {
+            // 处理嵌套的 detail 对象
+            if (typeof error.response.data.detail === 'object' && error.response.data.detail?.message) {
+                apiError.detail = error.response.data.detail.message;
+            } else if (typeof error.response.data.detail === 'string') {
+                apiError.detail = error.response.data.detail;
+            } else {
+                apiError.detail = 'An error occurred';
+            }
+            apiError.status_code = error.response.status;
+            apiError.retry_after = error.response.data.retry_after;
+        } else if (error.request) {
+            apiError.detail = 'Network error - please check your connection';
+            apiError.status_code = 0;
+        } else {
+            apiError.detail = error.message || 'An unexpected error occurred';
+            apiError.status_code = 0;
+        }
+
+        // 将原始错误附加到 ApiError 上，以便组件可以访问响应状态
+        (apiError as any).response = error.response;
+        
+        return apiError;
     }
 }
 
