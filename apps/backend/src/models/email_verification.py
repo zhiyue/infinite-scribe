@@ -3,12 +3,11 @@
 import secrets
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, cast
+from typing import cast
 
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from sqlalchemy.orm.relationships import _RelationshipDeclared
 
 from src.models.base import BaseModel
 
@@ -26,23 +25,23 @@ class EmailVerification(BaseModel):
     __tablename__ = "email_verifications"
 
     # User relationship
-    user_id: Column[int] = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user: _RelationshipDeclared[Any] = relationship("User", back_populates="email_verifications")
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user = relationship("User", back_populates="email_verifications")
 
     # Token information
-    token: Column[str] = Column(String(255), unique=True, nullable=False, index=True)
-    purpose: Column[VerificationPurpose] = Column(SQLEnum(VerificationPurpose), nullable=False)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    purpose = Column(SQLEnum(VerificationPurpose), nullable=False)
 
     # Email tracking
-    email: Column[str] = Column(String(255), nullable=False)  # Store email in case user changes it
+    email = Column(String(255), nullable=False)  # Store email in case user changes it
 
     # Token lifecycle
-    expires_at: Column[datetime] = Column(DateTime, nullable=False)
-    used_at: Column[datetime] = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
 
     # Request metadata
-    requested_from_ip: Column[str] = Column(String(45), nullable=True)
-    user_agent: Column[str] = Column(String(500), nullable=True)
+    requested_from_ip = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
 
     # Indexes for performance
     __table_args__ = (
