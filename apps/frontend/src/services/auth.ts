@@ -56,7 +56,12 @@ class AuthService {
             async (error) => {
                 const originalRequest = error.config;
 
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // Don't try to refresh token for login/register/refresh endpoints
+                const isAuthEndpoint = originalRequest.url?.includes('/login') || 
+                                     originalRequest.url?.includes('/register') ||
+                                     originalRequest.url?.includes('/refresh');
+                
+                if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
                     originalRequest._retry = true;
 
                     try {
@@ -95,11 +100,13 @@ class AuthService {
         try {
             const response = await axios.post<TokenResponse>(
                 `${API_BASE_URL}/api/v1/auth/refresh`,
-                {},
+                {
+                    refresh_token: this.refreshToken || '',
+                },
                 {
                     withCredentials: true,
                     headers: {
-                        Authorization: this.refreshToken ? `Bearer ${this.refreshToken}` : undefined,
+                        'Content-Type': 'application/json',
                     },
                 }
             );

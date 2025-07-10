@@ -127,7 +127,7 @@ const EmailVerificationPage: React.FC = () => {
                                 <CheckCircle className="h-6 w-6 text-green-600" />
                             </div>
                             <CardTitle className="text-2xl">Email verified successfully!</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="success-message text-green-500">
                                 Your email address has been verified. You will be redirected to the login page shortly.
                             </CardDescription>
                         </CardHeader>
@@ -149,15 +149,15 @@ const EmailVerificationPage: React.FC = () => {
                                 <Mail className="h-6 w-6 text-yellow-600" />
                             </div>
                             <CardTitle className="text-2xl">Verification link expired</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="error-message text-red-500">
                                 Your verification link has expired. Please request a new one.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 {errorMessage && (
-                                    <div className="rounded-md bg-destructive/15 p-3">
-                                        <div className="text-sm text-destructive">
+                                    <div className="rounded-md bg-destructive/15 p-3" role="alert">
+                                        <div className="text-sm text-destructive error-message">
                                             {errorMessage}
                                         </div>
                                     </div>
@@ -200,15 +200,15 @@ const EmailVerificationPage: React.FC = () => {
                                 <XCircle className="h-6 w-6 text-red-600" />
                             </div>
                             <CardTitle className="text-2xl">Verification failed</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="error-message text-red-500">
                                 We couldn't verify your email address.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 {errorMessage && (
-                                    <div className="rounded-md bg-destructive/15 p-3">
-                                        <div className="text-sm text-destructive">
+                                    <div className="rounded-md bg-destructive/15 p-3" role="alert">
+                                        <div className="text-sm text-destructive error-message">
                                             {errorMessage}
                                         </div>
                                     </div>

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from '../pages/auth-pages';
 import { TestApiClient } from '../utils/api-client';
-import { generateTestUser } from '../utils/test-helpers';
+import { generateTestUser, getEmailVerificationToken } from '../utils/test-helpers';
 
 test.describe('密码重置流程', () => {
   let loginPage: LoginPage;
@@ -18,14 +18,16 @@ test.describe('密码重置流程', () => {
     apiClient = new TestApiClient(request);
 
     // 创建并验证测试用户
-    const registerResponse = await apiClient.createTestUser({
+    await apiClient.createTestUser({
       username: testUser.username,
       email: testUser.email,
       password: testUser.password,
     });
 
-    if (registerResponse.verification_token) {
-      await apiClient.verifyEmail(registerResponse.verification_token);
+    // 从 MailDev 获取验证令牌并验证邮箱
+    const verificationToken = await getEmailVerificationToken(testUser.email);
+    if (verificationToken) {
+      await apiClient.verifyEmail(verificationToken);
     }
   });
 
@@ -38,6 +40,7 @@ test.describe('密码重置流程', () => {
 
     // 验证成功消息
     const successMessage = await forgotPasswordPage.getSuccessMessage();
+    expect(successMessage).toBeTruthy();
     expect(successMessage).toMatch(/已发送|sent.*email/i);
 
     // 验证页面提示用户检查邮箱
@@ -67,6 +70,7 @@ test.describe('密码重置流程', () => {
     // 测试无效邮箱格式
     await forgotPasswordPage.requestPasswordReset('invalid-email');
     const emailError = await forgotPasswordPage.getErrorMessage();
+    expect(emailError).toBeTruthy();
     expect(emailError).toContain('邮箱');
   });
 
@@ -86,6 +90,7 @@ test.describe('密码重置流程', () => {
 
     // 验证成功消息
     const successMessage = await resetPasswordPage.getSuccessMessage();
+    expect(successMessage).toBeTruthy();
     expect(successMessage).toMatch(/密码.*重置.*成功|password.*reset.*success/i);
 
     // 验证跳转到登录页
@@ -102,6 +107,7 @@ test.describe('密码重置流程', () => {
 
     // 验证错误消息
     const errorMessage = await resetPasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/无效.*令牌|invalid.*token/i);
   });
 
@@ -111,6 +117,7 @@ test.describe('密码重置流程', () => {
 
     // 验证错误消息
     const errorMessage = await resetPasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/过期|expired/i);
   });
 
@@ -120,6 +127,7 @@ test.describe('密码重置流程', () => {
 
     // 验证错误消息
     const errorMessage = await resetPasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/已使用|already used/i);
   });
 
@@ -134,6 +142,7 @@ test.describe('密码重置流程', () => {
     await page.fill('input[name="newPassword"], input[name="password"]:first-of-type', '123456');
     await page.click('button[type="submit"]');
     let errorMessage = await resetPasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/密码.*强度|password.*strength/i);
 
     // 测试与当前密码相同（如果后端支持此验证）
@@ -161,6 +170,7 @@ test.describe('密码重置流程', () => {
       await page.click('button[type="submit"]');
 
       const errorMessage = await resetPasswordPage.getErrorMessage();
+      expect(errorMessage).toBeTruthy();
       expect(errorMessage).toMatch(/密码.*不匹配|passwords.*not match/i);
     }
   });

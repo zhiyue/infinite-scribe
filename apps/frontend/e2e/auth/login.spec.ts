@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage, DashboardPage } from '../pages/auth-pages';
-import { generateTestUser, TEST_CONFIG } from '../utils/test-helpers';
+import { generateTestUser, TEST_CONFIG, getEmailVerificationToken } from '../utils/test-helpers';
 import { TestApiClient } from '../utils/api-client';
 
 test.describe('用户登录流程', () => {
@@ -17,18 +17,20 @@ test.describe('用户登录流程', () => {
     
     // 创建并验证测试用户
     try {
-      const registerResponse = await apiClient.createTestUser({
+      await apiClient.createTestUser({
         username: testUser.username,
         email: testUser.email,
         password: testUser.password,
       });
       
-      // 如果测试环境返回验证令牌，自动验证
-      if (registerResponse.verification_token) {
-        await apiClient.verifyEmail(registerResponse.verification_token);
+      // 从 MailDev 获取验证令牌并验证邮箱
+      const verificationToken = await getEmailVerificationToken(testUser.email);
+      if (verificationToken) {
+        await apiClient.verifyEmail(verificationToken);
       }
     } catch (error) {
       // 用户可能已存在，继续测试
+      console.log('User creation/verification error:', error);
     }
   });
 
@@ -55,6 +57,7 @@ test.describe('用户登录流程', () => {
     
     // 验证错误消息
     const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/认证失败|密码错误|invalid credentials/i);
     
     // 验证仍在登录页
@@ -69,6 +72,7 @@ test.describe('用户登录流程', () => {
     
     // 验证错误消息
     const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/认证失败|invalid credentials/i);
   });
 
@@ -83,6 +87,7 @@ test.describe('用户登录流程', () => {
     // 测试无效邮箱格式
     await loginPage.login('invalid-email', 'Password123!');
     errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toContain('邮箱');
   });
 
@@ -101,6 +106,7 @@ test.describe('用户登录流程', () => {
     
     // 验证错误消息
     const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/验证邮箱|verify.*email/i);
   });
 
@@ -116,6 +122,7 @@ test.describe('用户登录流程', () => {
     // 第6次尝试应该显示账户锁定消息
     await loginPage.login(testUser.email, testUser.password);
     const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/账户.*锁定|account.*locked/i);
   });
 
@@ -153,14 +160,16 @@ test.describe('会话管理', () => {
     apiClient = new TestApiClient(request);
     
     // 创建并验证测试用户
-    const registerResponse = await apiClient.createTestUser({
+    await apiClient.createTestUser({
       username: testUser.username,
       email: testUser.email,
       password: testUser.password,
     });
     
-    if (registerResponse.verification_token) {
-      await apiClient.verifyEmail(registerResponse.verification_token);
+    // 从 MailDev 获取验证令牌并验证邮箱
+    const verificationToken = await getEmailVerificationToken(testUser.email);
+    if (verificationToken) {
+      await apiClient.verifyEmail(verificationToken);
     }
   });
 
