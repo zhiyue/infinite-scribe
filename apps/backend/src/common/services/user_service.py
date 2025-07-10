@@ -199,6 +199,13 @@ class UserService:
             user.last_login_at = utc_now()
             user.last_login_ip = ip_address
 
+            # 提交用户更新（包括 last_login_at）- 必须在 create_session 之前
+            # 因为 create_session 会自己提交事务
+            await db.commit()
+            
+            # 刷新用户对象以确保获取最新数据
+            await db.refresh(user)
+
             # Create tokens
             access_token, jti, access_expires = self.jwt_service.create_access_token(
                 str(user.id), {"email": user.email, "username": user.username}
@@ -224,7 +231,7 @@ class UserService:
                 "success": True,
                 "access_token": access_token,
                 "refresh_token": refresh_token,
-                "user": user.to_dict(),
+                "user": user.to_dict(),  # 现在 to_dict() 默认包含 last_login_at
             }
 
         except Exception as e:
