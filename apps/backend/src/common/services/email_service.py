@@ -255,11 +255,14 @@ class EmailService:
         html_template = self.template_env.get_template("password_changed.html")
         text_template = self.template_env.get_template("password_changed.txt")
 
+        from datetime import datetime
+
         context = {
             "user_name": user_name,
             "app_name": "Infinite Scribe",
             "app_url": settings.frontend_url,
             "support_email": settings.auth.resend_from_email,
+            "changed_at": datetime.utcnow().strftime("%Y-%m-%d at %H:%M UTC"),
         }
 
         html_content = html_template.render(**context)
