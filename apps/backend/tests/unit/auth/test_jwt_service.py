@@ -7,8 +7,6 @@ import pytest
 from jose import JWTError
 from src.common.services.jwt_service import JWTService
 
-from common.services.jwt_service import JWTService
-
 
 class TestJWTService:
     """Test cases for JWTService."""
@@ -40,7 +38,7 @@ class TestJWTService:
         assert isinstance(expires_at, datetime)
         assert expires_at > datetime.utcnow()
 
-    def test_create_access_token_with_claims(self, jwt_service):
+    def test_create_access_token_with_claims(self, jwt_service: JWTService):
         """Test creating an access token with additional claims."""
         user_id = "12345"
         additional_claims = {"role": "admin", "permissions": ["read", "write"]}
@@ -54,7 +52,7 @@ class TestJWTService:
         assert payload["permissions"] == ["read", "write"]
         assert payload["token_type"] == "access"
 
-    def test_create_refresh_token(self, jwt_service):
+    def test_create_refresh_token(self, jwt_service: JWTService):
         """Test creating a refresh token."""
         user_id = "12345"
         token, expires_at = jwt_service.create_refresh_token(user_id)
@@ -68,7 +66,7 @@ class TestJWTService:
         access_token, _, access_expires = jwt_service.create_access_token(user_id)
         assert expires_at > access_expires
 
-    def test_verify_valid_access_token(self, jwt_service):
+    def test_verify_valid_access_token(self, jwt_service: JWTService):
         """Test verifying a valid access token."""
         user_id = "12345"
         token, jti, _ = jwt_service.create_access_token(user_id)
@@ -78,7 +76,7 @@ class TestJWTService:
         assert payload["jti"] == jti
         assert payload["token_type"] == "access"
 
-    def test_verify_valid_refresh_token(self, jwt_service):
+    def test_verify_valid_refresh_token(self, jwt_service: JWTService):
         """Test verifying a valid refresh token."""
         user_id = "12345"
         token, _ = jwt_service.create_refresh_token(user_id)
@@ -87,7 +85,7 @@ class TestJWTService:
         assert payload["sub"] == user_id
         assert payload["token_type"] == "refresh"
 
-    def test_verify_token_wrong_type(self, jwt_service):
+    def test_verify_token_wrong_type(self, jwt_service: JWTService):
         """Test verifying token with wrong expected type."""
         user_id = "12345"
         access_token, _, _ = jwt_service.create_access_token(user_id)
@@ -97,7 +95,7 @@ class TestJWTService:
 
         assert "Invalid token type" in str(exc_info.value)
 
-    def test_verify_expired_token(self, jwt_service):
+    def test_verify_expired_token(self, jwt_service: JWTService):
         """Test verifying an expired token."""
         # Create a token that expires immediately
         user_id = "12345"
@@ -111,14 +109,14 @@ class TestJWTService:
         with pytest.raises(JWTError):
             jwt_service.verify_token(token, "access")
 
-    def test_verify_invalid_token(self, jwt_service):
+    def test_verify_invalid_token(self, jwt_service: JWTService):
         """Test verifying an invalid token."""
         invalid_token = "invalid.token.here"
 
         with pytest.raises(JWTError):
             jwt_service.verify_token(invalid_token, "access")
 
-    def test_verify_token_wrong_algorithm(self, jwt_service):
+    def test_verify_token_wrong_algorithm(self, jwt_service: JWTService):
         """Test verifying token signed with different algorithm."""
         # Create token with different algorithm
         from jose import jwt
@@ -136,7 +134,7 @@ class TestJWTService:
         with pytest.raises(JWTError):
             jwt_service.verify_token(wrong_token, "access")
 
-    def test_blacklist_token(self, jwt_service, mock_redis):
+    def test_blacklist_token(self, jwt_service: JWTService, mock_redis):
         """Test adding a token to blacklist."""
         jti = "test-jti-123"
         expires_at = datetime.utcnow() + timedelta(minutes=15)
@@ -150,7 +148,7 @@ class TestJWTService:
         assert call_args[2] == "1"
         assert call_args[1] > 0  # TTL should be positive
 
-    def test_blacklist_token_already_expired(self, jwt_service, mock_redis):
+    def test_blacklist_token_already_expired(self, jwt_service: JWTService, mock_redis):
         """Test blacklisting an already expired token."""
         jti = "expired-jti"
         expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired
@@ -160,7 +158,7 @@ class TestJWTService:
         # Should not call Redis for expired token
         mock_redis.setex.assert_not_called()
 
-    def test_is_token_blacklisted_true(self, jwt_service, mock_redis):
+    def test_is_token_blacklisted_true(self, jwt_service: JWTService, mock_redis):
         """Test checking if a token is blacklisted (true case)."""
         jti = "blacklisted-jti"
         mock_redis.get.return_value = "1"
@@ -168,7 +166,7 @@ class TestJWTService:
         assert jwt_service.is_token_blacklisted(jti) is True
         mock_redis.get.assert_called_with(f"blacklist:{jti}")
 
-    def test_is_token_blacklisted_false(self, jwt_service, mock_redis):
+    def test_is_token_blacklisted_false(self, jwt_service: JWTService, mock_redis):
         """Test checking if a token is blacklisted (false case)."""
         jti = "valid-jti"
         mock_redis.get.return_value = None
@@ -176,7 +174,7 @@ class TestJWTService:
         assert jwt_service.is_token_blacklisted(jti) is False
         mock_redis.get.assert_called_with(f"blacklist:{jti}")
 
-    def test_verify_blacklisted_token(self, jwt_service, mock_redis):
+    def test_verify_blacklisted_token(self, jwt_service: JWTService, mock_redis):
         """Test verifying a blacklisted token."""
         user_id = "12345"
         token, jti, _ = jwt_service.create_access_token(user_id)
@@ -189,21 +187,21 @@ class TestJWTService:
 
         assert "revoked" in str(exc_info.value)
 
-    def test_extract_token_from_header_valid(self, jwt_service):
+    def test_extract_token_from_header_valid(self, jwt_service: JWTService):
         """Test extracting token from valid Authorization header."""
         header = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
         token = jwt_service.extract_token_from_header(header)
 
         assert token == "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 
-    def test_extract_token_from_header_case_insensitive(self, jwt_service):
+    def test_extract_token_from_header_case_insensitive(self, jwt_service: JWTService):
         """Test extracting token with different case Bearer."""
         header = "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
         token = jwt_service.extract_token_from_header(header)
 
         assert token == "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 
-    def test_extract_token_from_header_invalid_format(self, jwt_service):
+    def test_extract_token_from_header_invalid_format(self, jwt_service: JWTService):
         """Test extracting token from invalid header formats."""
         invalid_headers = [
             "",
@@ -216,7 +214,7 @@ class TestJWTService:
         for header in invalid_headers:
             assert jwt_service.extract_token_from_header(header) is None
 
-    def test_token_expiration_timing(self, jwt_service):
+    def test_token_expiration_timing(self, jwt_service: JWTService):
         """Test that tokens expire at the correct time."""
         user_id = "12345"
 
@@ -228,7 +226,7 @@ class TestJWTService:
         time_diff = abs((access_expires - expected_expire).total_seconds())
         assert time_diff < 5  # Within 5 seconds tolerance
 
-    def test_different_jti_for_each_token(self, jwt_service):
+    def test_different_jti_for_each_token(self, jwt_service: JWTService):
         """Test that each token gets a unique JTI."""
         user_id = "12345"
 
