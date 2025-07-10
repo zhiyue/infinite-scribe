@@ -1,0 +1,33 @@
+{
+  "info": "这个文件演示了 Hoppscotch 如何处理 Schema 引用",
+  "example_endpoint": {
+    "path": "/api/v1/auth/forgot-password",
+    "method": "POST",
+    "request_body": {
+      "description": "Hoppscotch 会自动从 schema 生成这个请求体",
+      "auto_generated": {
+        "email": "user@example.com"
+      }
+    },
+    "schema_features": {
+      "validation": "email 字段会验证邮箱格式",
+      "required_fields": ["email"],
+      "field_descriptions": {
+        "email": "Email address"
+      }
+    }
+  },
+  "import_benefits": [
+    "自动生成所有端点的请求模板",
+    "包含字段验证规则",
+    "显示字段描述和类型",
+    "支持嵌套对象和数组",
+    "处理枚举值和默认值"
+  ],
+  "usage_steps": [
+    "1. 运行 'pnpm api:export' 生成 OpenAPI 文档",
+    "2. 在 Hoppscotch 中导入 openapi_latest.json",
+    "3. 所有端点都会包含正确的请求体模板",
+    "4. 直接编辑模板中的值并发送请求"
+  ]
+}

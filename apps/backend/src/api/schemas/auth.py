@@ -9,6 +9,18 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class UserRegisterRequest(BaseModel):
     """User registration request schema."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "username": "johndoe",
+                "email": "john.doe@example.com",
+                "password": "SecurePassword123!",
+                "first_name": "John",
+                "last_name": "Doe",
+            }
+        }
+    )
+
     username: str = Field(..., min_length=3, max_length=50, description="Username")
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., min_length=8, description="Password")
@@ -18,6 +30,10 @@ class UserRegisterRequest(BaseModel):
 
 class UserLoginRequest(BaseModel):
     """User login request schema."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"email": "user@example.com", "password": "SecurePassword123!"}]}
+    )
 
     email: EmailStr = Field(..., description="Email address")
     password: str = Field(..., description="Password")
@@ -32,7 +48,9 @@ class RefreshTokenRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request schema."""
 
-    email: EmailStr = Field(..., description="Email address")
+    model_config = ConfigDict(json_schema_extra={"examples": [{"email": "user@example.com"}]})
+
+    email: EmailStr = Field(..., description="Email address", examples=["user@example.com"])
 
 
 class ResetPasswordRequest(BaseModel):

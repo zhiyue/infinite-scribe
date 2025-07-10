@@ -12,7 +12,6 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from src.common.services.postgres_service import postgres_service
-from src.common.services.sse_service import sse_service
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +101,10 @@ class TaskService:
         await postgres_service.execute(query, (TaskStatus.RUNNING, now, now, message, task_id))
 
         # 获取任务信息用于SSE推送
-        task_info = await self.get_task_info(task_id)
-        if task_info:
-            await sse_service.send_task_started(task_id, task_info["session_id"], message)
+        # TODO: 实现 SSE 服务后启用
+        # task_info = await self.get_task_info(task_id)
+        # if task_info:
+        #     await sse_service.send_task_started(task_id, task_info["session_id"], message)
 
         logger.info(f"Started task {task_id}")
 
@@ -121,9 +121,10 @@ class TaskService:
         await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))
 
         # 获取任务信息用于SSE推送
-        task_info = await self.get_task_info(task_id)
-        if task_info:
-            await sse_service.send_progress_update(task_id, task_info["session_id"], progress, stage, message)
+        # TODO: 实现 SSE 服务后启用
+        # task_info = await self.get_task_info(task_id)
+        # if task_info:
+        #     await sse_service.send_progress_update(task_id, task_info["session_id"], progress, stage, message)
 
         logger.debug(f"Updated task {task_id} progress: {progress:.2f} - {message}")
 
@@ -167,8 +168,9 @@ class TaskService:
         )
 
         # SSE推送完成事件
-        if task_info:
-            await sse_service.send_task_complete(task_id, task_info["session_id"], result_data, event_type)
+        # TODO: 实现 SSE 服务后启用
+        # if task_info:
+        #     await sse_service.send_task_complete(task_id, task_info["session_id"], result_data, event_type)
 
         # 清理运行中的任务引用
         if task_id in self.running_tasks:
@@ -200,8 +202,9 @@ class TaskService:
         )
 
         # SSE推送错误事件
-        if task_info:
-            await sse_service.send_task_error(task_id, task_info["session_id"], error_data)
+        # TODO: 实现 SSE 服务后启用
+        # if task_info:
+        #     await sse_service.send_task_error(task_id, task_info["session_id"], error_data)
 
         # 清理运行中的任务引用
         if task_id in self.running_tasks:

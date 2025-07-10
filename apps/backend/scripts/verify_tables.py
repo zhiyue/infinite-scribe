@@ -5,7 +5,7 @@ import asyncio
 
 from sqlalchemy import text
 from src.database import engine
-from src.models.orm_models import Base
+from src.db.sql.base import Base
 
 
 async def verify_tables():

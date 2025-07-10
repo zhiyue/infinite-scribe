@@ -1,0 +1,13 @@
+{
+  "name": "Infinite Scribe Dev",
+  "variables": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "api_version",
+      "value": "v1"
+    }
+  ]
+}
