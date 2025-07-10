@@ -1,9 +1,7 @@
 """Session service for managing user sessions with Redis caching."""
 
-import json
 import logging
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from src.common.services.redis_service import redis_service
 from src.models.session import Session
+from src.schemas.session import SessionCacheSchema
 
 logger = logging.getLogger(__name__)
 
@@ -46,43 +45,45 @@ class SessionService:
             raise ValueError("Must provide either session_id, jti, or refresh_token")
 
     async def _cache_session(self, session: Session) -> None:
-        """Cache session data in Redis.
+        """Cache session data in Redis using Pydantic serialization.
 
         Args:
             session: Session object to cache
         """
         try:
-            session_data = session.to_dict()
+            # 使用 Pydantic 自动序列化，处理 datetime 等复杂类型
+            cache_obj = SessionCacheSchema.model_validate(session, from_attributes=True)
+            payload = cache_obj.model_dump_json()  # Pydantic v2 -> JSON string
 
             # Cache by session ID
-            await redis_service.set(
-                self._get_cache_key(session_id=session.id), json.dumps(session_data), expire=self.cache_ttl
-            )
+            session_id = getattr(session, "id", None)
+            if session_id is not None:
+                await redis_service.set(self._get_cache_key(session_id=session_id), payload, expire=self.cache_ttl)
 
             # Cache by JTI for quick lookup
-            if session.jti:
-                await redis_service.set(
-                    self._get_cache_key(jti=session.jti), json.dumps(session_data), expire=self.cache_ttl
-                )
+            jti = getattr(session, "jti", None)
+            if jti:
+                await redis_service.set(self._get_cache_key(jti=jti), payload, expire=self.cache_ttl)
 
             # Cache by refresh token for quick lookup
-            if session.refresh_token:
+            refresh_token = getattr(session, "refresh_token", None)
+            if refresh_token:
                 await redis_service.set(
-                    self._get_cache_key(refresh_token=session.refresh_token),
-                    json.dumps(session_data),
+                    self._get_cache_key(refresh_token=refresh_token),
+                    payload,
                     expire=self.cache_ttl,
                 )
 
-            logger.debug(f"Cached session {session.id} in Redis")
+            logger.debug(f"Cached session {getattr(session, 'id', 'unknown')} in Redis")
 
         except Exception as e:
-            logger.error(f"Failed to cache session {session.id}: {e}")
+            logger.error(f"Failed to cache session {getattr(session, 'id', 'unknown')}: {e}")
             # Don't fail the operation if caching fails
 
-    async def _get_cached_session(
+    async def _get_cached_session_schema(
         self, session_id: int | None = None, jti: str | None = None, refresh_token: str | None = None
-    ) -> dict[str, Any] | None:
-        """Get cached session data from Redis.
+    ) -> SessionCacheSchema | None:
+        """Get cached session data from Redis as Pydantic model.
 
         Args:
             session_id: Session ID
@@ -90,15 +91,16 @@ class SessionService:
             refresh_token: Refresh token
 
         Returns:
-            Cached session data or None
+            Cached session as Pydantic model or None
         """
         try:
             cache_key = self._get_cache_key(session_id, jti, refresh_token)
-            cached_data = await redis_service.get(cache_key)
+            raw = await redis_service.get(cache_key)
 
-            if cached_data:
+            if raw:
                 logger.debug(f"Found cached session with key {cache_key}")
-                return json.loads(cached_data)
+                # Pydantic 自动处理 JSON 反序列化和 datetime 解析
+                return SessionCacheSchema.model_validate_json(raw)
 
         except Exception as e:
             logger.error(f"Failed to get cached session: {e}")
@@ -113,14 +115,19 @@ class SessionService:
         """
         try:
             # Delete all cache entries for this session
-            if session.id:
-                await redis_service.delete(self._get_cache_key(session_id=session.id))
-            if session.jti:
-                await redis_service.delete(self._get_cache_key(jti=session.jti))
-            if session.refresh_token:
-                await redis_service.delete(self._get_cache_key(refresh_token=session.refresh_token))
+            session_id = getattr(session, "id", None)
+            if session_id is not None:
+                await redis_service.delete(self._get_cache_key(session_id=session_id))
 
-            logger.debug(f"Invalidated cache for session {session.id}")
+            jti = getattr(session, "jti", None)
+            if jti:
+                await redis_service.delete(self._get_cache_key(jti=jti))
+
+            refresh_token = getattr(session, "refresh_token", None)
+            if refresh_token:
+                await redis_service.delete(self._get_cache_key(refresh_token=refresh_token))
+
+            logger.debug(f"Invalidated cache for session {getattr(session, 'id', 'unknown')}")
 
         except Exception as e:
             logger.error(f"Failed to invalidate session cache: {e}")
@@ -181,10 +188,10 @@ class SessionService:
             Session or None
         """
         # Check cache first
-        cached_data = await self._get_cached_session(jti=jti)
-        if cached_data and cached_data.get("is_active") and not cached_data.get("revoked_at"):
+        cached_schema = await self._get_cached_session_schema(jti=jti)
+        if cached_schema and cached_schema.is_active and not cached_schema.revoked_at:
             # 从缓存重建 Session 对象
-            session = await self._reconstruct_session_from_cache(db, cached_data)
+            session = await self._reconstruct_session_from_cache(db, cached_schema)
             if session:
                 return session
 
@@ -209,10 +216,10 @@ class SessionService:
             Session or None
         """
         # Check cache first
-        cached_data = await self._get_cached_session(refresh_token=refresh_token)
-        if cached_data and cached_data.get("is_active") and not cached_data.get("revoked_at"):
+        cached_schema = await self._get_cached_session_schema(refresh_token=refresh_token)
+        if cached_schema and cached_schema.is_active and not cached_schema.revoked_at:
             # 从缓存重建 Session 对象
-            session = await self._reconstruct_session_from_cache(db, cached_data)
+            session = await self._reconstruct_session_from_cache(db, cached_schema)
             if session:
                 return session
 
@@ -251,49 +258,58 @@ class SessionService:
         """
         from src.common.utils.datetime_utils import utc_now
 
-        session.last_accessed_at = utc_now()
+        # 使用 setattr 来避免 mypy 列类型错误
+        setattr(session, "last_accessed_at", utc_now())
         await db.commit()
 
         # Refresh cache
         await self._cache_session(session)
 
-    async def _reconstruct_session_from_cache(self, db: AsyncSession, cached_data: dict[str, Any]) -> Session | None:
-        """Reconstruct Session object from cached data.
+    async def _reconstruct_session_from_cache(self, db: AsyncSession, cached: SessionCacheSchema) -> Session | None:
+        """Reconstruct Session object from cached Pydantic model.
 
-        注意：这是一个简化实现。在生产环境中，您可能需要：
-        1. 缓存更多字段以避免查询
-        2. 使用更复杂的序列化/反序列化策略
-        3. 处理关联对象的延迟加载
+        对于大部分场景（如验证令牌有效性），直接使用缓存数据即可。
+        只有需要关联对象（如 User）时才查询数据库。
 
         Args:
             db: Database session
-            cached_data: Cached session data
+            cached: Cached session as Pydantic model
 
         Returns:
             Session object or None
         """
         try:
-            # 对于关键操作（如刷新令牌），我们仍需要查询数据库以确保数据一致性
-            # 但对于简单的验证（如检查会话是否有效），缓存数据就足够了
+            # 90% 场景：仅验证会话有效性，无需查询数据库
+            if cached.is_active and not cached.revoked_at:
+                # 创建轻量级 Session 对象（不含关联对象）
+                session = Session()
+                # 使用 Pydantic 模型的数据填充
+                for field in [
+                    "id",
+                    "user_id",
+                    "jti",
+                    "refresh_token",
+                    "is_active",
+                    "access_token_expires_at",
+                    "refresh_token_expires_at",
+                    "last_accessed_at",
+                    "created_at",
+                    "updated_at",
+                ]:
+                    if hasattr(cached, field):
+                        setattr(session, field, getattr(cached, field))
 
-            # 如果只需要验证会话状态，可以创建一个轻量级的 Session 对象
-            session = Session()
-            session.id = cached_data.get("id")
-            session.user_id = cached_data.get("user_id")
-            session.jti = cached_data.get("jti")
-            session.refresh_token = cached_data.get("refresh_token")
-            session.is_active = cached_data.get("is_active", False)
-            session.revoked_at = cached_data.get("revoked_at")
+                # 特殊情况：如果需要完整对象（包含 User 关系），查询数据库
+                # 这通常只在 refresh_token 场景需要
+                if hasattr(self, "_need_full_object") and self._need_full_object and cached.id:
+                    result = await db.execute(
+                        select(Session)
+                        .options(selectinload(Session.user))  # 预加载用户信息
+                        .where(Session.id == cached.id)
+                    )
+                    return result.scalar_one_or_none()
 
-            # 对于需要完整对象的场景，查询数据库
-            # 这里我们选择查询数据库以确保数据完整性
-            if session.id:
-                result = await db.execute(
-                    select(Session)
-                    .options(selectinload(Session.user))  # 预加载用户信息
-                    .where(Session.id == session.id)
-                )
-                return result.scalar_one_or_none()
+                return session
 
             return None
 
