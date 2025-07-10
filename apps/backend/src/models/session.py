@@ -1,10 +1,18 @@
 """Session model for JWT token management and blacklisting."""
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import relationship
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.common.utils.datetime_utils import utc_now
 from src.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from src.models.user import User
 
 
 class Session(BaseModel):
@@ -13,28 +21,28 @@ class Session(BaseModel):
     __tablename__ = "sessions"
 
     # User relationship
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user = relationship("User", back_populates="sessions")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user: Mapped[User] = relationship(back_populates="sessions")
 
     # Token information
-    jti = Column(String(255), unique=True, nullable=False, index=True)  # JWT ID for blacklisting
-    refresh_token = Column(String(500), unique=True, nullable=False, index=True)
+    jti: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)  # JWT ID for blacklisting
+    refresh_token: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
 
     # Session metadata
-    user_agent = Column(String(500), nullable=True)
-    ip_address = Column(String(45), nullable=True, index=True)  # Support IPv6
-    device_type = Column(String(50), nullable=True)  # mobile, desktop, tablet
-    device_name = Column(String(100), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True, index=True)  # Support IPv6
+    device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # mobile, desktop, tablet
+    device_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Token lifecycle
-    access_token_expires_at = Column(DateTime(timezone=True), nullable=False)
-    refresh_token_expires_at = Column(DateTime(timezone=True), nullable=False)
-    last_accessed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    access_token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    refresh_token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Status
-    is_active = Column(Boolean, default=True, nullable=False)
-    revoked_at = Column(DateTime(timezone=True), nullable=True)
-    revoke_reason = Column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Indexes for performance
     __table_args__ = (

@@ -63,7 +63,7 @@ def to_timestamp(dt: datetime) -> float:
     return dt.timestamp()
 
 
-def parse_iso_datetime(iso_string: str) -> datetime | None:
+def parse_iso_datetime(iso_string: str | None) -> datetime | None:
     """解析 ISO 8601 格式的时间字符串。
 
     Args:
@@ -72,6 +72,9 @@ def parse_iso_datetime(iso_string: str) -> datetime | None:
     Returns:
         datetime: 带时区信息的时间，解析失败返回 None
     """
+    if iso_string is None:
+        return None
+
     try:
         # Python 3.11+ 的 fromisoformat 支持完整的 ISO 8601
         dt = datetime.fromisoformat(iso_string)
@@ -79,7 +82,7 @@ def parse_iso_datetime(iso_string: str) -> datetime | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         return dt
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError, TypeError):
         return None
 
 
