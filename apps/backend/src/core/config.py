@@ -37,6 +37,10 @@ class AuthSettings(BaseModel):
     email_verification_expire_hours: int = Field(default=24)
     password_reset_expire_hours: int = Field(default=1)
 
+    # Session Management
+    session_strategy: str = Field(default="multi_device")  # multi_device, single_device, max_sessions
+    max_sessions_per_user: int = Field(default=10)  # Only used when strategy is max_sessions
+
     # Development Settings
     use_maildev: bool = Field(default=False)
     maildev_host: str = Field(default="localhost")

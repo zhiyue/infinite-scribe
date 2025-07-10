@@ -13,6 +13,7 @@ from src.common.services.email_service import email_service
 from src.common.services.email_tasks import email_tasks
 from src.common.services.jwt_service import jwt_service
 from src.common.services.password_service import PasswordService
+from src.common.services.session_service import session_service
 from src.common.utils.datetime_utils import utc_now
 from src.core.config import settings
 from src.models.email_verification import EmailVerification, VerificationPurpose
@@ -146,8 +147,9 @@ class UserService:
             Result dictionary with tokens and user data or error
         """
         try:
-            # Find user by email
-            result = await db.execute(select(User).where(User.email == email))
+            # Find user by email with row lock to prevent concurrent updates
+            # FOR UPDATE 锁定行，防止并发修改
+            result = await db.execute(select(User).where(User.email == email).with_for_update())
             user = result.scalar_one_or_none()
 
             if not user:
@@ -165,13 +167,32 @@ class UserService:
             if not self.password_service.verify_password(password, cast(str, user.password_hash)):
                 # Increment failed login attempts
                 user.failed_login_attempts = getattr(user, "failed_login_attempts", 0) + 1
+                remaining_attempts = settings.auth.account_lockout_attempts - user.failed_login_attempts
 
                 # Lock account if too many attempts
-                if getattr(user, "failed_login_attempts", 0) >= settings.auth.account_lockout_attempts:
+                if user.failed_login_attempts >= settings.auth.account_lockout_attempts:
                     user.locked_until = utc_now() + timedelta(minutes=settings.auth.account_lockout_duration_minutes)
+                    await db.commit()
+                    return {
+                        "success": False,
+                        "error": f"Account is locked due to too many failed login attempts. Please try again after {settings.auth.account_lockout_duration_minutes} minutes.",
+                        "locked_until": user.locked_until.isoformat() if user.locked_until else None,
+                    }
 
                 await db.commit()
-                return {"success": False, "error": "Invalid credentials"}
+
+                # 返回剩余尝试次数
+                error_msg = "Invalid credentials"
+                if remaining_attempts > 0:
+                    error_msg += f". {remaining_attempts} attempt(s) remaining before account lock."
+                else:
+                    error_msg += ". Next failed attempt will lock your account."
+
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "remaining_attempts": max(0, remaining_attempts),
+                }
 
             # Reset failed attempts on successful login
             user.failed_login_attempts = 0
@@ -184,8 +205,12 @@ class UserService:
             )
             refresh_token, refresh_expires = self.jwt_service.create_refresh_token(str(user.id))
 
-            # Create session
-            session = Session(
+            # Handle session management strategy
+            await self._handle_session_strategy(db, user.id)
+
+            # Create session using session service (with Redis caching)
+            await session_service.create_session(
+                db=db,
                 user_id=user.id,
                 jti=jti,
                 refresh_token=refresh_token,
@@ -194,8 +219,6 @@ class UserService:
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
-            db.add(session)
-            await db.commit()
 
             return {
                 "success": True,
@@ -406,6 +429,56 @@ class UserService:
             await db.rollback()
             return {"success": False, "error": "An error occurred during password reset"}
 
+    async def _handle_session_strategy(self, db: AsyncSession, user_id: int) -> None:
+        """Handle session management strategy.
+
+        根据配置的策略管理用户会话：
+        - multi_device: 允许多设备登录（默认）
+        - single_device: 单设备登录，新登录踢掉所有旧会话
+        - max_sessions: 限制最大会话数，超出时踢掉最旧的会话
+
+        Args:
+            db: Database session
+            user_id: User ID
+        """
+        strategy = settings.auth.session_strategy
+
+        if strategy == "single_device":
+            # 单设备登录：撤销该用户的所有活跃会话
+            result = await db.execute(select(Session).where(Session.user_id == user_id, Session.is_active.is_(True)))
+            active_sessions = result.scalars().all()
+
+            for session in active_sessions:
+                await session_service.revoke_session(db, session, "New login - single device policy")
+                # 黑名单旧的访问令牌
+                if session.jti and session.access_token_expires_at:
+                    self.jwt_service.blacklist_token(
+                        cast(str, session.jti), cast(datetime, session.access_token_expires_at)
+                    )
+
+        elif strategy == "max_sessions":
+            # 限制最大会话数：检查活跃会话数量
+            result = await db.execute(
+                select(Session)
+                .where(Session.user_id == user_id, Session.is_active.is_(True))
+                .order_by(Session.created_at.asc())  # 按创建时间升序，最旧的在前
+            )
+            active_sessions = result.scalars().all()
+
+            max_sessions = settings.auth.max_sessions_per_user
+            if len(active_sessions) >= max_sessions:
+                # 踢掉最旧的会话，保持在限制以内
+                sessions_to_revoke = active_sessions[: len(active_sessions) - max_sessions + 1]
+                for session in sessions_to_revoke:
+                    await session_service.revoke_session(db, session, f"Max sessions exceeded ({max_sessions})")
+                    # 黑名单旧的访问令牌
+                    if session.jti and session.access_token_expires_at:
+                        self.jwt_service.blacklist_token(
+                            cast(str, session.jti), cast(datetime, session.access_token_expires_at)
+                        )
+
+        # multi_device 策略不需要做任何处理，允许所有会话共存
+
     async def logout(self, db: AsyncSession, jti: str) -> dict[str, Any]:
         """Logout a user.
 
@@ -417,20 +490,17 @@ class UserService:
             Result dictionary with success status
         """
         try:
-            # Find session by JTI
-            result = await db.execute(select(Session).where(Session.jti == jti))
-            session = result.scalar_one_or_none()
+            # Find session by JTI using session service (with caching)
+            session = await session_service.get_session_by_jti(db, jti)
 
             if session:
-                # Revoke session
-                session.revoke("User logout")
-
                 # Blacklist token
                 self.jwt_service.blacklist_token(
                     cast(str, session.jti), cast(datetime, session.access_token_expires_at)
                 )
 
-                await db.commit()
+                # Revoke session and invalidate cache
+                await session_service.revoke_session(db, session, "User logout")
 
             return {"success": True, "message": "Logged out successfully"}
 
