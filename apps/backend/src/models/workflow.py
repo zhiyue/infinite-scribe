@@ -2,14 +2,14 @@
 工作流和任务相关的 SQLAlchemy ORM 模型
 """
 
+from __future__ import annotations
+
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     CheckConstraint,
-    Column,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -17,9 +17,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.db.sql.base import Base
@@ -46,23 +47,34 @@ class CommandInbox(Base):
         Index("idx_command_inbox_status_created", "status", "created_at"),
     )
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="命令唯一标识符")
-    session_id = Column(PGUUID(as_uuid=True), nullable=False, comment="会话ID，关联到genesis_sessions或其他业务会话")
-    command_type = Column(Text, nullable=False, comment='命令类型，如"ConfirmStoryConception"、"GenerateWorldview"')
-    idempotency_key = Column(Text, nullable=False, unique=True, comment="幂等键，确保同一命令不会被重复处理")
-    payload = Column(JSONB, comment="命令载荷，包含命令执行所需的所有数据")
-    status = Column(
-        Enum(CommandStatus), nullable=False, default=CommandStatus.RECEIVED, comment="命令状态，使用command_status枚举"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="命令唯一标识符")
+    session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), nullable=False, comment="会话ID，关联到genesis_sessions或其他业务会话"
     )
-    error_message = Column(Text, comment="错误信息，当状态为FAILED时必填")
-    retry_count = Column(Integer, nullable=False, default=0, comment="重试次数，用于失败重试机制")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="命令接收时间")
-    updated_at = Column(
+    command_type: Mapped[str] = mapped_column(
+        Text, nullable=False, comment='命令类型，如"ConfirmStoryConception"、"GenerateWorldview"'
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        Text, nullable=False, unique=True, comment="幂等键，确保同一命令不会被重复处理"
+    )
+    payload: Mapped[dict | None] = mapped_column(JSONB, comment="命令载荷，包含命令执行所需的所有数据")
+    status: Mapped[CommandStatus] = mapped_column(
+        SQLEnum(CommandStatus),
+        nullable=False,
+        default=CommandStatus.RECEIVED,
+        comment="命令状态，使用command_status枚举",
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, comment="错误信息，当状态为FAILED时必填")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="重试次数，用于失败重试机制")
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="命令接收时间"
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )
 
     # 关系
-    async_tasks = relationship("AsyncTask", back_populates="command")
+    async_tasks: Mapped[list[AsyncTask]] = relationship(back_populates="command")
 
 
 class AsyncTask(Base):
@@ -98,32 +110,42 @@ class AsyncTask(Base):
         Index("idx_async_tasks_execution_node", "execution_node"),
     )
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="任务唯一标识符")
-    task_type = Column(Text, nullable=False, comment='任务类型，如"GenerateChapter"、"AnalyzeWorldview"')
-    triggered_by_command_id = Column(
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="任务唯一标识符")
+    task_type: Mapped[str] = mapped_column(
+        Text, nullable=False, comment='任务类型，如"GenerateChapter"、"AnalyzeWorldview"'
+    )
+    triggered_by_command_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("command_inbox.id", ondelete="SET NULL"),
         comment="触发此任务的命令ID，外键关联command_inbox表",
     )
-    status = Column(
-        Enum(TaskStatus), nullable=False, default=TaskStatus.PENDING, comment="任务状态，使用task_status枚举"
+    status: Mapped[TaskStatus] = mapped_column(
+        SQLEnum(TaskStatus), nullable=False, default=TaskStatus.PENDING, comment="任务状态，使用task_status枚举"
     )
-    progress = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"), comment="任务进度百分比，0.00-100.00")
-    input_data = Column(JSONB, comment="任务输入数据，JSON格式")
-    result_data = Column(JSONB, comment="任务执行结果，完成时必填")
-    error_data = Column(JSONB, comment="错误信息详情，失败时必填")
-    execution_node = Column(Text, comment="执行任务的节点标识，用于分布式任务调度")
-    retry_count = Column(Integer, nullable=False, default=0, comment="当前重试次数")
-    max_retries = Column(Integer, nullable=False, default=3, comment="最大重试次数，默认3次")
-    started_at = Column(DateTime(timezone=True), comment="任务开始执行时间，状态为RUNNING时必填")
-    completed_at = Column(DateTime(timezone=True), comment="任务完成时间，状态为COMPLETED或FAILED时必填")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="任务创建时间")
-    updated_at = Column(
+    progress: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("0.00"), comment="任务进度百分比，0.00-100.00"
+    )
+    input_data: Mapped[dict | None] = mapped_column(JSONB, comment="任务输入数据，JSON格式")
+    result_data: Mapped[dict | None] = mapped_column(JSONB, comment="任务执行结果，完成时必填")
+    error_data: Mapped[dict | None] = mapped_column(JSONB, comment="错误信息详情，失败时必填")
+    execution_node: Mapped[str | None] = mapped_column(Text, comment="执行任务的节点标识，用于分布式任务调度")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="当前重试次数")
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3, comment="最大重试次数，默认3次")
+    started_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), comment="任务开始执行时间，状态为RUNNING时必填"
+    )
+    completed_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), comment="任务完成时间，状态为COMPLETED或FAILED时必填"
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="任务创建时间"
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )
 
     # 关系
-    command = relationship("CommandInbox", back_populates="async_tasks")
+    command: Mapped[CommandInbox | None] = relationship(back_populates="async_tasks")
 
 
 class EventOutbox(Base):
@@ -148,21 +170,27 @@ class EventOutbox(Base):
         Index("idx_event_outbox_partition_key", "partition_key"),
     )
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="消息唯一标识符")
-    topic = Column(Text, nullable=False, comment='消息主题/队列名称，如"novel.events"、"chapter.updates"')
-    key = Column(Text, comment="消息键，用于消息分区和顺序保证")
-    partition_key = Column(Text, comment="分区键，用于Kafka等消息系统的分区路由")
-    payload = Column(JSONB, nullable=False, comment="消息载荷，包含事件的完整数据")
-    headers = Column(JSONB, comment="消息头，包含元数据如事件类型、版本、追踪ID等")
-    status = Column(
-        Enum(OutboxStatus), nullable=False, default=OutboxStatus.PENDING, comment="消息状态，使用outbox_status枚举"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="消息唯一标识符")
+    topic: Mapped[str] = mapped_column(
+        Text, nullable=False, comment='消息主题/队列名称，如"novel.events"、"chapter.updates"'
     )
-    retry_count = Column(Integer, nullable=False, default=0, comment="当前重试次数")
-    max_retries = Column(Integer, nullable=False, default=5, comment="最大重试次数，默认5次")
-    last_error = Column(Text, comment="最后一次发送失败的错误信息")
-    scheduled_at = Column(DateTime(timezone=True), comment="计划发送时间，用于延迟消息")
-    sent_at = Column(DateTime(timezone=True), comment="实际发送成功时间，状态为SENT时必填")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="消息创建时间")
+    key: Mapped[str | None] = mapped_column(Text, comment="消息键，用于消息分区和顺序保证")
+    partition_key: Mapped[str | None] = mapped_column(Text, comment="分区键，用于Kafka等消息系统的分区路由")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, comment="消息载荷，包含事件的完整数据")
+    headers: Mapped[dict | None] = mapped_column(JSONB, comment="消息头，包含元数据如事件类型、版本、追踪ID等")
+    status: Mapped[OutboxStatus] = mapped_column(
+        SQLEnum(OutboxStatus), nullable=False, default=OutboxStatus.PENDING, comment="消息状态，使用outbox_status枚举"
+    )
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="当前重试次数")
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=5, comment="最大重试次数，默认5次")
+    last_error: Mapped[str | None] = mapped_column(Text, comment="最后一次发送失败的错误信息")
+    scheduled_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), comment="计划发送时间，用于延迟消息")
+    sent_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), comment="实际发送成功时间，状态为SENT时必填"
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="消息创建时间"
+    )
 
 
 class FlowResumeHandle(Base):
@@ -189,23 +217,31 @@ class FlowResumeHandle(Base):
         Index("idx_flow_resume_handles_correlation_status", "correlation_id", "status"),
     )
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="句柄唯一标识符")
-    correlation_id = Column(Text, nullable=False, comment="关联ID，唯一标识一个可恢复的工作流实例")
-    flow_run_id = Column(Text, comment="工作流运行ID，关联到具体的工作流执行实例")
-    task_name = Column(Text, comment='暂停的任务名称，如"WaitForUserConfirmation"')
-    resume_handle = Column(JSONB, nullable=False, comment="恢复句柄数据，包含恢复工作流所需的状态信息")
-    status = Column(
-        Enum(HandleStatus),
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="句柄唯一标识符")
+    correlation_id: Mapped[str] = mapped_column(Text, nullable=False, comment="关联ID，唯一标识一个可恢复的工作流实例")
+    flow_run_id: Mapped[str | None] = mapped_column(Text, comment="工作流运行ID，关联到具体的工作流执行实例")
+    task_name: Mapped[str | None] = mapped_column(Text, comment='暂停的任务名称，如"WaitForUserConfirmation"')
+    resume_handle: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, comment="恢复句柄数据，包含恢复工作流所需的状态信息"
+    )
+    status: Mapped[HandleStatus] = mapped_column(
+        SQLEnum(HandleStatus),
         nullable=False,
         default=HandleStatus.PENDING_PAUSE,
         comment="句柄状态，使用handle_status枚举",
     )
-    resume_payload = Column(JSONB, comment="恢复时的载荷数据，包含用户输入或外部事件数据")
-    timeout_seconds = Column(Integer, comment="超时时间（秒），超时后工作流将自动恢复或失败")
-    context_data = Column(JSONB, comment="上下文数据，存储工作流暂停时的业务上下文")
-    expires_at = Column(DateTime(timezone=True), comment="句柄过期时间，过期后不能再恢复")
-    resumed_at = Column(DateTime(timezone=True), comment="实际恢复时间，状态为RESUMED时必填")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), comment="句柄创建时间")
-    updated_at = Column(
+    resume_payload: Mapped[dict | None] = mapped_column(JSONB, comment="恢复时的载荷数据，包含用户输入或外部事件数据")
+    timeout_seconds: Mapped[int | None] = mapped_column(Integer, comment="超时时间（秒），超时后工作流将自动恢复或失败")
+    context_data: Mapped[dict | None] = mapped_column(JSONB, comment="上下文数据，存储工作流暂停时的业务上下文")
+    expires_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), comment="句柄过期时间，过期后不能再恢复"
+    )
+    resumed_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), comment="实际恢复时间，状态为RESUMED时必填"
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="句柄创建时间"
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )

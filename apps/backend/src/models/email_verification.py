@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy import Enum as SQLEnum
@@ -103,8 +103,7 @@ class EmailVerification(BaseModel):
         """Check if the token is expired."""
         if self.expires_at is None:
             return True
-        expires_at = cast(datetime, self.expires_at)
-        return utc_now() > expires_at
+        return utc_now() > self.expires_at
 
     @property
     def is_used(self) -> bool:
@@ -122,10 +121,6 @@ class EmailVerification(BaseModel):
 
     def to_dict(self) -> dict:
         """Convert verification to dictionary."""
-        expires_at: datetime | None = cast(datetime, self.expires_at) if self.expires_at is not None else None
-        used_at: datetime | None = cast(datetime, self.used_at) if self.used_at is not None else None
-        created_at: datetime | None = cast(datetime, self.created_at) if self.created_at is not None else None
-
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -134,7 +129,7 @@ class EmailVerification(BaseModel):
             "is_valid": self.is_valid,
             "is_expired": self.is_expired,
             "is_used": self.is_used,
-            "expires_at": expires_at.isoformat() if expires_at is not None else None,
-            "used_at": used_at.isoformat() if used_at is not None else None,
-            "created_at": created_at.isoformat() if created_at is not None else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at is not None else None,
+            "used_at": self.used_at.isoformat() if self.used_at is not None else None,
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
         }
