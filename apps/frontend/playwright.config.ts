@@ -36,8 +36,8 @@ export default defineConfig({
   
   // 全局测试配置
   use: {
-    // 基础 URL
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:3000',
+    // 基础 URL（前端应用的地址）
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
     
     // 截图配置
     screenshot: 'only-on-failure',
@@ -95,7 +95,7 @@ export default defineConfig({
   // 本地开发服务器配置
   webServer: {
     command: 'pnpm dev',
-    port: 3000,
+    port: 5173,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
