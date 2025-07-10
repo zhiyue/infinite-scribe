@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
-from redis import Redis
+from redis import ConnectionPool, Redis
+from redis.exceptions import ConnectionError, TimeoutError
 
 from src.common.utils.datetime_utils import from_timestamp_utc, utc_now
 from src.core.config import settings
@@ -21,19 +22,28 @@ class JWTService:
         self.access_token_expire_minutes = settings.auth.access_token_expire_minutes
         self.refresh_token_expire_days = settings.auth.refresh_token_expire_days
 
-        # Redis client for blacklist
+        # Redis connection pool for better connection management
+        self._redis_pool: ConnectionPool | None = None
         self._redis_client: Redis | None = None
 
     @property
     def redis_client(self) -> Redis:
         """Get Redis client for blacklist management."""
-        if self._redis_client is None:
-            self._redis_client = Redis(
+        if self._redis_pool is None:
+            self._redis_pool = ConnectionPool(
                 host=settings.database.redis_host,
                 port=settings.database.redis_port,
                 password=settings.database.redis_password,
                 decode_responses=True,
+                max_connections=10,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
             )
+
+        if self._redis_client is None:
+            self._redis_client = Redis(connection_pool=self._redis_pool)
+
         return self._redis_client
 
     def create_access_token(
@@ -135,7 +145,12 @@ class JWTService:
         # Calculate TTL for Redis
         ttl = int((expires_at - utc_now()).total_seconds())
         if ttl > 0:
-            self.redis_client.setex(f"blacklist:{jti}", ttl, "1")
+            try:
+                self.redis_client.setex(f"blacklist:{jti}", ttl, "1")
+            except (ConnectionError, TimeoutError) as e:
+                # Log error but don't fail - let the request continue
+                # In production, you might want to use proper logging
+                print(f"Redis error while blacklisting token: {e}")
 
     def is_token_blacklisted(self, jti: str | None) -> bool:
         """Check if a token is blacklisted.
@@ -149,7 +164,13 @@ class JWTService:
         if not jti:
             return False
 
-        return bool(self.redis_client.get(f"blacklist:{jti}"))
+        try:
+            return bool(self.redis_client.get(f"blacklist:{jti}"))
+        except (ConnectionError, TimeoutError) as e:
+            # If Redis is unavailable, assume token is not blacklisted
+            # This allows the service to continue functioning
+            print(f"Redis error while checking blacklist: {e}")
+            return False
 
     def extract_token_from_header(self, authorization: str) -> str | None:
         """Extract token from Authorization header.
