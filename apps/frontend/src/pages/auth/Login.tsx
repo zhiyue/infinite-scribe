@@ -3,7 +3,7 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail, AlertCircle } from 'lucide-react';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Validation schema
 const loginSchema = z.object({
@@ -25,13 +26,18 @@ const loginSchema = z.object({
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { login, isLoading, error, clearError } = useAuth();
+    const { login, resendVerification, isLoading, error, clearError } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
+    const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+    const [verificationEmail, setVerificationEmail] = useState('');
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState(false);
 
     const {
         register,
         handleSubmit,
         formState: { errors },
+        getValues,
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
     });
@@ -42,11 +48,35 @@ const LoginPage: React.FC = () => {
     const onSubmit = async (data: LoginFormData) => {
         try {
             clearError();
+            setNeedsEmailVerification(false);
+            setResendSuccess(false);
             await login(data);
             navigate(from, { replace: true });
-        } catch (error) {
-            // Error is handled by the auth store
+        } catch (error: any) {
+            // Check if the error is about email verification
+            const errorMessage = error?.detail || '';
+            const statusCode = error?.status_code || error?.response?.status;
+            
+            if (statusCode === 403 && errorMessage.toLowerCase().includes('verify your email')) {
+                setNeedsEmailVerification(true);
+                setVerificationEmail(data.email);
+            }
             console.error('Login failed:', error);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        try {
+            setResendLoading(true);
+            clearError();
+            await resendVerification({ email: verificationEmail });
+            setResendSuccess(true);
+            // 清除成功消息
+            setTimeout(() => setResendSuccess(false), 5000);
+        } catch (error) {
+            console.error('Failed to resend verification:', error);
+        } finally {
+            setResendLoading(false);
         }
     };
 
@@ -66,12 +96,51 @@ const LoginPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                            {error && (
+                            {error && !needsEmailVerification && (
                                 <div className="rounded-md bg-destructive/15 p-3">
                                     <div className="text-sm text-destructive">
                                         {error}
                                     </div>
                                 </div>
+                            )}
+
+                            {needsEmailVerification && (
+                                <Alert className="border-orange-200 bg-orange-50">
+                                    <Mail className="h-4 w-4 text-orange-600" />
+                                    <AlertTitle className="text-orange-800">Email Verification Required</AlertTitle>
+                                    <AlertDescription className="text-orange-700">
+                                        <p className="mb-3">
+                                            Please verify your email address before logging in. Check your inbox for the verification link.
+                                        </p>
+                                        <div className="space-y-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full border-orange-300 hover:bg-orange-100"
+                                                onClick={handleResendVerification}
+                                                disabled={resendLoading}
+                                            >
+                                                {resendLoading ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Sending...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Mail className="mr-2 h-4 w-4" />
+                                                        Resend Verification Email
+                                                    </>
+                                                )}
+                                            </Button>
+                                            {resendSuccess && (
+                                                <p className="text-sm text-green-600 text-center">
+                                                    Verification email sent successfully!
+                                                </p>
+                                            )}
+                                        </div>
+                                    </AlertDescription>
+                                </Alert>
                             )}
 
                             <div className="space-y-2">

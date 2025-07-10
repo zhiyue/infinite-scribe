@@ -9,8 +9,8 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
-import { authService } from '../../services/auth';
 import type { ResetPasswordFormData } from '../../types/auth';
+import { PasswordValidator } from '../../utils/passwordValidator';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,7 +36,8 @@ const ResetPasswordPage: React.FC = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<{
         score: number;
-        feedback: string[];
+        errors: string[];
+        suggestions: string[];
     } | null>(null);
     const [isResetComplete, setIsResetComplete] = useState(false);
 
@@ -55,21 +56,12 @@ const ResetPasswordPage: React.FC = () => {
 
     // Check password strength as user types
     React.useEffect(() => {
-        const checkPasswordStrength = async () => {
-            if (watchPassword && watchPassword.length >= 3) {
-                try {
-                    const result = await authService.validatePassword({ password: watchPassword });
-                    setPasswordStrength(result);
-                } catch (error) {
-                    // Ignore validation errors during typing
-                }
-            } else {
-                setPasswordStrength(null);
-            }
-        };
-
-        const debounceTimer = setTimeout(checkPasswordStrength, 300);
-        return () => clearTimeout(debounceTimer);
+        if (watchPassword && watchPassword.length > 0) {
+            const result = PasswordValidator.validate(watchPassword);
+            setPasswordStrength(result);
+        } else {
+            setPasswordStrength(null);
+        }
     }, [watchPassword]);
 
     const onSubmit = async (data: ResetPasswordFormData) => {
@@ -91,16 +83,11 @@ const ResetPasswordPage: React.FC = () => {
     };
 
     const getPasswordStrengthColor = (score: number) => {
-        if (score < 3) return 'bg-destructive';
-        if (score < 4) return 'bg-yellow-500';
-        return 'bg-green-500';
+        return PasswordValidator.getStrengthColor(score);
     };
 
     const getPasswordStrengthText = (score: number) => {
-        if (score < 2) return 'Very Weak';
-        if (score < 3) return 'Weak';
-        if (score < 4) return 'Good';
-        return 'Strong';
+        return PasswordValidator.getStrengthText(score);
     };
 
     // Show error if no token is provided
@@ -212,19 +199,30 @@ const ResetPasswordPage: React.FC = () => {
                                             <div className="flex-1 bg-gray-200 rounded-full h-2">
                                                 <div
                                                     className={`h-2 rounded-full transition-all duration-300 ${getPasswordStrengthColor(passwordStrength.score)}`}
-                                                    style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                                                    style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                                                 />
                                             </div>
                                             <span className="text-xs text-muted-foreground">
                                                 {getPasswordStrengthText(passwordStrength.score)}
                                             </span>
                                         </div>
-                                        {passwordStrength.feedback.length > 0 && (
-                                            <ul className="text-xs text-muted-foreground space-y-1">
-                                                {passwordStrength.feedback.map((feedback, index) => (
-                                                    <li key={index}>• {feedback}</li>
-                                                ))}
-                                            </ul>
+                                        {(passwordStrength.errors.length > 0 || passwordStrength.suggestions.length > 0) && (
+                                            <div className="space-y-2">
+                                                {passwordStrength.errors.length > 0 && (
+                                                    <ul className="text-xs text-red-600 space-y-1">
+                                                        {passwordStrength.errors.map((error, index) => (
+                                                            <li key={index}>• {error}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                                {passwordStrength.suggestions.length > 0 && (
+                                                    <ul className="text-xs text-muted-foreground space-y-1">
+                                                        {passwordStrength.suggestions.map((suggestion, index) => (
+                                                            <li key={index}>• {suggestion}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}
