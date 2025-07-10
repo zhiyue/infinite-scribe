@@ -69,7 +69,7 @@ services:
       - MAILDEV_SMTP_PORT=1025
       - MAILDEV_WEB_PORT=1080
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:1080" ]
+      test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1:1080" ]
       interval: 30s
       timeout: 10s
       retries: 3
