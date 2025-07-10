@@ -240,6 +240,7 @@ export const useAuthStore = create<AuthStore>()(
             },
 
             clearError: () => {
+                console.log('clearError called - clearing error state');
                 set({ error: null });
             },
 
@@ -248,6 +249,7 @@ export const useAuthStore = create<AuthStore>()(
             },
 
             setError: (error: string | null) => {
+                console.log('setError called with:', error);
                 set({ error });
             },
 

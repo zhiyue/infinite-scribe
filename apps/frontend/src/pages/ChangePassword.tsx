@@ -115,16 +115,16 @@ const ChangePasswordPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                             {updateSuccess && (
-                                <div className="rounded-md bg-green-50 border border-green-200 p-4">
-                                    <div className="text-sm text-green-600">
+                                <div className="rounded-md bg-green-50 border border-green-200 p-4" role="status">
+                                    <div className="text-sm text-green-600 success-message">
                                         Password changed successfully! Redirecting to dashboard...
                                     </div>
                                 </div>
                             )}
 
                             {updateError && (
-                                <div className="rounded-md bg-red-50 border border-red-200 p-4">
-                                    <div className="text-sm text-red-600">
+                                <div className="rounded-md bg-red-50 border border-red-200 p-4" role="alert">
+                                    <div className="text-sm text-red-600 error-message">
                                         {updateError}
                                     </div>
                                 </div>

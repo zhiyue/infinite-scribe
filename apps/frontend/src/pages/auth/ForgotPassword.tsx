@@ -56,7 +56,7 @@ const ForgotPasswordPage: React.FC = () => {
                                 <Mail className="h-6 w-6 text-green-600" />
                             </div>
                             <CardTitle className="text-2xl">Check your email</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="success-message text-green-500">
                                 We've sent a password reset link to{' '}
                                 <span className="font-medium text-foreground">{sentEmail}</span>
                             </CardDescription>
@@ -99,8 +99,8 @@ const ForgotPasswordPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             {error && (
-                                <div className="rounded-md bg-destructive/15 p-3">
-                                    <div className="text-sm text-destructive">
+                                <div className="rounded-md bg-destructive/15 p-3" role="alert">
+                                    <div className="text-sm text-destructive error-message">
                                         {error}
                                     </div>
                                 </div>

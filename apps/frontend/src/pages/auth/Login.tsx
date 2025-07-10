@@ -97,20 +97,20 @@ const LoginPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             {error && !needsEmailVerification && (
-                                <div className="rounded-md bg-destructive/15 p-3">
-                                    <div className="text-sm text-destructive">
+                                <div className="rounded-md bg-destructive/15 p-3" role="alert">
+                                    <div className="text-sm text-destructive error-message">
                                         {error}
                                     </div>
                                 </div>
                             )}
 
                             {needsEmailVerification && (
-                                <Alert className="border-orange-200 bg-orange-50">
+                                <Alert className="border-orange-200 bg-orange-50" role="alert">
                                     <Mail className="h-4 w-4 text-orange-600" />
                                     <AlertTitle className="text-orange-800">Email Verification Required</AlertTitle>
-                                    <AlertDescription className="text-orange-700">
+                                    <AlertDescription className="text-orange-700 error-message">
                                         <p className="mb-3">
-                                            Please verify your email address before logging in. Check your inbox for the verification link.
+                                            {error || "Please verify your email address before logging in. Check your inbox for the verification link."}
                                         </p>
                                         <div className="space-y-2">
                                             <Button
@@ -153,7 +153,7 @@ const LoginPage: React.FC = () => {
                                     autoComplete="email"
                                 />
                                 {errors.email && (
-                                    <p className="text-sm text-destructive">{errors.email.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.email.message}</p>
                                 )}
                             </div>
 
@@ -183,7 +183,7 @@ const LoginPage: React.FC = () => {
                                     </Button>
                                 </div>
                                 {errors.password && (
-                                    <p className="text-sm text-destructive">{errors.password.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.password.message}</p>
                                 )}
                             </div>
 

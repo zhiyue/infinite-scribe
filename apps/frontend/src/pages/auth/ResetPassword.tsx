@@ -98,7 +98,7 @@ const ResetPasswordPage: React.FC = () => {
                     <Card>
                         <CardHeader className="text-center">
                             <CardTitle className="text-2xl text-destructive">Invalid Reset Link</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="error-message text-red-500">
                                 This password reset link is invalid or has expired.
                             </CardDescription>
                         </CardHeader>
@@ -128,7 +128,7 @@ const ResetPasswordPage: React.FC = () => {
                                 <CheckCircle className="h-6 w-6 text-green-600" />
                             </div>
                             <CardTitle className="text-2xl">Password Reset Successful!</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="success-message text-green-500">
                                 Your password has been successfully reset. You can now sign in with your new password.
                             </CardDescription>
                         </CardHeader>
@@ -156,8 +156,8 @@ const ResetPasswordPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             {error && (
-                                <div className="rounded-md bg-destructive/15 p-3">
-                                    <div className="text-sm text-destructive">
+                                <div className="rounded-md bg-destructive/15 p-3" role="alert">
+                                    <div className="text-sm text-destructive error-message">
                                         {error}
                                     </div>
                                 </div>

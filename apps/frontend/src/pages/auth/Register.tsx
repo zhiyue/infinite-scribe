@@ -104,7 +104,7 @@ const RegisterPage: React.FC = () => {
                                 <CheckCircle className="h-6 w-6 text-green-600" />
                             </div>
                             <CardTitle className="text-2xl">Registration Successful!</CardTitle>
-                            <CardDescription>
+                            <CardDescription className="success-message text-green-500">
                                 We've sent a verification email to your email address. Please check your inbox and click the verification link to activate your account.
                             </CardDescription>
                         </CardHeader>
@@ -132,7 +132,7 @@ const RegisterPage: React.FC = () => {
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             {error && (
-                                <div className="rounded-md bg-red-50 border border-red-200 p-4">
+                                <div className="rounded-md bg-red-50 border border-red-200 p-4" role="alert">
                                     <div className="flex">
                                         <div className="flex-shrink-0">
                                             <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -141,7 +141,7 @@ const RegisterPage: React.FC = () => {
                                         </div>
                                         <div className="ml-3">
                                             <h3 className="text-sm font-medium text-red-800">Registration Error</h3>
-                                            <div className="mt-1 text-sm text-red-700">
+                                            <div className="mt-1 text-sm text-red-700 error-message">
                                                 {error}
                                             </div>
                                         </div>
@@ -159,7 +159,7 @@ const RegisterPage: React.FC = () => {
                                     autoComplete="email"
                                 />
                                 {errors.email && (
-                                    <p className="text-sm text-destructive">{errors.email.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.email.message}</p>
                                 )}
                             </div>
 
@@ -173,7 +173,7 @@ const RegisterPage: React.FC = () => {
                                     autoComplete="username"
                                 />
                                 {errors.username && (
-                                    <p className="text-sm text-destructive">{errors.username.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.username.message}</p>
                                 )}
                             </div>
 
@@ -226,7 +226,7 @@ const RegisterPage: React.FC = () => {
                                     </Button>
                                 </div>
                                 {errors.password && (
-                                    <p className="text-sm text-destructive">{errors.password.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.password.message}</p>
                                 )}
 
                                 {/* Password strength indicator */}
@@ -291,7 +291,7 @@ const RegisterPage: React.FC = () => {
                                     </Button>
                                 </div>
                                 {errors.confirmPassword && (
-                                    <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+                                    <p className="text-sm text-destructive error-message" role="alert">{errors.confirmPassword.message}</p>
                                 )}
                             </div>
 

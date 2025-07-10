@@ -12,19 +12,31 @@ export class BasePage {
   }
 
   async getErrorMessage(): Promise<string | null> {
-    const errorElement = this.page.locator('[role="alert"], .error-message, .text-red-500').first();
-    if (await errorElement.isVisible()) {
-      return errorElement.textContent();
+    try {
+      // 等待错误元素出现（最多等待5秒）
+      const errorElement = await this.page.waitForSelector('[role="alert"], .error-message, .text-red-500', { 
+        timeout: 5000,
+        state: 'visible' 
+      });
+      return await errorElement.textContent();
+    } catch {
+      // 如果没有错误元素出现，返回null
+      return null;
     }
-    return null;
   }
 
   async getSuccessMessage(): Promise<string | null> {
-    const successElement = this.page.locator('.success-message, .text-green-500, [role="status"]').first();
-    if (await successElement.isVisible()) {
-      return successElement.textContent();
+    try {
+      // 等待成功元素出现（最多等待5秒）
+      const successElement = await this.page.waitForSelector('.success-message, .text-green-500, [role="status"]', { 
+        timeout: 5000,
+        state: 'visible' 
+      });
+      return await successElement.textContent();
+    } catch {
+      // 如果没有成功元素出现，返回null
+      return null;
     }
-    return null;
   }
 }
 
@@ -55,6 +67,13 @@ export class LoginPage extends BasePage {
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
     await this.submitButton.click();
+    // 等待按钮变为启用状态（表示请求完成）
+    await this.page.waitForFunction(() => {
+      const button = document.querySelector('button[type="submit"]');
+      return button && !button.hasAttribute('disabled');
+    }, { timeout: 10000 }).catch(() => {
+      // 如果按钮保持禁用状态，可能是因为错误发生了
+    });
   }
 
   async clickForgotPassword() {

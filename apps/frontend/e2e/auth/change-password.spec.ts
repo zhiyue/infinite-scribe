@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage, DashboardPage, ChangePasswordPage } from '../pages/auth-pages';
-import { generateTestUser, TEST_CONFIG } from '../utils/test-helpers';
+import { generateTestUser, TEST_CONFIG, getEmailVerificationToken } from '../utils/test-helpers';
 import { TestApiClient } from '../utils/api-client';
 
 test.describe('已登录用户修改密码', () => {
@@ -19,14 +19,16 @@ test.describe('已登录用户修改密码', () => {
     apiClient = new TestApiClient(request);
     
     // 创建并验证测试用户
-    const registerResponse = await apiClient.createTestUser({
+    await apiClient.createTestUser({
       username: testUser.username,
       email: testUser.email,
       password: testUser.password,
     });
     
-    if (registerResponse.verification_token) {
-      await apiClient.verifyEmail(registerResponse.verification_token);
+    // 从 MailDev 获取验证令牌并验证邮箱
+    const verificationToken = await getEmailVerificationToken(testUser.email);
+    if (verificationToken) {
+      await apiClient.verifyEmail(verificationToken);
     }
     
     // 登录获取令牌
@@ -53,6 +55,7 @@ test.describe('已登录用户修改密码', () => {
     
     // 验证成功消息
     const successMessage = await changePasswordPage.getSuccessMessage();
+    expect(successMessage).toBeTruthy();
     expect(successMessage).toMatch(/密码.*修改.*成功|password.*changed.*successfully/i);
     
     // 验证被登出（修改密码后通常会要求重新登录）
@@ -75,6 +78,7 @@ test.describe('已登录用户修改密码', () => {
     
     // 验证错误消息
     const errorMessage = await changePasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/当前密码.*错误|current password.*incorrect/i);
   });
 
@@ -90,6 +94,7 @@ test.describe('已登录用户修改密码', () => {
     
     // 验证错误消息
     const errorMessage = await changePasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/新密码.*不能.*相同|new password.*cannot.*same/i);
   });
 
@@ -102,6 +107,7 @@ test.describe('已登录用户修改密码', () => {
     await page.click('button[type="submit"]');
     
     const errorMessage = await changePasswordPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/密码.*强度|password.*strength/i);
   });
 
@@ -117,6 +123,7 @@ test.describe('已登录用户修改密码', () => {
       await page.click('button[type="submit"]');
       
       const errorMessage = await changePasswordPage.getErrorMessage();
+      expect(errorMessage).toBeTruthy();
       expect(errorMessage).toMatch(/密码.*不匹配|passwords.*not match/i);
     }
   });
