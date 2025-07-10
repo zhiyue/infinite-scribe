@@ -63,7 +63,7 @@ To use a custom test machine:
 
 ```bash
 export TEST_MACHINE_IP=192.168.2.100
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 ```
 
 The project supports two testing approaches on the test machine:
@@ -74,13 +74,13 @@ Use Docker on the test machine to spin up isolated containers:
 
 ```bash
 # Run all tests with Docker containers
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 
 # Run unit tests only
-./scripts/run-tests.sh --unit --docker-host
+./scripts/testing/run-tests.sh --unit --docker-host
 
 # Run integration tests only
-./scripts/run-tests.sh --integration --docker-host
+./scripts/testing/run-tests.sh --integration --docker-host
 ```
 
 #### Option 2: Using Pre-deployed Services (--remote)
@@ -89,31 +89,31 @@ Connect to manually deployed services on the test machine (less commonly used):
 
 ```bash
 # Run all tests with pre-deployed services
-./scripts/run-tests.sh --all --remote
+./scripts/testing/run-tests.sh --all --remote
 
 # Run unit tests only
-./scripts/run-tests.sh --unit --remote
+./scripts/testing/run-tests.sh --unit --remote
 
 # Run integration tests only
-./scripts/run-tests.sh --integration --remote
+./scripts/testing/run-tests.sh --integration --remote
 ```
 
 #### Other Options
 
 ```bash
 # Show help
-./scripts/run-tests.sh --help
+./scripts/testing/run-tests.sh --help
 
 # Run tests with coverage report
-./scripts/run-tests.sh --all --docker-host --coverage
-./scripts/run-tests.sh --all --remote --coverage
+./scripts/testing/run-tests.sh --all --docker-host --coverage
+./scripts/testing/run-tests.sh --all --remote --coverage
 
 # Run only code quality checks (linting, formatting, type checking)
-./scripts/run-tests.sh --lint
+./scripts/testing/run-tests.sh --lint
 
 # Skip code quality checks
-./scripts/run-tests.sh --all --docker-host --no-lint
-./scripts/run-tests.sh --all --remote --no-lint
+./scripts/testing/run-tests.sh --all --docker-host --no-lint
+./scripts/testing/run-tests.sh --all --remote --no-lint
 ```
 
 #### Test Machine Configuration Details
@@ -124,24 +124,24 @@ To use Docker containers on the test machine:
 
 ```bash
 # Use default test machine Docker host
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 
 # Use a custom test machine
 export TEST_MACHINE_IP=192.168.2.100
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 
 # Override Docker port if different from default
 export DOCKER_HOST_PORT=2376
-./scripts/run-tests.sh --all --docker-host
+./scripts/testing/run-tests.sh --all --docker-host
 
 # Or set environment variables manually
 export USE_REMOTE_DOCKER=true
 export REMOTE_DOCKER_HOST=tcp://${TEST_MACHINE_IP:-192.168.2.202}:2375
-./scripts/run-tests.sh --all
+./scripts/testing/run-tests.sh --all
 
 # Or use the .env.test configuration
 export $(cat .env.test | xargs)
-./scripts/run-tests.sh --all
+./scripts/testing/run-tests.sh --all
 ```
 
 **Docker Configuration Options:**
@@ -245,9 +245,9 @@ uv sync --all-extras
 cd apps/backend && uv run uvicorn src.api.main:app --reload
 
 # Run tests (recommended: use test script with Docker containers)
-./scripts/run-tests.sh --all --docker-host        # All tests with Docker
-./scripts/run-tests.sh --unit --docker-host       # Unit tests only
-./scripts/run-tests.sh --integration --docker-host # Integration tests only
+./scripts/testing/run-tests.sh --all --docker-host        # All tests with Docker
+./scripts/testing/run-tests.sh --unit --docker-host       # Unit tests only
+./scripts/testing/run-tests.sh --integration --docker-host # Integration tests only
 
 # Or run tests directly (local only, no external services)
 cd apps/backend && uv run pytest tests/unit/ -v  # Unit tests only
