@@ -220,7 +220,23 @@ export const TEST_CONFIG = {
   
   // MailDev 配置
   mailDev: {
-    baseUrl: process.env.MAILDEV_URL || process.env.MAILDEV_BASE_URL || 'http://localhost:1080',
+    baseUrl: (() => {
+      const baseUrl = process.env.MAILDEV_URL || process.env.MAILDEV_BASE_URL;
+      const host = process.env.MAILDEV_HOST || 'localhost';
+      const port = process.env.MAILDEV_WEB_PORT || '1080';
+      
+      if (baseUrl) {
+        // 如果 baseUrl 已经包含端口，直接使用
+        if (baseUrl.includes(':') && baseUrl.split(':').length > 2) {
+          return baseUrl;
+        }
+        // 如果 baseUrl 不包含端口，添加端口
+        return `${baseUrl}:${port}`;
+      }
+      
+      // 从 host 和 port 构建 URL
+      return `http://${host}:${port}`;
+    })(),
     smtpPort: parseInt(process.env.MAILDEV_SMTP_PORT || '1025'),
     webPort: parseInt(process.env.MAILDEV_WEB_PORT || '1080'),
     host: process.env.MAILDEV_HOST || 'localhost',

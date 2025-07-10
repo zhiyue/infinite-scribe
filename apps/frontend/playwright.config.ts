@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config } from 'dotenv';
+
+// 加载环境变量
+config();
 
 /**
  * Playwright 端对端测试配置
@@ -33,7 +37,7 @@ export default defineConfig({
   // 全局测试配置
   use: {
     // 基础 URL
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:5173',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:3000',
     
     // 截图配置
     screenshot: 'only-on-failure',
@@ -91,7 +95,7 @@ export default defineConfig({
   // 本地开发服务器配置
   webServer: {
     command: 'pnpm dev',
-    port: 5173,
+    port: 3000,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
