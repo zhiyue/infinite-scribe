@@ -1,264 +1,212 @@
-"""Configuration management for backend services."""
+"""统一的配置管理系统"""
 
 import os
-from pathlib import Path
 
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def get_project_root() -> Path:
-    """
-    Find project root by looking for marker files.
+class AuthSettings(BaseModel):
+    """认证相关设置"""
 
-    More robust than using multiple .parent calls.
-    Prioritizes more specific markers over generic ones.
-
-    Returns:
-        Path: The project root directory
-
-    Raises:
-        FileNotFoundError: If project root cannot be determined
-    """
-    # 方法1: 查找标记文件 (推荐)
-    current_path = Path(__file__).resolve()
-
-    # 优先级1: 强标记文件 (通常只存在于项目根目录)
-    strong_markers = [
-        "pyproject.toml",
-        ".git",
-        "package.json",
-        "docker-compose.yml",
-        "pnpm-workspace.yaml",  # 添加这个作为monorepo的强标记
-    ]
-
-    # 优先级2: 弱标记文件 (可能存在于子目录)
-    weak_markers = [
-        "README.md",
-        "Makefile",
-    ]
-
-    # 首先寻找强标记文件
-    for parent in current_path.parents:
-        if any((parent / marker).exists() for marker in strong_markers):
-            return parent
-
-    # 如果没找到强标记文件, 再寻找弱标记文件
-    for parent in current_path.parents:
-        if any((parent / marker).exists() for marker in weak_markers):
-            return parent
-
-    # 方法2: 环境变量 (备选)
-    if project_root_env := os.getenv("PROJECT_ROOT"):
-        return Path(project_root_env)
-
-    # 如果所有方法都失败了, 抛出明确错误而不是使用脆弱的硬编码路径
-    raise FileNotFoundError(
-        "无法找到项目根目录,请检查环境或设置 PROJECT_ROOT 变量。"
-        "查找的标记文件包括: pyproject.toml, .git, package.json, docker-compose.yml, "
-        "pnpm-workspace.yaml, README.md, Makefile"
+    # JWT Settings
+    jwt_secret_key: str = Field(
+        default="test_jwt_secret_key_for_development_only_32_chars",
+        description="Secret key for JWT signing (min 32 chars)",
     )
+    jwt_algorithm: str = Field(default="HS256")
+    access_token_expire_minutes: int = Field(default=15)
+    refresh_token_expire_days: int = Field(default=7)
+
+    # Email Service
+    resend_api_key: str = Field(default="test_api_key")
+    resend_domain: str = Field(default="test.example.com")
+    resend_from_email: str = Field(default="noreply@example.com")
+
+    # Security Settings
+    password_min_length: int = Field(default=8)
+    account_lockout_attempts: int = Field(default=5)
+    account_lockout_duration_minutes: int = Field(default=30)
+
+    # Rate Limiting
+    rate_limit_login_per_minute: int = Field(default=5)
+    rate_limit_register_per_hour: int = Field(default=10)
+    rate_limit_password_reset_per_hour: int = Field(default=3)
+
+    # Email Verification
+    email_verification_expire_hours: int = Field(default=24)
+    password_reset_expire_hours: int = Field(default=1)
+
+    # Development Settings
+    use_maildev: bool = Field(default=False)
+    maildev_host: str = Field(default="localhost")
+    maildev_port: int = Field(default=1025)
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret_key(cls, v: str) -> str:
+        """验证 JWT 密钥"""
+        node_env = os.getenv("NODE_ENV", "development")
+        if node_env not in ["test", "development"]:
+            if not v or v == "test_jwt_secret_key_for_development_only_32_chars":
+                raise ValueError("JWT_SECRET_KEY must be set to a secure value in production")
+            if len(v) < 32:
+                raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+        return v
+
+    @field_validator("resend_api_key", "resend_domain")
+    @classmethod
+    def validate_resend_config(cls, v: str, info) -> str:
+        """验证 Resend 配置"""
+        node_env = os.getenv("NODE_ENV", "development")
+        field_name = info.field_name
+
+        if node_env not in ["test", "development"]:
+            if field_name == "resend_api_key" and v == "test_api_key":
+                raise ValueError("RESEND_API_KEY must be set to a valid value in production")
+            elif field_name == "resend_domain" and v == "test.example.com":
+                raise ValueError("RESEND_DOMAIN must be set to a valid domain in production")
+        return v
 
 
-def get_backend_root() -> Path:
-    """
-    获取 backend 服务根目录路径。
+class DatabaseSettings(BaseModel):
+    """数据库相关设置"""
 
-    使用多种方法确保健壮性:
-    1. 从项目根目录构建 apps/backend 路径
-    2. 如果失败,则查找包含配置文件的目录
-    3. 最后使用环境变量备选方案
+    # PostgreSQL
+    postgres_host: str = Field(default="localhost")
+    postgres_port: int = Field(default=5432)
+    postgres_user: str = Field(default="postgres")
+    postgres_password: str = Field(default="postgres")
+    postgres_db: str = Field(default="infinite_scribe")
 
-    Returns:
-        Path: backend 服务根目录 (apps/backend/)
+    # Neo4j
+    neo4j_host: str = Field(default="localhost")
+    neo4j_port: int = Field(default=7687)
+    neo4j_user: str = Field(default="neo4j")
+    neo4j_password: str = Field(default="neo4j")
+    neo4j_uri: str | None = Field(default="")
 
-    Raises:
-        FileNotFoundError: 如果无法找到 backend 根目录
-    """
-    # 方法1: 从项目根目录构建路径 (推荐)
-    try:
-        project_root = get_project_root()
-        backend_root = project_root / "apps" / "backend"
+    # Redis
+    redis_host: str = Field(default="localhost")
+    redis_port: int = Field(default=6379)
+    redis_password: str = Field(default="")
 
-        # 验证这确实是 backend 目录 (查找标记文件)
-        backend_markers = [
-            "src/core/config.py",  # 当前配置文件
-            "src/__init__.py",  # Python 包标记
-            "Dockerfile",  # Docker 配置
-        ]
+    @property
+    def postgres_url(self) -> str:
+        """计算 PostgreSQL 连接 URL"""
+        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
-        if any((backend_root / marker).exists() for marker in backend_markers):
-            return backend_root
+    @property
+    def neo4j_url(self) -> str:
+        """计算 Neo4j 连接 URL"""
+        if self.neo4j_uri:
+            return self.neo4j_uri
+        return f"bolt://{self.neo4j_host}:{self.neo4j_port}"
 
-    except FileNotFoundError:
-        pass  # 项目根目录未找到,尝试其他方法
+    @property
+    def redis_url(self) -> str:
+        """计算 Redis 连接 URL"""
+        if self.redis_password:
+            # URL 编码密码以处理特殊字符
+            from urllib.parse import quote
 
-    # 方法2: 从当前文件向上查找 backend 根目录
-    current_path = Path(__file__).resolve()
-    for parent in current_path.parents:
-        # 检查是否是 backend 根目录 (包含 src 目录和标记文件)
-        if parent.name == "backend" and (parent / "src").exists() and (parent / "src" / "__init__.py").exists():
-            return parent
-
-    # 方法3: 环境变量备选方案
-    if backend_root_env := os.getenv("BACKEND_ROOT"):
-        return Path(backend_root_env)
-
-    # 如果所有方法都失败了,抛出明确错误
-    raise FileNotFoundError(
-        "无法找到 backend 根目录。请检查项目结构或设置 BACKEND_ROOT 环境变量。"
-        "期望的目录结构: PROJECT_ROOT/apps/backend/ 或包含 src/core/config.py 的目录"
-    )
-
-
-# 项目根目录
-PROJECT_ROOT = get_project_root()
-
-# Backend 特定的 .env 文件路径
-BACKEND_ROOT = get_backend_root()
-BACKEND_ENV_FILE = BACKEND_ROOT / ".env"
-
-# 项目根目录的 .env 文件路径
-PROJECT_ENV_FILE = PROJECT_ROOT / ".env"
+            encoded_password = quote(self.redis_password, safe="")
+            return f"redis://:{encoded_password}@{self.redis_host}:{self.redis_port}/0"
+        return f"redis://{self.redis_host}:{self.redis_port}/0"
 
 
 class Settings(BaseSettings):
+    """应用主配置
+
+    环境变量命名规则：
+    - 顶层配置：直接使用变量名（如 NODE_ENV, API_PORT）
+    - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST）
+
+    配置文件位置：apps/backend/.env
     """
-    Base settings for all backend services.
-
-    配置优先级 (从高到低):
-    1. 环境变量
-    2. apps/backend/.env (backend 特定配置)
-    3. PROJECT_ROOT/.env (项目通用配置)
-    4. 默认值
-
-    Pydantic 会自动从环境变量和 .env 文件中读取并完成类型转换.
-    如果转换失败, 应用在启动时就会抛出清晰的验证错误.
-    """
-
-    model_config = SettingsConfigDict(
-        # 按优先级从低到高排列，后面的文件会覆盖前面的
-        env_file=[
-            path
-            for path in [
-                str(PROJECT_ENV_FILE) if PROJECT_ENV_FILE.exists() else None,
-                str(BACKEND_ENV_FILE) if BACKEND_ENV_FILE.exists() else None,
-            ]
-            if path is not None
-        ],
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        # 环境变量优先级高于 .env 文件
-        env_prefix="",
-        # 允许额外的字段 (忽略未定义的环境变量)
-        extra="ignore",
-    )
 
     # Service identification
-    SERVICE_NAME: str = "infinite-scribe-backend"
-    SERVICE_TYPE: str = "api-gateway"
-    NODE_ENV: str = "development"
+    service_name: str = Field(default="infinite-scribe-backend")
+    service_type: str = Field(default="api-gateway")
+    node_env: str = Field(default="development")
 
     # API Settings
-    API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
+    api_host: str = Field(default="0.0.0.0")
+    api_port: int = Field(default=8000)
+    frontend_url: str = Field(default="http://localhost:3000")
+    allowed_origins: list[str] = Field(default=["*"])
 
-    # Frontend URL
-    FRONTEND_URL: str = "http://localhost:3000"
+    # 嵌套配置
+    auth: AuthSettings = Field(default_factory=AuthSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
-    # CORS
-    ALLOWED_ORIGINS: list[str] = ["*"]
+    # 其他服务配置
+    milvus_host: str = Field(default="localhost")
+    milvus_port: int = Field(default=19530)
 
-    # Database Settings - 使用环境变量
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "infinite_scribe"
-
-    NEO4J_HOST: str = "localhost"
-    NEO4J_PORT: int = 7687
-    NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "neo4j"
-    NEO4J_URI: str = ""  # 可选, 从环境变量或计算
-
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_PASSWORD: str = ""
-
-    # Other services
-    MILVUS_HOST: str = "localhost"
-    MILVUS_PORT: int = 19530
-
-    # Kafka - 关键配置
-    KAFKA_HOST: str = "localhost"
-    KAFKA_PORT: int = 9092
-    KAFKA_AUTO_OFFSET_RESET: str = "earliest"
-    KAFKA_GROUP_ID_PREFIX: str = "infinite-scribe"
+    kafka_host: str = Field(default="localhost")
+    kafka_port: int = Field(default=9092)
+    kafka_auto_offset_reset: str = Field(default="earliest")
+    kafka_group_id_prefix: str = Field(default="infinite-scribe")
 
     # MinIO
-    MINIO_ENDPOINT: str = "localhost:9000"
-    MINIO_ACCESS_KEY: str = "minioadmin"
-    MINIO_SECRET_KEY: str = "minioadmin"
+    minio_endpoint: str = Field(default="localhost:9000")
+    minio_access_key: str = Field(default="minioadmin")
+    minio_secret_key: str = Field(default="minioadmin")
 
     # Prefect
-    PREFECT_API_URL: str = "http://localhost:4200/api"
+    prefect_api_url: str = Field(default="http://localhost:4200/api")
 
     # AI Providers
-    OPENAI_API_KEY: str = ""
-    ANTHROPIC_API_KEY: str = ""
+    openai_api_key: str = Field(default="")
+    anthropic_api_key: str = Field(default="")
 
-    # LiteLLM Proxy Configuration
-    LITELLM_API_HOST: str = ""
-    LITELLM_API_KEY: str = ""
+    # LiteLLM Proxy
+    litellm_api_host: str = Field(default="")
+    litellm_api_key: str = Field(default="")
 
-    # Embedding API Configuration
-    EMBEDDING_API_HOST: str = "192.168.1.191"
-    EMBEDDING_API_PORT: int = 11434
-    EMBEDDING_API_MODEL: str = "dengcao/Qwen3-Embedding-0.6B:F16"
+    # Embedding API
+    embedding_api_host: str = Field(default="192.168.1.191")
+    embedding_api_port: int = Field(default=11434)
+    embedding_api_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
 
     # Logging
-    LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    log_level: str = Field(default="INFO")
+    log_format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    # Computed URLs
-    @property
-    def POSTGRES_URL(self) -> str:  # noqa: N802
-        """计算 PostgreSQL 连接 URL"""
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    model_config = SettingsConfigDict(
+        # 使用 backend 目录下的 .env 文件
+        env_file="../../.env",  # 相对于 apps/backend/src/core/config.py
+        env_file_encoding="utf-8",
+        case_sensitive=False,  # 不区分大小写
+        env_nested_delimiter="__",  # 支持嵌套环境变量
+        extra="ignore",  # 忽略额外的环境变量
+    )
 
+    # 便捷的计算属性
     @property
-    def NEO4J_URL(self) -> str:  # noqa: N802
-        """计算 Neo4j 连接 URL"""
-        if self.NEO4J_URI:
-            return self.NEO4J_URI
-        return f"bolt://{self.NEO4J_HOST}:{self.NEO4J_PORT}"
-
-    @property
-    def REDIS_URL(self) -> str:  # noqa: N802
-        """计算 Redis 连接 URL"""
-        if self.REDIS_PASSWORD:
-            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+    def kafka_bootstrap_servers(self) -> str:
+        """计算 Kafka bootstrap servers"""
+        return f"{self.kafka_host}:{self.kafka_port}"
 
     @property
-    def KAFKA_BOOTSTRAP_SERVERS(self) -> str:  # noqa: N802
-        """计算 Kafka bootstrap servers 地址"""
-        return f"{self.KAFKA_HOST}:{self.KAFKA_PORT}"
+    def embedding_api_url(self) -> str:
+        """计算 Embedding API URL"""
+        return f"http://{self.embedding_api_host}:{self.embedding_api_port}"
 
     @property
-    def EMBEDDING_API_URL(self) -> str:  # noqa: N802
-        """计算 Embedding API 地址"""
-        return f"http://{self.EMBEDDING_API_HOST}:{self.EMBEDDING_API_PORT}"
-
-    @property
-    def LITELLM_API_URL(self) -> str:  # noqa: N802
-        """计算 LiteLLM API 地址"""
-        if self.LITELLM_API_HOST:
-            # 确保 URL 以 / 结尾
-            host = self.LITELLM_API_HOST.rstrip("/")
+    def litellm_api_url(self) -> str:
+        """计算 LiteLLM API URL"""
+        if self.litellm_api_host:
+            host = self.litellm_api_host.rstrip("/")
             return f"{host}/"
         return ""
 
+    @property
+    def is_dev(self) -> bool:
+        """检查是否为开发环境"""
+        return self.node_env == "development"
 
-# 创建全局设置实例
+
+# 创建全局配置实例
 settings = Settings()

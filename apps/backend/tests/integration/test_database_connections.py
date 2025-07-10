@@ -2,7 +2,7 @@
 
 import asyncio
 from contextlib import suppress
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from src.common.services.neo4j_service import Neo4jService
@@ -20,7 +20,8 @@ async def test_postgres_connection_success(postgres_service):
 
     # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = postgres_url
+        mock_settings.database = MagicMock()
+        mock_settings.database.postgres_url = postgres_url
 
         service = PostgreSQLService()
 
@@ -43,7 +44,8 @@ async def test_postgres_connection_failure():
     """Test PostgreSQL connection failure handling."""
     # Mock settings with invalid PostgreSQL URL
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = "postgresql+asyncpg://invalid:invalid@invalid-host:5432/invalid"
+        mock_settings.database = MagicMock()
+        mock_settings.database.postgres_url = "postgresql+asyncpg://invalid:invalid@invalid-host:5432/invalid"
 
         service = PostgreSQLService()
 
@@ -64,9 +66,10 @@ async def test_neo4j_connection_success(neo4j_service):
 
     # Mock settings for Neo4j
     with patch("src.common.services.neo4j_service.settings") as mock_settings:
-        mock_settings.NEO4J_URL = f"bolt://{config['host']}:{config['port']}"
-        mock_settings.NEO4J_USER = config["user"]
-        mock_settings.NEO4J_PASSWORD = config["password"]
+        mock_settings.database = MagicMock()
+        mock_settings.database.neo4j_url = f"bolt://{config['host']}:{config['port']}"
+        mock_settings.database.neo4j_user = config["user"]
+        mock_settings.database.neo4j_password = config["password"]
 
         service = Neo4jService()
 
@@ -89,9 +92,10 @@ async def test_neo4j_connection_failure():
     """Test Neo4j connection failure handling."""
     # Mock settings with invalid Neo4j URL
     with patch("src.common.services.neo4j_service.settings") as mock_settings:
-        mock_settings.NEO4J_URL = "bolt://invalid-host:7687"
-        mock_settings.NEO4J_USER = "invalid"
-        mock_settings.NEO4J_PASSWORD = "invalid"
+        mock_settings.database = MagicMock()
+        mock_settings.database.neo4j_url = "bolt://invalid-host:7687"
+        mock_settings.database.neo4j_user = "invalid"
+        mock_settings.database.neo4j_password = "invalid"
 
         service = Neo4jService()
 
@@ -112,9 +116,10 @@ async def test_redis_connection_success(redis_service):
 
     # Mock settings for Redis
     with patch("src.common.services.redis_service.settings") as mock_settings:
-        mock_settings.REDIS_URL = f"redis://{config['host']}:{config['port']}"
+        mock_settings.database = MagicMock()
+        mock_settings.database.redis_url = f"redis://{config['host']}:{config['port']}"
         if config.get("password"):
-            mock_settings.REDIS_URL = f"redis://:{config['password']}@{config['host']}:{config['port']}"
+            mock_settings.database.redis_url = f"redis://:{config['password']}@{config['host']}:{config['port']}"
 
         service = RedisService()
 
@@ -139,7 +144,8 @@ async def test_redis_connection_failure():
     """Test Redis connection failure handling."""
     # Mock settings with invalid Redis URL
     with patch("src.common.services.redis_service.settings") as mock_settings:
-        mock_settings.REDIS_URL = "redis://invalid-host:6379"
+        mock_settings.database = MagicMock()
+        mock_settings.database.redis_url = "redis://invalid-host:6379"
 
         service = RedisService()
 
@@ -176,13 +182,16 @@ async def test_concurrent_database_connections(postgres_service, neo4j_service, 
         patch("src.common.services.redis_service.settings") as mock_redis_settings,
     ):
         # Configure mocked settings
-        mock_pg_settings.POSTGRES_URL = postgres_url
+        mock_pg_settings.database = MagicMock()
+        mock_pg_settings.database.postgres_url = postgres_url
 
-        mock_neo4j_settings.NEO4J_URL = f"bolt://{neo4j_config['host']}:{neo4j_config['port']}"
-        mock_neo4j_settings.NEO4J_USER = neo4j_config["user"]
-        mock_neo4j_settings.NEO4J_PASSWORD = neo4j_config["password"]
+        mock_neo4j_settings.database = MagicMock()
+        mock_neo4j_settings.database.neo4j_url = f"bolt://{neo4j_config['host']}:{neo4j_config['port']}"
+        mock_neo4j_settings.database.neo4j_user = neo4j_config["user"]
+        mock_neo4j_settings.database.neo4j_password = neo4j_config["password"]
 
-        mock_redis_settings.REDIS_URL = redis_url
+        mock_redis_settings.database = MagicMock()
+        mock_redis_settings.database.redis_url = redis_url
 
         # Create services
         postgres_svc = PostgreSQLService()
@@ -228,7 +237,8 @@ async def test_postgres_concurrent_queries(postgres_service):
 
     # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = postgres_url
+        mock_settings.database = MagicMock()
+        mock_settings.database.postgres_url = postgres_url
 
         service = PostgreSQLService()
         await service.connect()
@@ -258,7 +268,8 @@ async def test_postgres_transaction_success(postgres_service):
 
     # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = postgres_url
+        mock_settings.database = MagicMock()
+        mock_settings.database.postgres_url = postgres_url
 
         service = PostgreSQLService()
         await service.connect()
@@ -301,7 +312,8 @@ async def test_postgres_transaction_rollback(postgres_service):
 
     # Mock settings to use test configuration
     with patch("src.common.services.postgres_service.settings") as mock_settings:
-        mock_settings.POSTGRES_URL = postgres_url
+        mock_settings.database = MagicMock()
+        mock_settings.database.postgres_url = postgres_url
 
         service = PostgreSQLService()
         await service.connect()

@@ -35,7 +35,7 @@ class EmbeddingService:
             assert self._client is not None, "Client should be initialized after connect()"
 
             # 发送健康检查请求
-            response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
+            response = await self._client.get(f"{settings.embedding_api_url}/api/tags")
             return response.status_code == 200
         except Exception:
             return False
@@ -50,8 +50,8 @@ class EmbeddingService:
 
         try:
             response = await self._client.post(
-                f"{settings.EMBEDDING_API_URL}/api/embed",
-                json={"model": settings.EMBEDDING_API_MODEL, "input": text},
+                f"{settings.embedding_api_url}/api/embed",
+                json={"model": settings.embedding_api_model, "input": text},
                 headers={"Content-Type": "application/json"},
             )
             response.raise_for_status()

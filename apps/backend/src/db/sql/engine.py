@@ -32,10 +32,10 @@ def create_engine(
     Returns:
         AsyncEngine: 异步数据库引擎
     """
-    database_url = url or settings.POSTGRES_URL
+    database_url = url or settings.database.postgres_url
 
     # 根据环境选择连接池策略
-    if getattr(settings, "ENVIRONMENT", "production") == "test":
+    if settings.node_env == "test":
         # 测试环境使用 NullPool，避免连接池问题
         return create_async_engine(
             database_url,

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Main function for Worldsmith Agent."""
-    logger.info(f"Starting Worldsmith Agent with config: {settings.SERVICE_TYPE}")
+    logger.info(f"Starting Worldsmith Agent with config: {settings.service_type}")
     # TODO: Implement agent logic
     # - Connect to Kafka
     # - Subscribe to relevant topics

@@ -23,8 +23,8 @@ def create_neo4j_driver(uri: str | None = None, auth: tuple[str, str] | None = N
     Returns:
         AsyncDriver: Neo4j 异步驱动
     """
-    neo4j_uri = uri or settings.NEO4J_URI
-    neo4j_auth = auth or (settings.NEO4J_USER, settings.NEO4J_PASSWORD)
+    neo4j_uri = uri or settings.database.neo4j_url
+    neo4j_auth = auth or (settings.database.neo4j_user, settings.database.neo4j_password)
 
     # 默认配置
     default_config = {
@@ -44,7 +44,7 @@ def create_neo4j_driver(uri: str | None = None, auth: tuple[str, str] | None = N
 # 创建默认驱动实例
 neo4j_driver: AsyncDriver | None = None
 
-if hasattr(settings, "NEO4J_URI") and settings.NEO4J_URI:
+if settings.database.neo4j_uri or settings.database.neo4j_host:
     neo4j_driver = create_neo4j_driver()
 
 

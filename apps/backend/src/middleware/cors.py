@@ -18,7 +18,7 @@ def add_cors_middleware(app: FastAPI):
     ]
 
     # Add production domains if not in development
-    if not settings.IS_DEV:
+    if not settings.is_dev:
         # Add your production frontend domains here
         allowed_origins.extend(
             [
@@ -70,7 +70,7 @@ def add_security_headers_middleware(app: FastAPI):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Only add HSTS in production with HTTPS
-        if not settings.IS_DEV:
+        if not settings.is_dev:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
         # Content Security Policy (basic)

@@ -1,6 +1,6 @@
 """Unit tests for JWT service."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -36,7 +36,7 @@ class TestJWTService:
         assert isinstance(jti, str)
         assert len(jti) > 10
         assert isinstance(expires_at, datetime)
-        assert expires_at > datetime.utcnow()
+        assert expires_at > datetime.now(UTC)
 
     def test_create_access_token_with_claims(self, jwt_service: JWTService):
         """Test creating an access token with additional claims."""
@@ -60,7 +60,7 @@ class TestJWTService:
         assert isinstance(token, str)
         assert len(token) > 50
         assert isinstance(expires_at, datetime)
-        assert expires_at > datetime.utcnow()
+        assert expires_at > datetime.now(UTC)
 
         # Verify refresh token expires later than access token
         access_token, _, access_expires = jwt_service.create_access_token(user_id)
@@ -123,7 +123,7 @@ class TestJWTService:
 
         payload = {
             "sub": "12345",
-            "exp": datetime.utcnow() + timedelta(minutes=15),
+            "exp": datetime.now(UTC) + timedelta(minutes=15),
             "token_type": "access",
             "jti": "test-jti",
         }
@@ -137,7 +137,7 @@ class TestJWTService:
     def test_blacklist_token(self, jwt_service: JWTService, mock_redis):
         """Test adding a token to blacklist."""
         jti = "test-jti-123"
-        expires_at = datetime.utcnow() + timedelta(minutes=15)
+        expires_at = datetime.now(UTC) + timedelta(minutes=15)
 
         jwt_service.blacklist_token(jti, expires_at)
 
@@ -151,7 +151,7 @@ class TestJWTService:
     def test_blacklist_token_already_expired(self, jwt_service: JWTService, mock_redis):
         """Test blacklisting an already expired token."""
         jti = "expired-jti"
-        expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired
+        expires_at = datetime.now(UTC) - timedelta(minutes=1)  # Already expired
 
         jwt_service.blacklist_token(jti, expires_at)
 
@@ -222,7 +222,7 @@ class TestJWTService:
         access_token, _, access_expires = jwt_service.create_access_token(user_id)
 
         # Check expiration is approximately correct
-        expected_expire = datetime.utcnow() + timedelta(minutes=jwt_service.access_token_expire_minutes)
+        expected_expire = datetime.now(UTC) + timedelta(minutes=jwt_service.access_token_expire_minutes)
         time_diff = abs((access_expires - expected_expire).total_seconds())
         assert time_diff < 5  # Within 5 seconds tolerance
 

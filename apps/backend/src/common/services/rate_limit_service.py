@@ -36,9 +36,9 @@ class RateLimitService:
         """Get Redis client for rate limiting."""
         if self._redis_client is None:
             self._redis_client = Redis(
-                host=settings.REDIS_HOST,
-                port=settings.REDIS_PORT,
-                password=settings.REDIS_PASSWORD,
+                host=settings.database.redis_host,
+                port=settings.database.redis_port,
+                password=settings.database.redis_password,
                 decode_responses=True,
             )
         return self._redis_client
@@ -181,12 +181,12 @@ class RateLimitService:
 # Global instance
 redis_client = (
     Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        password=settings.REDIS_PASSWORD,
+        host=settings.database.redis_host,
+        port=settings.database.redis_port,
+        password=settings.database.redis_password,
         decode_responses=True,
     )
-    if hasattr(settings, "REDIS_HOST")
+    if hasattr(settings.database, "redis_host")
     else None
 )
 

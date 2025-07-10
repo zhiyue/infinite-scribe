@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
 
     from src.common.services.neo4j_service import neo4j_service
     from src.common.services.postgres_service import postgres_service
+    from src.common.services.redis_service import redis_service
 
     logger = logging.getLogger(__name__)
 
@@ -24,9 +25,11 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing database connections...")
         await postgres_service.connect()
         await neo4j_service.connect()
+        await redis_service.connect()
 
         postgres_ok = await postgres_service.check_connection()
         neo4j_ok = await neo4j_service.check_connection()
+        redis_ok = await redis_service.check_connection()
 
         if postgres_ok:
             logger.info("PostgreSQL connection established successfully")
@@ -38,6 +41,11 @@ async def lifespan(app: FastAPI):
         else:
             logger.error("Failed to establish Neo4j connection")
 
+        if redis_ok:
+            logger.info("Redis connection established successfully")
+        else:
+            logger.error("Failed to establish Redis connection")
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
 
@@ -48,6 +56,7 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down database connections...")
         await postgres_service.disconnect()
         await neo4j_service.disconnect()
+        await redis_service.disconnect()
         logger.info("Database connections closed successfully")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
@@ -63,7 +72,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

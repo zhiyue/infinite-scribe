@@ -18,7 +18,7 @@ class RedisService:
         """Establish connection to Redis."""
         if not self._client:
             self._client = redis.from_url(
-                settings.REDIS_URL,
+                settings.database.redis_url,
                 decode_responses=True,
                 health_check_interval=30,
                 socket_connect_timeout=5,
