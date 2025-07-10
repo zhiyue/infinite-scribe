@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import (
@@ -31,12 +31,14 @@ user_service = UserService()
 )
 async def register_user(
     request: UserRegisterRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse | ErrorResponse:
     """Register a new user account.
 
     Args:
         request: User registration data
+        background_tasks: FastAPI background tasks for async operations
         db: Database session
 
     Returns:
@@ -49,8 +51,8 @@ async def register_user(
         # Convert Pydantic model to dict
         user_data = request.model_dump()
 
-        # Register user
-        result = await user_service.register_user(db, user_data)
+        # Register user with background tasks for async email sending
+        result = await user_service.register_user(db, user_data, background_tasks)
 
         if not result["success"]:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
@@ -77,12 +79,14 @@ async def register_user(
 )
 async def verify_email(
     token: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse | ErrorResponse:
     """Verify user's email address.
 
     Args:
         token: Email verification token
+        background_tasks: FastAPI background tasks for async operations
         db: Database session
 
     Returns:
@@ -92,7 +96,7 @@ async def verify_email(
         HTTPException: If verification fails
     """
     try:
-        result = await user_service.verify_email(db, token)
+        result = await user_service.verify_email(db, token, background_tasks)
 
         if not result["success"]:
             status_code = status.HTTP_400_BAD_REQUEST

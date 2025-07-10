@@ -4,13 +4,16 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.services.email_service import email_service
+from src.common.services.email_tasks import email_tasks
 from src.common.services.jwt_service import jwt_service
 from src.common.services.password_service import PasswordService
+from src.common.utils.datetime_utils import utc_now
 from src.core.config import settings
 from src.models.email_verification import EmailVerification, VerificationPurpose
 from src.models.session import Session
@@ -32,12 +35,18 @@ class UserService:
         self.email_service = email_service
         self.frontend_url = settings.frontend_url or "http://localhost:3000"
 
-    async def register_user(self, db: AsyncSession, user_data: dict[str, Any]) -> dict[str, Any]:
+    async def register_user(
+        self,
+        db: AsyncSession,
+        user_data: dict[str, Any],
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
         """Register a new user.
 
         Args:
             db: Database session
             user_data: User registration data
+            background_tasks: Optional FastAPI background tasks for async email sending
 
         Returns:
             Result dictionary with success status and user data or error
@@ -85,7 +94,22 @@ class UserService:
 
             # Send verification email
             verification_url = f"{self.frontend_url}/auth/verify-email?token={verification.token}"
-            await self.email_service.send_verification_email(cast(str, user.email), user.full_name, verification_url)
+
+            if background_tasks:
+                # 使用异步任务发送邮件
+                await email_tasks.send_verification_email_async(
+                    background_tasks,
+                    cast(str, user.email),
+                    user.full_name,
+                    verification_url,
+                )
+            else:
+                # 兼容旧代码，同步发送邮件
+                await self.email_service.send_verification_email(
+                    cast(str, user.email),
+                    user.full_name,
+                    verification_url,
+                )
 
             return {
                 "success": True,
@@ -144,16 +168,14 @@ class UserService:
 
                 # Lock account if too many attempts
                 if getattr(user, "failed_login_attempts", 0) >= settings.auth.account_lockout_attempts:
-                    user.locked_until = datetime.utcnow() + timedelta(
-                        minutes=settings.auth.account_lockout_duration_minutes
-                    )
+                    user.locked_until = utc_now() + timedelta(minutes=settings.auth.account_lockout_duration_minutes)
 
                 await db.commit()
                 return {"success": False, "error": "Invalid credentials"}
 
             # Reset failed attempts on successful login
             user.failed_login_attempts = 0
-            user.last_login_at = datetime.utcnow()
+            user.last_login_at = utc_now()
             user.last_login_ip = ip_address
 
             # Create tokens
@@ -187,12 +209,18 @@ class UserService:
             await db.rollback()
             return {"success": False, "error": "An error occurred during login"}
 
-    async def verify_email(self, db: AsyncSession, token: str) -> dict[str, Any]:
+    async def verify_email(
+        self,
+        db: AsyncSession,
+        token: str,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
         """Verify user's email address.
 
         Args:
             db: Database session
             token: Verification token
+            background_tasks: Optional FastAPI background tasks for async email sending
 
         Returns:
             Result dictionary with success status
@@ -226,7 +254,7 @@ class UserService:
 
             # Mark user as verified
             user.is_verified = True
-            user.email_verified_at = datetime.utcnow()
+            user.email_verified_at = utc_now()
 
             # Mark token as used
             verification.mark_as_used()
@@ -234,7 +262,19 @@ class UserService:
             await db.commit()
 
             # Send welcome email
-            await self.email_service.send_welcome_email(cast(str, user.email), user.full_name)
+            if background_tasks:
+                # 使用异步任务发送邮件
+                await email_tasks.send_welcome_email_async(
+                    background_tasks,
+                    cast(str, user.email),
+                    user.full_name,
+                )
+            else:
+                # 兼容旧代码，同步发送邮件
+                await self.email_service.send_welcome_email(
+                    cast(str, user.email),
+                    user.full_name,
+                )
 
             return {"success": True, "message": "Email verified successfully"}
 
@@ -243,12 +283,18 @@ class UserService:
             await db.rollback()
             return {"success": False, "error": "An error occurred during email verification"}
 
-    async def request_password_reset(self, db: AsyncSession, email: str) -> dict[str, Any]:
+    async def request_password_reset(
+        self,
+        db: AsyncSession,
+        email: str,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
         """Request password reset.
 
         Args:
             db: Database session
             email: User's email
+            background_tasks: Optional FastAPI background tasks for async email sending
 
         Returns:
             Result dictionary with success status
@@ -277,7 +323,22 @@ class UserService:
 
             # Send password reset email
             reset_url = f"{self.frontend_url}/auth/reset-password?token={verification.token}"
-            await self.email_service.send_password_reset_email(cast(str, user.email), user.full_name, reset_url)
+
+            if background_tasks:
+                # 使用异步任务发送邮件
+                await email_tasks.send_password_reset_email_async(
+                    background_tasks,
+                    cast(str, user.email),
+                    user.full_name,
+                    reset_url,
+                )
+            else:
+                # 兼容旧代码，同步发送邮件
+                await self.email_service.send_password_reset_email(
+                    cast(str, user.email),
+                    user.full_name,
+                    reset_url,
+                )
 
             return {"success": True, "message": "If the email exists, a reset link has been sent"}
 
@@ -323,7 +384,7 @@ class UserService:
 
             # Update password
             user.password_hash = self.password_service.hash_password(new_password)
-            user.password_changed_at = datetime.utcnow()
+            user.password_changed_at = utc_now()
 
             # Mark token as used
             verification.mark_as_used()

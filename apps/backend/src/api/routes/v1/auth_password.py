@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import (
@@ -34,12 +34,14 @@ password_service = PasswordService()
 )
 async def forgot_password(
     request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse | ErrorResponse:
     """Send password reset email to user.
 
     Args:
         request: Forgot password request with email
+        background_tasks: FastAPI background tasks for async operations
         db: Database session
 
     Returns:
@@ -49,10 +51,10 @@ async def forgot_password(
         HTTPException: If sending reset email fails
     """
     try:
-        # For security, we don't reveal if email exists or not
-        # TODO: Implement actual password reset logic
+        # Request password reset with background tasks for async email sending
+        result = await user_service.request_password_reset(db, request.email, background_tasks)
 
-        return MessageResponse(success=True, message="If the email exists, a password reset link has been sent")
+        return MessageResponse(success=True, message=result["message"])
 
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
@@ -85,18 +87,13 @@ async def reset_password(
         HTTPException: If password reset fails
     """
     try:
-        # Validate password strength
-        validation_result = password_service.validate_password_strength(request.new_password)
-        if not validation_result["is_valid"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password is too weak: {', '.join(validation_result['errors'])}",
-            )
+        # Reset password using UserService
+        result = await user_service.reset_password(db, request.token, request.new_password)
 
-        # TODO: Implement actual password reset logic
-        # This requires additional methods in UserService
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
 
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Password reset not yet implemented")
+        return MessageResponse(success=True, message="Password has been reset successfully")
 
     except HTTPException:
         raise
