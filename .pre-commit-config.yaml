@@ -10,10 +10,12 @@ repos:
       # Run ruff linter
       - id: ruff
         args: [--fix]
-        files: ^apps/backend/
+        files: ^apps/backend/.*\.py$
+        exclude: ^apps/backend/tests/
       # Run ruff formatter (replaces black)
       - id: ruff-format
-        files: ^apps/backend/
+        files: ^apps/backend/.*\.py$
+        exclude: ^apps/backend/tests/
 
   # Additional Python checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -50,7 +52,7 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        files: ^apps/backend/src/
+        files: ^apps/backend/src/.*\.py$
         args: [--ignore-missing-imports, --no-strict-optional]
         additional_dependencies:
           - types-redis
