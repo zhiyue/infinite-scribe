@@ -210,7 +210,12 @@ directory = "htmlcov"
 # Bandit security linter configuration
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv", "__pycache__", "alembic/versions"]
-skips = ["B101"]  # Skip assert_used test
+skips = [
+    "B101",  # Skip assert_used test
+    "B105",  # Skip hardcoded_password_string - 误报审计事件类型
+    "B608",  # Skip hardcoded_sql_expressions - 我们使用参数化查询
+    "B104",  # Skip hardcoded_bind_all_interfaces - API 需要绑定 0.0.0.0
+]
 
 # Pyright configuration for Python type checking
 # Note: $schema field removed to avoid "unknown config option" errors
