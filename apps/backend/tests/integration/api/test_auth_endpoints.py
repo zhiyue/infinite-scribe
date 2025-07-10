@@ -239,3 +239,64 @@ class TestAuthRefresh:
         data = response.json()
         assert "detail" in data
         assert "invalid" in data["detail"].lower()
+    
+    def test_refresh_empty_request_body(self, client_with_mocks):
+        """Test refresh with empty request body."""
+        # Act
+        response = client_with_mocks.post("/api/v1/auth/refresh", json={})
+
+        # Assert
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        # Verify it's a validation error about missing refresh_token
+        assert any("refresh_token" in str(error).lower() for error in data["detail"])
+    
+    def test_refresh_missing_refresh_token_field(self, client_with_mocks):
+        """Test refresh with request body missing refresh_token field."""
+        # Arrange
+        data = {"other_field": "value"}
+
+        # Act
+        response = client_with_mocks.post("/api/v1/auth/refresh", json=data)
+
+        # Assert
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        # Verify it's a validation error about missing refresh_token
+        assert any("refresh_token" in str(error).lower() for error in data["detail"])
+    
+    def test_refresh_null_refresh_token(self, client_with_mocks):
+        """Test refresh with null refresh_token."""
+        # Arrange
+        data = {"refresh_token": None}
+
+        # Act
+        response = client_with_mocks.post("/api/v1/auth/refresh", json=data)
+
+        # Assert
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+    
+    def test_refresh_with_old_access_token_header(self, client_with_mocks):
+        """Test refresh endpoint properly extracts old access token from header."""
+        # Arrange - Create tokens
+        from src.common.services.jwt_service import jwt_service
+
+        user_id = "123"
+        old_access_token, _, _ = jwt_service.create_access_token(user_id)
+        refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        
+        # Act - Send refresh request with old access token in header
+        headers = {"Authorization": f"Bearer {old_access_token}"}
+        data = {"refresh_token": refresh_token}
+        response = client_with_mocks.post("/api/v1/auth/refresh", json=data, headers=headers)
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "access_token" in data
+        assert "refresh_token" in data
