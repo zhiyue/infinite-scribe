@@ -1,10 +1,9 @@
 """Unit tests for JWT refresh token functionality."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from src.common.services.jwt_service import jwt_service
 from tests.unit.test_mocks import mock_redis
 
@@ -40,22 +39,22 @@ class TestJWTRefreshToken:
         # Arrange
         user_id = "123"
         refresh_token, _ = jwt_service.create_refresh_token(user_id)
-        
+
         # Mock database session
         mock_db = AsyncMock()
-        
+
         # Mock session with user
         mock_user = Mock()
         mock_user.email = "test@example.com"
         mock_user.username = "testuser"
-        
+
         mock_session = Mock()
         mock_session.is_valid = True
         mock_session.user_id = int(user_id)
         mock_session.refresh_token = refresh_token
         mock_session.id = 1
         mock_session.user = mock_user
-        
+
         # Mock session service methods
         mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
         mock_session_service.update_session_tokens = AsyncMock()
@@ -103,9 +102,9 @@ class TestJWTRefreshToken:
         # Create expired refresh token by temporarily changing token expiration
         original_days = jwt_service.refresh_token_expire_days
         jwt_service.refresh_token_expire_days = -1  # Set to negative to create expired token
-        
+
         refresh_token, _ = jwt_service.create_refresh_token(user_id)
-        
+
         # Restore original expiration
         jwt_service.refresh_token_expire_days = original_days
 
@@ -143,19 +142,19 @@ class TestJWTRefreshToken:
         user_id = "123"
         original_refresh_token, _ = jwt_service.create_refresh_token(user_id)
         mock_db = AsyncMock()
-        
+
         # Mock session with user
         mock_user = Mock()
         mock_user.email = "test@example.com"
         mock_user.username = "testuser"
-        
+
         mock_session = Mock()
         mock_session.is_valid = True
         mock_session.user_id = int(user_id)
         mock_session.refresh_token = original_refresh_token
         mock_session.id = 1
         mock_session.user = mock_user
-        
+
         # Mock session service methods
         mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
         mock_session_service.update_session_tokens = AsyncMock()
@@ -186,19 +185,19 @@ class TestJWTRefreshToken:
         old_access_token, old_jti, old_expires = jwt_service.create_access_token(user_id)
         refresh_token, _ = jwt_service.create_refresh_token(user_id)
         mock_db = AsyncMock()
-        
+
         # Mock session with user
         mock_user = Mock()
         mock_user.email = "test@example.com"
         mock_user.username = "testuser"
-        
+
         mock_session = Mock()
         mock_session.is_valid = True
         mock_session.user_id = int(user_id)
         mock_session.refresh_token = refresh_token
         mock_session.id = 1
         mock_session.user = mock_user
-        
+
         # Mock session service methods
         mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
         mock_session_service.update_session_tokens = AsyncMock()
@@ -222,25 +221,25 @@ class TestJWTRefreshToken:
         user_id = "123"
         refresh_token, _ = jwt_service.create_refresh_token(user_id)
         mock_db = AsyncMock()
-        
+
         # Mock session with user
         mock_user = Mock()
         mock_user.email = "test@example.com"
         mock_user.username = "testuser"
-        
+
         mock_session = Mock()
         mock_session.is_valid = True
         mock_session.user_id = int(user_id)
         mock_session.refresh_token = refresh_token
         mock_session.id = 1
         mock_session.user = mock_user
-        
+
         # Mock session service methods to return updated tokens
         def update_refresh_token(*args):
             nonlocal refresh_token
             # Simulate token rotation - return the new token from the result
             return None
-            
+
         mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
         mock_session_service.update_session_tokens = AsyncMock(side_effect=update_refresh_token)
         mock_session_service._cache_session = AsyncMock()

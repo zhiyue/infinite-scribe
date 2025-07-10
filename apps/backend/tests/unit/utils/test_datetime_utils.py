@@ -1,15 +1,14 @@
 """Unit tests for datetime utility functions."""
 
-import pytest
-from datetime import UTC, datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 from src.common.utils.datetime_utils import (
-    utc_now,
-    from_timestamp_utc,
     ensure_utc,
-    to_timestamp,
-    parse_iso_datetime,
     format_iso_datetime,
+    from_timestamp_utc,
+    parse_iso_datetime,
+    to_timestamp,
+    utc_now,
 )
 
 
@@ -20,11 +19,11 @@ class TestDatetimeUtils:
         """Test utc_now returns current UTC time with timezone info."""
         # Act
         result = utc_now()
-        
+
         # Assert
         assert isinstance(result, datetime)
         assert result.tzinfo == UTC
-        
+
         # Verify it's close to the actual current time (within 1 second)
         current_time = datetime.now(UTC)
         time_diff = abs((result - current_time).total_seconds())
@@ -34,10 +33,10 @@ class TestDatetimeUtils:
         """Test converting Unix timestamp to UTC datetime."""
         # Arrange
         timestamp = 1609459200.0  # 2021-01-01 00:00:00 UTC
-        
+
         # Act
         result = from_timestamp_utc(timestamp)
-        
+
         # Assert
         assert isinstance(result, datetime)
         assert result.tzinfo == UTC
@@ -52,10 +51,10 @@ class TestDatetimeUtils:
         """Test converting timestamp with fractional seconds."""
         # Arrange
         timestamp = 1609459200.123456
-        
+
         # Act
         result = from_timestamp_utc(timestamp)
-        
+
         # Assert
         assert result.tzinfo == UTC
         assert result.microsecond == 123456
@@ -64,10 +63,10 @@ class TestDatetimeUtils:
         """Test ensure_utc with timezone-naive datetime."""
         # Arrange
         naive_dt = datetime(2021, 1, 1, 12, 0, 0)
-        
+
         # Act
         result = ensure_utc(naive_dt)
-        
+
         # Assert
         assert result.tzinfo == UTC
         assert result.year == 2021
@@ -81,10 +80,10 @@ class TestDatetimeUtils:
         """Test ensure_utc with already UTC datetime."""
         # Arrange
         utc_dt = datetime(2021, 1, 1, 12, 0, 0, tzinfo=UTC)
-        
+
         # Act
         result = ensure_utc(utc_dt)
-        
+
         # Assert
         assert result.tzinfo == UTC
         assert result == utc_dt  # Should be identical
@@ -94,10 +93,10 @@ class TestDatetimeUtils:
         # Arrange
         est = timezone(timedelta(hours=-5))  # EST timezone
         est_dt = datetime(2021, 1, 1, 7, 0, 0, tzinfo=est)  # 7 AM EST = 12 PM UTC
-        
+
         # Act
         result = ensure_utc(est_dt)
-        
+
         # Assert
         assert result.tzinfo == UTC
         assert result.hour == 12  # Converted to UTC
@@ -108,10 +107,10 @@ class TestDatetimeUtils:
         # Arrange
         utc_dt = datetime(2021, 1, 1, 0, 0, 0, tzinfo=UTC)
         expected_timestamp = 1609459200.0
-        
+
         # Act
         result = to_timestamp(utc_dt)
-        
+
         # Assert
         assert abs(result - expected_timestamp) < 0.001  # Allow small floating point differences
 
@@ -120,10 +119,10 @@ class TestDatetimeUtils:
         # Arrange
         naive_dt = datetime(2021, 1, 1, 0, 0, 0)
         expected_timestamp = 1609459200.0
-        
+
         # Act
         result = to_timestamp(naive_dt)
-        
+
         # Assert
         assert abs(result - expected_timestamp) < 0.001
 
@@ -133,10 +132,10 @@ class TestDatetimeUtils:
         est = timezone(timedelta(hours=-5))
         est_dt = datetime(2020, 12, 31, 19, 0, 0, tzinfo=est)  # 7 PM EST = 12 AM UTC next day
         expected_timestamp = 1609459200.0  # 2021-01-01 00:00:00 UTC
-        
+
         # Act
         result = to_timestamp(est_dt)
-        
+
         # Assert
         assert abs(result - expected_timestamp) < 0.001
 
@@ -144,10 +143,10 @@ class TestDatetimeUtils:
         """Test parsing valid ISO datetime string with UTC."""
         # Arrange
         iso_string = "2021-01-01T12:00:00Z"
-        
+
         # Act
         result = parse_iso_datetime(iso_string)
-        
+
         # Assert
         assert result is not None
         assert result.tzinfo == UTC
@@ -160,10 +159,10 @@ class TestDatetimeUtils:
         """Test parsing ISO datetime string with timezone offset."""
         # Arrange
         iso_string = "2021-01-01T12:00:00+05:00"
-        
+
         # Act
         result = parse_iso_datetime(iso_string)
-        
+
         # Assert
         assert result is not None
         assert result.tzinfo is not None
@@ -174,10 +173,10 @@ class TestDatetimeUtils:
         """Test parsing ISO datetime string without timezone (adds UTC)."""
         # Arrange
         iso_string = "2021-01-01T12:00:00"
-        
+
         # Act
         result = parse_iso_datetime(iso_string)
-        
+
         # Assert
         assert result is not None
         assert result.tzinfo == UTC
@@ -188,10 +187,10 @@ class TestDatetimeUtils:
         """Test parsing ISO datetime string with microseconds."""
         # Arrange
         iso_string = "2021-01-01T12:00:00.123456Z"
-        
+
         # Act
         result = parse_iso_datetime(iso_string)
-        
+
         # Assert
         assert result is not None
         assert result.tzinfo == UTC
@@ -208,11 +207,11 @@ class TestDatetimeUtils:
             "",
             None,
         ]
-        
+
         for invalid_string in invalid_strings:
             # Act
             result = parse_iso_datetime(invalid_string)
-            
+
             # Assert
             assert result is None, f"Expected None for invalid string: {invalid_string}"
 
@@ -220,10 +219,10 @@ class TestDatetimeUtils:
         """Test formatting UTC datetime to ISO string."""
         # Arrange
         utc_dt = datetime(2021, 1, 1, 12, 0, 0, tzinfo=UTC)
-        
+
         # Act
         result = format_iso_datetime(utc_dt)
-        
+
         # Assert
         assert isinstance(result, str)
         assert "2021-01-01T12:00:00" in result
@@ -233,10 +232,10 @@ class TestDatetimeUtils:
         """Test formatting naive datetime to ISO string (converts to UTC)."""
         # Arrange
         naive_dt = datetime(2021, 1, 1, 12, 0, 0)
-        
+
         # Act
         result = format_iso_datetime(naive_dt)
-        
+
         # Assert
         assert isinstance(result, str)
         assert "2021-01-01T12:00:00" in result
@@ -247,10 +246,10 @@ class TestDatetimeUtils:
         # Arrange
         est = timezone(timedelta(hours=-5))
         est_dt = datetime(2021, 1, 1, 7, 0, 0, tzinfo=est)  # 7 AM EST = 12 PM UTC
-        
+
         # Act
         result = format_iso_datetime(est_dt)
-        
+
         # Assert
         assert isinstance(result, str)
         # Should be converted to UTC (12:00)
@@ -261,10 +260,10 @@ class TestDatetimeUtils:
         """Test formatting datetime with microseconds."""
         # Arrange
         dt_with_microseconds = datetime(2021, 1, 1, 12, 0, 0, 123456, tzinfo=UTC)
-        
+
         # Act
         result = format_iso_datetime(dt_with_microseconds)
-        
+
         # Assert
         assert isinstance(result, str)
         assert "123456" in result
@@ -273,11 +272,11 @@ class TestDatetimeUtils:
         """Test that parsing and formatting are consistent."""
         # Arrange
         original_dt = datetime(2021, 1, 1, 12, 30, 45, 123456, tzinfo=UTC)
-        
+
         # Act
         iso_string = format_iso_datetime(original_dt)
         parsed_dt = parse_iso_datetime(iso_string)
-        
+
         # Assert
         assert parsed_dt is not None
         assert parsed_dt == original_dt
@@ -286,23 +285,23 @@ class TestDatetimeUtils:
         """Test that ensure_utc correctly converts different timezones."""
         # Test multiple timezone offsets
         timezones_and_expected_utc_hours = [
-            (timezone(timedelta(hours=0)), 12),    # UTC
-            (timezone(timedelta(hours=3)), 9),     # UTC+3 -> 9 AM UTC
-            (timezone(timedelta(hours=-8)), 20),   # UTC-8 -> 8 PM UTC
+            (timezone(timedelta(hours=0)), 12),  # UTC
+            (timezone(timedelta(hours=3)), 9),  # UTC+3 -> 9 AM UTC
+            (timezone(timedelta(hours=-8)), 20),  # UTC-8 -> 8 PM UTC
             (timezone(timedelta(hours=5, minutes=30)), 6, 30),  # UTC+5:30 -> 6:30 AM UTC
         ]
-        
+
         for tz_info in timezones_and_expected_utc_hours:
             tz = tz_info[0]
             expected_hour = tz_info[1]
             expected_minute = tz_info[2] if len(tz_info) > 2 else 0
-            
+
             # Arrange
             local_dt = datetime(2021, 1, 1, 12, 0, 0, tzinfo=tz)
-            
+
             # Act
             utc_dt = ensure_utc(local_dt)
-            
+
             # Assert
             assert utc_dt.tzinfo == UTC
             assert utc_dt.hour == expected_hour

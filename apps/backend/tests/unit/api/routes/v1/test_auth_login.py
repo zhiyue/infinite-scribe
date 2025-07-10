@@ -59,12 +59,14 @@ class TestAuthLogin:
         # Arrange
         login_request = UserLoginRequest(email="test@example.com", password="password123")
 
-        mock_user_service.login = AsyncMock(return_value={
-            "success": True,
-            "access_token": "access_token_123",
-            "refresh_token": "refresh_token_123",
-            "user": mock_user.to_dict(),
-        })
+        mock_user_service.login = AsyncMock(
+            return_value={
+                "success": True,
+                "access_token": "access_token_123",
+                "refresh_token": "refresh_token_123",
+                "user": mock_user.to_dict(),
+            }
+        )
 
         # Act
         result = await login_user(login_request, mock_request, mock_db)
@@ -102,11 +104,13 @@ class TestAuthLogin:
         # Arrange
         login_request = UserLoginRequest(email="test@example.com", password="password123")
 
-        mock_user_service.login = AsyncMock(return_value={
-            "success": False,
-            "error": "Account is locked until 2024-01-01",
-            "locked_until": "2024-01-01T00:00:00",
-        })
+        mock_user_service.login = AsyncMock(
+            return_value={
+                "success": False,
+                "error": "Account is locked until 2024-01-01",
+                "locked_until": "2024-01-01T00:00:00",
+            }
+        )
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
@@ -123,7 +127,9 @@ class TestAuthLogin:
         # Arrange
         login_request = UserLoginRequest(email="test@example.com", password="password123")
 
-        mock_user_service.login = AsyncMock(return_value={"success": False, "error": "Please verify your email before logging in"})
+        mock_user_service.login = AsyncMock(
+            return_value={"success": False, "error": "Please verify your email before logging in"}
+        )
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
@@ -139,11 +145,13 @@ class TestAuthLogin:
         # Arrange
         login_request = UserLoginRequest(email="test@example.com", password="wrong_password")
 
-        mock_user_service.login = AsyncMock(return_value={
-            "success": False,
-            "error": "Invalid credentials. 2 attempt(s) remaining.",
-            "remaining_attempts": 2,
-        })
+        mock_user_service.login = AsyncMock(
+            return_value={
+                "success": False,
+                "error": "Invalid credentials. 2 attempt(s) remaining.",
+                "remaining_attempts": 2,
+            }
+        )
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
@@ -240,11 +248,13 @@ class TestAuthLogin:
         mock_request.headers = {"Authorization": "Bearer old_access_token"}
 
         mock_jwt_service.extract_token_from_header.return_value = "old_access_token"
-        mock_jwt_service.refresh_access_token = AsyncMock(return_value={
-            "success": True,
-            "access_token": "new_access_token",
-            "refresh_token": "new_refresh_token",
-        })
+        mock_jwt_service.refresh_access_token = AsyncMock(
+            return_value={
+                "success": True,
+                "access_token": "new_access_token",
+                "refresh_token": "new_refresh_token",
+            }
+        )
 
         # Act
         result = await refresh_access_token(refresh_request, mock_request, mock_db)
@@ -265,11 +275,13 @@ class TestAuthLogin:
         refresh_request = RefreshTokenRequest(refresh_token="refresh_token_123")
         mock_request.headers = {}
 
-        mock_jwt_service.refresh_access_token = AsyncMock(return_value={
-            "success": True,
-            "access_token": "new_access_token",
-            "refresh_token": "new_refresh_token",
-        })
+        mock_jwt_service.refresh_access_token = AsyncMock(
+            return_value={
+                "success": True,
+                "access_token": "new_access_token",
+                "refresh_token": "new_refresh_token",
+            }
+        )
 
         # Act
         result = await refresh_access_token(refresh_request, mock_request, mock_db)
@@ -287,7 +299,9 @@ class TestAuthLogin:
         refresh_request = RefreshTokenRequest(refresh_token="invalid_token")
         mock_request.headers = {}
 
-        mock_jwt_service.refresh_access_token = AsyncMock(return_value={"success": False, "error": "Invalid refresh token"})
+        mock_jwt_service.refresh_access_token = AsyncMock(
+            return_value={"success": False, "error": "Invalid refresh token"}
+        )
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:

@@ -1,19 +1,18 @@
 """Unit tests for rate limiting middleware."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Send, Scope
 
+import pytest
+from fastapi import HTTPException, Request
+from src.common.services.rate_limit_service import RateLimitExceededError
 from src.middleware.rate_limit import (
     RateLimitMiddleware,
     create_rate_limit_decorator,
     login_rate_limit,
-    register_rate_limit,
     password_reset_rate_limit,
+    register_rate_limit,
 )
-from src.common.services.rate_limit_service import RateLimitExceededError
+from starlette.types import ASGIApp
 
 
 class TestRateLimitMiddleware:
@@ -48,10 +47,10 @@ class TestRateLimitMiddleware:
         http_scope["path"] = "/health"
         receive = AsyncMock()
         send = AsyncMock()
-        
+
         # Act
         await middleware(http_scope, receive, send)
-        
+
         # Assert
         mock_app.assert_called_once_with(http_scope, receive, send)
 
@@ -62,10 +61,10 @@ class TestRateLimitMiddleware:
         http_scope["path"] = "/docs"
         receive = AsyncMock()
         send = AsyncMock()
-        
+
         # Act
         await middleware(http_scope, receive, send)
-        
+
         # Assert
         mock_app.assert_called_once_with(http_scope, receive, send)
 
@@ -78,10 +77,10 @@ class TestRateLimitMiddleware:
         send = AsyncMock()
         mock_rate_limit_service.get_client_key.return_value = "test_key"
         mock_rate_limit_service.check_rate_limit.return_value = None
-        
+
         # Act
         await middleware(http_scope, receive, send)
-        
+
         # Assert
         mock_app.assert_called_once_with(http_scope, receive, send)
         mock_rate_limit_service.get_client_key.assert_called_once()
@@ -95,18 +94,18 @@ class TestRateLimitMiddleware:
         receive = AsyncMock()
         send = AsyncMock()
         mock_rate_limit_service.get_client_key.return_value = "test_key"
-        
+
         # Simulate rate limit exceeded
         exc = RateLimitExceededError("Rate limit exceeded", retry_after=60)
         mock_rate_limit_service.check_rate_limit.side_effect = exc
-        
+
         # Act
         await middleware(http_scope, receive, send)
-        
+
         # Assert
         # The app should not be called
         mock_app.assert_not_called()
-        
+
         # The send function should be called with error response
         # Check that send was called multiple times (for status, headers, body)
         assert send.call_count > 0
@@ -118,10 +117,10 @@ class TestRateLimitMiddleware:
         scope = {"type": "websocket"}
         receive = AsyncMock()
         send = AsyncMock()
-        
+
         # Act
         await middleware(scope, receive, send)
-        
+
         # Assert
         mock_app.assert_called_once_with(scope, receive, send)
 
@@ -173,15 +172,15 @@ class TestRateLimitDecorator:
         mock_request.state.user_id = "123"
         mock_rate_limit_service.get_client_key.return_value = "test_key"
         mock_rate_limit_service.check_rate_limit.return_value = None
-        
+
         # Create a test function
         @create_rate_limit_decorator(5, 60)
         async def test_func(request: Request):
             return {"success": True}
-        
+
         # Act
         result = await test_func(mock_request)
-        
+
         # Assert
         assert result == {"success": True}
         mock_rate_limit_service.get_client_key.assert_called_once_with(mock_request, "123")
@@ -195,20 +194,20 @@ class TestRateLimitDecorator:
         mock_request = Mock(spec=Request)
         mock_request.state.user_id = None
         mock_rate_limit_service.get_client_key.return_value = "test_key"
-        
+
         # Simulate rate limit exceeded
         exc = RateLimitExceededError("Rate limit exceeded", retry_after=60)
         mock_rate_limit_service.check_rate_limit.side_effect = exc
-        
+
         # Create a test function
         @create_rate_limit_decorator(5, 60)
         async def test_func(request: Request):
             return {"success": True}
-        
+
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
             await test_func(mock_request)
-        
+
         assert exc_info.value.status_code == 429
         assert exc_info.value.detail == "Rate limit exceeded"
         assert exc_info.value.headers["Retry-After"] == "60"
@@ -216,14 +215,15 @@ class TestRateLimitDecorator:
     @pytest.mark.asyncio
     async def test_decorator_without_request(self):
         """Test decorator when request is not in arguments."""
+
         # Create a test function without request parameter
         @create_rate_limit_decorator(5, 60)
         async def test_func(value: str):
             return {"value": value}
-        
+
         # Act
         result = await test_func("test")
-        
+
         # Assert
         assert result == {"value": "test"}
 

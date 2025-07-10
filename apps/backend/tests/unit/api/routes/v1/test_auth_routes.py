@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import BackgroundTasks
-from src.api.routes.v1.auth_register import register_user
 from src.api.routes.v1.auth_password import forgot_password
+from src.api.routes.v1.auth_register import register_user
 
 
 class TestAuthRegisterRoute:
@@ -63,7 +63,7 @@ class TestAuthRegisterRoute:
         """Test register route error handling with background tasks."""
         # Arrange
         from fastapi import HTTPException
-        
+
         request_data = Mock()
         request_data.model_dump.return_value = {
             "username": "testuser",
@@ -75,14 +75,12 @@ class TestAuthRegisterRoute:
         background_tasks = Mock(spec=BackgroundTasks)
 
         # Mock registration failure
-        mock_user_service.register_user = AsyncMock(
-            return_value={"success": False, "error": "Email already exists"}
-        )
+        mock_user_service.register_user = AsyncMock(return_value={"success": False, "error": "Email already exists"})
 
         # Act & Assert - should raise HTTPException
         with pytest.raises(HTTPException) as exc_info:
             await register_user(request_data, background_tasks, mock_db)
-        
+
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "Email already exists"
 
@@ -127,7 +125,7 @@ class TestAuthPasswordRoute:
         """Test forgot password route error handling."""
         # Arrange
         from fastapi import HTTPException
-        
+
         request_data = Mock()
         request_data.email = "nonexistent@example.com"
 
@@ -145,7 +143,7 @@ class TestAuthPasswordRoute:
         # Act & Assert - should raise HTTPException (currently returns 500 due to KeyError)
         with pytest.raises(HTTPException) as exc_info:
             await forgot_password(request_data, background_tasks, mock_db)
-        
+
         # The current implementation has a bug where it tries to access result["message"]
         # even when success is False, causing a KeyError that results in a 500 error
         assert exc_info.value.status_code == 500

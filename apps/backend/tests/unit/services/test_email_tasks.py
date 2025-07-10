@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import BackgroundTasks
 from src.common.services.email_tasks import EmailTasks
+from tenacity import RetryError
 
 
 @pytest.fixture
@@ -134,12 +135,12 @@ async def test_send_email_with_retry_failure(
 ):
     """Test email sending with retry on failure."""
     # 模拟邮件发送失败
-    mock_email_service.send_verification_email.side_effect = Exception("SMTP Error")
+    mock_email_service.send_verification_email.side_effect = RuntimeError("SMTP Error")
 
     # 测试重试机制
     with patch("src.common.services.email_tasks.logger") as mock_logger:
         # 由于 @retry 装饰器会在所有重试失败后抛出 RetryError
-        with pytest.raises(Exception):
+        with pytest.raises(RetryError):
             await email_tasks_service._send_email_with_retry(
                 email_type="verification",
                 to_email="test@example.com",

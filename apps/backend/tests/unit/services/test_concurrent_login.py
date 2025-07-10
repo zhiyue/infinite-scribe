@@ -224,21 +224,19 @@ class TestLoginWithSessionManagement:
                 self.user_service.jwt_service,
                 "create_access_token",
                 return_value=("access_token", "new_jti", utc_now() + timedelta(minutes=15)),
-            ):
-                with patch.object(
-                    self.user_service.jwt_service,
-                    "create_refresh_token",
-                    return_value=("refresh_token", utc_now() + timedelta(days=7)),
-                ):
-                    with patch("src.common.services.user_service.select", return_value=mock_query):
-                        # 模拟 session 创建
-                        mock_session_service.create_session = AsyncMock(return_value=Mock(spec=Session))
-                        mock_session_service.revoke_session = AsyncMock()
+            ), patch.object(
+                self.user_service.jwt_service,
+                "create_refresh_token",
+                return_value=("refresh_token", utc_now() + timedelta(days=7)),
+            ), patch("src.common.services.user_service.select", return_value=mock_query):
+                # 模拟 session 创建
+                mock_session_service.create_session = AsyncMock(return_value=Mock(spec=Session))
+                mock_session_service.revoke_session = AsyncMock()
 
-                        # 执行登录
-                        result = await self.user_service.login(
-                            self.mock_db, "test@example.com", "ValidPassword", "127.0.0.1", "TestAgent"
-                        )
+                # 执行登录
+                result = await self.user_service.login(
+                    self.mock_db, "test@example.com", "ValidPassword", "127.0.0.1", "TestAgent"
+                )
 
         # 验证登录成功
         assert result["success"]
