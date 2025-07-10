@@ -12,7 +12,7 @@ importers:
         specifier: ^3.839.0
         version: 3.839.0
       '@types/node':
-        specifier: ^20.11.0
+        specifier: ^20.19.2
         version: 20.19.2
       '@zilliz/milvus2-sdk-node':
         specifier: ^2.5.10
@@ -27,7 +27,7 @@ importers:
         specifier: ^2.2.4
         version: 2.2.4
       lint-staged:
-        specifier: ^15.2.0
+        specifier: ^15.5.2
         version: 15.5.2
       neo4j-driver:
         specifier: ^5.28.1
@@ -36,7 +36,7 @@ importers:
         specifier: ^8.16.3
         version: 8.16.3
       prettier:
-        specifier: ^3.2.5
+        specifier: ^3.6.2
         version: 3.6.2
       redis:
         specifier: ^5.5.6
@@ -78,10 +78,10 @@ importers:
         specifier: ~18.2.0
         version: 18.2.0(react@18.2.0)
       react-hook-form:
-        specifier: ^7.59.0
+        specifier: ^7.60.0
         version: 7.60.0(react@18.2.0)
       react-router-dom:
-        specifier: ~6.22.0
+        specifier: ~6.22.3
         version: 6.22.3(react-dom@18.2.0)(react@18.2.0)
       tailwind-merge:
         specifier: ^3.3.1
@@ -90,15 +90,18 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.17)
       zod:
-        specifier: ^3.25.74
+        specifier: ^3.25.76
         version: 3.25.76
       zustand:
-        specifier: ~4.5.0
+        specifier: ~4.5.7
         version: 4.5.7(@types/react@19.1.8)(react@18.2.0)
     devDependencies:
       '@eslint/js':
-        specifier: ^9.29.0
+        specifier: ^9.30.0
         version: 9.30.0
+      '@playwright/test':
+        specifier: ^1.54.0
+        version: 1.54.0
       '@tanstack/react-query-devtools':
         specifier: ^5.81.5
         version: 5.81.5(@tanstack/react-query@5.25.0)(react@18.2.0)
@@ -112,7 +115,7 @@ importers:
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.0)
       '@types/node':
-        specifier: ^20.11.0
+        specifier: ^20.19.2
         version: 20.19.2
       '@types/react':
         specifier: ^19.1.8
@@ -121,13 +124,13 @@ importers:
         specifier: ^19.1.6
         version: 19.1.6(@types/react@19.1.8)
       '@vitejs/plugin-react':
-        specifier: ^4.5.2
+        specifier: ^4.6.0
         version: 4.6.0(vite@7.0.0)
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.21(postcss@8.5.6)
       eslint:
-        specifier: ^9.29.0
+        specifier: ^9.30.0
         version: 9.30.0
       eslint-plugin-react-hooks:
         specifier: ^5.2.0
@@ -136,7 +139,7 @@ importers:
         specifier: ^0.4.20
         version: 0.4.20(eslint@9.30.0)
       globals:
-        specifier: ^16.2.0
+        specifier: ^16.3.0
         version: 16.3.0
       jsdom:
         specifier: ^26.1.0
@@ -145,13 +148,13 @@ importers:
         specifier: ^8.5.6
         version: 8.5.6
       tailwindcss:
-        specifier: ~3.4.1
+        specifier: ~3.4.17
         version: 3.4.17
       typescript:
         specifier: ~5.2.2
         version: 5.2.2
       typescript-eslint:
-        specifier: ^8.34.1
+        specifier: ^8.35.1
         version: 8.35.1(eslint@9.30.0)(typescript@5.2.2)
       vite:
         specifier: ^7.0.0
@@ -163,22 +166,22 @@ importers:
   packages/eslint-config-custom:
     dependencies:
       '@typescript-eslint/eslint-plugin':
-        specifier: ^7.0.0
+        specifier: ^7.18.0
         version: 7.18.0(@typescript-eslint/parser@7.18.0)(eslint@8.57.1)(typescript@5.2.2)
       '@typescript-eslint/parser':
-        specifier: ^7.0.0
+        specifier: ^7.18.0
         version: 7.18.0(eslint@8.57.1)(typescript@5.2.2)
       eslint:
-        specifier: ^8.57.0
+        specifier: ^8.57.1
         version: 8.57.1
       eslint-plugin-jsx-a11y:
-        specifier: ^6.8.0
+        specifier: ^6.10.2
         version: 6.10.2(eslint@8.57.1)
       eslint-plugin-react:
-        specifier: ^7.33.2
+        specifier: ^7.37.5
         version: 7.37.5(eslint@8.57.1)
       eslint-plugin-react-hooks:
-        specifier: ^4.6.0
+        specifier: ^4.6.2
         version: 4.6.2(eslint@8.57.1)
       typescript:
         specifier: '>=4.0.0'
@@ -1498,6 +1501,14 @@ packages:
     engines: {node: '>=14'}
     requiresBuild: true
     optional: true
+
+  /@playwright/test@1.54.0:
+    resolution: {integrity: sha512-6Mnd5daQmLivaLu5kxUg6FxPtXY4sXsS5SUwKjWNy4ISe4pKraNHoFxcsaTFiNUULbjy0Vlb5HT86QuM0Jy1pQ==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dependencies:
+      playwright: 1.54.0
+    dev: true
 
   /@protobufjs/aspromise@1.1.2:
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -4115,6 +4126,14 @@ packages:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
     dev: false
 
+  /fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -5293,6 +5312,22 @@ packages:
   /pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
+
+  /playwright-core@1.54.0:
+    resolution: {integrity: sha512-uiWpWaJh3R3etpJ0QrpligEMl62Dk1iSAB6NUXylvmQz+e3eipXHDHvOvydDAssb5Oqo0E818qdn0L9GcJSTyA==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dev: true
+
+  /playwright@1.54.0:
+    resolution: {integrity: sha512-y9yzHmXRwEUOpghM7XGcA38GjWuTOUMaTIcm/5rHcYVjh5MSp9qQMRRMc/+p1cx+csoPnX4wkxAF61v5VKirxg==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dependencies:
+      playwright-core: 1.54.0
+    optionalDependencies:
+      fsevents: 2.3.2
+    dev: true
 
   /possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
