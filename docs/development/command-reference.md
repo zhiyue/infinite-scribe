@@ -8,6 +8,9 @@ This document provides a quick reference for using either `make` or `pnpm` comma
 |------|--------------|--------------|
 | Install dependencies | `make backend-install` | `pnpm run backend:install` |
 | Run development server | `make backend-run` | `pnpm run backend:run` |
+| Run API Gateway (simple) | - | `pnpm run backend:api:simple` |
+| Run API Gateway (local) | - | `pnpm run backend:api:local` |
+| Run API Gateway (dev) | - | `pnpm run backend:api:dev` |
 | Lint code | `make backend-lint` | `pnpm run backend:lint` |
 | Format code | `make backend-format` | `pnpm run backend:format` |
 | Type check | `make backend-typecheck` | `pnpm run backend:typecheck` |
@@ -114,6 +117,11 @@ make dev  # Opens tmux with both servers
 # or run in separate terminals:
 pnpm run backend:run
 pnpm run frontend:run
+
+# Run API Gateway with different configurations
+pnpm run backend:api:simple  # Simple mode, no external service checks
+pnpm run backend:api:local   # Local mode with .env.local
+pnpm run backend:api:dev     # Dev mode connecting to 192.168.2.201
 
 # Run all tests
 make test-all

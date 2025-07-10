@@ -242,7 +242,7 @@ pnpm env:show
 uv sync --all-extras
 
 # Run backend server
-cd apps/backend && uv run uvicorn src.main:app --reload
+cd apps/backend && uv run uvicorn src.api.main:app --reload
 
 # Run tests (recommended: use test script with Docker containers)
 ./scripts/run-tests.sh --all --docker-host        # All tests with Docker
@@ -259,6 +259,11 @@ cd apps/backend && uv run ruff format src/
 
 # Type checking
 uv run mypy apps/backend/src/ --ignore-missing-imports
+
+# Run API Gateway with startup scripts
+./apps/backend/scripts/run-api-gateway-simple.sh    # Simple mode, no checks
+./apps/backend/scripts/run-api-gateway-local.sh     # Local mode with .env.local
+./apps/backend/scripts/run-api-gateway-dev.sh       # Dev mode with remote services
 ```
 
 ### Frontend Development

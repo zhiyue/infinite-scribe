@@ -7,7 +7,8 @@ set -e
 
 # 设置脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$BACKEND_DIR/../.." && pwd)"
 
 # 切换到项目根目录
 cd "$PROJECT_ROOT"
@@ -74,7 +75,7 @@ echo "安装/更新依赖..."
 uv sync --all-extras
 
 # 设置环境变量
-export PYTHONPATH="$PROJECT_ROOT/apps/backend:$PYTHONPATH"
+export PYTHONPATH="$BACKEND_DIR:$PYTHONPATH"
 export SERVICE_TYPE="api-gateway"
 
 # 设置日志级别
@@ -92,5 +93,5 @@ echo "========================================="
 echo ""
 
 # 运行 API Gateway
-cd apps/backend
+cd "$BACKEND_DIR"
 uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000

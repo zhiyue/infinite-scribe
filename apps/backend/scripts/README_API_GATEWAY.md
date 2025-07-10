@@ -10,14 +10,14 @@
 最简单的启动脚本，直接运行 API Gateway，不检查外部服务。
 
 ```bash
-./scripts/run-api-gateway-simple.sh
+./apps/backend/scripts/run-api-gateway-simple.sh
 ```
 
 ### 2. run-api-gateway-local.sh
 本地开发脚本，使用 `.env.local` 配置，检查与远程服务的连接状态。
 
 ```bash
-./scripts/run-api-gateway-local.sh
+./apps/backend/scripts/run-api-gateway-local.sh
 ```
 
 特点：
@@ -29,7 +29,7 @@
 开发环境脚本，连接到开发服务器（192.168.2.201）的基础设施服务。
 
 ```bash
-./scripts/run-api-gateway-dev.sh
+./apps/backend/scripts/run-api-gateway-dev.sh
 ```
 
 特点：
@@ -43,13 +43,13 @@
 如果你想使用本地的 PostgreSQL、Neo4j 和 Redis：
 
 1. 修改 `.env.local` 文件，将所有主机地址改为 `localhost`
-2. 运行 `./scripts/run-api-gateway-local.sh`
+2. 运行 `./apps/backend/scripts/run-api-gateway-local.sh`
 
 ### 使用远程开发服务器
 如果你想连接到开发服务器（192.168.2.201）：
 
 1. 确保在同一网络或已连接 VPN
-2. 运行 `./scripts/run-api-gateway-dev.sh`
+2. 运行 `./apps/backend/scripts/run-api-gateway-dev.sh`
 
 ### 自定义配置
 你也可以手动设置环境变量：
@@ -65,7 +65,7 @@ export POSTGRES_PORT=5432
 export POSTGRES_PASSWORD=your-password
 
 # 运行简单脚本
-./scripts/run-api-gateway-simple.sh
+./apps/backend/scripts/run-api-gateway-simple.sh
 ```
 
 ## 访问服务
@@ -97,7 +97,7 @@ lsof -i :8000
 
 # 或使用不同端口
 export API_PORT=8001
-./scripts/run-api-gateway-simple.sh
+./apps/backend/scripts/run-api-gateway-simple.sh
 ```
 
 ### 依赖安装失败
