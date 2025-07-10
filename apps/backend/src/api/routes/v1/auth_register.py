@@ -127,12 +127,14 @@ async def verify_email(
 )
 async def resend_verification_email(
     request: ResendVerificationRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse | ErrorResponse:
     """Resend verification email to user.
 
     Args:
         request: Email to resend verification to
+        background_tasks: FastAPI background tasks for async operations
         db: Database session
 
     Returns:
@@ -142,10 +144,15 @@ async def resend_verification_email(
         HTTPException: If resending fails
     """
     try:
-        # For security, we don't reveal if email exists or not
-        # This is a simplified implementation - in production you might want
-        # to check if user exists and is not already verified
+        # 调用用户服务的重发验证邮件方法
+        result = await user_service.resend_verification_email(
+            db, 
+            request.email, 
+            background_tasks
+        )
 
+        # For security, always return the same message regardless of whether
+        # the email exists or not
         return MessageResponse(
             success=True,
             message="If the email exists and is not verified, a verification email has been sent",

@@ -241,6 +241,37 @@ class EmailService:
             text_content=text_content,
         )
 
+    async def send_password_changed_email(self, user_email: str, user_name: str) -> bool:
+        """Send password changed notification email.
+
+        Args:
+            user_email: Recipient email address
+            user_name: User's name
+
+        Returns:
+            True if email was sent successfully
+        """
+        # Render templates
+        html_template = self.template_env.get_template("password_changed.html")
+        text_template = self.template_env.get_template("password_changed.txt")
+
+        context = {
+            "user_name": user_name,
+            "app_name": "Infinite Scribe",
+            "app_url": settings.frontend_url,
+            "support_email": settings.auth.resend_from_email,
+        }
+
+        html_content = html_template.render(**context)
+        text_content = text_template.render(**context)
+
+        return await self.send_email(
+            to=[user_email],
+            subject="Password Changed Successfully",
+            html_content=html_content,
+            text_content=text_content,
+        )
+
 
 # Create singleton instance
 email_service = EmailService()

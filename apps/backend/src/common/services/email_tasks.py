@@ -65,6 +65,11 @@ class EmailTasks:
                     to_email,
                     kwargs.get("user_name", ""),
                 )
+            elif email_type == "password_changed":
+                result = await email_service.send_password_changed_email(
+                    to_email,
+                    kwargs.get("user_name", ""),
+                )
             else:
                 logger.error(f"未知的邮件类型: {email_type}")
                 return False
@@ -149,6 +154,27 @@ class EmailTasks:
             user_name=user_name,
         )
         logger.info(f"已将欢迎邮件任务加入队列: {user_email}")
+
+    async def send_password_changed_email_async(
+        self,
+        background_tasks: BackgroundTasks,
+        user_email: str,
+        user_name: str,
+    ) -> None:
+        """异步发送密码更改通知邮件
+
+        Args:
+            background_tasks: FastAPI 后台任务对象
+            user_email: 用户邮箱
+            user_name: 用户名称
+        """
+        background_tasks.add_task(
+            self._send_email_with_retry,
+            email_type="password_changed",
+            to_email=user_email,
+            user_name=user_name,
+        )
+        logger.info(f"已将密码更改通知邮件任务加入队列: {user_email}")
 
 
 # 创建全局实例
