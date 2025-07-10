@@ -7,7 +7,6 @@ import pytest
 from src.common.services.session_service import SessionService
 from src.common.utils.datetime_utils import utc_now
 from src.models.session import Session
-from src.models.user import User
 from src.schemas.session import SessionCacheSchema
 
 
@@ -155,6 +154,6 @@ class TestSessionCacheOptimization:
 
         # 验证尝试了缓存查询
         mock_redis_service.get.assert_called_once_with("session:jti:test_jti")
-        
+
         # 验证回退到数据库查询
         assert self.mock_db.execute.call_count == 1

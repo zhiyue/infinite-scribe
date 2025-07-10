@@ -1,12 +1,12 @@
 """Unit tests for configuration management."""
 
 import os
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 # from src.core.config import get_backend_root  # 已删除
 
 
@@ -333,4 +333,3 @@ def test_litellm_url_with_trailing_slash():
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com"}):
         settings = MockSettings()
         assert settings.litellm_api_url == "https://api.example.com/"
-

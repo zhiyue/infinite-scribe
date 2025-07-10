@@ -113,17 +113,17 @@ class TestSessionServiceCaching:
             obj.created_at = utc_now()
             obj.updated_at = utc_now()
             # 确保所有必填字段有正确的值
-            if not hasattr(obj, 'last_accessed_at') or obj.last_accessed_at is None:
+            if not hasattr(obj, "last_accessed_at") or obj.last_accessed_at is None:
                 obj.last_accessed_at = utc_now()
-            if not hasattr(obj, 'is_active') or obj.is_active is None:
+            if not hasattr(obj, "is_active") or obj.is_active is None:
                 obj.is_active = True
-            if not hasattr(obj, 'revoked_at'):
+            if not hasattr(obj, "revoked_at"):
                 obj.revoked_at = None
 
         self.mock_db.refresh = mock_refresh
 
         # 创建 session
-        session = await self.session_service.create_session(
+        await self.session_service.create_session(
             db=self.mock_db,
             user_id=1,
             jti="test_jti_123",

@@ -33,7 +33,7 @@ class TestCORSMiddleware:
 
         # Assert
         # Check that middleware was added
-        middlewares = [m for m in app.user_middleware]
+        middlewares = list(app.user_middleware)
         cors_middleware_found = False
         for middleware in middlewares:
             if "CORSMiddleware" in str(middleware.cls):
@@ -58,7 +58,7 @@ class TestCORSMiddleware:
         add_cors_middleware(app)
 
         # Assert
-        middlewares = [m for m in app.user_middleware]
+        middlewares = list(app.user_middleware)
         cors_middleware = None
         for middleware in middlewares:
             if "CORSMiddleware" in str(middleware.cls):

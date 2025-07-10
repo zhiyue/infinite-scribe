@@ -1,8 +1,8 @@
 """Unit tests for Redis service."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from src.common.services.redis_service import RedisService
 
 
@@ -27,14 +27,14 @@ class TestRedisService:
         # Arrange
         mock_client = AsyncMock()
         mock_from_url.return_value = mock_client
-        
+
         # Act
         await redis_service.connect()
-        
+
         # Assert
         assert redis_service._client == mock_client
         mock_from_url.assert_called_once()
-        
+
         # Test that it doesn't reconnect if already connected
         await redis_service.connect()
         mock_from_url.assert_called_once()  # Still only called once
@@ -44,10 +44,10 @@ class TestRedisService:
         """Test Redis disconnection."""
         # Arrange
         redis_service._client = mock_redis_client
-        
+
         # Act
         await redis_service.disconnect()
-        
+
         # Assert
         assert redis_service._client is None
         mock_redis_client.close.assert_called_once()
@@ -65,10 +65,10 @@ class TestRedisService:
         # Arrange
         redis_service._client = mock_redis_client
         mock_redis_client.ping.return_value = "PONG"
-        
+
         # Act
         result = await redis_service.check_connection()
-        
+
         # Assert
         assert result is True
         mock_redis_client.ping.assert_called_once()
@@ -78,7 +78,7 @@ class TestRedisService:
         """Test connection check when no client exists."""
         # Act
         result = await redis_service.check_connection()
-        
+
         # Assert
         assert result is False
 
@@ -88,10 +88,10 @@ class TestRedisService:
         # Arrange
         redis_service._client = mock_redis_client
         mock_redis_client.ping.side_effect = Exception("Connection failed")
-        
+
         # Act
         result = await redis_service.check_connection()
-        
+
         # Assert
         assert result is False
 
@@ -101,10 +101,10 @@ class TestRedisService:
         # Arrange
         redis_service._client = mock_redis_client
         mock_redis_client.get.return_value = "test_value"
-        
+
         # Act
         result = await redis_service.get("test_key")
-        
+
         # Assert
         assert result == "test_value"
         mock_redis_client.get.assert_called_once_with("test_key")
@@ -121,10 +121,10 @@ class TestRedisService:
         """Test successful set operation."""
         # Arrange
         redis_service._client = mock_redis_client
-        
+
         # Act
         await redis_service.set("test_key", "test_value", expire=60)
-        
+
         # Assert
         mock_redis_client.set.assert_called_once_with("test_key", "test_value", ex=60)
 
@@ -133,10 +133,10 @@ class TestRedisService:
         """Test set operation without expiration."""
         # Arrange
         redis_service._client = mock_redis_client
-        
+
         # Act
         await redis_service.set("test_key", "test_value")
-        
+
         # Assert
         mock_redis_client.set.assert_called_once_with("test_key", "test_value", ex=None)
 
@@ -152,10 +152,10 @@ class TestRedisService:
         """Test successful delete operation."""
         # Arrange
         redis_service._client = mock_redis_client
-        
+
         # Act
         await redis_service.delete("test_key")
-        
+
         # Assert
         mock_redis_client.delete.assert_called_once_with("test_key")
 
@@ -172,10 +172,10 @@ class TestRedisService:
         # Arrange
         redis_service._client = mock_redis_client
         mock_redis_client.exists.return_value = 1
-        
+
         # Act
         result = await redis_service.exists("test_key")
-        
+
         # Assert
         assert result is True
         mock_redis_client.exists.assert_called_once_with("test_key")
@@ -186,10 +186,10 @@ class TestRedisService:
         # Arrange
         redis_service._client = mock_redis_client
         mock_redis_client.exists.return_value = 0
-        
+
         # Act
         result = await redis_service.exists("test_key")
-        
+
         # Assert
         assert result is False
 
@@ -207,7 +207,7 @@ class TestRedisService:
         # Arrange
         mock_client = AsyncMock()
         redis_service._client = mock_client
-        
+
         # Act
         async with redis_service.acquire() as client:
             # Assert
@@ -221,14 +221,14 @@ class TestRedisService:
         # Arrange
         mock_client = AsyncMock()
         mock_from_url.return_value = mock_client
-        
+
         # Act
         async with redis_service.acquire() as client:
             # Assert
             assert client == mock_client
             assert redis_service._client == mock_client
             mock_from_url.assert_called_once()
-        
+
         # Client should still be connected after context exit
         assert redis_service._client == mock_client
 
@@ -241,10 +241,10 @@ class TestRedisService:
         mock_settings.database.redis_url = "redis://test:6379"
         mock_client = AsyncMock()
         mock_from_url.return_value = mock_client
-        
+
         # Act
         await redis_service.connect()
-        
+
         # Assert
         mock_from_url.assert_called_once_with(
             "redis://test:6379",

@@ -37,6 +37,12 @@ class AuditService:
 
         # Create file handler for audit logs
         if not self.logger.handlers:
+            import os
+
+            log_dir = "logs"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
+
             handler = logging.FileHandler("logs/audit.log")
             formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)

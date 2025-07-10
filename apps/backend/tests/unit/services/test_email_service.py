@@ -22,7 +22,7 @@ class TestEmailService:
             mock_settings.frontend_url = "http://localhost:3000"
             mock_settings.auth.password_reset_expire_hours = 1
 
-            with patch("src.common.services.email_service.EmailService.__init__", return_value=None) as mock_init:
+            with patch("src.common.services.email_service.EmailService.__init__", return_value=None):
                 service = EmailService()
                 service.is_development = True
                 service.use_maildev = True
@@ -40,8 +40,10 @@ class TestEmailService:
             mock_settings.frontend_url = "https://example.com"
             mock_settings.auth.password_reset_expire_hours = 1
 
-            with patch("src.common.services.email_service.EmailService.__init__", return_value=None) as mock_init:
-                with patch("resend.api_key") as mock_api_key:
+            with (
+                patch("src.common.services.email_service.EmailService.__init__", return_value=None),
+                patch("resend.api_key"),
+            ):
                     service = EmailService()
                     service.is_development = False
                     service.use_maildev = False
@@ -131,8 +133,10 @@ class TestEmailService:
     async def test_send_email_development_headers(self):
         """Test that development headers are added in development mode."""
         # Arrange
-        with patch("src.common.services.email_service.EmailService.__init__", return_value=None):
-            with patch("resend.api_key") as mock_api_key:
+        with (
+            patch("src.common.services.email_service.EmailService.__init__", return_value=None),
+            patch("resend.api_key"),
+        ):
                 service = EmailService()
                 service.is_development = True
                 service.use_maildev = False  # Force Resend in dev
@@ -279,7 +283,7 @@ class TestEmailService:
             mock_settings.auth.use_maildev = False
             mock_settings.auth.resend_api_key = "test_api_key"
 
-            with patch("resend.api_key") as mock_api_key:
+            with patch("resend.api_key"):
                 # Act
                 service = EmailService()
 
