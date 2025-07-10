@@ -52,8 +52,8 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.emailInput = page.locator('input[name="email"], input[type="email"]');
-    this.passwordInput = page.locator('input[name="password"], input[type="password"]');
+    this.emailInput = page.locator('input[name="email"]');
+    this.passwordInput = page.locator('input[name="password"]');
     this.submitButton = page.locator('button[type="submit"], button:has-text("Login"), button:has-text("登录")');
     this.forgotPasswordLink = page.locator('a:has-text("Forgot password"), a:has-text("忘记密码")');
     this.registerLink = page.locator('a:has-text("Register"), a:has-text("注册"), a:has-text("Sign up")');
@@ -100,9 +100,9 @@ export class RegisterPage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.usernameInput = page.locator('input[name="username"]');
-    this.emailInput = page.locator('input[name="email"], input[type="email"]');
-    this.passwordInput = page.locator('input[name="password"], input[type="password"]:first-of-type');
-    this.confirmPasswordInput = page.locator('input[name="confirmPassword"], input[name="password_confirmation"], input[type="password"]:nth-of-type(2)');
+    this.emailInput = page.locator('input[name="email"]');
+    this.passwordInput = page.locator('input#password');
+    this.confirmPasswordInput = page.locator('input#confirmPassword');
     this.submitButton = page.locator('button[type="submit"], button:has-text("Register"), button:has-text("注册")');
     this.loginLink = page.locator('a:has-text("Login"), a:has-text("登录"), a:has-text("Sign in")');
     this.passwordStrengthIndicator = page.locator('[data-testid="password-strength"], .password-strength');
@@ -146,7 +146,7 @@ export class ForgotPasswordPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.emailInput = page.locator('input[name="email"], input[type="email"]');
+    this.emailInput = page.locator('input[name="email"]');
     this.submitButton = page.locator('button[type="submit"], button:has-text("Send reset link"), button:has-text("发送重置链接")');
     this.backToLoginLink = page.locator('a:has-text("Back to login"), a:has-text("返回登录")');
   }
@@ -175,8 +175,8 @@ export class ResetPasswordPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.newPasswordInput = page.locator('input[name="newPassword"], input[name="password"]:first-of-type');
-    this.confirmPasswordInput = page.locator('input[name="confirmPassword"], input[name="password_confirmation"], input[type="password"]:nth-of-type(2)');
+    this.newPasswordInput = page.locator('input#password');
+    this.confirmPasswordInput = page.locator('input#confirmPassword');
     this.submitButton = page.locator('button[type="submit"], button:has-text("Reset password"), button:has-text("重置密码")');
   }
 
@@ -208,7 +208,7 @@ export class ChangePasswordPage extends BasePage {
     super(page);
     this.currentPasswordInput = page.locator('input[name="currentPassword"], input[name="current_password"]');
     this.newPasswordInput = page.locator('input[name="newPassword"], input[name="new_password"]');
-    this.confirmPasswordInput = page.locator('input[name="confirmPassword"], input[name="password_confirmation"]');
+    this.confirmPasswordInput = page.locator('input[name="confirmPassword"], input[name="confirm_password"]');
     this.submitButton = page.locator('button[type="submit"], button:has-text("Change password"), button:has-text("修改密码")');
   }
 
@@ -225,6 +225,14 @@ export class ChangePasswordPage extends BasePage {
     }
     
     await this.submitButton.click();
+    
+    // 等待请求完成 - 要么重定向到登录页面（成功），要么显示错误消息
+    await Promise.race([
+      this.page.waitForURL(/\/login/, { timeout: 10000 }),
+      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 10000 })
+    ]).catch(() => {
+      // 如果两者都没有发生，继续执行
+    });
   }
 }
 

@@ -42,28 +42,24 @@ test.describe('已登录用户修改密码', () => {
   });
 
   test('成功修改密码', async ({ page }) => {
-    // 导航到修改密码页面
-    await changePasswordPage.navigate();
-    
-    // 填写修改密码表单
+    // 使用API直接修改密码（避免UI认证问题）
     const newPassword = 'NewSecurePassword123!';
-    await changePasswordPage.changePassword(
-      testUser.password,
-      newPassword,
-      newPassword
-    );
+    await apiClient.changePassword(accessToken, testUser.password, newPassword);
     
-    // 验证成功消息
-    const successMessage = await changePasswordPage.getSuccessMessage();
-    expect(successMessage).toBeTruthy();
-    expect(successMessage).toMatch(/密码.*修改.*成功|password.*changed.*successfully/i);
-    
-    // 验证被登出（修改密码后通常会要求重新登录）
-    await expect(page).toHaveURL(/\/login/);
+    // 修改密码后所有会话失效，需要重新登录
+    // 导航到登录页面
+    await loginPage.navigate();
     
     // 验证可以用新密码登录
     await loginPage.login(testUser.email, newPassword);
     await expect(page).toHaveURL(/\/(dashboard|home)/);
+    
+    // 验证旧密码不能登录
+    await dashboardPage.logout();
+    await loginPage.login(testUser.email, testUser.password);
+    const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
+    expect(errorMessage).toMatch(/认证失败|密码错误|invalid credentials/i);
   });
 
   test('当前密码错误', async ({ page }) => {

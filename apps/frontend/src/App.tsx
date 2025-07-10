@@ -9,7 +9,7 @@ import RegisterPage from './pages/auth/Register';
 import ResetPasswordPage from './pages/auth/ResetPassword';
 import DashboardPage from './pages/Dashboard';
 import ProfilePage from './pages/Profile';
-import ChangePasswordPage from './pages/ChangePassword';
+import ChangePasswordPage from './pages/auth/ChangePassword';
 
 // Global styles
 import './index.css';
