@@ -61,19 +61,19 @@ services:
     profiles:
       - development
     ports:
-      - "1080:1080"   # Web UI
-      - "1025:1025"   # SMTP Server
+      - "1080:1080" # Web UI
+      - "1025:1025" # SMTP Server
     networks:
       - infinite-scribe-network
     environment:
       - MAILDEV_SMTP_PORT=1025
       - MAILDEV_WEB_PORT=1080
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:1080/', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:1080" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Neo4j Graph Database
   neo4j:
