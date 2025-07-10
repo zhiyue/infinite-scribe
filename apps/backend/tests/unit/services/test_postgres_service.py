@@ -66,6 +66,7 @@ class TestPostgreSQLService:
     @patch("src.common.services.postgres_service.settings")
     async def test_connect_failure(self, mock_settings, mock_create_pool, service):
         """Test connection failure."""
+
         # Setup
         async def mock_create_pool_func(*args, **kwargs):
             raise Exception("Connection failed")
@@ -123,9 +124,21 @@ class TestPostgreSQLService:
         # Setup
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
-        mock_conn.fetchval.return_value = 1
 
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+        # Create a proper async context manager class
+        class MockAsyncContext:
+            async def __aenter__(self):
+                return mock_conn
+
+            async def __aexit__(self, *args):
+                return None
+
+        # Mock the acquire method to return an actual context manager instance
+        mock_pool.acquire = lambda: MockAsyncContext()
+
+        # Mock the async fetchval method
+        mock_conn.fetchval = AsyncMock(return_value=1)
+
         service._pool = mock_pool
 
         # Execute
@@ -141,9 +154,21 @@ class TestPostgreSQLService:
         # Setup
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
-        mock_conn.fetchval.return_value = 2  # Wrong value
 
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+        # Create a proper async context manager class
+        class MockAsyncContext:
+            async def __aenter__(self):
+                return mock_conn
+
+            async def __aexit__(self, *args):
+                return None
+
+        # Mock the acquire method to return an actual context manager instance
+        mock_pool.acquire = lambda: MockAsyncContext()
+
+        # Mock the async fetchval method
+        mock_conn.fetchval = AsyncMock(return_value=2)  # Wrong value
+
         service._pool = mock_pool
 
         # Execute
@@ -158,9 +183,21 @@ class TestPostgreSQLService:
         # Setup
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
-        mock_conn.fetchval.side_effect = Exception("Query failed")
 
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+        # Create a proper async context manager class
+        class MockAsyncContext:
+            async def __aenter__(self):
+                return mock_conn
+
+            async def __aexit__(self, *args):
+                return None
+
+        # Mock the acquire method to return an actual context manager instance
+        mock_pool.acquire = lambda: MockAsyncContext()
+
+        # Mock the async fetchval method to raise exception
+        mock_conn.fetchval = AsyncMock(side_effect=Exception("Query failed"))
+
         service._pool = mock_pool
 
         # Execute
@@ -182,7 +219,17 @@ class TestPostgreSQLService:
             service._pool = mock_pool
 
         mock_connect.side_effect = mock_connect_side_effect
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+
+        # Create a proper async context manager class
+        class MockAsyncContext:
+            async def __aenter__(self):
+                return mock_conn
+
+            async def __aexit__(self, *args):
+                return None
+
+        # Mock the acquire method to return an actual context manager instance
+        mock_pool.acquire = lambda: MockAsyncContext()
 
         # Execute
         async with service.acquire() as conn:
@@ -197,15 +244,23 @@ class TestPostgreSQLService:
         # Setup
         mock_pool = AsyncMock()
         mock_conn = AsyncMock()
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+
+        # Create a proper async context manager class
+        class MockAsyncContext:
+            async def __aenter__(self):
+                return mock_conn
+
+            async def __aexit__(self, *args):
+                return None
+
+        # Mock the acquire method to return an actual context manager instance
+        mock_pool.acquire = lambda: MockAsyncContext()
+
         service._pool = mock_pool
 
         # Execute
         async with service.acquire() as conn:
             assert conn == mock_conn
-
-        # Verify
-        mock_pool.acquire.assert_called_once()
 
     @pytest.mark.asyncio
     @patch.object(PostgreSQLService, "acquire")
