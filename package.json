@@ -69,6 +69,8 @@
     "infra:deploy:local": "./scripts/deployment/deploy-infrastructure.sh --local",
     "infra:deploy:clean": "./scripts/deployment/deploy-infrastructure.sh --clean",
     "infra:deploy:local:clean": "./scripts/deployment/deploy-infrastructure.sh --local --clean",
+    "infra:deploy:dev": "./scripts/deployment/deploy-infrastructure.sh --profile development",
+    "infra:deploy:local:dev": "./scripts/deployment/deploy-infrastructure.sh --local --profile development",
     "infra:up": "docker compose --env-file .env.infrastructure up -d",
     "infra:down": "docker compose --env-file .env.infrastructure down",
     "infra:logs": "docker compose --env-file .env.infrastructure logs -f",
