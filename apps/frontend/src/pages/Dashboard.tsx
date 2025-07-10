@@ -2,7 +2,7 @@
  * Dashboard page component with shadcn/ui
  */
 
-import { LogOut, Settings, Shield, User } from 'lucide-react';
+import { LogOut, RefreshCw, Settings, Shield, User } from 'lucide-react';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -11,13 +11,32 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const DashboardPage: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, getCurrentUser } = useAuth();
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+    // 只在用户数据为空时获取用户数据（避免不必要的API调用）
+    React.useEffect(() => {
+        if (!user) {
+            getCurrentUser().catch(console.error);
+        }
+    }, []); // 只在组件挂载时检查一次
 
     const handleLogout = async () => {
         try {
             await logout();
         } catch (error) {
             console.error('Logout failed:', error);
+        }
+    };
+
+    const handleRefresh = async () => {
+        try {
+            setIsRefreshing(true);
+            await getCurrentUser();
+        } catch (error) {
+            console.error('Failed to refresh user data:', error);
+        } finally {
+            setIsRefreshing(false);
         }
     };
 
@@ -37,6 +56,15 @@ const DashboardPage: React.FC = () => {
                                     {user?.email || 'User'}
                                 </span>
                             </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                title="刷新用户数据"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            </Button>
                             <Button variant="outline" size="sm" onClick={handleLogout}>
                                 <LogOut className="h-4 w-4 mr-2" />
                                 Logout
