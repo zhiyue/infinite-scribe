@@ -81,9 +81,11 @@ test.describe('密码重置流程', () => {
 
     // 测试无效邮箱格式
     await forgotPasswordPage.requestPasswordReset('invalid-email');
-    await page.waitForTimeout(500);
+    // 等待验证消息出现
+    const errorLocator = page.locator('.text-destructive, [role="alert"]');
+    await errorLocator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
     // 检查错误消息或验证状态
-    const emailError = await page.locator('.text-destructive, [role="alert"]').textContent().catch(() => null);
+    const emailError = await errorLocator.textContent().catch(() => null);
     if (emailError) {
       expect(emailError).toMatch(/valid email|有效.*邮箱/i);
     } else {
