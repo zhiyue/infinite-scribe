@@ -7,6 +7,7 @@ from typing import Any
 
 from redis import Redis
 
+from src.common.utils.datetime_utils import utc_now
 from src.core.config import settings
 
 
@@ -99,9 +100,7 @@ class RateLimitService:
         self.redis_client.setex(redis_key, window + 1, json.dumps(rate_data))
 
         remaining = limit - len(requests)
-        reset_time = (
-            datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)
-        )
+        reset_time = datetime.fromtimestamp(requests[0] + window) if requests else utc_now() + timedelta(seconds=window)
 
         return {"allowed": True, "remaining": remaining, "limit": limit, "reset_time": reset_time}
 
@@ -134,9 +133,7 @@ class RateLimitService:
 
         current = len(requests)
         remaining = max(0, limit - current)
-        reset_time = (
-            datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)
-        )
+        reset_time = datetime.fromtimestamp(requests[0] + window) if requests else utc_now() + timedelta(seconds=window)
 
         return {
             "current": current,

@@ -1197,6 +1197,7 @@ dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "bcrypt" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "langfuse" },
@@ -1204,7 +1205,6 @@ dependencies = [
     { name = "minio" },
     { name = "neo4j" },
     { name = "openai" },
-    { name = "passlib", extra = ["bcrypt"] },
     { name = "prefect" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
@@ -1247,6 +1247,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.16.2" },
     { name = "anthropic", specifier = "~=0.39.0" },
     { name = "asyncpg", specifier = "~=0.30.0" },
+    { name = "bcrypt", specifier = ">=4.0.0,<5.0.0" },
     { name = "fastapi", specifier = "~=0.115.13" },
     { name = "httpx", specifier = "~=0.27.0" },
     { name = "langfuse", specifier = "~=2.25.0" },
@@ -1254,7 +1255,6 @@ requires-dist = [
     { name = "minio", specifier = "~=7.2.10" },
     { name = "neo4j", specifier = "~=5.26.0" },
     { name = "openai", specifier = "~=1.54.0" },
-    { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "prefect", specifier = "~=2.19.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = "~=2.11.7" },
@@ -2041,20 +2041,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/66/94/68e2e17afaa9169cf6412ab0f28623903be73d1b32e208d9e8e541bb086d/parso-0.8.4.tar.gz", hash = "sha256:eb3a7b58240fb99099a345571deecc0f9540ea5f4dd2fe14c2a99d6b281ab92d", size = 400609, upload-time = "2024-04-05T09:43:55.897Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c6/ac/dac4a63f978e4dcb3c6d3a78c4d8e0192a113d288502a1216950c41b1027/parso-0.8.4-py2.py3-none-any.whl", hash = "sha256:a418670a20291dacd2dddc80c377c5c3791378ee1e8d12bffc35420643d43f18", size = 103650, upload-time = "2024-04-05T09:43:53.299Z" },
-]
-
-[[package]]
-name = "passlib"
-version = "1.7.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/06/9da9ee59a67fae7761aab3ccc84fa4f3f33f125b370f1ccdb915bf967c11/passlib-1.7.4.tar.gz", hash = "sha256:defd50f72b65c5402ab2c573830a6978e5f202ad0d984793c8dde2c4152ebe04", size = 689844, upload-time = "2020-10-08T19:00:52.121Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl", hash = "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1", size = 525554, upload-time = "2020-10-08T19:00:49.856Z" },
-]
-
-[package.optional-dependencies]
-bcrypt = [
-    { name = "bcrypt" },
 ]
 
 [[package]]

@@ -7,11 +7,11 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from src.common.services.postgres_service import postgres_service
+from src.common.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class TaskService:
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         """
 
-        now = datetime.utcnow()
+        now = utc_now()
         await postgres_service.execute(
             query,
             (
@@ -97,7 +97,7 @@ class TaskService:
         WHERE id = $5
         """
 
-        now = datetime.utcnow()
+        now = utc_now()
         await postgres_service.execute(query, (TaskStatus.RUNNING, now, now, message, task_id))
 
         # 获取任务信息用于SSE推送
@@ -118,7 +118,7 @@ class TaskService:
         WHERE id = $5
         """
 
-        await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))
+        await postgres_service.execute(query, (progress, stage, message, utc_now(), task_id))
 
         # 获取任务信息用于SSE推送
         # TODO: 实现 SSE 服务后启用
@@ -142,7 +142,7 @@ class TaskService:
         actual_duration = None
         if task_info and task_info.get("started_at"):
             started_at = task_info["started_at"]
-            actual_duration = int((datetime.utcnow() - started_at).total_seconds())
+            actual_duration = int((utc_now() - started_at).total_seconds())
 
         # 更新数据库
         query = """
@@ -152,7 +152,7 @@ class TaskService:
         WHERE id = $8
         """
 
-        now = datetime.utcnow()
+        now = utc_now()
         await postgres_service.execute(
             query,
             (
@@ -186,7 +186,7 @@ class TaskService:
         actual_duration = None
         if task_info and task_info.get("started_at"):
             started_at = task_info["started_at"]
-            actual_duration = int((datetime.utcnow() - started_at).total_seconds())
+            actual_duration = int((utc_now() - started_at).total_seconds())
 
         # 更新数据库
         query = """
@@ -196,7 +196,7 @@ class TaskService:
         WHERE id = $6
         """
 
-        now = datetime.utcnow()
+        now = utc_now()
         await postgres_service.execute(
             query, (TaskStatus.FAILED, json.dumps(error_data), now, now, actual_duration, task_id)
         )
@@ -231,7 +231,7 @@ class TaskService:
             query,
             (
                 TaskStatus.CANCELLED,
-                datetime.utcnow(),
+                utc_now(),
                 task_id,
                 TaskStatus.PENDING,
                 TaskStatus.RUNNING,

@@ -1,7 +1,7 @@
 """Email verification model for email confirmation and password reset."""
 
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import cast
 
@@ -9,6 +9,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
+from src.common.utils.datetime_utils import utc_now
 from src.models.base import BaseModel
 
 
@@ -36,8 +37,8 @@ class EmailVerification(BaseModel):
     email = Column(String(255), nullable=False)  # Store email in case user changes it
 
     # Token lifecycle
-    expires_at = Column(DateTime, nullable=False)
-    used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
 
     # Request metadata
     requested_from_ip = Column(String(45), nullable=True)
@@ -87,7 +88,7 @@ class EmailVerification(BaseModel):
             email=email,
             token=cls.generate_token(),
             purpose=purpose,
-            expires_at=datetime.now(UTC) + timedelta(hours=expires_in_hours),
+            expires_at=utc_now() + timedelta(hours=expires_in_hours),
             requested_from_ip=requested_from_ip,
             user_agent=user_agent,
         )
@@ -98,7 +99,7 @@ class EmailVerification(BaseModel):
         if self.expires_at is None:
             return True
         expires_at = cast(datetime, self.expires_at)
-        return datetime.now(UTC) > expires_at
+        return utc_now() > expires_at
 
     @property
     def is_used(self) -> bool:
@@ -112,7 +113,7 @@ class EmailVerification(BaseModel):
 
     def mark_as_used(self) -> None:
         """Mark the token as used."""
-        self.used_at = datetime.now(UTC)
+        self.used_at = utc_now()
 
     def to_dict(self) -> dict:
         """Convert verification to dictionary."""
