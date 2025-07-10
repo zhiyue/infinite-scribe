@@ -1,0 +1,17 @@
+# Playwright 测试产生的文件
+test-results/
+playwright-report/
+playwright/.cache/
+
+# 测试产生的截图和视频
+*.png
+*.jpg
+*.mp4
+*.webm
+
+# 测试日志
+*.log
+
+# 临时文件
+*.tmp
+.DS_Store
