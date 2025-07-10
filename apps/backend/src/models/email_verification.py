@@ -1,16 +1,21 @@
 """Email verification model for email confirmation and password reset."""
 
+from __future__ import annotations
+
 import secrets
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.common.utils.datetime_utils import utc_now
 from src.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from src.models.user import User
 
 
 class VerificationPurpose(str, Enum):
@@ -26,23 +31,23 @@ class EmailVerification(BaseModel):
     __tablename__ = "email_verifications"
 
     # User relationship
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user = relationship("User", back_populates="email_verifications")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user: Mapped[User] = relationship(back_populates="email_verifications")
 
     # Token information
-    token = Column(String(255), unique=True, nullable=False, index=True)
-    purpose = Column(SQLEnum(VerificationPurpose), nullable=False)
+    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    purpose: Mapped[VerificationPurpose] = mapped_column(SQLEnum(VerificationPurpose), nullable=False)
 
     # Email tracking
-    email = Column(String(255), nullable=False)  # Store email in case user changes it
+    email: Mapped[str] = mapped_column(String(255), nullable=False)  # Store email in case user changes it
 
     # Token lifecycle
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    used_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Request metadata
-    requested_from_ip = Column(String(45), nullable=True)
-    user_agent = Column(String(500), nullable=True)
+    requested_from_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Indexes for performance
     __table_args__ = (
@@ -69,7 +74,7 @@ class EmailVerification(BaseModel):
         expires_in_hours: int = 24,
         requested_from_ip: str | None = None,
         user_agent: str | None = None,
-    ) -> "EmailVerification":
+    ) -> EmailVerification:
         """Create a new verification token for a user.
 
         Args:

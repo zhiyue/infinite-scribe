@@ -5,7 +5,7 @@ from collections.abc import Callable
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from src.common.services.rate_limit_service import RateLimitExceeded, rate_limit_service
+from src.common.services.rate_limit_service import RateLimitExceededError, rate_limit_service
 
 
 class RateLimitMiddleware:
@@ -26,7 +26,7 @@ class RateLimitMiddleware:
             # Apply rate limiting
             try:
                 await self._check_rate_limit(request)
-            except RateLimitExceeded as e:
+            except RateLimitExceededError as e:
                 response = JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={"detail": str(e), "retry_after": e.retry_after},
@@ -95,7 +95,7 @@ def create_rate_limit_decorator(limit: int, window: int):
 
                 try:
                     rate_limit_service.check_rate_limit(client_key, limit, window, raise_exception=True)
-                except RateLimitExceeded as e:
+                except RateLimitExceededError as e:
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         detail=str(e),

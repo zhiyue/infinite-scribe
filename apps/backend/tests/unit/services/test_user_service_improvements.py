@@ -107,11 +107,18 @@ class TestSessionServiceCaching:
         # 模拟 Redis 服务
         mock_redis_service.set = AsyncMock()
 
-        # 模拟数据库的 refresh 方法来设置 session ID
+        # 模拟数据库的 refresh 方法来设置 session ID 和必要字段
         async def mock_refresh(obj):
             obj.id = 1
             obj.created_at = utc_now()
             obj.updated_at = utc_now()
+            # 确保所有必填字段有正确的值
+            if not hasattr(obj, 'last_accessed_at') or obj.last_accessed_at is None:
+                obj.last_accessed_at = utc_now()
+            if not hasattr(obj, 'is_active') or obj.is_active is None:
+                obj.is_active = True
+            if not hasattr(obj, 'revoked_at'):
+                obj.revoked_at = None
 
         self.mock_db.refresh = mock_refresh
 
