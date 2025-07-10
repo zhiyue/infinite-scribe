@@ -2,9 +2,10 @@
 
 import json
 import logging
-from datetime import datetime
 from enum import Enum
 from typing import Any
+
+from src.common.utils.datetime_utils import utc_now
 
 
 class AuditEventType(str, Enum):
@@ -65,7 +66,7 @@ class AuditService:
             error_message: Error message if event failed
         """
         audit_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "event_type": event_type.value,
             "user_id": user_id,
             "email": email,

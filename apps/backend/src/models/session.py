@@ -1,10 +1,9 @@
 """Session model for JWT token management and blacklisting."""
 
-from datetime import datetime
-
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
+from src.common.utils.datetime_utils import utc_now
 from src.models.base import BaseModel
 
 
@@ -28,13 +27,13 @@ class Session(BaseModel):
     device_name = Column(String(100), nullable=True)
 
     # Token lifecycle
-    access_token_expires_at = Column(DateTime, nullable=False)
-    refresh_token_expires_at = Column(DateTime, nullable=False)
-    last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    access_token_expires_at = Column(DateTime(timezone=True), nullable=False)
+    refresh_token_expires_at = Column(DateTime(timezone=True), nullable=False)
+    last_accessed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
-    revoked_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
     revoke_reason = Column(String(255), nullable=True)
 
     # Indexes for performance
@@ -52,12 +51,12 @@ class Session(BaseModel):
     @property
     def is_access_token_expired(self) -> bool:
         """Check if the access token is expired."""
-        return datetime.utcnow() > self.access_token_expires_at
+        return utc_now() > self.access_token_expires_at
 
     @property
     def is_refresh_token_expired(self) -> bool:
         """Check if the refresh token is expired."""
-        return datetime.utcnow() > self.refresh_token_expires_at
+        return utc_now() > self.refresh_token_expires_at
 
     @property
     def is_valid(self) -> bool:
@@ -71,7 +70,7 @@ class Session(BaseModel):
             reason: Optional reason for revocation
         """
         self.is_active = False
-        self.revoked_at = datetime.utcnow()
+        self.revoked_at = utc_now()
         if reason:
             self.revoke_reason = reason
 

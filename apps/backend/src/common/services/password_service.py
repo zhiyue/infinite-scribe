@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from passlib.context import CryptContext
+import bcrypt
 
 from src.core.config import settings
 
@@ -13,8 +13,9 @@ class PasswordService:
 
     def __init__(self):
         """Initialize password service."""
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.min_length = settings.auth.password_min_length
+        # bcrypt 的默认 rounds 是 12，可以根据需要调整
+        self.rounds = 12
 
         # Common passwords to check against
         self.common_passwords = {
@@ -53,7 +54,13 @@ class PasswordService:
         Returns:
             Hashed password
         """
-        return self.pwd_context.hash(password)
+        # bcrypt 需要字节类型的输入
+        password_bytes = password.encode("utf-8")
+        # 生成盐并哈希密码
+        salt = bcrypt.gensalt(rounds=self.rounds)
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        # 返回字符串格式
+        return hashed.decode("utf-8")
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash.
@@ -66,7 +73,11 @@ class PasswordService:
             True if password matches, False otherwise
         """
         try:
-            return self.pwd_context.verify(plain_password, hashed_password)
+            # bcrypt 需要字节类型的输入
+            password_bytes = plain_password.encode("utf-8")
+            hashed_bytes = hashed_password.encode("utf-8")
+            # 验证密码
+            return bcrypt.checkpw(password_bytes, hashed_bytes)
         except Exception:
             return False
 

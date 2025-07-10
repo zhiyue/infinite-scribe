@@ -138,3 +138,65 @@ uv run alembic history
 # - cdbb7c721fea -> add_column_comments_to_all_tables
 # - 3b8fe0c17290 -> initial_migration_for_core_business_
 ```
+
+## 2025-07-10 - 更新所有 DateTime 字段为 timestamptz
+
+### Migration ID: e63af3b9a311
+
+### 执行结果
+✅ **成功** - 迁移已成功应用到数据库
+
+### 更新内容
+
+将所有认证相关表的 DateTime 字段从 TIMESTAMP 更新为 TIMESTAMP WITH TIME ZONE (timestamptz)：
+
+**更新的表和字段：**
+
+1. **users 表（6个字段）：**
+   - ✓ locked_until - 账户锁定到期时间
+   - ✓ last_login_at - 最后登录时间
+   - ✓ email_verified_at - 邮箱验证时间
+   - ✓ password_changed_at - 密码修改时间
+   - ✓ created_at - 创建时间
+   - ✓ updated_at - 更新时间
+
+2. **sessions 表（6个字段）：**
+   - ✓ access_token_expires_at - 访问令牌过期时间
+   - ✓ refresh_token_expires_at - 刷新令牌过期时间
+   - ✓ last_accessed_at - 最后访问时间
+   - ✓ revoked_at - 撤销时间
+   - ✓ created_at - 创建时间
+   - ✓ updated_at - 更新时间
+
+3. **email_verifications 表（4个字段）：**
+   - ✓ expires_at - 验证码过期时间
+   - ✓ used_at - 验证码使用时间
+   - ✓ created_at - 创建时间
+   - ✓ updated_at - 更新时间
+
+### 技术改进
+
+1. **时区处理改进**
+   - 所有时间戳现在都包含时区信息
+   - 数据库自动处理时区转换
+   - 避免时区相关的 bug
+
+2. **国际化支持**
+   - 更好地支持多时区用户
+   - 时间显示更加准确
+   - 符合最佳实践
+
+3. **数据完整性**
+   - 此迁移不会丢失任何数据
+   - 仅改变列的数据类型
+   - 支持回滚操作
+
+### 应用迁移
+
+```bash
+# 应用迁移到数据库
+uv run alembic upgrade head
+
+# 验证迁移状态
+uv run alembic current
+```

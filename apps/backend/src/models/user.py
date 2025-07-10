@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Index, String
+from sqlalchemy import DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.common.utils.datetime_utils import utc_now
 from src.models.base import BaseModel  # 假设你有一个 BaseModel
 
 if TYPE_CHECKING:
@@ -36,13 +37,13 @@ class User(BaseModel):
 
     # Security
     failed_login_attempts: Mapped[int] = mapped_column(default=0)
-    locked_until: Mapped[datetime | None] = mapped_column(default=None)
-    last_login_at: Mapped[datetime | None] = mapped_column(default=None)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_login_ip: Mapped[str | None] = mapped_column(String(45), default=None)  # Support IPv6
 
     # Timestamps
-    email_verified_at: Mapped[datetime | None] = mapped_column(default=None)
-    password_changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    password_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     sessions: Mapped[list[Session]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -73,7 +74,7 @@ class User(BaseModel):
         """Check if the account is currently locked."""
         if not self.locked_until:
             return False
-        return datetime.utcnow() < self.locked_until
+        return utc_now() < self.locked_until
 
     @property
     def is_email_verified(self) -> bool:
@@ -101,8 +102,8 @@ class User(BaseModel):
             "is_active": self.is_active,
             "is_verified": self.is_verified,
             "is_superuser": self.is_superuser,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
             "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
         }
 
