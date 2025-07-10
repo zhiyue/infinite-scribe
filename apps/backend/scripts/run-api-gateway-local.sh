@@ -7,22 +7,14 @@ set -e
 
 # 设置脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# 切换到项目根目录
-cd "$PROJECT_ROOT"
+# 切换到 backend 目录
+cd "$BACKEND_DIR"
 
 echo "========================================="
 echo "启动 Infinite Scribe API Gateway (本地)"
 echo "========================================="
-
-# 切换到本地开发环境配置
-echo "切换到本地开发环境..."
-if [ -L ".env" ]; then
-    rm .env
-fi
-ln -s .env.local .env
-echo "已切换到 .env.local"
 
 # 检查 Python 环境
 echo ""
@@ -71,7 +63,7 @@ echo "安装/更新依赖..."
 uv sync --all-extras
 
 # 设置环境变量
-export PYTHONPATH="$PROJECT_ROOT/apps/backend:$PYTHONPATH"
+export PYTHONPATH="$BACKEND_DIR:$PYTHONPATH"
 export SERVICE_TYPE="api-gateway"
 
 # 设置日志级别
@@ -89,5 +81,4 @@ echo "========================================="
 echo ""
 
 # 运行 API Gateway
-cd apps/backend
 uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000

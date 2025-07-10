@@ -175,6 +175,35 @@ Backs up:
 - MinIO object storage (novels bucket)
 - Environment configuration files
 
+### Backend Scripts (`../apps/backend/scripts/`)
+Backend-specific scripts for running services and utilities.
+
+#### API Gateway Startup Scripts
+Located in `apps/backend/scripts/`:
+
+- **`run-api-gateway-simple.sh`**: Simple startup without external service checks
+  ```bash
+  ./apps/backend/scripts/run-api-gateway-simple.sh
+  # Or using pnpm
+  pnpm backend:api:simple
+  ```
+
+- **`run-api-gateway-local.sh`**: Local development with `.env.local` configuration
+  ```bash
+  ./apps/backend/scripts/run-api-gateway-local.sh
+  # Or using pnpm
+  pnpm backend:api:local
+  ```
+
+- **`run-api-gateway-dev.sh`**: Development mode connecting to remote services (192.168.2.201)
+  ```bash
+  ./apps/backend/scripts/run-api-gateway-dev.sh
+  # Or using pnpm
+  pnpm backend:api:dev
+  ```
+
+See `apps/backend/scripts/README_API_GATEWAY.md` for detailed documentation.
+
 ### Utilities (`utils/`)
 Utility scripts for migrations and miscellaneous tasks.
 
