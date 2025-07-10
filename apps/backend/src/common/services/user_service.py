@@ -306,6 +306,75 @@ class UserService:
             await db.rollback()
             return {"success": False, "error": "An error occurred during email verification"}
 
+    async def resend_verification_email(
+        self,
+        db: AsyncSession,
+        email: str,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        """Resend verification email to user.
+
+        Args:
+            db: Database session
+            email: User's email
+            background_tasks: Optional FastAPI background tasks for async email sending
+
+        Returns:
+            Result dictionary with success status
+        """
+        try:
+            # 查找用户
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+
+            # 为了安全，即使用户不存在也返回成功
+            if not user:
+                logger.info(f"Resend verification requested for non-existent email: {email}")
+                return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+
+            # 检查用户是否已经验证
+            if user.email_verified_at:
+                logger.info(f"Resend verification requested for already verified user: {email}")
+                return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+
+            # 创建新的验证令牌
+            verification = EmailVerification.create_for_user(
+                user_id=cast(int, user.id),
+                email=cast(str, user.email),
+                purpose=VerificationPurpose.EMAIL_VERIFY,
+                expires_in_hours=settings.auth.email_verification_expire_hours,
+            )
+            db.add(verification)
+            await db.commit()
+
+            # 生成验证URL
+            verification_url = f"{self.frontend_url}/verify-email?token={verification.token}"
+
+            # 发送验证邮件
+            if background_tasks:
+                # 使用异步任务发送邮件
+                await email_tasks.send_verification_email_async(
+                    background_tasks,
+                    cast(str, user.email),
+                    user.full_name,
+                    verification_url,
+                )
+            else:
+                # 兼容旧代码，同步发送邮件
+                await self.email_service.send_verification_email(
+                    cast(str, user.email),
+                    user.full_name,
+                    verification_url,
+                )
+
+            logger.info(f"Verification email resent to {email}")
+            return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+
+        except Exception as e:
+            logger.error(f"Error resending verification email: {e}")
+            await db.rollback()
+            return {"success": False, "error": "An error occurred while resending verification email"}
+
     async def request_password_reset(
         self,
         db: AsyncSession,
@@ -428,6 +497,88 @@ class UserService:
             logger.error(f"Password reset error: {e}")
             await db.rollback()
             return {"success": False, "error": "An error occurred during password reset"}
+
+    async def change_password(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        current_password: str,
+        new_password: str,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        """Change user's password (for authenticated users).
+
+        Args:
+            db: Database session
+            user_id: User ID
+            current_password: Current password
+            new_password: New password
+            background_tasks: Optional FastAPI background tasks for async email sending
+
+        Returns:
+            Result dictionary with success status
+        """
+        try:
+            # Get user
+            result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return {"success": False, "error": "User not found"}
+
+            # Verify current password
+            if not self.password_service.verify_password(current_password, cast(str, user.password_hash)):
+                return {"success": False, "error": "Current password is incorrect"}
+
+            # Check if new password is the same as current
+            if self.password_service.verify_password(new_password, cast(str, user.password_hash)):
+                return {"success": False, "error": "New password must be different from current password"}
+
+            # Validate new password strength
+            password_result = self.password_service.validate_password_strength(new_password)
+            if not password_result["is_valid"]:
+                return {"success": False, "error": "; ".join(password_result["errors"])}
+
+            # Update password
+            user.password_hash = self.password_service.hash_password(new_password)
+            user.password_changed_at = utc_now()
+
+            # Invalidate all user sessions for security
+            sessions_result = await db.execute(
+                select(Session).where(Session.user_id == user.id, Session.is_active.is_(True))
+            )
+            sessions = sessions_result.scalars().all()
+            for session in sessions:
+                session.revoke("Password changed")
+                # Blacklist access tokens
+                if session.jti and session.access_token_expires_at:
+                    self.jwt_service.blacklist_token(
+                        cast(str, session.jti), cast(datetime, session.access_token_expires_at)
+                    )
+
+            await db.commit()
+
+            # Send password changed notification email
+            if background_tasks:
+                # 使用异步任务发送邮件
+                await email_tasks.send_password_changed_email_async(
+                    background_tasks,
+                    cast(str, user.email),
+                    user.full_name,
+                )
+            else:
+                # 兼容旧代码，同步发送邮件
+                await self.email_service.send_password_changed_email(
+                    cast(str, user.email),
+                    user.full_name,
+                )
+
+            return {"success": True, "message": "Password changed successfully"}
+
+        except Exception as e:
+            logger.error(f"Change password error: {e}")
+            await db.rollback()
+            return {"success": False, "error": "An error occurred during password change"}
 
     async def _handle_session_strategy(self, db: AsyncSession, user_id: int) -> None:
         """Handle session management strategy.

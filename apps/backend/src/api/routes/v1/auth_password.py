@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import (
@@ -113,6 +113,7 @@ async def reset_password(
 )
 async def change_password(
     request: ChangePasswordRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MessageResponse | ErrorResponse:
@@ -120,6 +121,7 @@ async def change_password(
 
     Args:
         request: Change password request
+        background_tasks: FastAPI background tasks for async operations
         db: Database session
         current_user: Current authenticated user
 
@@ -130,32 +132,15 @@ async def change_password(
         HTTPException: If password change fails
     """
     try:
-        # Validate new password strength
-        validation_result = password_service.validate_password_strength(request.new_password)
-        if not validation_result["is_valid"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password is too weak: {', '.join(validation_result['errors'])}",
-            )
-
-        # Verify current password
-        if not password_service.verify_password(request.current_password, str(current_user.password_hash)):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
-
-        # Check if new password is the same as current
-        if password_service.verify_password(request.new_password, str(current_user.password_hash)):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New password must be different from current password",
-            )
-
-        # TODO: Implement actual password change logic
-        # This requires additional methods in UserService
-
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Password change not yet implemented",
+        # Change password using UserService
+        result = await user_service.change_password(
+            db, current_user.id, request.current_password, request.new_password, background_tasks
         )
+
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+
+        return MessageResponse(success=True, message="Password has been changed successfully")
 
     except HTTPException:
         raise
@@ -167,14 +152,14 @@ async def change_password(
         ) from None
 
 
-@router.post(
+@router.get(
     "/validate-password",
     response_model=PasswordStrengthResponse,
     summary="Validate password strength",
     description="Check password strength and get suggestions",
 )
 async def validate_password_strength(
-    password: str,
+    password: str = Query(..., description="Password to validate"),
 ) -> PasswordStrengthResponse:
     """Validate password strength and return suggestions.
 
