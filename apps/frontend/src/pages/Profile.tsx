@@ -4,7 +4,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Loader2, User } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
@@ -17,11 +17,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-// Validation schema
+// Error type definition
+interface ApiError {
+    detail?: string;
+    message?: string;
+}
+
+// Helper function to extract error message
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null) {
+        const apiError = error as ApiError;
+        return apiError.detail || apiError.message || 'Failed to update profile';
+    }
+    return 'An unexpected error occurred';
+};
+
+// Validation schema with trim transformation
 const profileSchema = z.object({
-    first_name: z.string().optional(),
-    last_name: z.string().optional(),
-    bio: z.string().max(500, 'Bio must be less than 500 characters').optional(),
+    first_name: z.string()
+        .transform(v => v.trim())
+        .optional()
+        .or(z.literal('')),
+    last_name: z.string()
+        .transform(v => v.trim())
+        .optional()
+        .or(z.literal('')),
+    bio: z.string()
+        .max(500, 'Bio must be less than 500 characters')
+        .transform(v => v.trim())
+        .optional()
+        .or(z.literal('')),
 });
 
 const ProfilePage: React.FC = () => {
@@ -33,7 +59,9 @@ const ProfilePage: React.FC = () => {
     const {
         register,
         handleSubmit,
-        formState: { errors },
+        formState: { errors, isSubmitting },
+        watch,
+        reset,
     } = useForm<UpdateProfileRequest>({
         resolver: zodResolver(profileSchema),
         defaultValues: {
@@ -43,16 +71,30 @@ const ProfilePage: React.FC = () => {
         },
     });
 
+    // Watch bio field for character count
+    const bioValue = watch('bio') || '';
+
+    // Sync form data when user data changes (async loading)
+    useEffect(() => {
+        if (user) {
+            reset({
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
+                bio: user.bio || '',
+            });
+        }
+    }, [user, reset]);
+
     const onSubmit = async (data: UpdateProfileRequest) => {
         try {
             setUpdateError(null);
             setUpdateSuccess(false);
             await updateProfile(data);
             setUpdateSuccess(true);
-            // 清除成功消息
+            // Clear success message after 5 seconds
             setTimeout(() => setUpdateSuccess(false), 5000);
-        } catch (error: any) {
-            setUpdateError(error?.detail || 'Failed to update profile');
+        } catch (error: unknown) {
+            setUpdateError(getErrorMessage(error));
         }
     };
 
@@ -105,10 +147,11 @@ const ProfilePage: React.FC = () => {
                                         id="email"
                                         type="email"
                                         value={user?.email || ''}
-                                        disabled
-                                        className="bg-gray-50"
+                                        readOnly
+                                        className="bg-gray-50 cursor-not-allowed"
+                                        aria-describedby="email-hint"
                                     />
-                                    <p className="text-xs text-muted-foreground">
+                                    <p id="email-hint" className="text-xs text-muted-foreground">
                                         Email cannot be changed
                                     </p>
                                 </div>
@@ -119,10 +162,11 @@ const ProfilePage: React.FC = () => {
                                         id="username"
                                         type="text"
                                         value={user?.username || ''}
-                                        disabled
-                                        className="bg-gray-50"
+                                        readOnly
+                                        className="bg-gray-50 cursor-not-allowed"
+                                        aria-describedby="username-hint"
                                     />
-                                    <p className="text-xs text-muted-foreground">
+                                    <p id="username-hint" className="text-xs text-muted-foreground">
                                         Username cannot be changed
                                     </p>
                                 </div>
@@ -136,9 +180,13 @@ const ProfilePage: React.FC = () => {
                                             id="first_name"
                                             type="text"
                                             placeholder="Enter your first name"
+                                            aria-invalid={!!errors.first_name}
+                                            aria-describedby={errors.first_name ? 'first_name-error' : undefined}
                                         />
                                         {errors.first_name && (
-                                            <p className="text-sm text-destructive">{errors.first_name.message}</p>
+                                            <p id="first_name-error" className="text-sm text-destructive" role="alert">
+                                                {errors.first_name.message}
+                                            </p>
                                         )}
                                     </div>
 
@@ -149,9 +197,13 @@ const ProfilePage: React.FC = () => {
                                             id="last_name"
                                             type="text"
                                             placeholder="Enter your last name"
+                                            aria-invalid={!!errors.last_name}
+                                            aria-describedby={errors.last_name ? 'last_name-error' : undefined}
                                         />
                                         {errors.last_name && (
-                                            <p className="text-sm text-destructive">{errors.last_name.message}</p>
+                                            <p id="last_name-error" className="text-sm text-destructive" role="alert">
+                                                {errors.last_name.message}
+                                            </p>
                                         )}
                                     </div>
                                 </div>
@@ -163,13 +215,22 @@ const ProfilePage: React.FC = () => {
                                         id="bio"
                                         placeholder="Tell us about yourself"
                                         rows={4}
+                                        aria-invalid={!!errors.bio}
+                                        aria-describedby={errors.bio ? 'bio-error' : 'bio-hint'}
                                     />
                                     {errors.bio && (
-                                        <p className="text-sm text-destructive">{errors.bio.message}</p>
+                                        <p id="bio-error" className="text-sm text-destructive" role="alert">
+                                            {errors.bio.message}
+                                        </p>
                                     )}
-                                    <p className="text-xs text-muted-foreground">
-                                        Maximum 500 characters
-                                    </p>
+                                    <div className="flex justify-between items-center">
+                                        <p id="bio-hint" className="text-xs text-muted-foreground">
+                                            Maximum 500 characters
+                                        </p>
+                                        <span className={`text-xs ${bioValue.length > 500 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                            {bioValue.length}/500
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -178,11 +239,12 @@ const ProfilePage: React.FC = () => {
                                     type="button"
                                     variant="outline"
                                     onClick={() => navigate('/dashboard')}
+                                    disabled={isLoading || isSubmitting}
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={isLoading}>
-                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                <Button type="submit" disabled={isLoading || isSubmitting}>
+                                    {(isLoading || isSubmitting) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Save Changes
                                 </Button>
                             </div>

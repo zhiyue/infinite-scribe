@@ -99,9 +99,13 @@ const DashboardPage: React.FC = () => {
                                 <Settings className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">Now</div>
+                                <div className="text-2xl font-bold">
+                                    {user?.last_login_at
+                                        ? new Date(user.last_login_at).toLocaleString()
+                                        : 'Now'}
+                                </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Current session
+                                    {user?.last_login_at ? 'Last login time' : 'Current session'}
                                 </p>
                             </CardContent>
                         </Card>
@@ -147,6 +151,14 @@ const DashboardPage: React.FC = () => {
                                     <span className="text-sm font-medium">Email Verified:</span>
                                     <span className="text-sm text-green-600">
                                         {user?.is_verified ? 'Yes' : 'No'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium">Last Login:</span>
+                                    <span className="text-sm text-gray-600">
+                                        {user?.last_login_at
+                                            ? new Date(user.last_login_at).toLocaleString()
+                                            : 'N/A'}
                                     </span>
                                 </div>
                             </CardContent>
