@@ -7,6 +7,12 @@ node_modules/
 coverage/
 .nyc_output
 
+# Playwright E2E Testing
+playwright-report/
+test-results/
+apps/frontend/playwright-report/
+apps/frontend/test-results/
+
 # Production builds
 dist/
 build/
