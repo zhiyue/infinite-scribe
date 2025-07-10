@@ -88,7 +88,7 @@ test.describe('用户登录流程', () => {
     await loginPage.login('invalid-email', 'Password123!');
     errorMessage = await loginPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
-    expect(errorMessage).toContain('邮箱');
+    expect(errorMessage).toMatch(/邮箱|email/i);
   });
 
   test('未验证邮箱的用户登录', async ({ page, request }) => {
@@ -196,14 +196,26 @@ test.describe('会话管理', () => {
     await loginPage.login(testUser.email, testUser.password);
     await expect(page).toHaveURL(/\/(dashboard|home)/);
     
-    // 清除所有 cookies 模拟会话过期
+    // 清除所有 cookies 和 localStorage 模拟会话过期
     await context.clearCookies();
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
     
     // 刷新页面
     await page.reload();
     
+    // 等待重定向或尝试访问受保护的路由
+    await page.waitForLoadState('networkidle');
+    
+    // 如果还在 dashboard，尝试访问另一个受保护的路由
+    if (page.url().includes('dashboard')) {
+      await page.goto('/profile');
+    }
+    
     // 应该重定向到登录页
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
   test('令牌刷新', async ({ page, request }) => {

@@ -8,9 +8,9 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../hooks/useAuth';
-import type { ChangePasswordRequest } from '../types/auth';
-import { PasswordValidator } from '../utils/passwordValidator';
+import { useAuth } from '../../hooks/useAuth';
+import type { ChangePasswordRequest } from '../../types/auth';
+import { PasswordValidator } from '../../utils/passwordValidator';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
