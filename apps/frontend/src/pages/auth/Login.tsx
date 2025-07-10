@@ -87,7 +87,7 @@ const LoginPage: React.FC = () => {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="w-full max-w-md">
-                <Card>
+                <Card data-testid="login-card">
                     <CardHeader className="space-y-1">
                         <CardTitle className="text-2xl text-center">Sign in</CardTitle>
                         <CardDescription className="text-center">
@@ -95,7 +95,7 @@ const LoginPage: React.FC = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
                             {error && !needsEmailVerification && (
                                 <div className="rounded-md bg-destructive/15 p-3" role="alert">
                                     <div className="text-sm text-destructive error-message">
@@ -151,6 +151,7 @@ const LoginPage: React.FC = () => {
                                     type="email"
                                     placeholder="Enter your email"
                                     autoComplete="email"
+                                    data-testid="email-input"
                                 />
                                 {errors.email && (
                                     <p className="text-sm text-destructive error-message" role="alert">{errors.email.message}</p>
@@ -167,6 +168,7 @@ const LoginPage: React.FC = () => {
                                         placeholder="Enter your password"
                                         autoComplete="current-password"
                                         className="pr-10"
+                                        data-testid="password-input"
                                     />
                                     <Button
                                         type="button"
@@ -191,19 +193,20 @@ const LoginPage: React.FC = () => {
                                 <Link
                                     to="/forgot-password"
                                     className="text-sm text-primary hover:underline"
+                                    data-testid="forgot-password-link"
                                 >
                                     Forgot password?
                                 </Link>
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading}>
+                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="login-submit-button">
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Sign in
                             </Button>
 
                             <div className="text-center text-sm">
                                 Don't have an account?{' '}
-                                <Link to="/register" className="text-primary hover:underline">
+                                <Link to="/register" className="text-primary hover:underline" data-testid="register-link">
                                     Sign up
                                 </Link>
                             </div>

@@ -27,6 +27,9 @@ const changePasswordSchema = z.object({
 }).refine((data) => data.new_password === data.confirm_password, {
     message: "Passwords don't match",
     path: ["confirm_password"],
+}).refine((data) => data.new_password !== data.current_password, {
+    message: "New password cannot be the same as current password",
+    path: ["new_password"],
 });
 
 const ChangePasswordPage: React.FC = () => {
@@ -102,7 +105,7 @@ const ChangePasswordPage: React.FC = () => {
                     </Button>
                 </div>
 
-                <Card>
+                <Card data-testid="change-password-card">
                     <CardHeader>
                         <div className="flex items-center space-x-2">
                             <Lock className="h-6 w-6 text-gray-600" />
@@ -113,7 +116,7 @@ const ChangePasswordPage: React.FC = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" data-testid="change-password-form">
                             {updateSuccess && (
                                 <div className="rounded-md bg-green-50 border border-green-200 p-4" role="status">
                                     <div className="text-sm text-green-600 success-message">
@@ -142,6 +145,7 @@ const ChangePasswordPage: React.FC = () => {
                                             placeholder="Enter your current password"
                                             autoComplete="current-password"
                                             className="pr-10"
+                                            data-testid="current-password-input"
                                         />
                                         <Button
                                             type="button"
@@ -158,7 +162,7 @@ const ChangePasswordPage: React.FC = () => {
                                         </Button>
                                     </div>
                                     {errors.current_password && (
-                                        <p className="text-sm text-destructive">{errors.current_password.message}</p>
+                                        <p className="text-sm text-destructive error-message" role="alert">{errors.current_password.message}</p>
                                     )}
                                 </div>
 
@@ -173,6 +177,7 @@ const ChangePasswordPage: React.FC = () => {
                                             placeholder="Enter your new password"
                                             autoComplete="new-password"
                                             className="pr-10"
+                                            data-testid="new-password-input"
                                         />
                                         <Button
                                             type="button"
@@ -189,7 +194,7 @@ const ChangePasswordPage: React.FC = () => {
                                         </Button>
                                     </div>
                                     {errors.new_password && (
-                                        <p className="text-sm text-destructive">{errors.new_password.message}</p>
+                                        <p className="text-sm text-destructive error-message" role="alert">{errors.new_password.message}</p>
                                     )}
 
                                     {/* Password strength indicator */}
@@ -202,7 +207,7 @@ const ChangePasswordPage: React.FC = () => {
                                                         style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                                                     />
                                                 </div>
-                                                <span className="text-xs text-muted-foreground">
+                                                <span className="text-xs text-muted-foreground" data-testid="password-strength-text">
                                                     {getPasswordStrengthText(passwordStrength.score)}
                                                 </span>
                                             </div>
@@ -239,6 +244,7 @@ const ChangePasswordPage: React.FC = () => {
                                             placeholder="Confirm your new password"
                                             autoComplete="new-password"
                                             className="pr-10"
+                                            data-testid="confirm-password-input"
                                         />
                                         <Button
                                             type="button"
@@ -255,7 +261,7 @@ const ChangePasswordPage: React.FC = () => {
                                         </Button>
                                     </div>
                                     {errors.confirm_password && (
-                                        <p className="text-sm text-destructive">{errors.confirm_password.message}</p>
+                                        <p className="text-sm text-destructive error-message" role="alert">{errors.confirm_password.message}</p>
                                     )}
                                 </div>
                             </div>
@@ -268,7 +274,7 @@ const ChangePasswordPage: React.FC = () => {
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={isLoading}>
+                                <Button type="submit" disabled={isLoading} data-testid="change-password-submit-button">
                                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Change Password
                                 </Button>
