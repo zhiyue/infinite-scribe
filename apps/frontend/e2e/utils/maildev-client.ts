@@ -115,11 +115,11 @@ export class MailDevClient {
     // 从 HTML 或文本内容中提取令牌
     const content = fullEmail.html || fullEmail.text || '';
     
-    // 匹配常见的令牌模式
+    // 匹配常见的令牌模式（包括 JWT 格式中的点号）
     const tokenPatterns = [
-      /token=([a-zA-Z0-9-_]+)/,           // URL 参数格式
-      /verify\/([a-zA-Z0-9-_]+)/,        // 路径格式
-      /verification[_-]?token[:\s]*([a-zA-Z0-9-_]+)/i, // 明文格式
+      /token=([a-zA-Z0-9-_\.]+)/,           // URL 参数格式（支持 JWT）
+      /verify\/([a-zA-Z0-9-_\.]+)/,        // 路径格式
+      /verification[_-]?token[:\s]*([a-zA-Z0-9-_\.]+)/i, // 明文格式
     ];
 
     for (const pattern of tokenPatterns) {
@@ -155,11 +155,11 @@ export class MailDevClient {
     const fullEmail = await this.getEmailById(resetEmail.id);
     const content = fullEmail.html || fullEmail.text || '';
     
-    // 匹配重置令牌模式
+    // 匹配重置令牌模式（包括 JWT 格式中的点号）
     const tokenPatterns = [
-      /reset[_-]?token[:\s]*([a-zA-Z0-9-_]+)/i,
-      /token=([a-zA-Z0-9-_]+)/,
-      /reset\/([a-zA-Z0-9-_]+)/,
+      /reset[_-]?token[:\s]*([a-zA-Z0-9-_\.]+)/i,
+      /token=([a-zA-Z0-9-_\.]+)/,
+      /reset\/([a-zA-Z0-9-_\.]+)/,
     ];
 
     for (const pattern of tokenPatterns) {
@@ -184,8 +184,19 @@ export class MailDevClient {
     interval: number = 1000
   ): Promise<MailDevEmail | null> {
     const startTime = Date.now();
+    let lastCheckTime = 0;
     
     while (Date.now() - startTime < timeout) {
+      // 使用指数退避策略，避免过于频繁的请求
+      const currentInterval = Math.min(interval * Math.pow(1.2, Math.floor((Date.now() - startTime) / 10000)), 5000);
+      
+      // 确保最小间隔时间
+      const timeSinceLastCheck = Date.now() - lastCheckTime;
+      if (timeSinceLastCheck < currentInterval) {
+        await new Promise(resolve => setTimeout(resolve, currentInterval - timeSinceLastCheck));
+      }
+      
+      lastCheckTime = Date.now();
       const emails = await this.getEmailsByRecipient(email);
       
       if (emails.length > 0) {
@@ -194,8 +205,6 @@ export class MailDevClient {
           new Date(b.time).getTime() - new Date(a.time).getTime()
         )[0];
       }
-      
-      await new Promise(resolve => setTimeout(resolve, interval));
     }
     
     return null;
@@ -233,6 +242,24 @@ export class MailDevClient {
       }
     } catch (error) {
       console.error('删除邮件失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除特定用户的所有邮件
+   * 用于并发测试时避免冲突
+   */
+  async deleteEmailsForUser(email: string): Promise<void> {
+    try {
+      const userEmails = await this.getEmailsByRecipient(email);
+      
+      // 并行删除所有邮件
+      await Promise.all(
+        userEmails.map(mail => this.deleteEmail(mail.id))
+      );
+    } catch (error) {
+      console.error(`删除用户 ${email} 的邮件失败:`, error);
       throw error;
     }
   }

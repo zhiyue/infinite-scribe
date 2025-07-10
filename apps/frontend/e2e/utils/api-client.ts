@@ -1,4 +1,4 @@
-import { APIRequestContext } from '@playwright/test';
+import { APIRequestContext, APIResponse } from '@playwright/test';
 import { TEST_CONFIG } from './test-helpers';
 
 /**
@@ -6,6 +6,23 @@ import { TEST_CONFIG } from './test-helpers';
  */
 export class TestApiClient {
   constructor(private request: APIRequestContext) {}
+
+  /**
+   * 从失败的响应中构建详细的错误信息
+   */
+  private async buildErrorMessage(response: APIResponse, operation: string): Promise<string> {
+    let errorDetail = '';
+    try {
+      const responseBody = await response.text();
+      if (responseBody) {
+        errorDetail = `\nResponse body: ${responseBody}`;
+      }
+    } catch {
+      // 如果无法读取响应体，忽略错误
+    }
+    
+    return `Failed to ${operation}: ${response.status()} ${response.statusText()}${errorDetail}`;
+  }
 
   /**
    * 创建测试用户（通过 API）
@@ -20,7 +37,7 @@ export class TestApiClient {
     });
     
     if (!response.ok()) {
-      throw new Error(`Failed to create test user: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'create test user'));
     }
     
     return response.json();
@@ -39,7 +56,7 @@ export class TestApiClient {
     });
     
     if (!response.ok()) {
-      throw new Error(`Failed to login: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'login'));
     }
     
     return response.json();
@@ -54,7 +71,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to verify email: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'verify email'));
     }
     
     return response.json();
@@ -72,7 +89,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to request password reset: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'request password reset'));
     }
     
     return response.json();
@@ -90,7 +107,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to reset password: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'reset password'));
     }
     
     return response.json();
@@ -118,7 +135,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to change password: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'change password'));
     }
     
     return response.json();
@@ -138,7 +155,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to get current user: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'get current user'));
     }
     
     return response.json();
@@ -156,7 +173,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to refresh token: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'refresh token'));
     }
     
     return response.json();
@@ -176,7 +193,7 @@ export class TestApiClient {
     );
     
     if (!response.ok()) {
-      throw new Error(`Failed to logout: ${response.status()}`);
+      throw new Error(await this.buildErrorMessage(response, 'logout'));
     }
     
     return response.json();

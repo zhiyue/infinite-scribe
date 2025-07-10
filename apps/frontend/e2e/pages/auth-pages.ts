@@ -291,7 +291,8 @@ export class DashboardPage extends BasePage {
     // 如果有用户菜单，先打开它
     if (await this.userMenu.isVisible()) {
       await this.userMenu.click();
-      await this.page.waitForTimeout(300); // 等待菜单动画
+      // 等待菜单动画完成，登出按钮变为可见
+      await this.logoutButton.waitFor({ state: 'visible', timeout: 2000 });
     }
     
     await this.logoutButton.click();
@@ -300,7 +301,8 @@ export class DashboardPage extends BasePage {
   async navigateToChangePassword() {
     if (await this.userMenu.isVisible()) {
       await this.userMenu.click();
-      await this.page.waitForTimeout(300);
+      // 等待菜单动画完成，更改密码链接变为可见
+      await this.changePasswordLink.waitFor({ state: 'visible', timeout: 2000 });
     }
     
     await this.changePasswordLink.click();
@@ -309,7 +311,8 @@ export class DashboardPage extends BasePage {
   async navigateToProfile() {
     if (await this.userMenu.isVisible()) {
       await this.userMenu.click();
-      await this.page.waitForTimeout(300);
+      // 等待菜单动画完成，个人资料链接变为可见
+      await this.profileLink.waitFor({ state: 'visible', timeout: 2000 });
     }
     
     await this.profileLink.click();

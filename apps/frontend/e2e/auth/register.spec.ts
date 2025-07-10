@@ -63,35 +63,27 @@ test.describe('用户注册流程', () => {
     // 测试弱密码
     await page.fill('input#password', '123456');
     await page.keyboard.press('Tab'); // 触发验证
-    await page.waitForTimeout(500);
     
     // 等待密码强度指示器出现
     const strengthIndicator = page.locator('.text-xs.text-muted-foreground');
-    await expect(strengthIndicator).toBeVisible({ timeout: 1000 }).catch(() => {});
+    await expect(strengthIndicator).toBeVisible({ timeout: 2000 });
     
-    let strength = await strengthIndicator.textContent().catch(() => null);
-    if (strength) {
-      expect(strength.toLowerCase()).toMatch(/弱|weak/i);
-    }
+    // 等待强度文本更新为"弱"
+    await expect(strengthIndicator).toHaveText(/弱|weak/i, { timeout: 2000 });
     
     // 测试中等密码
     await page.fill('input#password', 'Test123');
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(500);
     
-    strength = await strengthIndicator.textContent().catch(() => null);
-    if (strength) {
-      expect(strength.toLowerCase()).toMatch(/中|medium/i);
-    }
+    // 等待强度文本更新为"中"
+    await expect(strengthIndicator).toHaveText(/中|medium/i, { timeout: 2000 });
     
     // 测试强密码
     await page.fill('input#password', 'TestPassword123!@#');
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(500);
     
-    strength = await strengthIndicator.textContent().catch(() => null);
-    if (strength) {
-      expect(strength.toLowerCase()).toMatch(/强|strong/i);
+    // 等待强度文本更新为"强"
+    await expect(strengthIndicator).toHaveText(/强|strong/i, { timeout: 2000 });
     }
   });
 

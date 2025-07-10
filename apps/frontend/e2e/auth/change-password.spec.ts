@@ -204,7 +204,10 @@ test.describe('已登录用户修改密码', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('密码历史验证（如果支持）', async ({ page }) => {
+  test.skip('密码历史验证（TODO: 等待后端实现）', async ({ page }) => {
+    // TODO: 此功能尚未在后端实现，暂时跳过此测试
+    // 当后端实现密码历史功能后，移除 .skip 并启用此测试
+    
     // 首先修改一次密码
     await changePasswordPage.navigate();
     const firstNewPassword = 'FirstNewPassword123!';
@@ -226,10 +229,9 @@ test.describe('已登录用户修改密码', () => {
       testUser.password
     );
     
-    // 如果系统支持密码历史，应该显示错误
+    // 系统应该阻止使用最近使用过的密码
     const errorMessage = await changePasswordPage.getErrorMessage();
-    if (errorMessage) {
-      expect(errorMessage).toMatch(/最近使用过|recently used/i);
-    }
+    expect(errorMessage).not.toBeNull();
+    expect(errorMessage).toMatch(/最近使用过|recently used|password history/i);
   });
 });

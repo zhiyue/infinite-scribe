@@ -5,12 +5,14 @@ import { mailDevClient } from './maildev-client';
  * 生成随机用户数据
  */
 export function generateTestUser() {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
+  // 使用 crypto.randomUUID() 生成唯一标识符，避免并发测试时的冲突
+  const uuid = crypto.randomUUID();
+  // 只使用 UUID 的前 8 个字符，保持用户名和邮箱简洁
+  const shortId = uuid.substring(0, 8);
   
   return {
-    username: `testuser_${timestamp}_${random}`,
-    email: `test_${timestamp}_${random}@example.com`,
+    username: `testuser_${shortId}`,
+    email: `test_${shortId}@example.com`,
     password: 'TestPassword123!',
   };
 }
@@ -90,7 +92,8 @@ export async function logoutUser(page: Page) {
   const userMenu = page.locator('[data-testid="user-menu"], [aria-label="User menu"]');
   if (await userMenu.isVisible()) {
     await userMenu.click();
-    await page.waitForTimeout(500); // 等待菜单展开
+    // 等待菜单展开，使用条件等待等待登出按钮出现
+    await page.waitForSelector('button:has-text("Logout"), button:has-text("登出"), button:has-text("Sign out")', { state: 'visible', timeout: 2000 });
   }
   
   // 点击登出按钮
@@ -107,7 +110,13 @@ export async function logoutUser(page: Page) {
 export async function waitForPageReady(page: Page) {
   await page.waitForLoadState('networkidle');
   // 等待可能的加载动画完成
-  await page.waitForTimeout(500);
+  // 检查常见的加载指示器是否消失
+  const loadingIndicators = page.locator('.loading, .spinner, [data-loading="true"], [aria-busy="true"]');
+  const count = await loadingIndicators.count();
+  if (count > 0) {
+    // 等待所有加载指示器隐藏
+    await loadingIndicators.first().waitFor({ state: 'hidden', timeout: 5000 });
+  }
 }
 
 /**
@@ -189,6 +198,7 @@ export async function getPasswordResetToken(
 
 /**
  * 清理测试邮件数据
+ * @deprecated 请使用 cleanupUserEmails 代替，避免并发测试冲突
  */
 export async function cleanupTestEmails() {
   try {
@@ -196,6 +206,19 @@ export async function cleanupTestEmails() {
     console.log('已清理所有测试邮件');
   } catch (error) {
     console.error('清理测试邮件失败:', error);
+  }
+}
+
+/**
+ * 清理特定用户的测试邮件
+ * 在并发测试时使用，避免清理其他测试的邮件
+ */
+export async function cleanupUserEmails(email: string) {
+  try {
+    await mailDevClient.deleteEmailsForUser(email);
+    console.log(`已清理用户 ${email} 的测试邮件`);
+  } catch (error) {
+    console.error(`清理用户 ${email} 的邮件失败:`, error);
   }
 }
 
