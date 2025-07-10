@@ -21,7 +21,7 @@
   "scripts": {
     "// Backend Commands": "================================",
     "backend:install": "uv sync --all-extras",
-    "backend:run": "cd apps/backend && uv run uvicorn src.main:app --reload",
+    "backend:run": "cd apps/backend && uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000",
     "backend:lint": "cd apps/backend && uv run ruff check src/",
     "backend:format": "cd apps/backend && uv run ruff format src/",
     "backend:typecheck": "uv run mypy apps/backend/src/ --ignore-missing-imports",
