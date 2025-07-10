@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from src.common.services.neo4j_service import Neo4jService, neo4j_service
+from tests.conftest import create_async_context_mock
 
 
 class TestNeo4jService:
@@ -122,16 +123,8 @@ class TestNeo4jService:
         mock_result = AsyncMock()
         mock_record = {"value": 1}
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -155,16 +148,8 @@ class TestNeo4jService:
         mock_session = AsyncMock()
         mock_result = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -187,16 +172,8 @@ class TestNeo4jService:
         mock_result = AsyncMock()
         mock_record = {"value": 2}  # Wrong value
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -217,16 +194,8 @@ class TestNeo4jService:
         mock_driver = AsyncMock()
         mock_session = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async method to raise exception
         mock_session.run = AsyncMock(side_effect=Exception("Query failed"))
@@ -269,16 +238,8 @@ class TestNeo4jService:
             {"labelsOrTypes": ["User"], "properties": ["email"]},
         ]
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -307,16 +268,8 @@ class TestNeo4jService:
             {"labelsOrTypes": ["User"], "properties": ["email"]},
         ]
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -337,16 +290,8 @@ class TestNeo4jService:
         mock_driver = AsyncMock()
         mock_session = AsyncMock()
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async method to raise exception
         mock_session.run = AsyncMock(side_effect=Exception("Query failed"))
@@ -382,16 +327,8 @@ class TestNeo4jService:
         mock_result = AsyncMock()
         expected_data = [{"value": 1}]
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)
@@ -417,16 +354,8 @@ class TestNeo4jService:
         expected_data = [{"name": "test"}]
         parameters = {"name": "test"}
 
-        # Create a proper async context manager class
-        class MockAsyncContext:
-            async def __aenter__(self):
-                return mock_session
-
-            async def __aexit__(self, *args):
-                return None
-
         # Mock the session method to return an actual context manager instance
-        mock_driver.session = lambda: MockAsyncContext()
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
 
         # Mock async methods
         mock_session.run = AsyncMock(return_value=mock_result)

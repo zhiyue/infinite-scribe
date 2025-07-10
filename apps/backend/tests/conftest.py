@@ -4,6 +4,7 @@ import asyncio
 import os
 import sys
 from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,29 @@ if os.environ.get("USE_REMOTE_DOCKER", "false").lower() == "true":
 # Add src to Python path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
+
+
+@asynccontextmanager
+async def create_async_context_mock(return_value):
+    """创建异步上下文管理器 Mock 的工厂函数.
+
+    使用 contextlib.asynccontextmanager 装饰器创建异步上下文管理器，
+    比自定义类更简洁且符合 Python 惯用法。
+
+    Args:
+        return_value: 上下文管理器应该返回的值
+
+    Yields:
+        return_value: 传入的值
+
+    Example:
+        # Neo4j 测试
+        mock_driver.session = lambda: create_async_context_mock(mock_session)
+
+        # PostgreSQL 测试
+        mock_pool.acquire = lambda: create_async_context_mock(mock_conn)
+    """
+    yield return_value
 
 
 @pytest.fixture(scope="session")
