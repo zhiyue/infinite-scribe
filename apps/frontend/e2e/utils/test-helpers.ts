@@ -213,7 +213,7 @@ export async function visitEmailVerificationLink(page: Page, token: string) {
  */
 export const TEST_CONFIG = {
   // API 基础 URL
-  apiBaseUrl: process.env.VITE_API_BASE_URL || 'http://localhost:5000',
+  apiBaseUrl: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
   
   // 前端基础 URL
   frontendBaseUrl: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
