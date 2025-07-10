@@ -5,7 +5,7 @@ from typing import Any
 
 from passlib.context import CryptContext
 
-from src.core.auth_config import auth_config
+from src.core.config import settings
 
 
 class PasswordService:
@@ -14,7 +14,7 @@ class PasswordService:
     def __init__(self):
         """Initialize password service."""
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        self.min_length = auth_config.PASSWORD_MIN_LENGTH
+        self.min_length = settings.auth.password_min_length
 
         # Common passwords to check against
         self.common_passwords = {

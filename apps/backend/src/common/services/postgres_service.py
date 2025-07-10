@@ -27,7 +27,7 @@ class PostgreSQLService:
 
             try:
                 self._pool = await asyncpg.create_pool(
-                    settings.POSTGRES_URL.replace("+asyncpg", ""),
+                    settings.database.postgres_url.replace("+asyncpg", ""),
                     min_size=5,
                     max_size=20,
                     command_timeout=60,

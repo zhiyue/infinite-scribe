@@ -12,7 +12,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 if TYPE_CHECKING:
     from resend.emails._emails import Emails
 
-from src.core.auth_config import auth_config
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -23,12 +22,12 @@ class EmailService:
 
     def __init__(self):
         """Initialize email service."""
-        self.is_development = settings.NODE_ENV == "development"
-        self.use_maildev = auth_config.USE_MAILDEV or self.is_development
+        self.is_development = settings.node_env == "development"
+        self.use_maildev = settings.auth.use_maildev or self.is_development
 
         if not self.use_maildev:
             # Configure Resend API
-            resend.api_key = auth_config.RESEND_API_KEY
+            resend.api_key = settings.auth.resend_api_key
 
         # Setup Jinja2 for email templates
         self.template_env = Environment(
@@ -92,7 +91,7 @@ class EmailService:
 
             # Build request payload
             send_params: Emails.SendParams = {
-                "from": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
+                "from": from_email or f"Infinite Scribe <{settings.auth.resend_from_email}>",
                 "to": to,
                 "subject": subject,
                 "html": html_content,
@@ -127,7 +126,7 @@ class EmailService:
             # Create message
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>"
+            msg["From"] = from_email or f"Infinite Scribe <{settings.auth.resend_from_email}>"
             msg["To"] = ", ".join(to)
 
             # Add text and HTML parts
@@ -139,7 +138,7 @@ class EmailService:
             msg.attach(html_part)
 
             # Send via SMTP
-            with smtplib.SMTP(auth_config.MAILDEV_HOST, auth_config.MAILDEV_PORT) as server:
+            with smtplib.SMTP(settings.auth.maildev_host, settings.auth.maildev_port) as server:
                 server.send_message(msg)
 
             logger.info(f"Email sent successfully via Maildev to {to}")
@@ -199,7 +198,7 @@ class EmailService:
             "user_name": user_name,
             "reset_url": reset_url,
             "app_name": "Infinite Scribe",
-            "expire_hours": auth_config.PASSWORD_RESET_EXPIRE_HOURS,
+            "expire_hours": settings.auth.password_reset_expire_hours,
         }
 
         html_content = html_template.render(**context)
@@ -229,7 +228,7 @@ class EmailService:
         context = {
             "user_name": user_name,
             "app_name": "Infinite Scribe",
-            "app_url": settings.FRONTEND_URL,
+            "app_url": settings.frontend_url,
         }
 
         html_content = html_template.render(**context)

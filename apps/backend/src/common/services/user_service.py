@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.services.email_service import email_service
 from src.common.services.jwt_service import jwt_service
 from src.common.services.password_service import PasswordService
-from src.core.auth_config import auth_config
 from src.core.config import settings
 from src.models.email_verification import EmailVerification, VerificationPurpose
 from src.models.session import Session
@@ -31,7 +30,7 @@ class UserService:
         self.password_service = password_service
         self.jwt_service = jwt_service
         self.email_service = email_service
-        self.frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+        self.frontend_url = settings.frontend_url or "http://localhost:3000"
 
     async def register_user(self, db: AsyncSession, user_data: dict[str, Any]) -> dict[str, Any]:
         """Register a new user.
@@ -79,7 +78,7 @@ class UserService:
                 user_id=cast(int, user.id),
                 email=cast(str, user.email),
                 purpose=VerificationPurpose.EMAIL_VERIFY,
-                expires_in_hours=auth_config.EMAIL_VERIFICATION_EXPIRE_HOURS,
+                expires_in_hours=settings.auth.email_verification_expire_hours,
             )
             db.add(verification)
             await db.commit()
@@ -144,9 +143,9 @@ class UserService:
                 user.failed_login_attempts = getattr(user, "failed_login_attempts", 0) + 1
 
                 # Lock account if too many attempts
-                if getattr(user, "failed_login_attempts", 0) >= auth_config.ACCOUNT_LOCKOUT_ATTEMPTS:
+                if getattr(user, "failed_login_attempts", 0) >= settings.auth.account_lockout_attempts:
                     user.locked_until = datetime.utcnow() + timedelta(
-                        minutes=auth_config.ACCOUNT_LOCKOUT_DURATION_MINUTES
+                        minutes=settings.auth.account_lockout_duration_minutes
                     )
 
                 await db.commit()
@@ -271,7 +270,7 @@ class UserService:
                 user_id=cast(int, user.id),
                 email=cast(str, user.email),
                 purpose=VerificationPurpose.PASSWORD_RESET,
-                expires_in_hours=auth_config.PASSWORD_RESET_EXPIRE_HOURS,
+                expires_in_hours=settings.auth.password_reset_expire_hours,
             )
             db.add(verification)
             await db.commit()

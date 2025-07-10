@@ -7,7 +7,6 @@ from typing import Any
 from jose import JWTError, jwt
 from redis import Redis
 
-from src.core.auth_config import auth_config
 from src.core.config import settings
 
 
@@ -16,10 +15,10 @@ class JWTService:
 
     def __init__(self):
         """Initialize JWT service."""
-        self.secret_key = auth_config.JWT_SECRET_KEY
-        self.algorithm = auth_config.JWT_ALGORITHM
-        self.access_token_expire_minutes = auth_config.ACCESS_TOKEN_EXPIRE_MINUTES
-        self.refresh_token_expire_days = auth_config.REFRESH_TOKEN_EXPIRE_DAYS
+        self.secret_key = settings.auth.jwt_secret_key
+        self.algorithm = settings.auth.jwt_algorithm
+        self.access_token_expire_minutes = settings.auth.access_token_expire_minutes
+        self.refresh_token_expire_days = settings.auth.refresh_token_expire_days
 
         # Redis client for blacklist
         self._redis_client: Redis | None = None
@@ -29,9 +28,9 @@ class JWTService:
         """Get Redis client for blacklist management."""
         if self._redis_client is None:
             self._redis_client = Redis(
-                host=settings.REDIS_HOST,
-                port=settings.REDIS_PORT,
-                password=settings.REDIS_PASSWORD,
+                host=settings.database.redis_host,
+                port=settings.database.redis_port,
+                password=settings.database.redis_password,
                 decode_responses=True,
             )
         return self._redis_client

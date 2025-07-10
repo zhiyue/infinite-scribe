@@ -1,6 +1,6 @@
 """Unit tests for JWT refresh token functionality."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from src.common.services.jwt_service import jwt_service
@@ -23,7 +23,7 @@ class TestJWTRefreshToken:
         assert isinstance(token, str)
         assert len(token) > 0
         assert isinstance(expires_at, datetime)
-        assert expires_at > datetime.utcnow()
+        assert expires_at > datetime.now(UTC)
 
         # Verify token can be decoded
         payload = jwt_service.verify_token(token, "refresh")
@@ -72,14 +72,14 @@ class TestJWTRefreshToken:
         # Arrange
         user_id = "123"
 
-        # Create expired refresh token by mocking time
-        with patch("src.common.services.jwt_service.datetime") as mock_datetime:
-            # Set time to past for token creation
-            past_time = datetime.utcnow() - timedelta(days=31)
-            mock_datetime.utcnow.return_value = past_time
-            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
-
-            refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        # Create expired refresh token by temporarily changing token expiration
+        original_days = jwt_service.refresh_token_expire_days
+        jwt_service.refresh_token_expire_days = -1  # Set to negative to create expired token
+        
+        refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        
+        # Restore original expiration
+        jwt_service.refresh_token_expire_days = original_days
 
         # Act (with current time)
         result = jwt_service.refresh_access_token(refresh_token)
