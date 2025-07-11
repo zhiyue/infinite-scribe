@@ -46,9 +46,9 @@
 
 ### 下一步计划
 1. **第一阶段：基础设施**（1-2天）
-   - 创建 queryClient 配置
-   - 添加 QueryClientProvider
-   - 配置开发工具
+   - ✅ 创建 queryClient 配置
+   - ✅ 添加 QueryClientProvider
+   - ✅ 配置开发工具
 
 2. **第二阶段：核心功能**（2-3天）
    - 实现 useCurrentUser hook
@@ -59,3 +59,38 @@
    - 从低风险组件开始
    - 逐步推进到核心组件
    - 每步都进行测试验证
+
+### 实施更新
+- 根据最佳实践文档 (`docs/best-practices/auth-tanstack-query-tldr.md`) 更新了实现方案
+- 添加了完整的 hooks 实现示例（useLogin, useLogout, useUpdateProfile）
+- 补充了 Token 刷新和 API 拦截器配置
+- 添加了预取策略和查询键管理
+- 提供了完整的组件迁移示例
+
+### 已完成项目
+1. **基础设施配置**
+   - ✅ App.tsx 已添加 QueryClientProvider
+   - ✅ 已导入 React Query DevTools
+   - ✅ queryClient 配置文件已创建 (`src/lib/queryClient.ts`)
+   - ✅ 包含查询键管理和资源特定配置
+
+2. **核心 Hooks 实现**
+   - ✅ 创建了 useAuthQuery.ts
+     - 实现了 useCurrentUser hook
+     - 实现了 usePermissions hook
+     - 实现了 useSessions hook
+   - ✅ 创建了 useAuthMutations.ts
+     - 实现了 useLogin mutation
+     - 实现了 useLogout mutation
+     - 实现了 useUpdateProfile mutation（含乐观更新）
+     - 实现了 useRefreshToken mutation
+
+### 下一步任务
+1. **改造 useAuth.ts**
+   - 移除 user 状态存储
+   - 精简为只管理认证标志（isAuthenticated）
+   - 移除冗余的方法
+
+2. **组件迁移**
+   - 开始从低风险组件迁移
+   - 更新使用 useAuth().user 的地方为 useCurrentUser()
