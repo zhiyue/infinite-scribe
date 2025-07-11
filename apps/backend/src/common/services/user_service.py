@@ -94,7 +94,7 @@ class UserService:
             await db.commit()
 
             # Send verification email
-            verification_url = f"{self.frontend_url}/auth/verify-email?token={verification.token}"
+            verification_url = f"{self.frontend_url}/verify-email?token={verification.token}"
 
             if background_tasks:
                 # 使用异步任务发送邮件
@@ -421,7 +421,7 @@ class UserService:
             await db.commit()
 
             # Send password reset email
-            reset_url = f"{self.frontend_url}/auth/reset-password?token={verification.token}"
+            reset_url = f"{self.frontend_url}/reset-password?token={verification.token}"
 
             if background_tasks:
                 # 使用异步任务发送邮件

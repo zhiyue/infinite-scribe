@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 const DashboardPage: React.FC = () => {
     const { user, logout, getCurrentUser } = useAuth();
     const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
     // 只在用户数据为空时获取用户数据（避免不必要的API调用）
     React.useEffect(() => {
@@ -20,6 +21,21 @@ const DashboardPage: React.FC = () => {
             getCurrentUser().catch(console.error);
         }
     }, []); // 只在组件挂载时检查一次
+
+    // Close user menu when clicking outside
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Element;
+            if (isUserMenuOpen && !target.closest('[data-testid="user-menu"]')) {
+                setIsUserMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isUserMenuOpen]);
 
     const handleLogout = async () => {
         try {
@@ -65,10 +81,54 @@ const DashboardPage: React.FC = () => {
                             >
                                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                             </Button>
-                            <Button variant="outline" size="sm" onClick={handleLogout}>
-                                <LogOut className="h-4 w-4 mr-2" />
-                                Logout
-                            </Button>
+
+                            {/* User Menu - Dropdown version */}
+                            <div className="relative" data-testid="user-menu" aria-label="User menu">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center space-x-2"
+                                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                >
+                                    <User className="h-4 w-4" />
+                                    <span className="text-sm">{user?.email || 'User'}</span>
+                                </Button>
+
+                                {/* Menu items - show when menu is open */}
+                                {isUserMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                        <div className="py-1">
+                                            <Link
+                                                to="/change-password"
+                                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                <Settings className="h-4 w-4 mr-2" />
+                                                Change Password
+                                            </Link>
+                                            <Link
+                                                to="/profile"
+                                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                            >
+                                                <User className="h-4 w-4 mr-2" />
+                                                Profile
+                                            </Link>
+                                            <div className="border-t border-gray-100"></div>
+                                            <button
+                                                onClick={() => {
+                                                    setIsUserMenuOpen(false);
+                                                    handleLogout();
+                                                }}
+                                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            >
+                                                <LogOut className="h-4 w-4 mr-2" />
+                                                Logout
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -160,7 +220,7 @@ const DashboardPage: React.FC = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium">Full Name:</span>
                                     <span className="text-sm text-gray-600">
-                                        {user?.first_name || user?.last_name 
+                                        {user?.first_name || user?.last_name
                                             ? `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
                                             : 'Not set'}
                                     </span>
@@ -200,13 +260,6 @@ const DashboardPage: React.FC = () => {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                <Button asChild variant="outline" className="w-full justify-start">
-                                    <Link to="/change-password">
-                                        <Settings className="h-4 w-4 mr-2" />
-                                        Change Password
-                                    </Link>
-                                </Button>
-
                                 <Button asChild variant="outline" className="w-full justify-start">
                                     <Link to="/profile">
                                         <User className="h-4 w-4 mr-2" />

@@ -1,5 +1,5 @@
 /**
- * Change Password page component with shadcn/ui
+ * Change Password page component with shadcn/ui - Debug version
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,23 +34,23 @@ const changePasswordSchema = z.object({
 
 const ChangePasswordPage: React.FC = () => {
     const navigate = useNavigate();
-    const { changePassword } = useAuth();
-    const [isLoading, setIsLoading] = useState(false);
+    const { changePassword, isLoading } = useAuth();
     const [showCurrentPassword, setShowCurrentPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [updateSuccess, setUpdateSuccess] = useState(false);
     const [updateError, setUpdateError] = useState<string | null>(null);
-    
-    // 监控状态变化
-    React.useEffect(() => {
-        console.log('[ChangePassword] updateError state changed to:', updateError);
-    }, [updateError]);
-    
-    React.useEffect(() => {
-        console.log('[ChangePassword] updateSuccess state changed to:', updateSuccess);
-    }, [updateSuccess]);
+    const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
+    const addDebugInfo = (info: string) => {
+        console.log('[DEBUG]', info);
+        setDebugInfo(prev => [...prev, `${new Date().toISOString()}: ${info}`]);
+    };
+
+    // 监控错误状态变化
+    React.useEffect(() => {
+        addDebugInfo(`updateError changed to: ${updateError}`);
+    }, [updateError]);
 
     const [passwordStrength, setPasswordStrength] = useState<{
         score: number;
@@ -81,33 +81,37 @@ const ChangePasswordPage: React.FC = () => {
     }, [watchNewPassword]);
 
     const onSubmit = async (data: ChangePasswordRequest) => {
-        console.log('[ChangePassword] onSubmit called');
-        setUpdateError(null);
-        setUpdateSuccess(false);
-        setIsLoading(true);
+        addDebugInfo('onSubmit called');
         
-        console.log('[ChangePassword] Calling changePassword...');
-        const result = await changePassword(data);
-        console.log('[ChangePassword] Result:', result);
-        
-        setIsLoading(false);
+        try {
+            addDebugInfo('Clearing previous state...');
+            setUpdateError(null);
+            setUpdateSuccess(false);
+            
+            addDebugInfo('Calling changePassword...');
+            const result = await changePassword(data);
+            addDebugInfo(`changePassword result: ${JSON.stringify(result)}`);
 
-        if (result.success) {
-            console.log('[ChangePassword] Success!');
-            setUpdateSuccess(true);
-            reset(); // Clear form
-            // Redirect to dashboard after success
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 2000);
-        } else {
-            console.log('[ChangePassword] Failed! Error:', result.error);
-            const errorMessage = result.error || 'Failed to change password';
+            if (result.success) {
+                addDebugInfo('Password change successful');
+                setUpdateSuccess(true);
+                reset(); // Clear form
+                // Redirect to dashboard after success
+                setTimeout(() => {
+                    navigate('/dashboard');
+                }, 2000);
+            } else {
+                addDebugInfo(`Password change failed: ${result.error}`);
+                setUpdateError(result.error || 'Failed to change password');
+                // 验证状态是否被设置
+                setTimeout(() => {
+                    addDebugInfo(`Current updateError state: ${updateError}`);
+                }, 100);
+            }
+        } catch (error: any) {
+            addDebugInfo(`Unexpected error: ${error.message}`);
+            const errorMessage = error?.detail || error?.message || 'Failed to change password';
             setUpdateError(errorMessage);
-            // 再次验证状态
-            setTimeout(() => {
-                console.log('[ChangePassword] Error state check:', { updateError, errorMessage });
-            }, 0);
         }
     };
 
@@ -122,6 +126,19 @@ const ChangePasswordPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-2xl mx-auto">
+                {/* Debug Info */}
+                <div className="mb-4 p-4 bg-gray-100 rounded-md">
+                    <h3 className="font-semibold mb-2">Debug Info:</h3>
+                    <div className="text-xs space-y-1 max-h-40 overflow-y-auto">
+                        {debugInfo.map((info, index) => (
+                            <div key={index}>{info}</div>
+                        ))}
+                    </div>
+                    <div className="mt-2 text-sm">
+                        <strong>Current updateError:</strong> {updateError || 'null'}
+                    </div>
+                </div>
+
                 {/* Back to Dashboard */}
                 <div className="mb-6">
                     <Button asChild variant="ghost" size="sm">
@@ -143,10 +160,7 @@ const ChangePasswordPage: React.FC = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form 
-                            onSubmit={handleSubmit(onSubmit)}
-                            className="space-y-6" 
-                            data-testid="change-password-form">
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" data-testid="change-password-form">
                             {updateSuccess && (
                                 <div className="rounded-md bg-green-50 border border-green-200 p-4" role="status">
                                     <div className="text-sm text-green-600 success-message">
@@ -162,9 +176,6 @@ const ChangePasswordPage: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-                            
-
-
 
                             {/* Display form validation errors */}
                             {Object.keys(errors).length > 0 && !updateError && (

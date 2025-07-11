@@ -25,6 +25,7 @@ class AuthService {
     private accessToken: string | null = null;
     private refreshToken: string | null = null;
     private refreshPromise: Promise<void> | null = null;
+    private readonly ACCESS_TOKEN_KEY = 'access_token';
 
     constructor() {
         this.api = axios.create({
@@ -35,7 +36,15 @@ class AuthService {
             withCredentials: true, // For httpOnly cookies
         });
 
+        // Initialize tokens from storage
+        this.initializeTokens();
         this.setupInterceptors();
+    }
+
+    private initializeTokens() {
+        // Load access token from localStorage on initialization
+        this.accessToken = localStorage.getItem(this.ACCESS_TOKEN_KEY);
+        // Refresh token is handled via httpOnly cookies
     }
 
     private setupInterceptors() {
@@ -98,11 +107,10 @@ class AuthService {
 
     private async performTokenRefresh(): Promise<void> {
         try {
+            // Try to refresh using httpOnly cookies first, then fallback to stored refresh token
             const response = await axios.post<TokenResponse>(
                 `${API_BASE_URL}/api/v1/auth/refresh`,
-                {
-                    refresh_token: this.refreshToken || '',
-                },
+                this.refreshToken ? { refresh_token: this.refreshToken } : {},
                 {
                     withCredentials: true,
                     headers: {
@@ -123,13 +131,17 @@ class AuthService {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
 
-        // Store in memory only for security
+        // Store access token in localStorage for persistence across page refreshes
+        localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
         // Refresh token is handled via httpOnly cookies
     }
 
     private clearTokens() {
         this.accessToken = null;
         this.refreshToken = null;
+
+        // Clear access token from localStorage
+        localStorage.removeItem(this.ACCESS_TOKEN_KEY);
     }
 
     // Authentication methods

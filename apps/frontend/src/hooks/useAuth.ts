@@ -12,26 +12,30 @@ import type {
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    LoginResult,
+    OperationResult,
     RegisterRequest,
+    RegisterResult,
     ResendVerificationRequest,
     ResetPasswordRequest,
     UpdateProfileRequest,
+    UpdateProfileResult,
     User,
 } from '../types/auth';
 
 interface AuthStore extends AuthState {
-    // Actions
-    login: (credentials: LoginRequest) => Promise<void>;
-    register: (data: RegisterRequest) => Promise<void>;
-    logout: () => Promise<void>;
-    refreshToken: () => Promise<void>;
-    updateProfile: (data: UpdateProfileRequest) => Promise<void>;
-    changePassword: (data: ChangePasswordRequest) => Promise<void>;
-    forgotPassword: (data: ForgotPasswordRequest) => Promise<void>;
-    resetPassword: (data: ResetPasswordRequest) => Promise<void>;
-    resendVerification: (data: ResendVerificationRequest) => Promise<void>;
-    verifyEmail: (token: string) => Promise<void>;
-    getCurrentUser: () => Promise<void>;
+    // Actions - 返回结果对象而不是抛出异常
+    login: (credentials: LoginRequest) => Promise<LoginResult>;
+    register: (data: RegisterRequest) => Promise<RegisterResult>;
+    logout: () => Promise<OperationResult>;
+    refreshToken: () => Promise<OperationResult>;
+    updateProfile: (data: UpdateProfileRequest) => Promise<UpdateProfileResult>;
+    changePassword: (data: ChangePasswordRequest) => Promise<OperationResult>;
+    forgotPassword: (data: ForgotPasswordRequest) => Promise<OperationResult>;
+    resetPassword: (data: ResetPasswordRequest) => Promise<OperationResult>;
+    resendVerification: (data: ResendVerificationRequest) => Promise<OperationResult>;
+    verifyEmail: (token: string) => Promise<OperationResult>;
+    getCurrentUser: () => Promise<OperationResult>;
     clearError: () => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
@@ -49,8 +53,8 @@ export const useAuthStore = create<AuthStore>()(
 
             // Actions
             login: async (credentials: LoginRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     const response = await authService.login(credentials);
                     set({
                         user: response.user,
@@ -58,6 +62,7 @@ export const useAuthStore = create<AuthStore>()(
                         isLoading: false,
                         error: null,
                     });
+                    return { success: true, data: response };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
@@ -66,28 +71,29 @@ export const useAuthStore = create<AuthStore>()(
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             register: async (data: RegisterRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
-                    await authService.register(data);
+                    const response = await authService.register(data);
                     set({ isLoading: false, error: null });
+                    return { success: true, data: response };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             logout: async () => {
+                set({ isLoading: true });
                 try {
-                    set({ isLoading: true });
                     await authService.logout();
                 } catch (error) {
                     console.warn('Logout error:', error);
@@ -99,6 +105,7 @@ export const useAuthStore = create<AuthStore>()(
                         error: null,
                     });
                 }
+                return { success: true };
             },
 
             refreshToken: async () => {
@@ -111,115 +118,121 @@ export const useAuthStore = create<AuthStore>()(
                         isAuthenticated: true,
                         error: null,
                     });
+                    return { success: true };
                 } catch (error) {
                     set({
                         user: null,
                         isAuthenticated: false,
                         error: 'Session expired. Please login again.',
                     });
-                    throw error;
+                    return { success: false, error: 'Session expired. Please login again.' };
                 }
             },
 
             updateProfile: async (data: UpdateProfileRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     const updatedUser = await authService.updateProfile(data);
                     set({
                         user: updatedUser,
                         isLoading: false,
                         error: null,
                     });
+                    return { success: true, data: updatedUser };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             changePassword: async (data: ChangePasswordRequest) => {
+                // 不设置全局的 isLoading，避免影响 RequireAuth
                 try {
-                    set({ isLoading: true, error: null });
                     await authService.changePassword(data);
-                    set({ isLoading: false, error: null });
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
-                    set({
-                        isLoading: false,
-                        error: apiError.detail,
-                    });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             forgotPassword: async (data: ForgotPasswordRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     await authService.forgotPassword(data);
                     set({ isLoading: false, error: null });
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             resetPassword: async (data: ResetPasswordRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     await authService.resetPassword(data);
                     set({ isLoading: false, error: null });
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             resendVerification: async (data: ResendVerificationRequest) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     await authService.resendVerification(data);
                     set({ isLoading: false, error: null });
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             verifyEmail: async (token: string) => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     await authService.verifyEmail(token);
                     set({ isLoading: false, error: null });
                     // Refresh user data after verification
-                    await get().getCurrentUser();
+                    const userResult = await get().getCurrentUser();
+                    if (!userResult.success) {
+                        // If getting user fails, we still consider verification successful
+                        console.warn('Failed to refresh user data after verification');
+                    }
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
             getCurrentUser: async () => {
+                set({ isLoading: true, error: null });
                 try {
-                    set({ isLoading: true, error: null });
                     const user = await authService.getCurrentUser();
                     set({
                         user,
@@ -227,6 +240,7 @@ export const useAuthStore = create<AuthStore>()(
                         isLoading: false,
                         error: null,
                     });
+                    return { success: true };
                 } catch (error) {
                     const apiError = error as ApiError;
                     set({
@@ -235,7 +249,7 @@ export const useAuthStore = create<AuthStore>()(
                         isLoading: false,
                         error: apiError.detail,
                     });
-                    throw error;
+                    return { success: false, error: apiError.detail };
                 }
             },
 
@@ -278,11 +292,20 @@ export const useAuth = () => {
     // Initialize user on app start if token exists
     React.useEffect(() => {
         const initAuth = async () => {
-            if (authService.isAuthenticated() && !store.user) {
-                try {
-                    await store.getCurrentUser();
-                } catch (error) {
-                    // Token might be expired, clear auth state
+            const hasToken = authService.isAuthenticated();
+
+            if (hasToken && !store.user) {
+                // Access token exists but user not in store -> fetch user
+                const result = await store.getCurrentUser();
+                if (!result.success) {
+                    // Token invalid; clear state
+                    store.setUser(null);
+                }
+            } else if (!hasToken && store.user) {
+                // No access token but we have a persisted user – try silent refresh first
+                const result = await store.refreshToken();
+                if (!result.success) {
+                    // Refresh failed – clear auth state to force login
                     store.setUser(null);
                 }
             }

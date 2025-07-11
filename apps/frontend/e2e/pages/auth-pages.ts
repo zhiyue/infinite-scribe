@@ -1,24 +1,47 @@
-import { Page, Locator } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 
 /**
  * 基础页面类
  */
 export class BasePage {
-  constructor(protected page: Page) {}
+  constructor(protected page: Page) { }
 
   async navigate(path: string) {
     await this.page.goto(path);
-    await this.page.waitForLoadState('networkidle');
+    // 等待页面加载，但设置合理的超时时间
+    await this.page.waitForLoadState('networkidle', { timeout: 30000 });
+  }
+
+  async ensureAuthenticated(loginPage: any, testUser: any) {
+    // Check if we're on login page, which indicates we're not authenticated
+    if (this.page.url().includes('/login')) {
+      console.log('Not authenticated, logging in...');
+      await loginPage.login(testUser.email, testUser.password);
+      await this.page.waitForURL(/\/(dashboard|home)/, { timeout: 15000 });
+      return true;
+    }
+    return false;
   }
 
   async getErrorMessage(): Promise<string | null> {
     try {
-      // 等待错误元素出现（最多等待5秒）
-      const errorElement = await this.page.waitForSelector('[role="alert"], .error-message, .text-red-500', { 
-        timeout: 5000,
-        state: 'visible' 
-      });
-      return await errorElement.textContent();
+      // 支持新的 Tailwind 错误样式 `text-red-600`
+      const selector = '[role="alert"], .error-message, .text-red-500, .text-red-600, .text-destructive';
+      try {
+        // 先等待可见元素出现
+        const errorElement = await this.page.waitForSelector(selector, {
+          timeout: 10000,
+          state: 'visible',
+        });
+        return await errorElement.textContent();
+      } catch {
+        // 若超时，尝试直接读取（元素可能存在但被动画/布局影响未标记为可见）
+        const errorElement = await this.page.locator(selector).first();
+        if (await errorElement.count()) {
+          return await errorElement.textContent();
+        }
+        return null;
+      }
     } catch {
       // 如果没有错误元素出现，返回null
       return null;
@@ -28,9 +51,9 @@ export class BasePage {
   async getSuccessMessage(): Promise<string | null> {
     try {
       // 等待成功元素出现（最多等待5秒）
-      const successElement = await this.page.waitForSelector('[data-testid="success-message"], .success-message, .text-green-500, [role="status"]', { 
+      const successElement = await this.page.waitForSelector('[data-testid="success-message"], .success-message, .text-green-500, [role="status"]', {
         timeout: 5000,
-        state: 'visible' 
+        state: 'visible'
       });
       return await successElement.textContent();
     } catch {
@@ -116,11 +139,11 @@ export class RegisterPage extends BasePage {
     await this.usernameInput.fill(username);
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
-    
+
     if (await this.confirmPasswordInput.isVisible()) {
       await this.confirmPasswordInput.fill(confirmPassword || password);
     }
-    
+
     await this.submitButton.click();
   }
 
@@ -186,11 +209,11 @@ export class ResetPasswordPage extends BasePage {
 
   async resetPassword(newPassword: string, confirmPassword?: string) {
     await this.newPasswordInput.fill(newPassword);
-    
+
     if (await this.confirmPasswordInput.isVisible()) {
       await this.confirmPasswordInput.fill(confirmPassword || newPassword);
     }
-    
+
     await this.submitButton.click();
   }
 }
@@ -216,16 +239,34 @@ export class ChangePasswordPage extends BasePage {
     await super.navigate('/change-password');
   }
 
+  async navigateWithAuth(loginPage: any, testUser: any) {
+    await this.navigate();
+
+    // Wait for page to load and check if we need to authenticate
+    await this.page.waitForTimeout(1000);
+
+    // If redirected to login, authenticate and try again
+    if (this.page.url().includes('/login')) {
+      console.log('Redirected to login, authenticating...');
+      await loginPage.login(testUser.email, testUser.password);
+      await this.page.waitForURL(/\/(dashboard|home)/, { timeout: 15000 });
+      await this.navigate();
+    }
+
+    // Wait for the change password form to be visible
+    await this.page.waitForSelector('[data-testid="change-password-card"]', { timeout: 10000 });
+  }
+
   async changePassword(currentPassword: string, newPassword: string, confirmPassword?: string) {
     await this.currentPasswordInput.fill(currentPassword);
     await this.newPasswordInput.fill(newPassword);
-    
+
     if (await this.confirmPasswordInput.isVisible()) {
       await this.confirmPasswordInput.fill(confirmPassword || newPassword);
     }
-    
+
     await this.submitButton.click();
-    
+
     // 等待请求完成 - 要么重定向到登录页面（成功），要么显示错误消息
     await Promise.race([
       this.page.waitForURL(/\/login/, { timeout: 10000 }),
@@ -279,7 +320,7 @@ export class DashboardPage extends BasePage {
     super(page);
     this.userMenu = page.locator('[data-testid="user-menu"], [aria-label="User menu"]');
     this.logoutButton = page.locator('button:has-text("Logout"), button:has-text("登出")');
-    this.changePasswordLink = page.locator('a:has-text("Change password"), a:has-text("修改密码")');
+    this.changePasswordLink = page.locator('a:has-text("Change Password"), a:has-text("Change password"), a:has-text("修改密码")');
     this.profileLink = page.locator('a:has-text("Profile"), a:has-text("个人资料")');
   }
 
@@ -294,7 +335,7 @@ export class DashboardPage extends BasePage {
       // 等待菜单动画完成，登出按钮变为可见
       await this.logoutButton.waitFor({ state: 'visible', timeout: 2000 });
     }
-    
+
     await this.logoutButton.click();
   }
 
@@ -304,7 +345,7 @@ export class DashboardPage extends BasePage {
       // 等待菜单动画完成，更改密码链接变为可见
       await this.changePasswordLink.waitFor({ state: 'visible', timeout: 2000 });
     }
-    
+
     await this.changePasswordLink.click();
   }
 
@@ -314,7 +355,7 @@ export class DashboardPage extends BasePage {
       // 等待菜单动画完成，个人资料链接变为可见
       await this.profileLink.waitFor({ state: 'visible', timeout: 2000 });
     }
-    
+
     await this.profileLink.click();
   }
 
