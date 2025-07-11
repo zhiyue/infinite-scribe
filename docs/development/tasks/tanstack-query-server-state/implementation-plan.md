@@ -17,160 +17,271 @@ import { QueryClient } from '@tanstack/react-query'
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5分钟默认值
-      cacheTime: 1000 * 60 * 10, // 10分钟默认值
-      retry: 1,
+      // Token 过期时的默认行为
+      retry: (failureCount, error: any) => {
+        if (error?.status === 401) {
+          // 401 错误不重试
+          return false
+        }
+        return failureCount < 3
+      },
+      // 窗口聚焦时不自动重新获取（认证敏感）
       refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5分钟
+      gcTime: 10 * 60 * 1000,    // 10分钟垃圾回收（v5中 cacheTime 改为 gcTime）
     },
     mutations: {
       retry: 0, // mutations 不重试
+      // 突变错误时的默认行为
+      onError: (error: any) => {
+        if (error?.status === 401) {
+          // Token 过期，清理所有缓存
+          queryClient.clear()
+          // 跳转登录
+          window.location.href = '/login'
+        }
+      }
     },
   },
 })
 
-// 资源特定的配置
-export const queryOptions = {
-  user: {
-    staleTime: 1000 * 60 * 10, // 用户数据10分钟新鲜
-    cacheTime: 1000 * 60 * 30, // 缓存30分钟
-  },
-  projects: {
-    staleTime: 1000 * 60 * 2, // 项目列表2分钟新鲜
-    cacheTime: 1000 * 60 * 10,
-  },
-  health: {
-    staleTime: 1000 * 30, // 健康检查30秒
-    cacheTime: 1000 * 60,
-  },
+// 查询键管理
+export const queryKeys = {
+  all: ['auth'] as const,
+  user: () => [...queryKeys.all, 'user'] as const,
+  currentUser: () => [...queryKeys.user(), 'current'] as const,
+  permissions: () => [...queryKeys.all, 'permissions'] as const,
+  sessions: () => [...queryKeys.all, 'sessions'] as const,
 }
 ```
 
-#### 2.2 创建 useCurrentUser Hook
+#### 2.2 创建核心查询 Hooks
 ```typescript
-// src/hooks/useCurrentUser.ts
-export const useCurrentUser = () => {
+// src/hooks/useAuthQuery.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from './useAuth'
+import { queryKeys } from '@/lib/queryClient'
+
+// 获取当前用户（单一数据源）
+export function useCurrentUser() {
   const { isAuthenticated } = useAuthStore()
   
   return useQuery({
-    queryKey: ['currentUser'],
-    queryFn: authService.getCurrentUser,
-    enabled: isAuthenticated,
-    ...queryOptions.user,
-    // 处理 token 过期的情况
-    onError: (error: any) => {
-      if (error.status_code === 401) {
-        // Token 过期，触发刷新或登出
-        useAuthStore.getState().handleTokenExpired()
-      }
-    },
+    queryKey: queryKeys.currentUser(),
+    queryFn: () => authService.getCurrentUser(),
+    enabled: isAuthenticated, // 仅在已认证时查询
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    gcTime: 10 * 60 * 1000,   // 10分钟垃圾回收
+    retry: (failureCount, error: any) => {
+      if (error.status === 401) return false // 401 不重试
+      return failureCount < 3
+    }
+  })
+}
+
+// 获取用户权限（依赖查询）
+export function usePermissions() {
+  const { data: user } = useCurrentUser()
+  
+  return useQuery({
+    queryKey: ['permissions', user?.role],
+    queryFn: () => authService.getPermissionsByRole(user!.role),
+    enabled: !!user?.role, // 仅在有角色时查询
+    staleTime: 10 * 60 * 1000, // 权限数据缓存更久
   })
 }
 ```
 
-#### 2.3 改造 Auth Store
+#### 2.3 改造 Auth Store（精简版）
 ```typescript
 // src/hooks/useAuth.ts
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
 interface AuthStore {
-  // 只保留认证相关状态
+  // 只保留认证标志
   isAuthenticated: boolean
-  isLoading: boolean
-  error: string | null
   
-  // 认证操作
-  login: (credentials: LoginRequest) => Promise<LoginResult>
-  logout: () => Promise<void>
-  refreshToken: () => Promise<void>
-  handleTokenExpired: () => Promise<void>
-  
-  // 不再存储 user 对象
+  // 简单的状态设置方法
+  setAuthenticated: (value: boolean) => void
+  clearAuth: () => void
 }
 
-// 实现示例
-const login = async (credentials: LoginRequest) => {
-  try {
-    const { user, access_token, refresh_token } = await authService.login(credentials)
-    
-    // 保存 token
-    authService.setTokens(access_token, refresh_token)
-    set({ isAuthenticated: true, error: null })
-    
-    // 写入用户数据到 Query Cache
-    queryClient.setQueryData(['currentUser'], user)
-    
-    return { success: true, data: { user, access_token, refresh_token } }
-  } catch (error) {
-    const apiError = error as ApiError
-    set({ isAuthenticated: false, error: apiError.detail })
-    return { success: false, error: apiError.detail }
-  }
-}
+export const useAuthStore = create<AuthStore>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+      
+      setAuthenticated: (value) => set({ isAuthenticated: value }),
+      clearAuth: () => {
+        authService.clearTokens()
+        set({ isAuthenticated: false })
+      },
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({ isAuthenticated: state.isAuthenticated }),
+    }
+  )
+)
 
-const logout = async () => {
-  try {
-    await authService.logout()
-  } finally {
-    // 清理认证状态
-    authService.clearTokens()
-    set({ isAuthenticated: false, error: null })
-    
-    // 清理所有缓存
-    queryClient.removeQueries({ queryKey: ['currentUser'] })
-    queryClient.clear() // 清理所有其他缓存的数据
-  }
-}
+// 注意：不再存储 user、isLoading、error 等状态
+// 这些都由 TanStack Query 管理
 ```
 
 #### 2.4 创建 Mutation Hooks
 ```typescript
 // src/hooks/useAuthMutations.ts
-export const useLogin = () => {
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from './useAuth'
+import { queryKeys } from '@/lib/queryClient'
+
+// 登录 Mutation
+export function useLogin() {
+  const queryClient = useQueryClient()
+  const { setAuthenticated } = useAuthStore()
+  
   return useMutation({
-    mutationFn: authService.login,
+    mutationFn: (credentials: LoginRequest) => authService.login(credentials),
     onSuccess: (data) => {
-      // 更新认证状态
-      useAuthStore.getState().setAuthenticated(true)
-      // 设置用户缓存
-      queryClient.setQueryData(['currentUser'], data.user)
+      // 1. 更新认证状态
+      setAuthenticated(true)
+      
+      // 2. 设置用户数据到缓存
+      queryClient.setQueryData(queryKeys.currentUser(), data.user)
+      
+      // 3. 预取相关数据
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.permissions(),
+        queryFn: () => authService.getPermissions()
+      })
     },
-    onError: (error: ApiError) => {
-      useAuthStore.getState().setError(error.detail)
-    },
+    onError: (error) => {
+      // 清理状态
+      setAuthenticated(false)
+      queryClient.clear() // 清除所有缓存
+    }
   })
 }
 
-export const useUpdateProfile = () => {
+// 登出 Mutation
+export function useLogout() {
+  const queryClient = useQueryClient()
+  const { clearAuth } = useAuthStore()
+  
   return useMutation({
-    mutationFn: authService.updateProfile,
-    onSuccess: (updatedUser) => {
-      // 更新缓存中的用户数据
-      queryClient.setQueryData(['currentUser'], updatedUser)
-    },
-    // 乐观更新示例
-    onMutate: async (newData) => {
-      // 取消相关查询
-      await queryClient.cancelQueries({ queryKey: ['currentUser'] })
+    mutationFn: () => authService.logout(),
+    onSuccess: () => {
+      // 1. 清理认证状态
+      clearAuth()
       
-      // 保存当前数据快照
-      const previousUser = queryClient.getQueryData(['currentUser'])
+      // 2. 清理所有缓存数据
+      queryClient.clear()
+      
+      // 3. 取消所有进行中的请求
+      queryClient.cancelQueries()
+      
+      // 4. 跳转到登录页
+      window.location.href = '/login'
+    }
+  })
+}
+
+// 更新用户资料（带乐观更新）
+export function useUpdateProfile() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (data: UpdateProfileRequest) => authService.updateProfile(data),
+    
+    // 乐观更新
+    onMutate: async (newData) => {
+      // 取消进行中的请求
+      await queryClient.cancelQueries({ queryKey: queryKeys.currentUser() })
+      
+      // 保存当前数据
+      const previousUser = queryClient.getQueryData(queryKeys.currentUser())
       
       // 乐观更新
-      queryClient.setQueryData(['currentUser'], (old: User) => ({
-        ...old,
-        ...newData,
-      }))
+      queryClient.setQueryData(queryKeys.currentUser(), (old: User | undefined) => 
+        old ? { ...old, ...newData } : old
+      )
       
-      // 返回快照，用于错误回滚
       return { previousUser }
     },
+    
+    // 错误回滚
     onError: (err, newData, context) => {
-      // 回滚到之前的数据
-      queryClient.setQueryData(['currentUser'], context?.previousUser)
+      queryClient.setQueryData(queryKeys.currentUser(), context?.previousUser)
     },
+    
+    // 成功后重新验证
     onSettled: () => {
-      // 无论成功失败，都重新获取最新数据
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
-    },
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentUser() })
+    }
   })
+}
+```
+
+#### 2.5 Token 刷新与 API 拦截器
+```typescript
+// src/services/auth.ts - 更新拦截器部分
+import axios from 'axios'
+import { queryClient } from '@/lib/queryClient'
+
+// API 拦截器中的 Token 刷新
+axios.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response?.status === 401 && !error.config._retry) {
+      error.config._retry = true
+      
+      try {
+        await authService.refreshToken()
+        
+        // 刷新成功，使所有查询失效以获取新数据
+        queryClient.invalidateQueries()
+        
+        return axios(error.config)
+      } catch (refreshError) {
+        // 刷新失败，清理缓存
+        queryClient.clear()
+        // 清理认证状态
+        useAuthStore.getState().clearAuth()
+        // 跳转登录
+        window.location.href = '/login'
+        throw refreshError
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+```
+
+#### 2.6 预取策略
+```typescript
+// src/hooks/usePrefetch.ts
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
+
+// 在路由加载前预取数据
+export function usePrefetchDashboard() {
+  const queryClient = useQueryClient()
+  
+  return useCallback(() => {
+    // 批量预取
+    Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: ['dashboard-stats'],
+        queryFn: fetchDashboardStats,
+        staleTime: 10 * 60 * 1000, // 10分钟
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['recent-activities'],
+        queryFn: fetchRecentActivities,
+      })
+    ])
+  }, [queryClient])
 }
 ```
 
@@ -324,6 +435,93 @@ graph TB
    // 新代码
    const { data: user, isLoading, error } = useCurrentUser()
    ```
+
+### 完整示例：登录和 Dashboard 实现
+```typescript
+// pages/Login.tsx
+import { useNavigate } from 'react-router-dom'
+import { useLogin } from '@/hooks/useAuthMutations'
+import { usePrefetchDashboard } from '@/hooks/usePrefetch'
+
+function LoginPage() {
+  const navigate = useNavigate()
+  const login = useLogin()
+  const prefetchDashboard = usePrefetchDashboard()
+  
+  const handleLogin = async (credentials: LoginRequest) => {
+    try {
+      await login.mutateAsync(credentials)
+      
+      // 预取 Dashboard 数据
+      await prefetchDashboard()
+      
+      // 导航到 Dashboard
+      navigate('/dashboard')
+    } catch (error) {
+      // 错误已经在 mutation 中处理
+    }
+  }
+  
+  return (
+    <form onSubmit={handleSubmit(handleLogin)}>
+      {login.isError && (
+        <div className="error">{login.error?.message}</div>
+      )}
+      {/* 表单内容 */}
+    </form>
+  )
+}
+
+// pages/Dashboard.tsx
+import { Navigate } from 'react-router-dom'
+import { useCurrentUser, usePermissions } from '@/hooks/useAuthQuery'
+
+function Dashboard() {
+  // 从 TanStack Query 获取用户数据
+  const { data: user, isLoading } = useCurrentUser()
+  const { data: permissions } = usePermissions()
+  
+  if (isLoading) return <LoadingSpinner />
+  if (!user) return <Navigate to="/login" />
+  
+  return (
+    <div>
+      <h1>Welcome, {user.name}!</h1>
+      {permissions && (
+        <div>Your permissions: {permissions.join(', ')}</div>
+      )}
+      {/* Dashboard 内容 */}
+    </div>
+  )
+}
+
+// components/auth/RequireAuth.tsx
+import { Navigate } from 'react-router-dom'
+import { useAuthStore } from '@/hooks/useAuth'
+import { useCurrentUser } from '@/hooks/useAuthQuery'
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore()
+  const { data: user, isLoading } = useCurrentUser()
+  
+  // 未认证，直接跳转
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+  
+  // 认证但还在加载用户数据
+  if (isLoading) {
+    return <LoadingSpinner />
+  }
+  
+  // 认证但获取用户失败（可能 token 无效）
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  
+  return <>{children}</>
+}
+```
 
 ## 风险评估
 

@@ -3,16 +3,16 @@
 ## 待办事项
 
 ### 基础设施设置
-- [ ] ⭐ 创建 queryClient 配置文件 (`src/lib/queryClient.ts`) - **优先级: 高**
-- [ ] ⭐ 在 App.tsx 中添加 QueryClientProvider - **优先级: 高**
-- [ ] 配置 React Query DevTools（开发环境） - **优先级: 中**
+- [x] ⭐ 创建 queryClient 配置文件 (`src/lib/queryClient.ts`) - **优先级: 高**
+- [x] ⭐ 在 App.tsx 中添加 QueryClientProvider - **优先级: 高**
+- [x] 配置 React Query DevTools（开发环境） - **优先级: 中**
 
 ### 创建核心 Hooks
-- [ ] ⭐ 创建 useCurrentUser hook - **优先级: 高**
-- [ ] ⭐ 添加 TypeScript 类型定义 - **优先级: 高**
-- [ ] 创建 useLogin mutation hook - **优先级: 高**
-- [ ] 创建 useLogout mutation hook - **优先级: 高**
-- [ ] 创建 useUpdateProfile mutation hook（含乐观更新） - **优先级: 中**
+- [x] ⭐ 创建 useCurrentUser hook - **优先级: 高**
+- [x] ⭐ 添加 TypeScript 类型定义 - **优先级: 高**
+- [x] 创建 useLogin mutation hook - **优先级: 高**
+- [x] 创建 useLogout mutation hook - **优先级: 高**
+- [x] 创建 useUpdateProfile mutation hook（含乐观更新） - **优先级: 中**
 
 ### 改造认证系统
 - [ ] ⭐ 修改 useAuth hook，移除 user 状态存储 - **优先级: 高**
@@ -64,5 +64,12 @@
 - [ ] 更新项目 README - **优先级: 低**
 
 ## 进行中
+- [ ] ⭐ 修改 useAuth hook，移除 user 状态存储 - **优先级: 高**
 
 ## 已完成
+- [x] 根据最佳实践文档更新实现方案
+- [x] 在 App.tsx 中添加 QueryClientProvider
+- [x] 配置 React Query DevTools（开发环境）
+- [x] 创建 queryClient 配置文件（含查询键管理）
+- [x] 创建 useAuthQuery.ts（useCurrentUser、usePermissions、useSessions）
+- [x] 创建 useAuthMutations.ts（useLogin、useLogout、useUpdateProfile、useRefreshToken）
