@@ -2,14 +2,14 @@
  * useAuthQuery hooks 的单元测试
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
-import { useCurrentUser, usePermissions, useSessions } from './useAuthQuery'
-import { useAuth, useAuthStore } from './useAuth'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { authService } from '../services/auth'
 import type { User } from '../types/auth'
+import { useAuth, useAuthStore } from './useAuth'
+import { useCurrentUser, usePermissions, useSessions } from './useAuthQuery'
 
 // Mock 认证服务
 vi.mock('../services/auth', () => ({
@@ -72,7 +72,7 @@ describe('useAuthQuery hooks', () => {
   beforeEach(() => {
     queryClient = createTestQueryClient()
     vi.clearAllMocks()
-    
+
     // 设置默认的 useAuth mock - 创建完整的 store 对象
     const defaultAuthStoreValue = {
       isAuthenticated: false,
@@ -176,8 +176,8 @@ describe('useAuthQuery hooks', () => {
 
       // 创建符合 authService.handleApiError 处理后的错误结构
       const error401 = new Error('Unauthorized')
-      ;(error401 as any).status = 401
-      ;(error401 as any).response = { status: 401 }
+        ; (error401 as any).status = 401
+        ; (error401 as any).response = { status: 401 }
 
       vi.mocked(authService.getCurrentUser).mockRejectedValueOnce(error401)
 
@@ -204,7 +204,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(useAuthStore).mockReturnValue(mockAuthStore)
 
       const networkError = new Error('Network Error')
-      
+
       // 让所有调用都失败，这样我们可以观察重试次数
       vi.mocked(authService.getCurrentUser).mockRejectedValue(networkError)
 
@@ -461,7 +461,7 @@ describe('useAuthQuery hooks', () => {
 
       // 由于有 initialData，isLoading 应该是 false
       expect(result.current.isLoading).toBe(false)
-      
+
       // 等待查询完成
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true)
@@ -495,7 +495,7 @@ describe('useAuthQuery hooks', () => {
 
       // 应该返回空数组（因为API不存在时的默认行为）
       expect(result.current.data).toEqual([])
-      
+
       // 恢复原始mock以免影响后续测试
       vi.mocked(authService).getSessions = originalGetSessions
     })

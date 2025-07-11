@@ -187,11 +187,305 @@ RESEND_DOMAIN: str = Field(
 
 ---
 
+```diff
+  
+  import os
++ from typing import Optional
+  
+- from pydantic import Field
++ from pydantic import Field, field_validator
+  from pydantic_settings import BaseSettings
+  
+```
 
+```diff
+      # JWT Settings
+      JWT_SECRET_KEY: str = Field(
+-         default="test_jwt_secret_key_for_development_only_32_chars"
+-         if os.getenv("NODE_ENV") == "test"
+-         else ...,
++         default="test_jwt_secret_key_for_development_only_32_chars",
+          description="Secret key for JWT signing (min 32 chars)",
+      )
+```
+
+```diff
+      # Email Service
+      RESEND_API_KEY: str = Field(
+-         default="test_api_key" if os.getenv("NODE_ENV") == "test" else ...,
++         default="test_api_key",
+          description="Resend API key for sending emails",
+      )
+      RESEND_DOMAIN: str = Field(
+-         default="test.example.com" if os.getenv("NODE_ENV") == "test" else ...,
++         default="test.example.com",
+          description="Domain for sending emails",
+      )
+```
+
+```diff
+      MAILDEV_PORT: int = Field(default=1025, description="Maildev SMTP port")
+  
++     @field_validator('JWT_SECRET_KEY')
++     @classmethod
++     def validate_jwt_secret_key(cls, v: str) -> str:
++         """Validate JWT secret key requirements for non-test environments."""
++         if os.getenv("NODE_ENV") != "test":
++             if not v or v == "test_jwt_secret_key_for_development_only_32_chars":
++                 raise ValueError(
++                     "JWT_SECRET_KEY must be set to a secure value in production environments"
++                 )
++             if len(v) < 32:
++                 raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
++         return v
++ 
++     @field_validator('RESEND_API_KEY')
++     @classmethod
++     def validate_resend_api_key(cls, v: str) -> str:
++         """Validate Resend API key for non-test environments."""
++         if os.getenv("NODE_ENV") != "test":
++             if not v or v == "test_api_key":
++                 raise ValueError(
++                     "RESEND_API_KEY must be set to a valid API key in production environments"
++                 )
++         return v
++ 
++     @field_validator('RESEND_DOMAIN')
++     @classmethod
++     def validate_resend_domain(cls, v: str) -> str:
++         """Validate Resend domain for non-test environments."""
++         if os.getenv("NODE_ENV") != "test":
++             if not v or v == "test.example.com":
++                 raise ValueError(
++                     "RESEND_DOMAIN must be set to a valid domain in production environments"
++                 )
++         return v
++ 
+      class Config:
+          """Pydantic config."""
+```
+
+---
+
+<think><details><summary>Thought Process</summary>我修复了类型错误，解决方案是：
+
+1. **移除了条件表达式中的 Ellipsis (`...`)**：
+   - 原来：`default="test_value" if condition else ...`
+   - 现在：`default="test_value"`
+
+2. **添加了字段验证器**：
+   - 使用 `@field_validator` 装饰器来在运行时验证字段值
+   - 在非测试环境下，如果字段值仍然是测试默认值，会抛出 `ValueError`
+   - 这样既保持了类型安全，又确保了生产环境下必须提供正确的配置值
+
+3. **保持了原有的行为**：
+   - 在测试环境 (`NODE_ENV=test`) 下，使用默认的测试值
+   - 在生产环境下，必须提供有效的配置值，否则抛出验证错误
+
+这种方法的优点：
+- 解决了类型错误（不再有 `EllipsisType` 与 `str` 的冲突）
+- 保持了运行时验证，确保生产环境的安全性
+- 代码更清晰和可维护
+- 符合 Pydantic v2 的最佳实践
+
+类型检查器现在应该不会报错了，因为所有字段都有一致的 `str` 类型。</details></think>
+
+---
+
+我已经修复了类型错误。主要修改如下：
+
+## 修复内容
+
+1. **移除了条件表达式中的 Ellipsis (`...`)**：
+   - 原来的代码使用 `default="test_value" if condition else ...` 会导致类型不匹配
+   - 现在直接使用 `default="test_value"`
+
+2. **添加了字段验证器**：
+   - 使用 `@field_validator` 装饰器在运行时验证配置
+   - 在非测试环境下检查是否提供了有效的配置值
+   - 如果仍使用测试默认值，会抛出 `ValueError`
+
+3. **保持了原有的安全性**：
+   - 测试环境 (`NODE_ENV=test`) 下允许使用测试默认值
+   - 生产环境下必须提供有效的配置值
+
+## 修复的字段
+
+- `JWT_SECRET_KEY`: 添加了长度验证（至少32字符）
+- `RESEND_API_KEY`: 验证非测试环境下必须提供有效API密钥  
+- `RESEND_DOMAIN`: 验证非测试环境下必须提供有效域名
+
+现在类型检查器不会再报错，因为所有字段都有一致的 `str` 类型，同时通过验证器确保了生产环境的配置安全性。
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The user is getting a linting error about exception handling. The error message is saying that when you're in an `except` clause and you want to raise a new exception, you should use either:
+
+1. `raise ... from err` - to chain the exceptions and show the original cause
+2. `raise ... from None` - to suppress the original exception and only show the new one
+
+Looking at the code, there are several places where this pattern occurs:
+
+1. Lines 47-51: In `get_current_user_profile`
+2. Lines 84-88: In `update_current_user_profile` 
+3. Lines 133-137: In `delete_current_user_account`
+
+The pattern is:
+```python
+except Exception as e:
+    logger.error(f"Some error: {e}")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="An error occurred while ...",
+    )
+```
+
+Since these are internal server errors where we don't want to expose the original exception details to the client for security reasons, we should use `raise ... from None` to suppress the original exception chain.
+
+However, I should also note that the user made some changes to the auth_config.py file, but the question is about the auth_profile.py file, so I'll focus on that.</details></think>
+
+---
+
+The error occurs because you're raising new exceptions inside `except` blocks without proper exception chaining. Use `raise ... from None` to suppress the original exception chain for security (since you don't want to expose internal errors to clients):
 
 ---
 
 
+
+---
+
+<think><details><summary>Thought Process</summary>Now I need to fix the other two similar patterns in the file.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Now I need to fix the third one that's in the `delete_current_user_account` function.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>I've fixed all three instances where `raise HTTPException(...)` was being used in `except Exception as e:` blocks. By adding `from None` to each raise statement, we suppress the original exception chain, which is appropriate here since:
+
+1. We're already logging the original exception details with `logger.error(f"... error: {e}")`
+2. We don't want to expose internal exception details to API clients for security reasons
+3. We're providing a generic, user-friendly error message instead
+
+This resolves the linting error about proper exception chaining in except clauses.</details></think>
+
+---
+
+Fixed! I added `from None` to all three `raise HTTPException(...)` statements in the `except` blocks. This suppresses the original exception chain, which is appropriate here since:
+
+1. You're already logging the original error details
+2. You don't want to expose internal exception details to API clients for security
+3. You're providing user-friendly error messages instead
+
+The `from None` tells Python to not chain the exceptions, resolving the linting error.
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Use `X | Y` for type annotations
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The error is about using `Union[X, Y]` instead of the newer `X | Y` syntax for type annotations. Looking at the file, I can see there are several instances of `Union[...]` that need to be changed to use the `|` syntax.
+
+Let me identify the instances:
+1. Line 9: `from typing import Union` - this import can be removed
+2. Line 26: `response_model=Union[UserResponse, ErrorResponse]`
+3. Line 56: `response_model=Union[UserResponse, ErrorResponse]`
+4. Line 101: `response_model=Union[MessageResponse, ErrorResponse]`
+5. Line 31: `async def get_current_user_profile(...) -> UserResponse | ErrorResponse:`
+6. Line 61: `async def update_current_user_profile(...) -> UserResponse | ErrorResponse:`
+7. Line 106: `async def delete_current_user_account(...) -> MessageResponse | ErrorResponse:`
+
+Actually, looking more carefully, the function return types are already using the `|` syntax, so those are fine. The issue is with the `response_model` parameters in the decorators and possibly the import.
+
+Let me fix these step by step.</details></think>
+
+---
+
+The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I need to replace the `Union` usage and remove the import:
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Now I need to replace the `Union[X, Y]` with `X | Y` in the response_model parameters.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>I need to replace each instance separately with more context.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Good, that fixed one instance. Now I need to fix the other two remaining Union instances.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>One more Union instance to fix.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! I've successfully:
+
+1. Removed the `from typing import Union` import
+2. Replaced all three instances of `Union[X, Y]` with `X | Y` in the response_model parameters
+
+The linter errors should now be resolved. The modern `X | Y` syntax for union types is supported in Python 3.10+ and is the preferred way to write type annotations.</details></think>
+
+---
+
+Fixed! I've replaced all `Union[X, Y]` with the modern `X | Y` syntax and removed the unused import:
+
+1. Removed `from typing import Union` import
+2. Changed all `response_model=Union[X, Y]` to `response_model=X | Y`
+
+The modern `X | Y` syntax is preferred for union types in Python 3.10+.
 
 ---
 

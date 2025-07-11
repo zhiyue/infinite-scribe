@@ -142,7 +142,971 @@ The issue is that the `UserService` and `PasswordService` classes aren't exporte
 
 ---
 
+```diff
+  from .embedding_service import EmbeddingService, embedding_service
+  from .neo4j_service import Neo4jService
++ from .password_service import PasswordService
+  from .postgres_service import PostgreSQLService
+  from .redis_service import RedisService
++ from .user_service import UserService
+  
+  __all__ = [
+      "EmbeddingService",
+      "embedding_service",
+      "Neo4jService",
++     "PasswordService",
+      "PostgreSQLService",
+      "RedisService",
++     "UserService",
+  ]
+  
+```
 
+---
+
+<think><details><summary>Thought Process</summary>Perfect! I've added the missing imports for `UserService` and `PasswordService` to the `__init__.py` file. This should resolve the linter error about not being able to find the implementation for `src.common.services.user_service`.
+
+The fix was concise - just adding the missing imports to the package's __init__.py file so that the modules can be properly discovered by the Python import system.</details></think>
+
+---
+
+The problem was that `UserService` and `PasswordService` weren't exported in the `src/common/services/__init__.py` file. I've added the missing imports and exports, which should resolve the linter error.
+
+The services exist but weren't accessible because they weren't properly exposed at the package level.
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Cannot find implementation or library stub for module named "src.api.schemas"
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The user is getting another linter error, this time for `src.api.schemas`. Let me check if this module exists and if it has the required imports.</details></think>
+
+---
+
+<details>
+            <summary>Searched codebase "schemas" • **10** results</summary>
+        
+| File |
+|------|
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+| `undefined` |
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>Found the schemas directory and __init__.py file. Let me check what's in the __init__.py file to see if the required schema classes are exported.</details></think>
+
+---
+
+Read file: apps/backend/src/api/schemas/__init__.py
+
+---
+
+<think><details><summary>Thought Process</summary>The schemas __init__.py file exists and includes all the required schema classes that are being imported in the auth_password.py file, including:
+- ChangePasswordRequest
+- ErrorResponse  
+- ForgotPasswordRequest
+- MessageResponse
+- PasswordStrengthResponse
+- ResetPasswordRequest
+
+These are all listed in the __init__.py file and should be available for import. Let me check if there are any syntax errors or issues in the auth.py file that defines these schemas.</details></think>
+
+---
+
+Read file: apps/backend/src/api/schemas/auth.py
+
+---
+
+<think><details><summary>Thought Process</summary>The schemas files look correct - both the auth.py file and __init__.py file exist and contain all the required schema classes. The linter error suggests it can't find the module, which might be a Python path issue.
+
+Let me check if there's an __init__.py file in the src directory itself to ensure proper module structure.</details></think>
+
+---
+
+Read file: apps/backend/src/__init__.py
+
+---
+
+<think><details><summary>Thought Process</summary>The __init__.py files exist, so the module structure should be correct. Let me check if there's a `pyproject.toml` or similar file in the backend directory to see if there are any module path configurations.</details></think>
+
+---
+
+Read file: apps/backend/pyproject.toml
+
+---
+
+<think><details><summary>Thought Process</summary>Looking at the pyproject.toml file, I can see that it has `src = ["src"]` in the Ruff configuration and `pythonpath = [".", "src"]` in the pytest configuration. This suggests that the project expects the `src` directory to be in the Python path.
+
+The issue is likely that the Python path isn't properly configured for the linter. The modules exist, but the linter can't find them because it's not recognizing the `src` directory as the root for imports.
+
+The quickest fix would be to create a `__init__.py` file that might be missing, or check if there's a missing configuration for the linter. However, since this is a linter error and not a runtime error, and the files exist, this might be an IDE/linter configuration issue.
+
+Let me suggest a simple fix that should resolve this - creating a proper __init__.py file in the src directory if it's empty, or checking if there's a missing pyproject.toml configuration.
+
+Actually, looking more carefully, the pyproject.toml has the correct configurations. The issue might be that the IDE/linter isn't picking up the pythonpath correctly. A simple solution is often to run the linter from the correct directory.
+
+But let me check if there are any obvious issues first.</details></think>
+
+---
+
+The schemas module exists and the imports are correct. This is likely a Python path configuration issue. Here's the most concise fix:
+
+---
+
+Model provided invalid arguments to terminal tool.
+
+---
+
+<think><details><summary>Thought Process</summary>I need to include the is_background parameter.</details></think>
+
+---
+
+```bash
+cd apps/backend && python -c "from src.api.schemas import ChangePasswordRequest; print('Import successful')"
+```
+
+```
+  File "<string>", line 1, in <module>
+    from src.api.schemas import ChangePasswordRequest; print('Import successful')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/schemas/__init__.py", line 3, in <module>
+    from .auth import (
+    ...<15 lines>...
+    )
+  File "/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/schemas/auth.py", line 6, in <module>
+    from pydantic import BaseModel, EmailStr, Field, ConfigDict
+ModuleNotFoundError: No module named 'pydantic'
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0.1.0 via 🐍 v3.13.4 (infinite-scribe) 
+❯
+```
+
+---
+
+<think><details><summary>Thought Process</summary>The error shows that `pydantic` is not installed in the current environment. The imports are correct, but the dependencies aren't installed. This is the actual issue - the linter can't resolve the imports because the dependencies aren't available.
+
+The fix is to install the dependencies.</details></think>
+
+---
+
+The issue is that the dependencies aren't installed. Install them with:
+
+---
+
+```bash
+cd apps/backend && pip install -e .
+```
+
+```
+❯ cd apps/backend && pip install -e .
+bash: cd: apps/backend: No such file or directory
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0.1.0 via 🐍 v3.13.4 (infinite-scribe) 
+❯
+```
+
+---
+
+<think><details><summary>Thought Process</summary>The shell is already in the backend directory. Let me just run the pip install command.</details></think>
+
+---
+
+```bash
+pip install -e .
+```
+
+```
+❯ pip install -e .
+Obtaining file:///home/zhiyue/workspace/mvp/infinite-scribe/apps/backend
+  Installing build dependencies ... done
+  Checking if build backend supports build_editable ... done
+  Getting requirements to build editable ... done
+  Installing backend dependencies ... done
+  Preparing editable metadata (pyproject.toml) ... error
+  error: subprocess-exited-with-error
+  
+  × Preparing editable metadata (pyproject.toml) did not run successfully.
+  │ exit code: 1
+  ╰─> [53 lines of output]
+      Traceback (most recent call last):
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 195, in prepare_met
+adata_for_build_editable
+          hook = backend.prepare_metadata_for_build_editable
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      AttributeError: module 'hatchling.build' has no attribute 'prepare_metadata_for_build_editable'
+      
+      During handling of the above exception, another exception occurred:
+      
+      Traceback (most recent call last):
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 389, in <module>
+          main()
+          ~~~~^^
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 373, in main
+          json_out["return_val"] = hook(**hook_input["kwargs"])
+                                   ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 204, in prepare_met
+adata_for_build_editable
+          whl_basename = build_hook(metadata_directory, config_settings)
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/build.py", line 83, in build_editable
+          return os.path.basename(next(builder.build(directory=wheel_directory, versions=['editable'])))
+                                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/plugin/interface.py", line 155, in build
+          artifact = version_api[version](directory, **build_data)
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 496, in build_editable
+          return self.build_editable_detection(directory, **build_data)
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 507, in build_editable_detection
+          for included_file in self.recurse_selected_project_files():
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/plugin/interface.py", line 180, in recurse_selected_project_fi
+les
+          if self.config.only_include:
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/functools.py", line 1026, in __get__
+          val = self.func(instance)
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/config.py", line 713, in only_include
+          only_include = only_include_config.get('only-include', self.default_only_include()) or self.packages
+                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 262, in default_only_include
+          return self.default_file_selection_options.only_include
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/functools.py", line 1026, in __get__
+          val = self.func(instance)
+        File "/tmp/pip-build-env-4h515nm4/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 250, in default_file_selection_options
+          raise ValueError(message)
+      ValueError: Unable to determine which files to ship inside the wheel using the following heuristics: https://hatch.pypa.io/latest/plugins/builder/wheel/#d
+efault-file-selection
+      
+      The most likely cause of this is that there is no directory that matches the name of your project (infinite_scribe_backend).
+      
+      At least one file selection option must be defined in the `tool.hatch.build.targets.wheel` table, see: https://hatch.pypa.io/latest/config/build/
+      
+      As an example, if you intend to ship a directory named `foo` that resides within a `src` directory located at the root of your project, you can define the
+ following:
+      
+      [tool.hatch.build.targets.wheel]
+      packages = ["src/foo"]
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+error: metadata-generation-failed
+
+× Encountered error while generating package metadata.
+╰─> See above for output.
+
+note: This is an issue with the package mentioned above, not pip.
+hint: See above for details.
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0.1.0 via 🐍 v3.13.4 (infinite-scribe) took 2s 
+❯
+```
+
+---
+
+<think><details><summary>Thought Process</summary>The issue is with the hatchling build configuration. The project name is `infinite-scribe-backend` but it's looking for a directory named `infinite_scribe_backend` (with underscores). I need to add the packages configuration to the pyproject.toml file.</details></think>
+
+---
+
+The build configuration is missing. Add this to `pyproject.toml`:
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Now let me try to install the dependencies again.</details></think>
+
+---
+
+```bash
+pip install -e .
+```
+
+```
+project (infinite_scribe_backend).
+      
+      At least one file selection option must be defined in the `tool.hatch.build.targets.wheel`
+ table, see: https://hatch.pypa.io/latest/config/build/
+      
+      As an example, if you intend to ship a directory named `foo` that resides within a `src` d
+irectory located at the root of your project, you can define the following:
+      
+      [tool.hatch.build.targets.wheel]
+      packages = ["src/foo"]
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+error: metadata-generation-failed
+
+× Encountered error while generating package metadata.
+╰─> See above for output.
+
+note: This is an issue with the package mentioned above, not pip.
+hint: See above for details.
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0
+.1.0 via 🐍 v3.13.4 (infinite-scribe) took 2s 
+❯ q^C
+
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0
+.1.0 via 🐍 v3.13.4 (infinite-scribe) 
+❯ pip install -e .
+Obtaining file:///home/zhiyue/workspace/mvp/infinite-scribe/apps/backend
+  Installing build dependencies ... done
+  Checking if build backend supports build_editable ... done
+  Getting requirements to build editable ... done
+  Installing backend dependencies ... done
+  Preparing editable metadata (pyproject.toml) ... done
+Collecting aiokafka~=0.11.0 (from infinite-scribe-backend==0.1.0)
+  Downloading aiokafka-0.11.0.tar.gz (564 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 564.7/564.7 kB 3.5 MB/s eta 0:00:00
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+Collecting alembic>=1.16.2 (from infinite-scribe-backend==0.1.0)
+  Downloading alembic-1.16.2-py3-none-any.whl.metadata (7.3 kB)
+Collecting anthropic~=0.39.0 (from infinite-scribe-backend==0.1.0)
+  Downloading anthropic-0.39.0-py3-none-any.whl.metadata (22 kB)
+Collecting asyncpg~=0.30.0 (from infinite-scribe-backend==0.1.0)
+  Downloading asyncpg-0.30.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+ (5.0 kB)
+Collecting fastapi~=0.115.13 (from infinite-scribe-backend==0.1.0)
+  Downloading fastapi-0.115.14-py3-none-any.whl.metadata (27 kB)
+Collecting httpx~=0.27.0 (from infinite-scribe-backend==0.1.0)
+  Downloading httpx-0.27.2-py3-none-any.whl.metadata (7.1 kB)
+Collecting langfuse~=2.25.0 (from infinite-scribe-backend==0.1.0)
+  Downloading langfuse-2.25.0-py3-none-any.whl.metadata (2.9 kB)
+Collecting litellm~=1.52.0 (from infinite-scribe-backend==0.1.0)
+  Downloading litellm-1.52.16-py3-none-any.whl.metadata (33 kB)
+Collecting minio~=7.2.10 (from infinite-scribe-backend==0.1.0)
+  Downloading minio-7.2.15-py3-none-any.whl.metadata (6.7 kB)
+Collecting neo4j~=5.26.0 (from infinite-scribe-backend==0.1.0)
+  Downloading neo4j-5.26.0-py3-none-any.whl.metadata (5.9 kB)
+Collecting openai~=1.54.0 (from infinite-scribe-backend==0.1.0)
+  Downloading openai-1.54.5-py3-none-any.whl.metadata (24 kB)
+Collecting passlib>=1.7.4 (from passlib[bcrypt]>=1.7.4->infinite-scribe-backend==0.1.0)
+  Downloading passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting prefect~=2.19.0 (from infinite-scribe-backend==0.1.0)
+  Downloading prefect-2.19.9-py3-none-any.whl.metadata (12 kB)
+Collecting pydantic-settings~=2.6.0 (from infinite-scribe-backend==0.1.0)
+  Downloading pydantic_settings-2.6.1-py3-none-any.whl.metadata (3.5 kB)
+Collecting pydantic~=2.11.7 (from infinite-scribe-backend==0.1.0)
+  Using cached pydantic-2.11.7-py3-none-any.whl.metadata (67 kB)
+Collecting pymilvus~=2.4.9 (from infinite-scribe-backend==0.1.0)
+  Downloading pymilvus-2.4.15-py3-none-any.whl.metadata (5.7 kB)
+Collecting python-dotenv~=1.0.1 (from infinite-scribe-backend==0.1.0)
+  Downloading python_dotenv-1.0.1-py3-none-any.whl.metadata (23 kB)
+Collecting python-jose>=3.5.0 (from python-jose[cryptography]>=3.5.0->infinite-scribe-backend==0
+.1.0)
+  Downloading python_jose-3.5.0-py2.py3-none-any.whl.metadata (5.5 kB)
+Collecting python-multipart>=0.0.20 (from infinite-scribe-backend==0.1.0)
+  Using cached python_multipart-0.0.20-py3-none-any.whl.metadata (1.8 kB)
+Collecting pyyaml~=6.0.2 (from infinite-scribe-backend==0.1.0)
+  Using cached PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata 
+(2.1 kB)
+Collecting redis~=5.2.0 (from infinite-scribe-backend==0.1.0)
+  Downloading redis-5.2.1-py3-none-any.whl.metadata (9.1 kB)
+Collecting resend>=2.10.0 (from infinite-scribe-backend==0.1.0)
+  Downloading resend-2.10.0-py2.py3-none-any.whl.metadata (2.4 kB)
+Collecting slowapi>=0.1.9 (from infinite-scribe-backend==0.1.0)
+  Downloading slowapi-0.1.9-py3-none-any.whl.metadata (3.0 kB)
+Requirement already satisfied: sqlalchemy>=2.0.41 in /home/zhiyue/.pyenv/versions/3.13.4/lib/pyt
+hon3.13/site-packages (from sqlalchemy[mypy]>=2.0.41->infinite-scribe-backend==0.1.0) (2.0.41)
+Collecting structlog~=24.4.0 (from infinite-scribe-backend==0.1.0)
+  Downloading structlog-24.4.0-py3-none-any.whl.metadata (7.3 kB)
+Collecting tenacity~=9.0.0 (from infinite-scribe-backend==0.1.0)
+  Downloading tenacity-9.0.0-py3-none-any.whl.metadata (1.2 kB)
+Collecting uvicorn~=0.32.0 (from uvicorn[standard]~=0.32.0->infinite-scribe-backend==0.1.0)
+  Downloading uvicorn-0.32.1-py3-none-any.whl.metadata (6.6 kB)
+Collecting async-timeout (from aiokafka~=0.11.0->infinite-scribe-backend==0.1.0)
+  Downloading async_timeout-5.0.1-py3-none-any.whl.metadata (5.1 kB)
+Requirement already satisfied: packaging in /home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/s
+ite-packages (from aiokafka~=0.11.0->infinite-scribe-backend==0.1.0) (25.0)
+Requirement already satisfied: typing_extensions>=4.10.0 in /home/zhiyue/.pyenv/versions/3.13.4/
+lib/python3.13/site-packages (from aiokafka~=0.11.0->infinite-scribe-backend==0.1.0) (4.14.1)
+Collecting anyio<5,>=3.5.0 (from anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Using cached anyio-4.9.0-py3-none-any.whl.metadata (4.7 kB)
+Collecting distro<2,>=1.7.0 (from anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Using cached distro-1.9.0-py3-none-any.whl.metadata (6.8 kB)
+Collecting jiter<1,>=0.4.0 (from anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Downloading jiter-0.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (
+5.2 kB)
+Collecting sniffio (from anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Using cached sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+Collecting idna>=2.8 (from anyio<5,>=3.5.0->anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Using cached idna-3.10-py3-none-any.whl.metadata (10 kB)
+Collecting starlette<0.47.0,>=0.40.0 (from fastapi~=0.115.13->infinite-scribe-backend==0.1.0)
+  Using cached starlette-0.46.2-py3-none-any.whl.metadata (6.2 kB)
+Collecting certifi (from httpx~=0.27.0->infinite-scribe-backend==0.1.0)
+  Using cached certifi-2025.6.15-py3-none-any.whl.metadata (2.4 kB)
+Collecting httpcore==1.* (from httpx~=0.27.0->infinite-scribe-backend==0.1.0)
+  Using cached httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+Collecting h11>=0.16 (from httpcore==1.*->httpx~=0.27.0->infinite-scribe-backend==0.1.0)
+  Using cached h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Collecting backoff<3.0.0,>=2.2.1 (from langfuse~=2.25.0->infinite-scribe-backend==0.1.0)
+  Downloading backoff-2.2.1-py3-none-any.whl.metadata (14 kB)
+Collecting packaging (from aiokafka~=0.11.0->infinite-scribe-backend==0.1.0)
+  Downloading packaging-23.2-py3-none-any.whl.metadata (3.2 kB)
+Collecting wrapt<2.0,>=1.14 (from langfuse~=2.25.0->infinite-scribe-backend==0.1.0)
+  Downloading wrapt-1.17.2-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86
+_64.manylinux2014_x86_64.whl.metadata (6.4 kB)
+Collecting aiohttp (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading aiohttp-3.12.13-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadat
+a (7.6 kB)
+Requirement already satisfied: click in /home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13/site-
+packages (from litellm~=1.52.0->infinite-scribe-backend==0.1.0) (8.2.1)
+Collecting importlib-metadata>=6.8.0 (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading importlib_metadata-8.7.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting jinja2<4.0.0,>=3.1.2 (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting jsonschema<5.0.0,>=4.22.0 (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading jsonschema-4.24.0-py3-none-any.whl.metadata (7.8 kB)
+Collecting requests<3.0.0,>=2.31.0 (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Using cached requests-2.32.4-py3-none-any.whl.metadata (4.9 kB)
+Collecting tiktoken>=0.7.0 (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading tiktoken-0.9.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+ (6.7 kB)
+Collecting tokenizers (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading tokenizers-0.21.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadat
+a (6.8 kB)
+Collecting MarkupSafe>=2.0 (from jinja2<4.0.0,>=3.1.2->litellm~=1.52.0->infinite-scribe-backend=
+=0.1.0)
+  Downloading MarkupSafe-3.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metada
+ta (4.0 kB)
+Collecting attrs>=22.2.0 (from jsonschema<5.0.0,>=4.22.0->litellm~=1.52.0->infinite-scribe-backe
+nd==0.1.0)
+  Downloading attrs-25.3.0-py3-none-any.whl.metadata (10 kB)
+Collecting jsonschema-specifications>=2023.03.6 (from jsonschema<5.0.0,>=4.22.0->litellm~=1.52.0
+->infinite-scribe-backend==0.1.0)
+  Downloading jsonschema_specifications-2025.4.1-py3-none-any.whl.metadata (2.9 kB)
+Collecting referencing>=0.28.4 (from jsonschema<5.0.0,>=4.22.0->litellm~=1.52.0->infinite-scribe
+-backend==0.1.0)
+  Downloading referencing-0.36.2-py3-none-any.whl.metadata (2.8 kB)
+Collecting rpds-py>=0.7.1 (from jsonschema<5.0.0,>=4.22.0->litellm~=1.52.0->infinite-scribe-back
+end==0.1.0)
+  Downloading rpds_py-0.26.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+ (4.2 kB)
+Collecting urllib3 (from minio~=7.2.10->infinite-scribe-backend==0.1.0)
+  Using cached urllib3-2.5.0-py3-none-any.whl.metadata (6.5 kB)
+Collecting argon2-cffi (from minio~=7.2.10->infinite-scribe-backend==0.1.0)
+  Downloading argon2_cffi-25.1.0-py3-none-any.whl.metadata (4.1 kB)
+Collecting pycryptodome (from minio~=7.2.10->infinite-scribe-backend==0.1.0)
+  Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metad
+ata (3.4 kB)
+Collecting pytz (from neo4j~=5.26.0->infinite-scribe-backend==0.1.0)
+  Using cached pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting tqdm>4 (from openai~=1.54.0->infinite-scribe-backend==0.1.0)
+  Using cached tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+Collecting aiosqlite>=0.17.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading aiosqlite-0.21.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting apprise<2.0.0,>=1.1.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading apprise-1.9.3-py3-none-any.whl.metadata (53 kB)
+Collecting click (from litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading click-8.1.8-py3-none-any.whl.metadata (2.3 kB)
+Collecting cryptography>=36.0.1 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading cryptography-45.0.5-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting dateparser<2.0.0,>=1.1.1 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading dateparser-1.2.2-py3-none-any.whl.metadata (29 kB)
+Collecting docker>=4.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading docker-7.1.0-py3-none-any.whl.metadata (3.8 kB)
+Collecting graphviz>=0.20.1 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading graphviz-0.21-py3-none-any.whl.metadata (12 kB)
+Collecting griffe<0.48.0,>=0.20.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading griffe-0.47.0-py3-none-any.whl.metadata (6.3 kB)
+Collecting jinja2-humanize-extension>=0.4.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.
+0)
+  Downloading jinja2_humanize_extension-0.4.0-py3-none-any.whl.metadata (3.6 kB)
+Collecting humanize>=4.9.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading humanize-4.12.3-py3-none-any.whl.metadata (7.8 kB)
+Collecting kubernetes<30.0.0,>=24.2.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading kubernetes-29.0.0-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting pytz (from neo4j~=5.26.0->infinite-scribe-backend==0.1.0)
+  Downloading pytz-2024.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting readchar<5.0.0,>=4.0.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading readchar-4.2.1-py3-none-any.whl.metadata (7.5 kB)
+Collecting typer!=0.12.2,<0.13.0,>=0.12.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading typer-0.12.5-py3-none-any.whl.metadata (15 kB)
+Collecting anyio<5,>=3.5.0 (from anthropic~=0.39.0->infinite-scribe-backend==0.1.0)
+  Downloading anyio-3.7.1-py3-none-any.whl.metadata (4.7 kB)
+Collecting asgi-lifespan<3.0,>=1.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading asgi_lifespan-2.1.0-py3-none-any.whl.metadata (10 kB)
+Collecting cachetools<6.0,>=5.3 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached cachetools-5.5.2-py3-none-any.whl.metadata (5.4 kB)
+Collecting cloudpickle<4.0,>=2.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading cloudpickle-3.1.1-py3-none-any.whl.metadata (7.1 kB)
+Collecting coolname<3.0.0,>=1.0.4 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading coolname-2.2.0-py2.py3-none-any.whl.metadata (6.2 kB)
+Collecting croniter<3.0.0,>=1.0.12 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading croniter-2.0.7-py2.py3-none-any.whl.metadata (27 kB)
+Collecting fsspec>=2022.5.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading fsspec-2025.5.1-py3-none-any.whl.metadata (11 kB)
+Collecting importlib-resources<6.2.0,>=6.1.3 (from prefect~=2.19.0->infinite-scribe-backend==0.1
+.0)
+  Downloading importlib_resources-6.1.3-py3-none-any.whl.metadata (3.9 kB)
+Collecting jsonpatch<2.0,>=1.32 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading jsonpatch-1.33-py2.py3-none-any.whl.metadata (3.0 kB)
+Collecting orjson<4.0,>=3.7 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading orjson-3.10.18-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+ (41 kB)
+Requirement already satisfied: pathspec>=0.8.0 in /home/zhiyue/.pyenv/versions/3.13.4/lib/python
+3.13/site-packages (from prefect~=2.19.0->infinite-scribe-backend==0.1.0) (0.12.1)
+Collecting pydantic-core<3.0.0,>=2.12.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading pydantic_core-2.35.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.me
+tadata (6.8 kB)
+Collecting python-dateutil<3.0.0,>=2.8.2 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting python-slugify<9.0,>=5.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading python_slugify-8.0.4-py2.py3-none-any.whl.metadata (8.5 kB)
+Collecting rfc3339-validator<0.2.0,>=0.1.4 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0
+)
+  Downloading rfc3339_validator-0.1.4-py2.py3-none-any.whl.metadata (1.5 kB)
+Collecting rich<14.0,>=11.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading rich-13.9.4-py3-none-any.whl.metadata (18 kB)
+Collecting ruamel.yaml>=0.17.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached ruamel.yaml-0.18.14-py3-none-any.whl.metadata (24 kB)
+Collecting toml>=0.10.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading toml-0.10.2-py2.py3-none-any.whl.metadata (7.1 kB)
+Collecting ujson<6.0.0,>=5.8.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading ujson-5.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (
+9.3 kB)
+Collecting websockets<13.0,>=10.4 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading websockets-12.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting itsdangerous (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+Collecting pendulum<4,>=3.0.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading pendulum-3.1.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+ (6.8 kB)
+Collecting Mako (from alembic>=1.16.2->infinite-scribe-backend==0.1.0)
+  Downloading mako-1.3.10-py3-none-any.whl.metadata (2.9 kB)
+Collecting requests-oauthlib (from apprise<2.0.0,>=1.1.0->prefect~=2.19.0->infinite-scribe-backe
+nd==0.1.0)
+  Downloading requests_oauthlib-2.0.0-py2.py3-none-any.whl.metadata (11 kB)
+Collecting markdown (from apprise<2.0.0,>=1.1.0->prefect~=2.19.0->infinite-scribe-backend==0.1.0
+)
+  Downloading markdown-3.8.2-py3-none-any.whl.metadata (5.1 kB)
+Collecting regex>=2024.9.11 (from dateparser<2.0.0,>=1.1.1->prefect~=2.19.0->infinite-scribe-bac
+kend==0.1.0)
+  Downloading regex-2024.11.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadat
+a (40 kB)
+Collecting tzlocal>=0.2 (from dateparser<2.0.0,>=1.1.1->prefect~=2.19.0->infinite-scribe-backend
+==0.1.0)
+  Downloading tzlocal-5.3.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting colorama>=0.4 (from griffe<0.48.0,>=0.20.0->prefect~=2.19.0->infinite-scribe-backend=
+=0.1.0)
+  Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Collecting jsonpointer>=1.9 (from jsonpatch<2.0,>=1.32->prefect~=2.19.0->infinite-scribe-backend
+==0.1.0)
+  Downloading jsonpointer-3.0.0-py2.py3-none-any.whl.metadata (2.3 kB)
+Collecting six>=1.9.0 (from kubernetes<30.0.0,>=24.2.0->prefect~=2.19.0->infinite-scribe-backend
+==0.1.0)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting google-auth>=1.0.1 (from kubernetes<30.0.0,>=24.2.0->prefect~=2.19.0->infinite-scribe
+-backend==0.1.0)
+  Using cached google_auth-2.40.3-py2.py3-none-any.whl.metadata (6.2 kB)
+Collecting websocket-client!=0.40.0,!=0.41.*,!=0.42.*,>=0.32.0 (from kubernetes<30.0.0,>=24.2.0-
+>prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading websocket_client-1.8.0-py3-none-any.whl.metadata (8.0 kB)
+Collecting oauthlib>=3.2.2 (from kubernetes<30.0.0,>=24.2.0->prefect~=2.19.0->infinite-scribe-ba
+ckend==0.1.0)
+  Downloading oauthlib-3.3.1-py3-none-any.whl.metadata (7.9 kB)
+Collecting tzdata>=2020.1 (from pendulum<4,>=3.0.0->prefect~=2.19.0->infinite-scribe-backend==0.
+1.0)
+  Downloading tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting annotated-types>=0.6.0 (from pydantic~=2.11.7->infinite-scribe-backend==0.1.0)
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core<3.0.0,>=2.12.0 (from prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached pydantic_core-2.33.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.m
+etadata (6.8 kB)
+Collecting typing-inspection>=0.4.0 (from pydantic~=2.11.7->infinite-scribe-backend==0.1.0)
+  Using cached typing_inspection-0.4.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting email-validator>=2.0.0 (from pydantic[email]!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.10.0->
+prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading email_validator-2.2.0-py3-none-any.whl.metadata (25 kB)
+Collecting setuptools>69 (from pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Using cached setuptools-80.9.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting grpcio<=1.67.1,>=1.49.1 (from pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Downloading grpcio-1.67.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata 
+(3.9 kB)
+Collecting protobuf>=3.20.0 (from pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Downloading protobuf-6.31.1-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+Collecting pandas>=1.2.4 (from pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Downloading pandas-2.3.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (
+91 kB)
+Collecting milvus-lite<2.5.0,>=2.4.0 (from pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Downloading milvus_lite-2.4.12-py3-none-manylinux2014_x86_64.whl.metadata (10.0 kB)
+Collecting text-unidecode>=1.3 (from python-slugify<9.0,>=5.0->prefect~=2.19.0->infinite-scribe-
+backend==0.1.0)
+  Downloading text_unidecode-1.3-py2.py3-none-any.whl.metadata (2.4 kB)
+Collecting charset_normalizer<4,>=2 (from requests<3.0.0,>=2.31.0->litellm~=1.52.0->infinite-scr
+ibe-backend==0.1.0)
+  Downloading charset_normalizer-3.4.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.wh
+l.metadata (35 kB)
+Collecting markdown-it-py>=2.2.0 (from rich<14.0,>=11.0->prefect~=2.19.0->infinite-scribe-backen
+d==0.1.0)
+  Using cached markdown_it_py-3.0.0-py3-none-any.whl.metadata (6.9 kB)
+Collecting pygments<3.0.0,>=2.13.0 (from rich<14.0,>=11.0->prefect~=2.19.0->infinite-scribe-back
+end==0.1.0)
+  Using cached pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+Requirement already satisfied: greenlet>=1 in /home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13
+/site-packages (from sqlalchemy>=2.0.41->sqlalchemy[mypy]>=2.0.41->infinite-scribe-backend==0.1.
+0) (3.2.3)
+Collecting shellingham>=1.3.0 (from typer!=0.12.2,<0.13.0,>=0.12.0->prefect~=2.19.0->infinite-sc
+ribe-backend==0.1.0)
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+Collecting httptools>=0.6.3 (from uvicorn[standard]~=0.32.0->infinite-scribe-backend==0.1.0)
+  Downloading httptools-0.6.4-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_
+x86_64.manylinux2014_x86_64.whl.metadata (3.6 kB)
+Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]~=0.32.0->infinite-scribe-bac
+kend==0.1.0)
+  Downloading uvloop-0.21.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata 
+(4.9 kB)
+Collecting watchfiles>=0.13 (from uvicorn[standard]~=0.32.0->infinite-scribe-backend==0.1.0)
+  Downloading watchfiles-1.1.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metada
+ta (4.9 kB)
+Collecting cffi>=1.14 (from cryptography>=36.0.1->prefect~=2.19.0->infinite-scribe-backend==0.1.
+0)
+  Downloading cffi-1.17.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1
+.5 kB)
+Collecting pycparser (from cffi>=1.14->cryptography>=36.0.1->prefect~=2.19.0->infinite-scribe-ba
+ckend==0.1.0)
+  Using cached pycparser-2.22-py3-none-any.whl.metadata (943 bytes)
+Collecting dnspython>=2.0.0 (from email-validator>=2.0.0->pydantic[email]!=2.0.0,!=2.0.1,!=2.1.0
+,<3.0.0,>=1.10.0->prefect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Downloading dnspython-2.7.0-py3-none-any.whl.metadata (5.8 kB)
+Collecting pyasn1-modules>=0.2.1 (from google-auth>=1.0.1->kubernetes<30.0.0,>=24.2.0->prefect~=
+2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached pyasn1_modules-0.4.2-py3-none-any.whl.metadata (3.5 kB)
+Collecting rsa<5,>=3.1.4 (from google-auth>=1.0.1->kubernetes<30.0.0,>=24.2.0->prefect~=2.19.0->
+infinite-scribe-backend==0.1.0)
+  Using cached rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+Collecting pyasn1>=0.1.3 (from rsa<5,>=3.1.4->google-auth>=1.0.1->kubernetes<30.0.0,>=24.2.0->pr
+efect~=2.19.0->infinite-scribe-backend==0.1.0)
+  Using cached pyasn1-0.6.1-py3-none-any.whl.metadata (8.4 kB)
+Collecting h2<5,>=3 (from httpx[http2]!=0.23.2,>=0.23->prefect~=2.19.0->infinite-scribe-backend=
+=0.1.0)
+  Downloading h2-4.2.0-py3-none-any.whl.metadata (5.1 kB)
+Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]!=0.23.2,>=0.23->prefect~=2.19.0->infi
+nite-scribe-backend==0.1.0)
+  Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting hpack<5,>=4.1 (from h2<5,>=3->httpx[http2]!=0.23.2,>=0.23->prefect~=2.19.0->infinite-
+scribe-backend==0.1.0)
+  Downloading hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+Collecting zipp>=3.20 (from importlib-metadata>=6.8.0->litellm~=1.52.0->infinite-scribe-backend=
+=0.1.0)
+  Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich<14.0,>=11.0->prefect~=2.19.0->infinite-s
+cribe-backend==0.1.0)
+  Using cached mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Collecting numpy>=1.26.0 (from pandas>=1.2.4->pymilvus~=2.4.9->infinite-scribe-backend==0.1.0)
+  Downloading numpy-2.3.1-cp313-cp313-manylinux_2_28_x86_64.whl.metadata (62 kB)
+Collecting bcrypt>=3.1.0 (from passlib[bcrypt]>=1.7.4->infinite-scribe-backend==0.1.0)
+  Downloading bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl.metadata (10 kB)
+Collecting ecdsa!=0.15 (from python-jose>=3.5.0->python-jose[cryptography]>=3.5.0->infinite-scri
+be-backend==0.1.0)
+  Downloading ecdsa-0.19.1-py2.py3-none-any.whl.metadata (29 kB)
+Collecting ruamel.yaml.clib>=0.2.7 (from ruamel.yaml>=0.17.0->prefect~=2.19.0->infinite-scribe-b
+ackend==0.1.0)
+  Using cached ruamel.yaml.clib-0.2.12-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.wh
+l.metadata (2.7 kB)
+Collecting limits>=2.3 (from slowapi>=0.1.9->infinite-scribe-backend==0.1.0)
+  Downloading limits-5.4.0-py3-none-any.whl.metadata (10 kB)
+Collecting deprecated>=1.2 (from limits>=2.3->slowapi>=0.1.9->infinite-scribe-backend==0.1.0)
+  Downloading Deprecated-1.2.18-py2.py3-none-any.whl.metadata (5.7 kB)
+Requirement already satisfied: mypy>=0.910 in /home/zhiyue/.pyenv/versions/3.13.4/lib/python3.13
+/site-packages (from sqlalchemy[mypy]>=2.0.41->infinite-scribe-backend==0.1.0) (1.16.1)
+Requirement already satisfied: mypy_extensions>=1.0.0 in /home/zhiyue/.pyenv/versions/3.13.4/lib
+/python3.13/site-packages (from mypy>=0.910->sqlalchemy[mypy]>=2.0.41->infinite-scribe-backend==
+0.1.0) (1.1.0)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.
+0)
+  Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.1.2 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Collecting frozenlist>=1.1.1 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading frozenlist-1.7.0-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17
+_x86_64.manylinux2014_x86_64.whl.metadata (18 kB)
+Collecting multidict<7.0,>=4.5 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading multidict-6.6.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2
+_28_x86_64.whl.metadata (5.3 kB)
+Collecting propcache>=0.2.0 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading propcache-0.3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadat
+a (12 kB)
+Collecting yarl<2.0,>=1.17.0 (from aiohttp->litellm~=1.52.0->infinite-scribe-backend==0.1.0)
+  Downloading yarl-1.20.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7
+3 kB)
+Collecting argon2-cffi-bindings (from argon2-cffi->minio~=7.2.10->infinite-scribe-backend==0.1.0
+)
+  Downloading argon2_cffi_bindings-21.2.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.w
+hl.metadata (6.7 kB)
+Collecting huggingface-hub<1.0,>=0.16.4 (from tokenizers->litellm~=1.52.0->infinite-scribe-backe
+nd==0.1.0)
+  Downloading huggingface_hub-0.33.2-py3-none-any.whl.metadata (14 kB)
+Collecting filelock (from huggingface-hub<1.0,>=0.16.4->tokenizers->litellm~=1.52.0->infinite-sc
+ribe-backend==0.1.0)
+  Using cached filelock-3.18.0-py3-none-any.whl.metadata (2.9 kB)
+Collecting hf-xet<2.0.0,>=1.1.2 (from huggingface-hub<1.0,>=0.16.4->tokenizers->litellm~=1.52.0-
+>infinite-scribe-backend==0.1.0)
+  Downloading hf_xet-1.1.5-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (87
+9 bytes)
+Downloading anthropic-0.39.0-py3-none-any.whl (198 kB)
+Downloading asyncpg-0.30.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.6/3.6 MB 4.3 MB/s eta 0:00:00
+Using cached distro-1.9.0-py3-none-any.whl (20 kB)
+Downloading fastapi-0.115.14-py3-none-any.whl (95 kB)
+Downloading httpx-0.27.2-py3-none-any.whl (76 kB)
+Using cached httpcore-1.0.9-py3-none-any.whl (78 kB)
+Downloading jiter-0.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (350 kB)
+Downloading langfuse-2.25.0-py3-none-any.whl (155 kB)
+Downloading backoff-2.2.1-py3-none-any.whl (15 kB)
+Downloading litellm-1.52.16-py3-none-any.whl (6.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.4/6.4 MB 3.5 MB/s eta 0:00:00
+Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+Downloading jsonschema-4.24.0-py3-none-any.whl (88 kB)
+Downloading minio-7.2.15-py3-none-any.whl (95 kB)
+Downloading neo4j-5.26.0-py3-none-any.whl (302 kB)
+Downloading openai-1.54.5-py3-none-any.whl (389 kB)
+Downloading packaging-23.2-py3-none-any.whl (53 kB)
+Downloading prefect-2.19.9-py3-none-any.whl (6.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.0/6.0 MB 2.4 MB/s eta 0:00:00
+Downloading alembic-1.16.2-py3-none-any.whl (242 kB)
+Downloading anyio-3.7.1-py3-none-any.whl (80 kB)
+Downloading apprise-1.9.3-py3-none-any.whl (1.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.4/1.4 MB 7.4 MB/s eta 0:00:00
+Downloading asgi_lifespan-2.1.0-py3-none-any.whl (10 kB)
+Using cached cachetools-5.5.2-py3-none-any.whl (10 kB)
+Downloading click-8.1.8-py3-none-any.whl (98 kB)
+Downloading cloudpickle-3.1.1-py3-none-any.whl (20 kB)
+Downloading coolname-2.2.0-py2.py3-none-any.whl (37 kB)
+Downloading croniter-2.0.7-py2.py3-none-any.whl (21 kB)
+Downloading dateparser-1.2.2-py3-none-any.whl (315 kB)
+Downloading griffe-0.47.0-py3-none-any.whl (122 kB)
+Downloading importlib_resources-6.1.3-py3-none-any.whl (34 kB)
+Downloading jsonpatch-1.33-py2.py3-none-any.whl (12 kB)
+Downloading kubernetes-29.0.0-py2.py3-none-any.whl (1.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 1.8 MB/s eta 0:00:00
+Downloading orjson-3.10.18-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (133 kB)
+Downloading pendulum-3.1.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (351 kB)
+Using cached pydantic-2.11.7-py3-none-any.whl (444 kB)
+Using cached pydantic_core-2.33.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.
+0 MB)
+Downloading pydantic_settings-2.6.1-py3-none-any.whl (28 kB)
+Downloading pymilvus-2.4.15-py3-none-any.whl (212 kB)
+Downloading grpcio-1.67.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (5.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.9/5.9 MB 6.0 MB/s eta 0:00:00
+Downloading milvus_lite-2.4.12-py3-none-manylinux2014_x86_64.whl (45.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.2/45.2 MB 9.6 MB/s eta 0:00:00
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Downloading python_dotenv-1.0.1-py3-none-any.whl (19 kB)
+Downloading python_slugify-8.0.4-py2.py3-none-any.whl (10 kB)
+Downloading pytz-2024.2-py2.py3-none-any.whl (508 kB)
+Using cached PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (759 kB)
+Downloading readchar-4.2.1-py3-none-any.whl (9.3 kB)
+Downloading redis-5.2.1-py3-none-any.whl (261 kB)
+Using cached requests-2.32.4-py3-none-any.whl (64 kB)
+Downloading charset_normalizer-3.4.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl 
+(148 kB)
+Using cached idna-3.10-py3-none-any.whl (70 kB)
+Downloading rfc3339_validator-0.1.4-py2.py3-none-any.whl (3.5 kB)
+Downloading rich-13.9.4-py3-none-any.whl (242 kB)
+Using cached pygments-2.19.2-py3-none-any.whl (1.2 MB)
+Using cached sniffio-1.3.1-py3-none-any.whl (10 kB)
+Using cached starlette-0.46.2-py3-none-any.whl (72 kB)
+Downloading structlog-24.4.0-py3-none-any.whl (67 kB)
+Downloading tenacity-9.0.0-py3-none-any.whl (28 kB)
+Downloading typer-0.12.5-py3-none-any.whl (47 kB)
+Downloading ujson-5.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (53 kB)
+Using cached urllib3-2.5.0-py3-none-any.whl (129 kB)
+Downloading uvicorn-0.32.1-py3-none-any.whl (63 kB)
+Downloading websockets-12.0-py3-none-any.whl (118 kB)
+Downloading wrapt-1.17.2-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_6
+4.manylinux2014_x86_64.whl (89 kB)
+Downloading aiosqlite-0.21.0-py3-none-any.whl (15 kB)
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Downloading attrs-25.3.0-py3-none-any.whl (63 kB)
+Using cached certifi-2025.6.15-py3-none-any.whl (157 kB)
+Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Downloading cryptography-45.0.5-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 3.8 MB/s eta 0:00:00
+Downloading cffi-1.17.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (479 kB)
+Downloading docker-7.1.0-py3-none-any.whl (147 kB)
+Downloading email_validator-2.2.0-py3-none-any.whl (33 kB)
+Downloading dnspython-2.7.0-py3-none-any.whl (313 kB)
+Downloading fsspec-2025.5.1-py3-none-any.whl (199 kB)
+Using cached google_auth-2.40.3-py2.py3-none-any.whl (216 kB)
+Using cached rsa-4.9.1-py3-none-any.whl (34 kB)
+Downloading graphviz-0.21-py3-none-any.whl (47 kB)
+Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+Downloading httptools-0.6.4-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x8
+6_64.manylinux2014_x86_64.whl (473 kB)
+Downloading h2-4.2.0-py3-none-any.whl (60 kB)
+Downloading hpack-4.1.0-py3-none-any.whl (34 kB)
+Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+Downloading humanize-4.12.3-py3-none-any.whl (128 kB)
+Downloading importlib_metadata-8.7.0-py3-none-any.whl (27 kB)
+Downloading jinja2_humanize_extension-0.4.0-py3-none-any.whl (4.8 kB)
+Downloading jsonpointer-3.0.0-py2.py3-none-any.whl (7.6 kB)
+Downloading jsonschema_specifications-2025.4.1-py3-none-any.whl (18 kB)
+Using cached markdown_it_py-3.0.0-py3-none-any.whl (87 kB)
+Using cached mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Downloading MarkupSafe-3.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (23 kB)
+Downloading oauthlib-3.3.1-py3-none-any.whl (160 kB)
+Downloading pandas-2.3.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 11.9 MB/s eta 0:00:00
+Downloading numpy-2.3.1-cp313-cp313-manylinux_2_28_x86_64.whl (16.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 12.1 MB/s eta 0:00:00
+Downloading passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 525.6/525.6 kB 8.2 MB/s eta 0:00:00
+Downloading bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl (284 kB)
+Downloading protobuf-6.31.1-cp39-abi3-manylinux2014_x86_64.whl (321 kB)
+Using cached pyasn1-0.6.1-py3-none-any.whl (83 kB)
+Using cached pyasn1_modules-0.4.2-py3-none-any.whl (181 kB)
+Downloading python_jose-3.5.0-py2.py3-none-any.whl (34 kB)
+Downloading ecdsa-0.19.1-py2.py3-none-any.whl (150 kB)
+Using cached python_multipart-0.0.20-py3-none-any.whl (24 kB)
+Downloading referencing-0.36.2-py3-none-any.whl (26 kB)
+Downloading regex-2024.11.6-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (796 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 796.9/796.9 kB 20.0 MB/s eta 0:00:00
+Downloading resend-2.10.0-py2.py3-none-any.whl (21 kB)
+Downloading rpds_py-0.26.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (385 kB)
+Using cached ruamel.yaml-0.18.14-py3-none-any.whl (118 kB)
+Using cached ruamel.yaml.clib-0.2.12-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl 
+(745 kB)
+Using cached setuptools-80.9.0-py3-none-any.whl (1.2 MB)
+Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading slowapi-0.1.9-py3-none-any.whl (14 kB)
+Downloading limits-5.4.0-py3-none-any.whl (60 kB)
+Downloading Deprecated-1.2.18-py2.py3-none-any.whl (10.0 kB)
+Downloading text_unidecode-1.3-py2.py3-none-any.whl (78 kB)
+Downloading tiktoken-0.9.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 1.7 MB/s eta 0:00:00
+Downloading toml-0.10.2-py2.py3-none-any.whl (16 kB)
+Using cached tqdm-4.67.1-py3-none-any.whl (78 kB)
+Using cached typing_inspection-0.4.1-py3-none-any.whl (14 kB)
+Downloading tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+Downloading tzlocal-5.3.1-py3-none-any.whl (18 kB)
+Downloading uvloop-0.21.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 5.5 MB/s eta 0:00:00
+Downloading watchfiles-1.1.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (451 kB)
+Downloading websocket_client-1.8.0-py3-none-any.whl (58 kB)
+Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+Downloading aiohttp-3.12.13-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 7.9 MB/s eta 0:00:00
+Downloading multidict-6.6.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_2
+8_x86_64.whl (254 kB)
+Downloading yarl-1.20.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (352 kB)
+Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading frozenlist-1.7.0-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x
+86_64.manylinux2014_x86_64.whl (232 kB)
+Downloading propcache-0.3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (206 kB)
+Downloading argon2_cffi-25.1.0-py3-none-any.whl (14 kB)
+Downloading argon2_cffi_bindings-21.2.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+ (86 kB)
+Downloading async_timeout-5.0.1-py3-none-any.whl (6.2 kB)
+Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+Downloading mako-1.3.10-py3-none-any.whl (78 kB)
+Downloading markdown-3.8.2-py3-none-any.whl (106 kB)
+Using cached pycparser-2.22-py3-none-any.whl (117 kB)
+Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.3 MB
+)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.3/2.3 MB 9.5 MB/s eta 0:00:00
+Downloading requests_oauthlib-2.0.0-py2.py3-none-any.whl (24 kB)
+Downloading tokenizers-0.21.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 11.6 MB/s eta 0:00:00
+Downloading huggingface_hub-0.33.2-py3-none-any.whl (515 kB)
+Downloading hf_xet-1.1.5-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 14.4 MB/s eta 0:00:00
+Using cached filelock-3.18.0-py3-none-any.whl (16 kB)
+Building wheels for collected packages: infinite-scribe-backend, aiokafka
+  Building editable for infinite-scribe-backend (pyproject.toml) ... done
+  Created wheel for infinite-scribe-backend: filename=infinite_scribe_backend-0.1.0-py3-none-any
+.whl size=1475 sha256=3413259c48b010ea6e05a21b1f83eebbf31a997d017ec424cc757f8cc2a84617
+  Stored in directory: /tmp/pip-ephem-wheel-cache-mclbj1ki/wheels/03/e4/31/b2517d6757c3f3b1e1f2c
+543b4c34f76d09792012a6434c6d6
+  Building wheel for aiokafka (pyproject.toml) ... done
+  Created wheel for aiokafka: filename=aiokafka-0.11.0-cp313-cp313-linux_x86_64.whl size=1141349
+ sha256=f90e8899656b2989b864b456cde66ee26e1f686cd6966482a747b61e0a821a91
+  Stored in directory: /home/zhiyue/.cache/pip/wheels/99/11/26/1e34bef383e233548a2181ac4c6c657c4
+80fb9d1c6707fcf08
+Successfully built infinite-scribe-backend aiokafka
+Installing collected packages: text-unidecode, pytz, passlib, coolname, zipp, wrapt, websockets,
+ websocket-client, uvloop, urllib3, ujson, tzlocal, tzdata, typing-inspection, tqdm, toml, tenac
+ity, structlog, sniffio, six, shellingham, setuptools, ruamel.yaml.clib, rpds-py, regex, redis, 
+readchar, pyyaml, python-slugify, python-multipart, python-dotenv, pygments, pydantic-core, pycr
+yptodome, pycparser, pyasn1, protobuf, propcache, packaging, orjson, oauthlib, numpy, neo4j, mul
+tidict, mdurl, MarkupSafe, markdown, jsonpointer, jiter, itsdangerous, importlib-resources, idna
+, hyperframe, humanize, httptools, hpack, hf-xet, h11, grpcio, graphviz, fsspec, frozenlist, fil
+elock, dnspython, distro, colorama, cloudpickle, click, charset_normalizer, certifi, cachetools,
+ bcrypt, backoff, attrs, asyncpg, async-timeout, annotated-types, aiosqlite, aiohappyeyeballs, y
+arl, uvicorn, ruamel.yaml, rsa, rfc3339-validator, requests, referencing, python-dateutil, pydan
+tic, pyasn1-modules, milvus-lite, markdown-it-py, Mako, jsonpatch, jinja2, importlib-metadata, h
+ttpcore, h2, griffe, email-validator, ecdsa, deprecated, cffi, asgi-lifespan, anyio, aiosignal, 
+aiokafka, watchfiles, tiktoken, starlette, rich, resend, requests-oauthlib, python-jose, pydanti
+c-settings, pendulum, pandas, limits, jsonschema-specifications, jinja2-humanize-extension, hugg
+ingface-hub, httpx, google-auth, docker, dateparser, cryptography, croniter, argon2-cffi-binding
+s, alembic, aiohttp, typer, tokenizers, slowapi, pymilvus, openai, langfuse, kubernetes, jsonsch
+ema, fastapi, argon2-cffi, apprise, anthropic, prefect, minio, litellm, infinite-scribe-backend
+  Attempting uninstall: packaging
+    Found existing installation: packaging 25.0
+    Uninstalling packaging-25.0:
+      Successfully uninstalled packaging-25.0
+  Attempting uninstall: click
+    Found existing installation: click 8.2.1
+    Uninstalling click-8.2.1:
+      Successfully uninstalled click-8.2.1
+Successfully installed Mako-1.3.10 MarkupSafe-3.0.2 aiohappyeyeballs-2.6.1 aiohttp-3.12.13 aioka
+fka-0.11.0 aiosignal-1.4.0 aiosqlite-0.21.0 alembic-1.16.2 annotated-types-0.7.0 anthropic-0.39.
+0 anyio-3.7.1 apprise-1.9.3 argon2-cffi-25.1.0 argon2-cffi-bindings-21.2.0 asgi-lifespan-2.1.0 a
+sync-timeout-5.0.1 asyncpg-0.30.0 attrs-25.3.0 backoff-2.2.1 bcrypt-4.3.0 cachetools-5.5.2 certi
+fi-2025.6.15 cffi-1.17.1 charset_normalizer-3.4.2 click-8.1.8 cloudpickle-3.1.1 colorama-0.4.6 c
+oolname-2.2.0 croniter-2.0.7 cryptography-45.0.5 dateparser-1.2.2 deprecated-1.2.18 distro-1.9.0
+ dnspython-2.7.0 docker-7.1.0 ecdsa-0.19.1 email-validator-2.2.0 fastapi-0.115.14 filelock-3.18.
+0 frozenlist-1.7.0 fsspec-2025.5.1 google-auth-2.40.3 graphviz-0.21 griffe-0.47.0 grpcio-1.67.1 
+h11-0.16.0 h2-4.2.0 hf-xet-1.1.5 hpack-4.1.0 httpcore-1.0.9 httptools-0.6.4 httpx-0.27.2 hugging
+face-hub-0.33.2 humanize-4.12.3 hyperframe-6.1.0 idna-3.10 importlib-metadata-8.7.0 importlib-re
+sources-6.1.3 infinite-scribe-backend-0.1.0 itsdangerous-2.2.0 jinja2-3.1.6 jinja2-humanize-exte
+nsion-0.4.0 jiter-0.10.0 jsonpatch-1.33 jsonpointer-3.0.0 jsonschema-4.24.0 jsonschema-specifica
+tions-2025.4.1 kubernetes-29.0.0 langfuse-2.25.0 limits-5.4.0 litellm-1.52.16 markdown-3.8.2 mar
+kdown-it-py-3.0.0 mdurl-0.1.2 milvus-lite-2.4.12 minio-7.2.15 multidict-6.6.3 neo4j-5.26.0 numpy
+-2.3.1 oauthlib-3.3.1 openai-1.54.5 orjson-3.10.18 packaging-23.2 pandas-2.3.0 passlib-1.7.4 pen
+dulum-3.1.0 prefect-2.19.9 propcache-0.3.2 protobuf-6.31.1 pyasn1-0.6.1 pyasn1-modules-0.4.2 pyc
+parser-2.22 pycryptodome-3.23.0 pydantic-2.11.7 pydantic-core-2.33.2 pydantic-settings-2.6.1 pyg
+ments-2.19.2 pymilvus-2.4.15 python-dateutil-2.9.0.post0 python-dotenv-1.0.1 python-jose-3.5.0 p
+ython-multipart-0.0.20 python-slugify-8.0.4 pytz-2024.2 pyyaml-6.0.2 readchar-4.2.1 redis-5.2.1 
+referencing-0.36.2 regex-2024.11.6 requests-2.32.4 requests-oauthlib-2.0.0 resend-2.10.0 rfc3339
+-validator-0.1.4 rich-13.9.4 rpds-py-0.26.0 rsa-4.9.1 ruamel.yaml-0.18.14 ruamel.yaml.clib-0.2.1
+2 setuptools-80.9.0 shellingham-1.5.4 six-1.17.0 slowapi-0.1.9 sniffio-1.3.1 starlette-0.46.2 st
+ructlog-24.4.0 tenacity-9.0.0 text-unidecode-1.3 tiktoken-0.9.0 tokenizers-0.21.2 toml-0.10.2 tq
+dm-4.67.1 typer-0.12.5 typing-inspection-0.4.1 tzdata-2025.2 tzlocal-5.3.1 ujson-5.10.0 urllib3-
+2.5.0 uvicorn-0.32.1 uvloop-0.21.0 watchfiles-1.1.0 websocket-client-1.8.0 websockets-12.0 wrapt
+-1.17.2 yarl-1.20.1 zipp-3.23.0
+
+infinite-scribe/apps/backend on  cursor/complete-user-authentication-mvp-2dd9 [$✘»!+?] is 📦 v0
+.1.0 via 🐍 v3.13.4 (infinite-scribe) took 1m37s 
+❯
+```
 
 ---
 

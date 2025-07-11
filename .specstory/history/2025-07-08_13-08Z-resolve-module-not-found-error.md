@@ -88,7 +88,58 @@ The user is facing an issue where the static type checker can't find a module na
 
 ---
 
+<think><details><summary>Thought Process</summary>**Providing configuration options**
 
+I need to explain the steps to fix the issue, so I'll outline three options. 
+
+Option A is to create a `pyrightconfig.json` file at the workspace root, including specific paths in the JSON. 
+
+Option B involves adjusting the `settings.json` in VSCode to add the Python analysis paths directly. 
+
+Finally, Option C suggests exporting an environment variable to update the Python path in the current workspace. 
+
+No code changes are necessary, just configuration tweaks. Let's finalize this response!</details></think>
+
+---
+
+原因  
+`rate_limit_service.py` 中的  
+```python
+from src.core.config import settings
+```  
+要求解释器在 `sys.path` 里能找到 `…/src/` 这一级包。  
+运行代码时你大概率在 `apps/backend` 目录下启动（那里正好有 `src/__init__.py`），因此没问题；  
+而 Pyright / Pylance / MyPy 在**项目根目录**扫代码，`apps/backend/src` 不在它们的搜索路径，于是报告
+
+```
+Cannot find implementation or library stub for module named "src.core.config"
+```
+
+快速解决方案（选其一即可，推荐 ①）  
+1. 让静态分析器知道 backend 的 `src` 路径  
+   在仓库根新建或修改 `pyrightconfig.json`：  
+   ```json
+   {
+     "extraPaths": ["apps/backend/src"]
+   }
+   ```  
+   VS Code 不用重启即可生效。  
+   (等价地，在 `.vscode/settings.json` 加  
+   `"python.analysis.extraPaths": ["apps/backend/src"]`)
+
+2. 临时方式：运行 / 终端里  
+   ```bash
+   export PYTHONPATH=$PYTHONPATH:$(pwd)/apps/backend/src
+   ```
+
+3. 如果以后要发布为包：  
+   ```bash
+   cd apps/backend
+   pip install -e .
+   ```  
+   （editable-install 会把 `src` 加到 site-packages）
+
+不必改动代码；只需把 `apps/backend/src` 加进分析/运行时的 `sys.path` 即可。
 
 ---
 

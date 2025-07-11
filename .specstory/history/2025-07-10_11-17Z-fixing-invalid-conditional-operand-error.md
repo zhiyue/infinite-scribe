@@ -44,7 +44,31 @@ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 So these should be NOT NULL fields. But the Python model might have them defined as potentially nullable (`datetime | None`) which is causing the type checker to complain.
 
 The issue is that the type checker is seeing these as potentially None, but the conditional check `if self.created_at` is not behaving as expected for SQLAlchemy columns.
-</details></think>
+
+
+I'll explicitly check against `None` to resolve the type checker error. By using `is not None`, I can ensure a more precise type check that works correctly with SQLAlchemy column definitions. This approach provides a clear, unambiguous way to handle potential null values while maintaining type safety.</details></think>
+
+---
+
+The error occurs because SQLAlchemy's `Column[datetime]` type doesn't support truthiness checking in the way you're using it. The type checker is complaining about the conditional `if self.created_at`.
+
+**Fix:** Use explicit `None` comparison instead of truthiness:
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! I've fixed the issue by changing the conditional checks from truthiness (`if self.created_at`) to explicit None comparison (`if self.created_at is not None`). This is more explicit and resolves the type checker error.
+
+The fix only changes the two lines that were causing the error. The `email_verified_at` line doesn't have the same issue because it's likely defined as `datetime | None` in the model, so the truthiness check works fine for that field.
+
+This should resolve the linter error while maintaining the same functionality.</details></think>
+
+---
+
+The fix changes the conditional checks from truthiness (`if self.created_at`) to explicit `None` comparison (`if self.created_at is not None`). This resolves the SQLAlchemy type checker issue while maintaining the same functionality.
 
 ---
 

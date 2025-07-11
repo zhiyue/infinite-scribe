@@ -52,7 +52,18 @@ Looking at the error, `user.locked_until` might be `None` when you try to call `
 
 ---
 
+<think><details><summary>Thought Process</summary>The fix I applied adds a null check: `user.locked_until.isoformat() if user.locked_until else None`. This resolves the type error by ensuring we only call `.isoformat()` when `user.locked_until` is not None.
 
+However, I should also check if there are other similar linter errors mentioned in the user's request. Looking at the linter errors section, I see there are two other issues:
+
+1. Line 210: `user.id` is being passed as "Column[int]" instead of "int" 
+2. Line 413: `Session.is_active.is_(True)` - "is_" is not a known attribute
+
+But the user specifically asked about the `isoformat` error, so I'll focus on that for now. The fix I provided should resolve the specific error they mentioned.</details></think>
+
+---
+
+This fix adds a null check before calling `.isoformat()`, which resolves the type error by ensuring the method is only called when `user.locked_until` is not None.
 
 ---
 
