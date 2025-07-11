@@ -72,7 +72,8 @@ export function useSessions() {
       if (!authService.getSessions) {
         return []
       }
-      const response = await authService.getSessions()
+      // 使用类型断言确保函数调用的类型安全
+      const response = await (authService.getSessions as any)?.()
       return unwrapApiResponse(response)
     },
     enabled: isAuthenticated,

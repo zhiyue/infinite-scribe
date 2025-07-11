@@ -4,6 +4,8 @@
     "ms-python.mypy-type-checker",
     "charliermarsh.ruff",
     "ms-python.python",
-    "ms-python.debugpy"
+    "ms-python.debugpy",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer"
   ]
 }

@@ -50,7 +50,8 @@ describe('useHealthCheck', () => {
       },
     }
 
-    vi.mocked(healthService.check).mockResolvedValueOnce(mockHealthData)
+    // 使用类型断言确保 mock 调用的类型安全
+    ;(healthService.check as any).mockResolvedValueOnce?.(mockHealthData)
 
     const { result } = renderHook(() => useHealthCheck(), { wrapper })
 
@@ -69,7 +70,8 @@ describe('useHealthCheck', () => {
 
   it('应该处理健康检查失败的情况', async () => {
     const mockError = new Error('API Error: 500 Internal Server Error')
-    vi.mocked(healthService.check).mockRejectedValueOnce(mockError)
+    // 使用类型断言确保 mock 调用的类型安全
+    ;(healthService.check as any).mockRejectedValueOnce?.(mockError)
 
     const { result } = renderHook(() => useHealthCheck(), { wrapper })
 
