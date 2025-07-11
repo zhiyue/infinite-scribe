@@ -12,17 +12,8 @@ import { queryKeys } from '../lib/queryClient'
 import { authService } from '../services/auth'
 import type { UpdateProfileRequest, User } from '../types/auth'
 import { useAuthStore } from './useAuth'
-import {
-  useChangePassword,
-  useLogin,
-  useLogout,
-  useUpdateProfile
-} from './useAuthMutations'
-import {
-  useCurrentUser,
-  usePermissions,
-  useSessions
-} from './useAuthQuery'
+import { useChangePassword, useLogin, useLogout, useUpdateProfile } from './useAuthMutations'
+import { useCurrentUser, usePermissions, useSessions } from './useAuthQuery'
 
 // Mock 认证服务
 vi.mock('../services/auth', () => ({
@@ -52,7 +43,6 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-
 // 在集成测试中明确覆盖单元测试的 queryClient mock
 vi.mock('../lib/queryClient', async () => {
   const actual = await vi.importActual('../lib/queryClient')
@@ -65,7 +55,11 @@ vi.mock('../lib/queryClient', async () => {
         gcTime: 1000 * 60 * 30,
         retry: 3, // 使用数字而不是函数
       },
-      permissions: { staleTime: 1000 * 60 * 30, gcTime: 1000 * 60 * 120, retry: 2 },
+      permissions: {
+        staleTime: 1000 * 60 * 30,
+        gcTime: 1000 * 60 * 120,
+        retry: 2,
+      },
       sessions: { staleTime: 1000 * 60 * 5, gcTime: 1000 * 60 * 15, retry: 1 },
     },
   }
@@ -182,7 +176,7 @@ describe('TanStack Query 缓存集成测试', () => {
       return React.createElement(
         BrowserRouter,
         {},
-        React.createElement(QueryClientProvider, { client: queryClient }, children)
+        React.createElement(QueryClientProvider, { client: queryClient }, children),
       )
     }
   }
@@ -207,7 +201,6 @@ describe('TanStack Query 缓存集成测试', () => {
     mockNavigate.mockClear()
   })
 
-
   describe('缓存同步测试', () => {
     it('登录后应该立即设置用户数据缓存', async () => {
       setupAuthenticatedState()
@@ -223,7 +216,9 @@ describe('TanStack Query 缓存集成测试', () => {
         message: 'Login successful',
       })
 
-      const { result } = renderHook(() => useLogin(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useLogin(), {
+        wrapper: createWrapper(),
+      })
 
       // 执行登录
       await act(async () => {
@@ -238,7 +233,9 @@ describe('TanStack Query 缓存集成测试', () => {
       expect(cachedUser).toEqual(mockUser)
 
       // 验证新的 useCurrentUser hook 可以立即获取数据
-      const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result: userResult } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
       expect(userResult.current.data).toEqual(mockUser)
       expect(userResult.current.isLoading).toBe(false)
     })
@@ -257,15 +254,22 @@ describe('TanStack Query 缓存集成测试', () => {
       })
 
       // 创建多个使用用户数据的 hook 实例
-      const { result: user1 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result: user1 } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
 
-      const { result: user2 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result: user2 } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待初始数据加载 - 直接检查数据，跳过 toBeTruthy
-      await waitFor(() => {
-        expect(user1.current?.isSuccess).toBe(true)
-        expect(user1.current?.data).toBeDefined()
-      }, { timeout: 15000 })
+      await waitFor(
+        () => {
+          expect(user1.current?.isSuccess).toBe(true)
+          expect(user1.current?.data).toBeDefined()
+        },
+        { timeout: 15000 },
+      )
 
       await waitFor(() => {
         expect(user2.current).toBeTruthy()
@@ -280,7 +284,11 @@ describe('TanStack Query 缓存集成测试', () => {
       })
 
       // 直接更新缓存数据，模拟 mutation 完成后的状态
-      const updatedUser = { ...mockUser, first_name: 'Updated', last_name: 'Name' }
+      const updatedUser = {
+        ...mockUser,
+        first_name: 'Updated',
+        last_name: 'Name',
+      }
 
       await act(async () => {
         queryClient.setQueryData(queryKeys.currentUser(), updatedUser)
@@ -307,7 +315,9 @@ describe('TanStack Query 缓存集成测试', () => {
         message: 'Logged out',
       })
 
-      const { result } = renderHook(() => useLogout(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useLogout(), {
+        wrapper: createWrapper(),
+      })
 
       await act(async () => {
         await result.current.mutateAsync()
@@ -334,7 +344,9 @@ describe('TanStack Query 缓存集成测试', () => {
         message: 'Password changed',
       })
 
-      const { result } = renderHook(() => useChangePassword(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useChangePassword(), {
+        wrapper: createWrapper(),
+      })
 
       await act(async () => {
         await result.current.mutateAsync({
@@ -360,17 +372,17 @@ describe('TanStack Query 缓存集成测试', () => {
 
       // 第一次返回401错误，第二次成功
       const error401 = new Error('Unauthorized')
-        ; (error401 as any).status = 401
+      ;(error401 as any).status = 401
 
-      vi.mocked(authService.getCurrentUser)
-        .mockRejectedValueOnce(error401)
-        .mockResolvedValueOnce({
-          success: true,
-          data: mockUser,
-          message: 'Success',
-        })
+      vi.mocked(authService.getCurrentUser).mockRejectedValueOnce(error401).mockResolvedValueOnce({
+        success: true,
+        data: mockUser,
+        message: 'Success',
+      })
 
-      const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待第一次请求完成（不管是否成功）
       await waitFor(() => {
@@ -417,10 +429,16 @@ describe('TanStack Query 缓存集成测试', () => {
         resolveUpdate = resolve
       })
 
-      vi.mocked(authService.updateProfile).mockReturnValueOnce(updatePromise as Promise<ReturnType<typeof authService.updateProfile>>)
+      vi.mocked(authService.updateProfile).mockReturnValueOnce(
+        updatePromise as Promise<ReturnType<typeof authService.updateProfile>>,
+      )
 
-      const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      const { result: updateResult } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() })
+      const { result: userResult } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
+      const { result: updateResult } = renderHook(() => useUpdateProfile(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待初始数据加载
       await waitFor(() => {
@@ -473,8 +491,12 @@ describe('TanStack Query 缓存集成测试', () => {
       const updateError = new Error('Network error')
       vi.mocked(authService.updateProfile).mockRejectedValueOnce(updateError)
 
-      const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      const { result: updateResult } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() })
+      const { result: userResult } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
+      const { result: updateResult } = renderHook(() => useUpdateProfile(), {
+        wrapper: createWrapper(),
+      })
 
       // 执行更新
       await act(async () => {
@@ -501,9 +523,15 @@ describe('TanStack Query 缓存集成测试', () => {
       })
 
       // 同时渲染多个使用相同查询的组件
-      const { result: result1 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      const { result: result2 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      const { result: result3 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result: result1 } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
+      const { result: result2 } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
+      const { result: result3 } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待所有请求完成
       await waitFor(() => {
@@ -529,11 +557,7 @@ describe('TanStack Query 缓存集成测试', () => {
 
       queryClient.setQueryData(queryKeys.currentUser(), mockUser)
 
-      const updates = [
-        { first_name: 'First' },
-        { first_name: 'Second' },
-        { first_name: 'Third' },
-      ]
+      const updates = [{ first_name: 'First' }, { first_name: 'Second' }, { first_name: 'Third' }]
 
       // Mock 每次更新
       updates.forEach((update) => {
@@ -544,7 +568,9 @@ describe('TanStack Query 缓存集成测试', () => {
         })
       })
 
-      const { result } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useUpdateProfile(), {
+        wrapper: createWrapper(),
+      })
 
       // 确保 hook 初始化完成
       await waitFor(() => {
@@ -574,7 +600,11 @@ describe('TanStack Query 缓存集成测试', () => {
       setupAuthenticatedState()
 
       const mockSessions = [
-        { id: 'session1', deviceInfo: 'Chrome', lastActive: new Date().toISOString() },
+        {
+          id: 'session1',
+          deviceInfo: 'Chrome',
+          lastActive: new Date().toISOString(),
+        },
       ]
 
       // 确保getSessions方法存在并有正确的mock
@@ -584,7 +614,9 @@ describe('TanStack Query 缓存集成测试', () => {
         message: 'Success',
       })
 
-      const { result } = renderHook(() => useSessions(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useSessions(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待数据加载完成
       await waitFor(() => {
@@ -616,7 +648,9 @@ describe('TanStack Query 缓存集成测试', () => {
         message: 'Success',
       })
 
-      const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+      const { result } = renderHook(() => useCurrentUser(), {
+        wrapper: createWrapper(),
+      })
 
       // 等待数据加载完成
       await waitFor(() => {
@@ -680,7 +714,7 @@ describe('TanStack Query 缓存集成测试', () => {
           permissions: usePermissions(),
           sessions: useSessions(),
         }),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       )
 
       // 首先等待用户数据加载完成
@@ -694,24 +728,29 @@ describe('TanStack Query 缓存集成测试', () => {
       })
 
       // 最后等待权限查询失败（权限查询依赖于用户数据）
-      await waitFor(() => {
-        // 调试：检查权限查询的状态
-        const { permissions } = result.current
+      await waitFor(
+        () => {
+          // 调试：检查权限查询的状态
+          const { permissions } = result.current
 
-        // 权限查询可能还未启动（如果用户数据还没有 role）
-        // 或者可能正在加载中
-        // 我们期望它最终会失败
-        if (permissions.isError) {
-          expect(permissions.error).toBeDefined()
-        } else if (permissions.isLoading || permissions.isIdle) {
-          // 如果还在加载或未启动，继续等待
-          throw new Error('Permissions query is still loading or idle')
-        } else {
-          // 如果不是错误状态，也不是加载状态，那可能是成功了
-          // 这不应该发生，因为我们 mock 了一个错误
-          throw new Error(`Unexpected permissions state: isSuccess=${permissions.isSuccess}, data=${permissions.data}`)
-        }
-      }, { timeout: 3000 })
+          // 权限查询可能还未启动（如果用户数据还没有 role）
+          // 或者可能正在加载中
+          // 我们期望它最终会失败
+          if (permissions.isError) {
+            expect(permissions.error).toBeDefined()
+          } else if (permissions.isLoading || permissions.isIdle) {
+            // 如果还在加载或未启动，继续等待
+            throw new Error('Permissions query is still loading or idle')
+          } else {
+            // 如果不是错误状态，也不是加载状态，那可能是成功了
+            // 这不应该发生，因为我们 mock 了一个错误
+            throw new Error(
+              `Unexpected permissions state: isSuccess=${permissions.isSuccess}, data=${permissions.data}`,
+            )
+          }
+        },
+        { timeout: 3000 },
+      )
     })
   })
 })

@@ -61,12 +61,12 @@ describe('queryClient 配置', () => {
       // mutation.retry 是一个函数，测试它对于非网络错误返回 false
       const retryFunction = options.mutations?.retry as any
       expect(typeof retryFunction).toBe('function')
-      
+
       // 测试非网络错误不重试
       expect(retryFunction(0, { status: 400 })).toBe(false)
       expect(retryFunction(0, { status: 401 })).toBe(false)
       expect(retryFunction(0, { status: 500 })).toBe(false)
-      
+
       // 测试网络错误会重试（最多2次）
       expect(retryFunction(0, {})).toBe(true)
       expect(retryFunction(1, {})).toBe(true)
@@ -79,7 +79,7 @@ describe('queryClient 配置', () => {
 
       if (onError) {
         const clearSpy = vi.spyOn(queryClient, 'clear')
-        
+
         // 触发 401 错误
         onError({ status: 401 } as any, {} as any, {} as any, {} as any)
 
@@ -94,7 +94,7 @@ describe('queryClient 配置', () => {
 
       if (onError) {
         const clearSpy = vi.spyOn(queryClient, 'clear')
-        
+
         // 触发非 401 错误
         onError({ status: 500 } as any, {} as any, {} as any, {} as any)
 
@@ -136,7 +136,11 @@ describe('queryClient 配置', () => {
     it('应该生成正确的项目相关查询键', () => {
       expect(queryKeys.projects.all).toEqual(['projects'])
       expect(queryKeys.projects.list()).toEqual(['projects', 'list', undefined])
-      expect(queryKeys.projects.list({ status: 'active' })).toEqual(['projects', 'list', { status: 'active' }])
+      expect(queryKeys.projects.list({ status: 'active' })).toEqual([
+        'projects',
+        'list',
+        { status: 'active' },
+      ])
       expect(queryKeys.projects.detail('123')).toEqual(['projects', 'detail', '123'])
     })
 
@@ -148,7 +152,7 @@ describe('queryClient 配置', () => {
     it('查询键应该是不可变的', () => {
       const userKey = queryKeys.user()
       const userKeyCopy = queryKeys.user()
-      
+
       // 应该返回新的数组实例
       expect(userKey).not.toBe(userKeyCopy)
       // 但内容应该相同
@@ -189,18 +193,18 @@ describe('queryClient 配置', () => {
     it('查询键应该是只读的', () => {
       // TypeScript 编译时会检查，这里主要是运行时验证
       const keys = queryKeys.all
-      
+
       // 由于 JavaScript 中数组的只读性是 TypeScript 的编译时特性
       // 运行时不会抛出错误，所以这个测试主要验证 TypeScript 类型
       // 这里我们只能验证它是一个数组并且内容正确
       expect(Array.isArray(keys)).toBe(true)
       expect(keys).toEqual(['auth'])
-      
+
       // 验证查询键生成函数返回新的数组实例（不可变性）
       const keys1 = queryKeys.currentUser()
       const keys2 = queryKeys.currentUser()
       expect(keys1).not.toBe(keys2) // 不同的数组实例
-      expect(keys1).toEqual(keys2)  // 但内容相同
+      expect(keys1).toEqual(keys2) // 但内容相同
     })
   })
 })

@@ -17,7 +17,7 @@ describe('errorHandler', () => {
   describe('AppError', () => {
     it('应该创建带有默认消息的错误', () => {
       const error = new AppError(ErrorCode.BAD_REQUEST)
-      
+
       expect(error).toBeInstanceOf(Error)
       expect(error).toBeInstanceOf(AppError)
       expect(error.name).toBe('AppError')
@@ -28,13 +28,10 @@ describe('errorHandler', () => {
     })
 
     it('应该创建带有自定义消息的错误', () => {
-      const error = new AppError(
-        ErrorCode.VALIDATION_ERROR,
-        '邮箱格式不正确',
-        422,
-        { field: 'email' }
-      )
-      
+      const error = new AppError(ErrorCode.VALIDATION_ERROR, '邮箱格式不正确', 422, {
+        field: 'email',
+      })
+
       expect(error.code).toBe(ErrorCode.VALIDATION_ERROR)
       expect(error.message).toBe('邮箱格式不正确')
       expect(error.statusCode).toBe(422)
@@ -43,13 +40,13 @@ describe('errorHandler', () => {
 
     it('应该处理未知错误码', () => {
       const error = new AppError('UNKNOWN_CODE', '自定义消息')
-      
+
       expect(error.message).toBe('自定义消息')
     })
 
     it('应该在没有消息时使用默认的未知错误消息', () => {
       const error = new AppError('UNKNOWN_CODE')
-      
+
       expect(error.message).toBe('未知错误')
     })
   })
@@ -58,7 +55,7 @@ describe('errorHandler', () => {
     it('应该解析标准 HTTP 错误状态码', () => {
       const response = new Response(null, { status: 401 })
       const error = parseApiError(response)
-      
+
       expect(error.code).toBe(ErrorCode.UNAUTHORIZED)
       expect(error.statusCode).toBe(401)
       expect(error.message).toBe('未登录或登录已过期')
@@ -70,12 +67,12 @@ describe('errorHandler', () => {
         error: {
           code: 'CUSTOM_ERROR',
           message: '自定义错误消息',
-          details: { field: 'username' }
-        }
+          details: { field: 'username' },
+        },
       }
-      
+
       const error = parseApiError(response, data)
-      
+
       expect(error.code).toBe('CUSTOM_ERROR')
       expect(error.message).toBe('自定义错误消息')
       expect(error.statusCode).toBe(400)
@@ -85,9 +82,9 @@ describe('errorHandler', () => {
     it('应该处理没有错误字段的响应数据', () => {
       const response = new Response(null, { status: 500 })
       const data = { message: '这不是标准错误格式' }
-      
+
       const error = parseApiError(response, data)
-      
+
       expect(error.code).toBe(ErrorCode.INTERNAL_SERVER_ERROR)
       expect(error.statusCode).toBe(500)
     })
@@ -95,7 +92,7 @@ describe('errorHandler', () => {
     it('应该处理未映射的 HTTP 状态码', () => {
       const response = new Response(null, { status: 418 }) // I'm a teapot
       const error = parseApiError(response)
-      
+
       expect(error.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(error.statusCode).toBe(418)
     })
@@ -103,7 +100,7 @@ describe('errorHandler', () => {
     it('应该处理空数据', () => {
       const response = new Response(null, { status: 404 })
       const error = parseApiError(response, null)
-      
+
       expect(error.code).toBe(ErrorCode.NOT_FOUND)
       expect(error.statusCode).toBe(404)
     })
@@ -112,12 +109,12 @@ describe('errorHandler', () => {
       const response = new Response(null, { status: 403 })
       const data = {
         error: {
-          message: '只有消息，没有代码'
-        }
+          message: '只有消息，没有代码',
+        },
       }
-      
+
       const error = parseApiError(response, data)
-      
+
       expect(error.code).toBe(ErrorCode.FORBIDDEN)
       expect(error.message).toBe('只有消息，没有代码')
       expect(error.statusCode).toBe(403)
@@ -128,34 +125,34 @@ describe('errorHandler', () => {
     it('应该处理中止错误', () => {
       const abortError = new Error('The operation was aborted')
       abortError.name = 'AbortError'
-      
+
       const error = handleNetworkError(abortError)
-      
+
       expect(error.code).toBe(ErrorCode.TIMEOUT_ERROR)
       expect(error.message).toBe('请求已取消')
     })
 
     it('应该处理 fetch 类型错误', () => {
       const fetchError = new TypeError('Failed to fetch')
-      
+
       const error = handleNetworkError(fetchError)
-      
+
       expect(error.code).toBe(ErrorCode.NETWORK_ERROR)
       expect(error.message).toBe('网络连接失败，请检查网络设置')
     })
 
     it('应该处理其他错误', () => {
       const genericError = new Error('Something went wrong')
-      
+
       const error = handleNetworkError(genericError)
-      
+
       expect(error.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(error.message).toBe('Something went wrong')
     })
 
     it('应该处理非 Error 对象', () => {
       const error = handleNetworkError('字符串错误')
-      
+
       expect(error.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(error.message).toBe('字符串错误')
     })
@@ -164,7 +161,7 @@ describe('errorHandler', () => {
       const nullError = handleNetworkError(null)
       expect(nullError.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(nullError.message).toBe('null')
-      
+
       const undefinedError = handleNetworkError(undefined)
       expect(undefinedError.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(undefinedError.message).toBe('undefined')
@@ -175,14 +172,14 @@ describe('errorHandler', () => {
     it('应该直接返回 AppError 实例', () => {
       const appError = new AppError(ErrorCode.BAD_REQUEST, '测试错误')
       const result = handleError(appError)
-      
+
       expect(result).toBe(appError)
     })
 
     it('应该处理普通 Error 对象', () => {
       const error = new Error('普通错误')
       const result = handleError(error)
-      
+
       expect(result).toBeInstanceOf(AppError)
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(result.message).toBe('普通错误')
@@ -191,14 +188,14 @@ describe('errorHandler', () => {
     it('应该处理网络错误', () => {
       const fetchError = new TypeError('Failed to fetch')
       const result = handleError(fetchError)
-      
+
       expect(result.code).toBe(ErrorCode.NETWORK_ERROR)
       expect(result.message).toBe('网络连接失败，请检查网络设置')
     })
 
     it('应该处理非 Error 对象', () => {
       const result = handleError({ error: '对象错误' })
-      
+
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR)
       expect(result.message).toBe('[object Object]')
     })
@@ -227,38 +224,35 @@ describe('errorHandler', () => {
     })
 
     it('应该记录错误信息', () => {
-      const error = new AppError(
-        ErrorCode.VALIDATION_ERROR,
-        '验证失败',
-        422,
-        { field: 'email' }
-      )
-      
+      const error = new AppError(ErrorCode.VALIDATION_ERROR, '验证失败', 422, {
+        field: 'email',
+      })
+
       logError(error)
-      
+
       expect(consoleErrorSpy).toHaveBeenCalledWith('应用错误:', {
         code: ErrorCode.VALIDATION_ERROR,
         message: '验证失败',
         statusCode: 422,
         details: { field: 'email' },
         context: undefined,
-        timestamp: '2024-01-01T00:00:00.000Z'
+        timestamp: '2024-01-01T00:00:00.000Z',
       })
     })
 
     it('应该记录带上下文的错误', () => {
       const error = new AppError(ErrorCode.NETWORK_ERROR)
       const context = { userId: '123', action: 'fetchProfile' }
-      
+
       logError(error, context)
-      
+
       expect(consoleErrorSpy).toHaveBeenCalledWith('应用错误:', {
         code: ErrorCode.NETWORK_ERROR,
         message: '网络连接失败',
         statusCode: undefined,
         details: undefined,
         context,
-        timestamp: '2024-01-01T00:00:00.000Z'
+        timestamp: '2024-01-01T00:00:00.000Z',
       })
     })
   })
@@ -267,35 +261,35 @@ describe('errorHandler', () => {
     it('应该返回网络错误的友好消息', () => {
       const error = new AppError(ErrorCode.NETWORK_ERROR)
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('网络连接失败，请检查您的网络设置')
     })
 
     it('应该返回超时错误的友好消息', () => {
       const error = new AppError(ErrorCode.TIMEOUT_ERROR)
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('请求超时，请稍后重试')
     })
 
     it('应该返回未授权错误的友好消息', () => {
       const error = new AppError(ErrorCode.UNAUTHORIZED)
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('您需要登录才能访问此功能')
     })
 
     it('应该返回服务不可用的友好消息', () => {
       const error = new AppError(ErrorCode.SERVICE_UNAVAILABLE)
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('服务暂时不可用，请稍后再试')
     })
 
     it('应该返回默认消息（使用错误消息）', () => {
       const error = new AppError(ErrorCode.VALIDATION_ERROR, '邮箱格式不正确')
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('邮箱格式不正确')
     })
 
@@ -303,7 +297,7 @@ describe('errorHandler', () => {
       const error = new AppError('UNKNOWN_CODE')
       error.message = '' // 清空消息
       const message = getUserFriendlyMessage(error)
-      
+
       expect(message).toBe('操作失败，请稍后重试')
     })
 
@@ -329,10 +323,10 @@ describe('errorHandler', () => {
         'NETWORK_ERROR',
         'TIMEOUT_ERROR',
         'BUSINESS_ERROR',
-        'UNKNOWN_ERROR'
+        'UNKNOWN_ERROR',
       ]
-      
-      expectedCodes.forEach(code => {
+
+      expectedCodes.forEach((code) => {
         expect(ErrorCode).toHaveProperty(code)
       })
     })
@@ -346,39 +340,39 @@ describe('errorHandler', () => {
         error: {
           code: 'VALIDATION_ERROR',
           message: '用户名已存在',
-          details: { field: 'username', value: 'testuser' }
-        }
+          details: { field: 'username', value: 'testuser' },
+        },
       }
-      
+
       // 解析错误
       const error = parseApiError(response, responseData)
-      
+
       // 记录错误
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       logError(error, { endpoint: '/api/register' })
-      
+
       // 获取用户友好消息
       const userMessage = getUserFriendlyMessage(error)
-      
+
       // 验证
       expect(error.code).toBe('VALIDATION_ERROR')
       expect(error.statusCode).toBe(422)
       expect(userMessage).toBe('用户名已存在')
       expect(consoleErrorSpy).toHaveBeenCalled()
-      
+
       consoleErrorSpy.mockRestore()
     })
 
     it('应该正确处理网络错误流程', () => {
       // 模拟网络错误
       const networkError = new TypeError('Failed to fetch')
-      
+
       // 处理错误
       const error = handleError(networkError)
-      
+
       // 获取用户友好消息
       const userMessage = getUserFriendlyMessage(error)
-      
+
       // 验证
       expect(error.code).toBe(ErrorCode.NETWORK_ERROR)
       expect(userMessage).toBe('网络连接失败，请检查您的网络设置')

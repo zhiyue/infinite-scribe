@@ -10,8 +10,19 @@ import { useCurrentUser } from './useAuthQuery'
 import { useAuthStore } from './useAuth'
 import { authService } from '../services/auth'
 import { queryKeys } from '../lib/queryClient'
-import { createTestQueryClient, createWrapper, createMockAuthStore, cleanupWindowLocation } from './test-utils'
-import type { User, LoginRequest, LoginResponse, UpdateProfileRequest, TokenResponse } from '../types/auth'
+import {
+  createTestQueryClient,
+  createWrapper,
+  createMockAuthStore,
+  cleanupWindowLocation,
+} from './test-utils'
+import type {
+  User,
+  LoginRequest,
+  LoginResponse,
+  UpdateProfileRequest,
+  TokenResponse,
+} from '../types/auth'
 
 // Mock 认证服务
 vi.mock('../services/auth', () => ({
@@ -39,7 +50,6 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate,
   }
 })
-
 
 describe('useAuthMutations hooks', () => {
   let queryClient: QueryClient
@@ -88,7 +98,7 @@ describe('useAuthMutations hooks', () => {
       vi.mocked(authService.login).mockResolvedValueOnce({
         success: true,
         data: mockLoginResponse,
-        message: 'Login successful'
+        message: 'Login successful',
       })
 
       const { result } = renderHook(() => useLogin(), { wrapper })
@@ -164,7 +174,7 @@ describe('useAuthMutations hooks', () => {
       vi.mocked(authService.login).mockResolvedValueOnce({
         success: true,
         data: mockLoginResponse,
-        message: 'Login successful'
+        message: 'Login successful',
       })
 
       const { result } = renderHook(() => useLogin(), { wrapper })
@@ -252,7 +262,7 @@ describe('useAuthMutations hooks', () => {
       vi.mocked(authService.updateProfile).mockResolvedValueOnce({
         success: true,
         data: updatedUser,
-        message: 'Profile updated successfully'
+        message: 'Profile updated successfully',
       })
 
       const { result } = renderHook(() => useUpdateProfile(), { wrapper })
@@ -301,7 +311,7 @@ describe('useAuthMutations hooks', () => {
         resolveUpdate!({
           success: true,
           data: { ...mockUser, ...updateData },
-          message: 'Profile updated successfully'
+          message: 'Profile updated successfully',
         })
       })
 
@@ -355,11 +365,11 @@ describe('useAuthMutations hooks', () => {
 
       // 设置初始用户数据
       queryClient.setQueryData(queryKeys.currentUser(), mockUser)
-      
+
       vi.mocked(authService.updateProfile).mockResolvedValueOnce({
         success: true,
         data: updatedUser,
-        message: 'Profile updated successfully'
+        message: 'Profile updated successfully',
       })
 
       // Mock getCurrentUser 用于查询刷新
@@ -372,8 +382,10 @@ describe('useAuthMutations hooks', () => {
       })
 
       // 使用 useCurrentUser hook 来验证数据是否被刷新
-      const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper })
-      
+      const { result: userResult } = renderHook(() => useCurrentUser(), {
+        wrapper,
+      })
+
       await waitFor(() => {
         expect(userResult.current.data).toEqual(updatedUser)
       })
@@ -400,10 +412,10 @@ describe('useAuthMutations hooks', () => {
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true)
       })
-      
+
       // 验证返回的数据
       expect(result.current.data).toEqual(mockTokenResponse)
-      
+
       // 验证 refreshTokens 被调用
       expect(vi.mocked(authService.refreshTokens)).toHaveBeenCalled()
     })
@@ -453,17 +465,17 @@ describe('useAuthMutations hooks', () => {
       vi.mocked(authService.login).mockResolvedValueOnce({
         success: true,
         data: mockLoginResponse,
-        message: 'Login successful'
+        message: 'Login successful',
       })
       vi.mocked(authService.updateProfile).mockResolvedValueOnce({
         success: true,
         data: { ...mockUser, first_name: 'Updated', last_name: 'Name' },
-        message: 'Profile updated successfully'
+        message: 'Profile updated successfully',
       })
       vi.mocked(authService.logout).mockResolvedValueOnce({
         success: true,
         data: undefined,
-        message: 'Logged out successfully'
+        message: 'Logged out successfully',
       })
 
       const { result } = renderHook(
@@ -472,7 +484,7 @@ describe('useAuthMutations hooks', () => {
           updateProfile: useUpdateProfile(),
           logout: useLogout(),
         }),
-        { wrapper }
+        { wrapper },
       )
 
       // 步骤 1: 登录
@@ -487,7 +499,10 @@ describe('useAuthMutations hooks', () => {
 
       // 步骤 2: 更新资料
       await act(async () => {
-        await result.current.updateProfile.mutateAsync({ first_name: 'Updated', last_name: 'Name' })
+        await result.current.updateProfile.mutateAsync({
+          first_name: 'Updated',
+          last_name: 'Name',
+        })
       })
 
       const updatedUser = queryClient.getQueryData<User>(queryKeys.currentUser())

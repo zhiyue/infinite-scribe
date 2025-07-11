@@ -34,10 +34,10 @@ export function useCurrentUser() {
  */
 export function usePermissions() {
   const { data: user } = useCurrentUser()
-  
+
   // 提取用户角色，只有角色变化时才会触发重新查询
   const userRole = user?.role
-  
+
   return useQuery({
     queryKey: [...queryKeys.permissions(), userRole], // 将角色作为查询键的一部分
     queryFn: async () => {

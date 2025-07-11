@@ -1,33 +1,42 @@
-import js from '@eslint/js'
+import { default as eslint, default as js } from '@eslint/js'
+import prettierConfig from 'eslint-config-prettier/flat'
+import prettierPluginRecommended from 'eslint-plugin-prettier/recommended'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { globalIgnores } from 'eslint/config'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      // tseslint.configs.recommended,
-      tseslint.configs.stylistic,
-      tseslint.configs.recommended-type-checked,
-      reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      projectService: true,
+const customTsConfig = {
+  files: ['**/*.{ts,tsx}'],
+  extends: [
+    js.configs.recommended,
+    tseslint.configs.stylistic,
+    tseslint.configs.recommendedTypeChecked,
+    reactHooks.configs['recommended-latest'],
+    reactRefresh.configs.vite,
+  ],
+  languageOptions: {
+    ecmaVersion: 2020,
+    globals: globals.browser,
+    parserOptions: {
+      project: true,
+      projectService: {
+        allowDefaultProject: ['vitest.config.ts', 'vite.config.ts'],
+      },
       tsconfigRootDir: import.meta.dir,
     },
-    rules: {
-      // 设置 indent 规则：2 个空格缩进
-      "indent": ["error", 2],
-      // 可选：并规定 switch-case 缩进级别
-      "indent": ["error", 2, { "SwitchCase": 1 }],
-    },
   },
-])
+  rules: {
+    indent: ['error', 2],
+  },
+}
+
+export default tseslint.config(
+  eslint.configs.recommended,
+  ...tseslint.configs.recommended,
+  globalIgnores(['dist']),
+  customTsConfig,
+  prettierPluginRecommended,
+  prettierConfig,
+)

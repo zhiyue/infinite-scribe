@@ -3,11 +3,11 @@
  * 提供统一的测试配置和 mock 工具，避免重复代码
  */
 
-import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+import React from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import type { ReactNode } from 'react'
 import type { AuthStore } from './useAuth'
 
 interface QueryClientOverrides {
@@ -70,7 +70,7 @@ export const createWrapper = (queryClient: QueryClient) => {
     return React.createElement(
       BrowserRouter,
       {},
-      React.createElement(QueryClientProvider, { client: queryClient }, children)
+      React.createElement(QueryClientProvider, { client: queryClient }, children),
     )
   }
 }
@@ -108,7 +108,7 @@ export const createMockAuthStore = (overrides?: Partial<AuthStore>) => {
  */
 export const setupCommonMocks = () => {
   const mockNavigate = vi.fn()
-  
+
   vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual('react-router-dom')
     return {
@@ -137,7 +137,7 @@ export const cleanupWindowLocation = () => {
  */
 export const flushPromisesAndTimers = async () => {
   await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 

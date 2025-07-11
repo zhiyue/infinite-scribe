@@ -39,10 +39,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // 记录错误日志
-    const appError = error instanceof AppError 
-      ? error 
-      : new AppError(ErrorCode.UNKNOWN_ERROR, error.message)
-    
+    const appError =
+      error instanceof AppError ? error : new AppError(ErrorCode.UNKNOWN_ERROR, error.message)
+
     logError(appError, {
       componentStack: errorInfo.componentStack,
       errorBoundary: true,
@@ -80,18 +79,16 @@ export class ErrorBoundary extends Component<Props, State> {
                 <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
               <CardTitle className="text-2xl">出错了</CardTitle>
-              <CardDescription>
-                页面遇到了一些问题，请尝试刷新页面或返回首页
-              </CardDescription>
+              <CardDescription>页面遇到了一些问题，请尝试刷新页面或返回首页</CardDescription>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
               {/* 错误详情（仅在开发环境显示） */}
               {!isProduction && error && (
                 <div className="rounded-lg bg-gray-100 p-4 text-sm">
                   <p className="font-semibold text-gray-700">错误信息：</p>
                   <p className="mt-1 text-gray-600 break-words">{error.message}</p>
-                  
+
                   {this.state.errorInfo && (
                     <details className="mt-4">
                       <summary className="cursor-pointer font-semibold text-gray-700">
@@ -115,12 +112,8 @@ export class ErrorBoundary extends Component<Props, State> {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   刷新页面
                 </Button>
-                
-                <Button
-                  asChild
-                  variant="outline"
-                  className="flex-1"
-                >
+
+                <Button asChild variant="outline" className="flex-1">
                   <Link to="/">
                     <Home className="mr-2 h-4 w-4" />
                     返回首页
@@ -129,11 +122,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
 
               {/* 尝试恢复按钮 */}
-              <Button
-                onClick={this.handleReset}
-                variant="ghost"
-                className="w-full"
-              >
+              <Button onClick={this.handleReset} variant="ghost" className="w-full">
                 尝试恢复
               </Button>
             </CardContent>
@@ -155,9 +144,7 @@ export function RouteErrorBoundary({ children }: { children: ReactNode }) {
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>页面加载失败</CardTitle>
-              <CardDescription>
-                该页面暂时无法访问，请稍后再试
-              </CardDescription>
+              <CardDescription>该页面暂时无法访问，请稍后再试</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">

@@ -78,9 +78,7 @@ export default function GlobalMonitoring() {
     <div className="container mx-auto py-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">全局监控</h1>
-        <p className="mt-2 text-muted-foreground">
-          实时监控系统各项服务的运行状态
-        </p>
+        <p className="mt-2 text-muted-foreground">实时监控系统各项服务的运行状态</p>
       </div>
 
       {/* 整体状态 */}
@@ -96,8 +94,16 @@ export default function GlobalMonitoring() {
             {isLoading && <Clock className="h-5 w-5 animate-spin" />}
             {error && <AlertCircle className="h-5 w-5 text-red-600" />}
             {health && getStatusIcon(health.status)}
-            <span className={cn('text-lg font-medium', getStatusColor(health?.status || 'unknown'))}>
-              {isLoading ? '检查中...' : error ? '检查失败' : health?.status === 'healthy' ? '运行正常' : '存在问题'}
+            <span
+              className={cn('text-lg font-medium', getStatusColor(health?.status || 'unknown'))}
+            >
+              {isLoading
+                ? '检查中...'
+                : error
+                  ? '检查失败'
+                  : health?.status === 'healthy'
+                    ? '运行正常'
+                    : '存在问题'}
             </span>
           </div>
         </CardContent>

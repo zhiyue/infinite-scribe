@@ -1,5 +1,5 @@
-import { APIRequestContext, APIResponse } from '@playwright/test';
-import { TEST_CONFIG } from './test-helpers';
+import { APIRequestContext, APIResponse } from '@playwright/test'
+import { TEST_CONFIG } from './test-helpers'
 
 /**
  * 测试 API 客户端
@@ -11,55 +11,54 @@ export class TestApiClient {
    * 从失败的响应中构建详细的错误信息
    */
   private async buildErrorMessage(response: APIResponse, operation: string): Promise<string> {
-    let errorDetail = '';
+    let errorDetail = ''
     try {
-      const responseBody = await response.text();
+      const responseBody = await response.text()
       if (responseBody) {
-        errorDetail = `\nResponse body: ${responseBody}`;
+        errorDetail = `\nResponse body: ${responseBody}`
       }
     } catch {
       // 如果无法读取响应体，忽略错误
     }
-    
-    return `Failed to ${operation}: ${response.status()} ${response.statusText()}${errorDetail}`;
+
+    return `Failed to ${operation}: ${response.status()} ${response.statusText()}${errorDetail}`
   }
 
   /**
    * 创建测试用户（通过 API）
    */
-  async createTestUser(userData: {
-    username: string;
-    email: string;
-    password: string;
-  }) {
+  async createTestUser(userData: { username: string; email: string; password: string }) {
     const response = await this.request.post(`${TEST_CONFIG.apiBaseUrl}/api/v1/auth/register`, {
       data: userData,
-    });
-    
+    })
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'create test user'));
+      throw new Error(await this.buildErrorMessage(response, 'create test user'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
    * 登录获取令牌
    */
-  async login(email: string, password: string): Promise<{
-    access_token: string;
-    refresh_token: string;
-    user: any;
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{
+    access_token: string
+    refresh_token: string
+    user: any
   }> {
     const response = await this.request.post(`${TEST_CONFIG.apiBaseUrl}/api/v1/auth/login`, {
       data: { email, password },
-    });
-    
+    })
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'login'));
+      throw new Error(await this.buildErrorMessage(response, 'login'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
@@ -67,14 +66,14 @@ export class TestApiClient {
    */
   async verifyEmail(token: string) {
     const response = await this.request.get(
-      `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/verify-email?token=${token}`
-    );
-    
+      `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/verify-email?token=${token}`,
+    )
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'verify email'));
+      throw new Error(await this.buildErrorMessage(response, 'verify email'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
@@ -85,14 +84,14 @@ export class TestApiClient {
       `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/forgot-password`,
       {
         data: { email },
-      }
-    );
-    
+      },
+    )
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'request password reset'));
+      throw new Error(await this.buildErrorMessage(response, 'request password reset'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
@@ -103,24 +102,20 @@ export class TestApiClient {
       `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/reset-password`,
       {
         data: { token, new_password: newPassword },
-      }
-    );
-    
+      },
+    )
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'reset password'));
+      throw new Error(await this.buildErrorMessage(response, 'reset password'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
    * 修改密码（需要认证）
    */
-  async changePassword(
-    accessToken: string,
-    currentPassword: string,
-    newPassword: string
-  ) {
+  async changePassword(accessToken: string, currentPassword: string, newPassword: string) {
     const response = await this.request.post(
       `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/change-password`,
       {
@@ -131,72 +126,63 @@ export class TestApiClient {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-      }
-    );
-    
+      },
+    )
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'change password'));
+      throw new Error(await this.buildErrorMessage(response, 'change password'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
    * 获取当前用户信息
    */
   async getCurrentUser(accessToken: string) {
-    const response = await this.request.get(
-      `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/me`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-    
+    const response = await this.request.get(`${TEST_CONFIG.apiBaseUrl}/api/v1/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'get current user'));
+      throw new Error(await this.buildErrorMessage(response, 'get current user'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
    * 刷新访问令牌
    */
   async refreshToken(refreshToken: string) {
-    const response = await this.request.post(
-      `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/refresh`,
-      {
-        data: { refresh_token: refreshToken },
-      }
-    );
-    
+    const response = await this.request.post(`${TEST_CONFIG.apiBaseUrl}/api/v1/auth/refresh`, {
+      data: { refresh_token: refreshToken },
+    })
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'refresh token'));
+      throw new Error(await this.buildErrorMessage(response, 'refresh token'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
    * 登出
    */
   async logout(accessToken: string) {
-    const response = await this.request.post(
-      `${TEST_CONFIG.apiBaseUrl}/api/v1/auth/logout`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-    
+    const response = await this.request.post(`${TEST_CONFIG.apiBaseUrl}/api/v1/auth/logout`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
     if (!response.ok()) {
-      throw new Error(await this.buildErrorMessage(response, 'logout'));
+      throw new Error(await this.buildErrorMessage(response, 'logout'))
     }
-    
-    return response.json();
+
+    return response.json()
   }
 
   /**
@@ -210,13 +196,13 @@ export class TestApiClient {
         `${TEST_CONFIG.apiBaseUrl}/api/v1/test/users/${encodeURIComponent(email)}`,
         {
           headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
-        }
-      );
-      
-      return response.ok();
+        },
+      )
+
+      return response.ok()
     } catch (error) {
-      console.warn('Failed to cleanup test user:', error);
-      return false;
+      console.warn('Failed to cleanup test user:', error)
+      return false
     }
   }
 }

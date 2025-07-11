@@ -56,7 +56,7 @@ export default function Settings() {
                 className={cn(
                   'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
                   'hover:bg-accent hover:text-accent-foreground',
-                  activeSection === section.id && 'bg-accent text-accent-foreground font-medium'
+                  activeSection === section.id && 'bg-accent text-accent-foreground font-medium',
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -117,9 +117,21 @@ function NotificationSettings() {
       <CardContent className="space-y-4">
         <div className="space-y-4">
           {[
-            { id: 'email', label: '邮件通知', description: '接收重要更新和提醒' },
-            { id: 'browser', label: '浏览器通知', description: '在浏览器中接收实时通知' },
-            { id: 'updates', label: '产品更新', description: '了解新功能和改进' },
+            {
+              id: 'email',
+              label: '邮件通知',
+              description: '接收重要更新和提醒',
+            },
+            {
+              id: 'browser',
+              label: '浏览器通知',
+              description: '在浏览器中接收实时通知',
+            },
+            {
+              id: 'updates',
+              label: '产品更新',
+              description: '了解新功能和改进',
+            },
           ].map((item) => (
             <div key={item.id} className="flex items-center justify-between">
               <div>

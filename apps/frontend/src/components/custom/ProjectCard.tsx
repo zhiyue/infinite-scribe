@@ -16,7 +16,7 @@ const statusMap = {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   const status = statusMap[project.status]
-  
+
   return (
     <Link to={`/projects/${project.id}/overview`}>
       <Card className="h-full transition-shadow hover:shadow-lg">
@@ -24,28 +24,24 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="line-clamp-1">{project.title}</CardTitle>
-              <CardDescription className="mt-1 line-clamp-2">
-                {project.description}
-              </CardDescription>
+              <CardDescription className="mt-1 line-clamp-2">{project.description}</CardDescription>
             </div>
-            <span className={`ml-2 text-sm font-medium ${status.color}`}>
-              {status.label}
-            </span>
+            <span className={`ml-2 text-sm font-medium ${status.color}`}>{status.label}</span>
           </div>
         </CardHeader>
-        
+
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <FileText className="h-4 w-4" />
               <span>{project.chapterCount} 章节</span>
             </div>
-            
+
             <div className="flex items-center gap-2 text-muted-foreground">
               <Activity className="h-4 w-4" />
               <span>{project.wordCount.toLocaleString()} 字</span>
             </div>
-            
+
             <div className="col-span-2 flex items-center gap-2 text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>更新于 {new Date(project.lastUpdated).toLocaleDateString()}</span>
