@@ -72,6 +72,25 @@ describe('useAuthQuery hooks', () => {
   beforeEach(() => {
     queryClient = createTestQueryClient()
     vi.clearAllMocks()
+    
+    // 设置默认的 useAuth mock - 创建完整的 store 对象
+    const defaultAuthStoreValue = {
+      isAuthenticated: false,
+      setAuthenticated: vi.fn(),
+      clearAuth: vi.fn(),
+      handleTokenExpired: vi.fn(),
+    } as any
+
+    // 创建完整的 Zustand store mock
+    const mockStore = Object.assign(() => defaultAuthStoreValue, {
+      getState: () => defaultAuthStoreValue,
+      subscribe: vi.fn(() => vi.fn()),
+      setState: vi.fn(),
+      destroy: vi.fn(),
+    })
+
+    vi.mocked(useAuth).mockReturnValue(defaultAuthStoreValue)
+    vi.mocked(useAuthStore).mockReturnValue(defaultAuthStoreValue)
   })
 
   afterEach(() => {
@@ -178,19 +197,22 @@ describe('useAuthQuery hooks', () => {
         isAuthenticated: true,
         setAuthenticated: vi.fn(),
         clearAuth: vi.fn(),
+        handleTokenExpired: vi.fn(),
       } as any
 
       vi.mocked(useAuth).mockReturnValue(mockAuthStore)
       vi.mocked(useAuthStore).mockReturnValue(mockAuthStore)
 
       const networkError = new Error('Network Error')
-      vi.mocked(authService.getCurrentUser).mockRejectedValueOnce(networkError)
+      
+      // 让所有调用都失败，这样我们可以观察重试次数
+      vi.mocked(authService.getCurrentUser).mockRejectedValue(networkError)
 
       // 修改 QueryClient 配置以允许重试
       const testQueryClient = new QueryClient({
         defaultOptions: {
           queries: {
-            retry: 3,
+            retry: 2, // 减少重试次数以加快测试
             retryDelay: 0, // 立即重试以加快测试
             refetchOnWindowFocus: false,
           },
@@ -205,10 +227,11 @@ describe('useAuthQuery hooks', () => {
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true)
+        expect(result.current.error).toEqual(networkError)
       })
 
-      // 应该重试多次
-      expect(vi.mocked(authService.getCurrentUser).mock.calls.length).toBeGreaterThan(1)
+      // 验证发生了重试 (初始请求 + 2 次重试 = 3 次总调用)
+      expect(vi.mocked(authService.getCurrentUser)).toHaveBeenCalledTimes(3)
     })
 
     it('应该正确处理数据缓存', async () => {

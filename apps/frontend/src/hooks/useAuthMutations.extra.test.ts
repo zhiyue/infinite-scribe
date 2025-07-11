@@ -17,7 +17,7 @@ import type {
     ResendVerificationRequest,
     ResetPasswordRequest
 } from '../types/auth'
-import { useAuth } from './useAuth'
+import { useAuthStore } from './useAuth'
 import {
     useChangePassword,
     useForgotPassword,
@@ -39,9 +39,9 @@ vi.mock('../services/auth', () => ({
   },
 }))
 
-// Mock useAuth hook
+// Mock useAuthStore hook
 vi.mock('./useAuth', () => ({
-  useAuth: vi.fn(),
+  useAuthStore: vi.fn(),
 }))
 
 // Mock useNavigate
@@ -77,12 +77,24 @@ describe('额外的 useAuthMutations hooks', () => {
     mockClearAuth = vi.fn()
     vi.clearAllMocks()
 
-    // 设置默认的 useAuth mock
-    vi.mocked(useAuth).mockReturnValue({
+    // 设置默认的 useAuth mock - 创建完整的 store 对象
+    const authStoreValue = {
       isAuthenticated: false,
       setAuthenticated: vi.fn(),
       clearAuth: mockClearAuth,
-    } as any)
+      handleTokenExpired: vi.fn(),
+    } as any
+
+    // 创建完整的 Zustand store mock
+    const mockStore = Object.assign(() => authStoreValue, {
+      getState: () => authStoreValue,
+      subscribe: vi.fn(() => vi.fn()),
+      setState: vi.fn(),
+      destroy: vi.fn(),
+    })
+
+    vi.mocked(useAuthStore).mockReturnValue(authStoreValue)
+    vi.mocked(useAuthStore).mockImplementation(() => authStoreValue)
   })
 
   afterEach(() => {
