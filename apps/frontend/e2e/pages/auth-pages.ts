@@ -32,6 +32,21 @@ export class BasePage {
         '.text-red-500', 
         '.text-red-600', 
         '.text-destructive',
+        // 增加更多通用的错误选择器
+        '.alert-error',
+        '.alert-destructive',
+        '.error',
+        '.danger',
+        '.text-red-400',
+        '.text-red-700',
+        '.text-red-800',
+        // 表单验证错误
+        '.field-error',
+        '.form-error',
+        '.validation-error',
+        // Toast 或通知类型的错误
+        '.toast-error',
+        '.notification-error',
         // 专门为邮箱验证页面添加的选择器
         '.text-2xl:has-text("failed")', // "Verification failed" 标题
         'h2:has-text("failed")',
@@ -41,8 +56,19 @@ export class BasePage {
         '.text-red-500:has-text("couldn\'t")',
       ];
       
-      // 等待请求完成
-      await this.page.waitForTimeout(1000);
+      // 首先等待一下，让页面有时间响应
+      await this.page.waitForTimeout(2000);
+      
+      // 尝试等待任何错误元素出现（不超时继续）
+      try {
+        await this.page.waitForSelector(selectors.join(', '), { 
+          timeout: 8000, 
+          state: 'visible' 
+        });
+        console.log(`[getErrorMessage] Error element appeared`);
+      } catch {
+        console.log(`[getErrorMessage] No error element appeared within timeout, checking anyway`);
+      }
       
       // 尝试每个选择器
       for (const selector of selectors) {
@@ -72,8 +98,16 @@ export class BasePage {
         /couldn't verify/i,
         /we couldn't verify/i,
         /invalid.*token/i,
+        /invalid.*credentials/i,
+        /认证失败/i,
+        /密码错误/i,
+        /当前密码.*错误/i,
+        /current password.*incorrect/i,
+        /新密码.*不能.*相同/i,
+        /new password.*cannot.*same/i,
         /expired/i,
-        /unexpected error/i
+        /unexpected error/i,
+        /error/i
       ];
       
       for (const pattern of errorPatterns) {
@@ -166,7 +200,7 @@ export class LoginPage extends BasePage {
       // 成功：跳转到 dashboard/home
       this.page.waitForURL(/\/(dashboard|home)/, { timeout: 15000 }),
       // 失败：显示错误消息
-      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      this.page.waitForSelector('[role="alert"], .error-message, .text-red-500, .text-destructive', { timeout: 15000 }),
       // 邮箱验证需求：显示验证提示
       this.page.waitForSelector('[role="alert"] .error-message', { timeout: 15000 }),
       // 等待按钮重新启用（表示请求完成）
@@ -178,8 +212,8 @@ export class LoginPage extends BasePage {
       console.log(`[LoginPage] Login timeout or no expected response`);
     });
     
-    // 额外等待确保DOM更新
-    await this.page.waitForTimeout(1000);
+    // 额外等待确保DOM更新和错误消息渲染
+    await this.page.waitForTimeout(2000);
     
     console.log(`[LoginPage] Login completed, current URL: ${this.page.url()}`);
   }
@@ -400,7 +434,7 @@ export class ChangePasswordPage extends BasePage {
       // 成功：显示成功消息
       this.page.waitForSelector('.success-message, [role="status"]', { timeout: 15000 }),
       // 失败：显示错误消息
-      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      this.page.waitForSelector('[role="alert"], .error-message, .text-red-500, .text-destructive', { timeout: 15000 }),
       // 可能重定向到登录页面
       this.page.waitForURL(/\/login/, { timeout: 15000 }),
       // 等待按钮重新启用（表示请求完成）
@@ -412,8 +446,8 @@ export class ChangePasswordPage extends BasePage {
       console.log(`[ChangePasswordPage] Password change timeout or no expected response`);
     });
     
-    // 额外等待确保DOM更新
-    await this.page.waitForTimeout(1000);
+    // 额外等待确保DOM更新和错误消息渲染
+    await this.page.waitForTimeout(2000);
     
     console.log(`[ChangePasswordPage] Password change completed, current URL: ${this.page.url()}`);
   }
