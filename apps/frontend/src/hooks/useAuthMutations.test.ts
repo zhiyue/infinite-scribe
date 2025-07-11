@@ -11,7 +11,7 @@ import { useLogin, useLogout, useUpdateProfile, useRefreshToken } from './useAut
 import { useAuth } from './useAuth'
 import { authService } from '../services/auth'
 import { queryKeys } from '../lib/queryClient'
-import type { User, LoginRequest, LoginResponse, UpdateProfileRequest } from '../types/auth'
+import type { User, LoginRequest, LoginResponse, UpdateProfileRequest, TokenResponse } from '../types/auth'
 
 // Mock 认证服务
 vi.mock('../services/auth', () => ({
@@ -91,13 +91,16 @@ describe('useAuthMutations hooks', () => {
   describe('useLogin', () => {
     it('应该成功处理登录', async () => {
       const mockUser: User = {
-        id: '1',
+        id: 1,
+        username: 'testuser',
         email: 'test@example.com',
-        name: 'Test User',
-        role: 'user',
-        isActive: true,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+        first_name: 'Test',
+        last_name: 'User',
+        is_active: true,
+        is_verified: true,
+        is_superuser: false,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
       }
 
       const mockLoginResponse: LoginResponse = {
@@ -107,8 +110,11 @@ describe('useAuthMutations hooks', () => {
         refresh_token: 'test-refresh-token',
       }
 
-      vi.mocked(authService.login).mockResolvedValueOnce(mockLoginResponse)
-      vi.mocked(authService.getPermissions).mockResolvedValueOnce(['read', 'write'])
+      vi.mocked(authService.login).mockResolvedValueOnce({
+        success: true,
+        data: mockLoginResponse,
+        message: 'Login successful'
+      })
 
       const { result } = renderHook(() => useLogin(), { wrapper })
 
@@ -130,8 +136,8 @@ describe('useAuthMutations hooks', () => {
       const cachedUser = queryClient.getQueryData(queryKeys.currentUser())
       expect(cachedUser).toEqual(mockUser)
 
-      // 验证权限预取
-      expect(vi.mocked(authService.getPermissions)).toHaveBeenCalled()
+      // 登录不会自动预取权限，权限由 usePermissions hook 独立管理
+      expect(vi.mocked(authService.getPermissions)).not.toHaveBeenCalled()
     })
 
     it('应该处理登录失败', async () => {
@@ -161,13 +167,16 @@ describe('useAuthMutations hooks', () => {
 
     it('应该在没有权限接口时跳过权限预取', async () => {
       const mockUser: User = {
-        id: '1',
+        id: 1,
+        username: 'testuser',
         email: 'test@example.com',
-        name: 'Test User',
-        role: 'user',
-        isActive: true,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+        first_name: 'Test',
+        last_name: 'User',
+        is_active: true,
+        is_verified: true,
+        is_superuser: false,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
       }
 
       const mockLoginResponse: LoginResponse = {
@@ -177,9 +186,11 @@ describe('useAuthMutations hooks', () => {
         refresh_token: 'test-refresh-token',
       }
 
-      vi.mocked(authService.login).mockResolvedValueOnce(mockLoginResponse)
-      // 模拟 getPermissions 不存在
-      vi.mocked(authService).getPermissions = undefined
+      vi.mocked(authService.login).mockResolvedValueOnce({
+        success: true,
+        data: mockLoginResponse,
+        message: 'Login successful'
+      })
 
       const { result } = renderHook(() => useLogin(), { wrapper })
 
@@ -238,13 +249,16 @@ describe('useAuthMutations hooks', () => {
 
   describe('useUpdateProfile', () => {
     const mockUser: User = {
-      id: '1',
+      id: 1,
+      username: 'testuser',
       email: 'test@example.com',
-      name: 'Test User',
-      role: 'user',
-      isActive: true,
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z',
+      first_name: 'Test',
+      last_name: 'User',
+      is_active: true,
+      is_verified: true,
+      is_superuser: false,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
     }
 
     beforeEach(() => {
@@ -254,12 +268,17 @@ describe('useAuthMutations hooks', () => {
 
     it('应该成功更新用户资料', async () => {
       const updateData: UpdateProfileRequest = {
-        name: 'Updated User',
+        first_name: 'Updated',
+        last_name: 'User',
       }
 
       const updatedUser = { ...mockUser, ...updateData }
 
-      vi.mocked(authService.updateProfile).mockResolvedValueOnce(updatedUser)
+      vi.mocked(authService.updateProfile).mockResolvedValueOnce({
+        success: true,
+        data: updatedUser,
+        message: 'Profile updated successfully'
+      })
 
       const { result } = renderHook(() => useUpdateProfile(), { wrapper })
 
@@ -278,11 +297,12 @@ describe('useAuthMutations hooks', () => {
 
     it('应该实现乐观更新', async () => {
       const updateData: UpdateProfileRequest = {
-        name: 'Optimistic Update',
+        first_name: 'Optimistic',
+        last_name: 'Update',
       }
 
-      let resolveUpdate: (value: User) => void
-      const updatePromise = new Promise<User>((resolve) => {
+      let resolveUpdate: (value: any) => void
+      const updatePromise = new Promise<any>((resolve) => {
         resolveUpdate = resolve
       })
 
@@ -298,11 +318,16 @@ describe('useAuthMutations hooks', () => {
 
       // 立即检查乐观更新（在 Promise 解析之前）
       const optimisticUser = queryClient.getQueryData<User>(queryKeys.currentUser())
-      expect(optimisticUser?.name).toBe('Optimistic Update')
+      expect(optimisticUser?.first_name).toBe('Optimistic')
+      expect(optimisticUser?.last_name).toBe('Update')
 
       // 解析 Promise 完成更新
       await act(async () => {
-        resolveUpdate!({ ...mockUser, ...updateData })
+        resolveUpdate!({
+          success: true,
+          data: { ...mockUser, ...updateData },
+          message: 'Profile updated successfully'
+        })
       })
 
       // 等待实际更新完成
@@ -313,7 +338,8 @@ describe('useAuthMutations hooks', () => {
 
     it('应该在错误时回滚乐观更新', async () => {
       const updateData: UpdateProfileRequest = {
-        name: 'Will Fail',
+        first_name: 'Will',
+        last_name: 'Fail',
       }
 
       const updateError = new Error('Update failed')
@@ -337,10 +363,15 @@ describe('useAuthMutations hooks', () => {
 
     it('应该在完成后使查询失效', async () => {
       const updateData: UpdateProfileRequest = {
-        name: 'Updated User',
+        first_name: 'Updated',
+        last_name: 'User',
       }
 
-      vi.mocked(authService.updateProfile).mockResolvedValueOnce({ ...mockUser, ...updateData })
+      vi.mocked(authService.updateProfile).mockResolvedValueOnce({
+        success: true,
+        data: { ...mockUser, ...updateData },
+        message: 'Profile updated successfully'
+      })
 
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
@@ -357,7 +388,8 @@ describe('useAuthMutations hooks', () => {
 
   describe('useRefreshToken', () => {
     it('应该成功刷新 token', async () => {
-      const mockTokenResponse = {
+      const mockTokenResponse: TokenResponse = {
+        success: true,
         access_token: 'new-access-token',
         refresh_token: 'new-refresh-token',
       }
@@ -402,13 +434,16 @@ describe('useAuthMutations hooks', () => {
   describe('集成测试', () => {
     it('应该正确处理完整的登录-更新-登出流程', async () => {
       const mockUser: User = {
-        id: '1',
+        id: 1,
+        username: 'testuser',
         email: 'test@example.com',
-        name: 'Test User',
-        role: 'user',
-        isActive: true,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+        first_name: 'Test',
+        last_name: 'User',
+        is_active: true,
+        is_verified: true,
+        is_superuser: false,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
       }
 
       const mockLoginResponse: LoginResponse = {
@@ -418,9 +453,21 @@ describe('useAuthMutations hooks', () => {
         refresh_token: 'test-refresh-token',
       }
 
-      vi.mocked(authService.login).mockResolvedValueOnce(mockLoginResponse)
-      vi.mocked(authService.updateProfile).mockResolvedValueOnce({ ...mockUser, name: 'Updated Name' })
-      vi.mocked(authService.logout).mockResolvedValueOnce(undefined)
+      vi.mocked(authService.login).mockResolvedValueOnce({
+        success: true,
+        data: mockLoginResponse,
+        message: 'Login successful'
+      })
+      vi.mocked(authService.updateProfile).mockResolvedValueOnce({
+        success: true,
+        data: { ...mockUser, first_name: 'Updated', last_name: 'Name' },
+        message: 'Profile updated successfully'
+      })
+      vi.mocked(authService.logout).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+        message: 'Logged out successfully'
+      })
 
       const { result } = renderHook(
         () => ({
@@ -443,10 +490,12 @@ describe('useAuthMutations hooks', () => {
 
       // 步骤 2: 更新资料
       await act(async () => {
-        await result.current.updateProfile.mutateAsync({ name: 'Updated Name' })
+        await result.current.updateProfile.mutateAsync({ first_name: 'Updated', last_name: 'Name' })
       })
 
-      expect(queryClient.getQueryData<User>(queryKeys.currentUser())?.name).toBe('Updated Name')
+      const updatedUser = queryClient.getQueryData<User>(queryKeys.currentUser())
+      expect(updatedUser?.first_name).toBe('Updated')
+      expect(updatedUser?.last_name).toBe('Name')
 
       // 步骤 3: 登出
       await act(async () => {

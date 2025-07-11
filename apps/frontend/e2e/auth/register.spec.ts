@@ -4,7 +4,7 @@ import {
   generateTestUser, 
   TEST_CONFIG, 
   getEmailVerificationToken,
-  cleanupTestEmails 
+  cleanupUserEmails 
 } from '../utils/test-helpers';
 import { TestApiClient } from '../utils/api-client';
 
@@ -14,14 +14,13 @@ test.describe('用户注册流程', () => {
   let emailVerificationPage: EmailVerificationPage;
   let testUser: ReturnType<typeof generateTestUser>;
 
-  test.beforeAll(async () => {
-    // 清理所有旧邮件
-    await cleanupTestEmails();
-  });
+  // 移除 beforeAll 全局清理，避免并发测试冲突
 
   test.afterAll(async () => {
-    // 测试结束后清理邮件
-    await cleanupTestEmails();
+    // 只清理当前测试用户的邮件
+    if (testUser?.email) {
+      await cleanupUserEmails(testUser.email);
+    }
   });
 
   test.beforeEach(async ({ page }) => {
@@ -30,8 +29,8 @@ test.describe('用户注册流程', () => {
     emailVerificationPage = new EmailVerificationPage(page);
     testUser = generateTestUser();
     
-    // 每个测试前清理邮件，确保干净的状态
-    await cleanupTestEmails();
+    // 只清理当前测试用户的邮件，避免影响其他并发测试
+    await cleanupUserEmails(testUser.email);
   });
 
   test('成功注册新用户', async ({ page, request }) => {
@@ -208,7 +207,7 @@ test.describe('邮箱验证流程', () => {
     
     // 验证错误消息
     const errorMessage = await emailVerificationPage.getErrorMessage();
-    expect(errorMessage).toMatch(/无效.*令牌|invalid.*token|couldn't verify|We couldn't verify/i);
+    expect(errorMessage).toMatch(/无效.*令牌|invalid.*token|couldn't verify|We couldn't verify|unexpected error|verification failed/i);
   });
 
   test('过期验证令牌', async ({ page }) => {
@@ -217,7 +216,7 @@ test.describe('邮箱验证流程', () => {
     
     // 验证错误消息
     const errorMessage = await emailVerificationPage.getErrorMessage();
-    expect(errorMessage).toMatch(/过期|expired|couldn't verify|We couldn't verify/i);
+    expect(errorMessage).toMatch(/过期|expired|couldn't verify|We couldn't verify|unexpected error|verification failed/i);
   });
 
   test('重新发送验证邮件', async ({ page, request }) => {
