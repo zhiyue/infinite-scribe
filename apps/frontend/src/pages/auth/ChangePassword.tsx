@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../../hooks/useAuth';
+import { useChangePassword } from '../../hooks/useAuthMutations';
 import type { ChangePasswordRequest } from '../../types/auth';
 import { PasswordValidator } from '../../utils/passwordValidator';
 
@@ -34,8 +34,7 @@ const changePasswordSchema = z.object({
 
 const ChangePasswordPage: React.FC = () => {
     const navigate = useNavigate();
-    const { changePassword } = useAuth();
-    const [isLoading, setIsLoading] = useState(false);
+    const changePasswordMutation = useChangePassword();
     const [showCurrentPassword, setShowCurrentPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -84,15 +83,10 @@ const ChangePasswordPage: React.FC = () => {
         console.log('[ChangePassword] onSubmit called');
         setUpdateError(null);
         setUpdateSuccess(false);
-        setIsLoading(true);
         
-        console.log('[ChangePassword] Calling changePassword...');
-        const result = await changePassword(data);
-        console.log('[ChangePassword] Result:', result);
-        
-        setIsLoading(false);
-
-        if (result.success) {
+        try {
+            console.log('[ChangePassword] Calling changePassword...');
+            await changePasswordMutation.mutateAsync(data);
             console.log('[ChangePassword] Success!');
             setUpdateSuccess(true);
             reset(); // Clear form
@@ -100,9 +94,9 @@ const ChangePasswordPage: React.FC = () => {
             setTimeout(() => {
                 navigate('/dashboard');
             }, 2000);
-        } else {
-            console.log('[ChangePassword] Failed! Error:', result.error);
-            const errorMessage = result.error || 'Failed to change password';
+        } catch (error: any) {
+            console.log('[ChangePassword] Failed! Error:', error);
+            const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to change password';
             setUpdateError(errorMessage);
             // 再次验证状态
             setTimeout(() => {
@@ -321,8 +315,8 @@ const ChangePasswordPage: React.FC = () => {
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={isLoading} data-testid="change-password-submit-button">
-                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                <Button type="submit" disabled={changePasswordMutation.isPending} data-testid="change-password-submit-button">
+                                    {changePasswordMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Change Password
                                 </Button>
                             </div>

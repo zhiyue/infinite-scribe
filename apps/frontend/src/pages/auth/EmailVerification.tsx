@@ -5,7 +5,7 @@
 import { CheckCircle, Loader2, Mail, RefreshCw, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useCurrentUser } from '../../hooks/useAuthQuery';
 import { authService } from '../../services/auth';
 
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ type VerificationStatus = 'verifying' | 'success' | 'error' | 'expired';
 const EmailVerificationPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { user, isLoading, error, clearError } = useAuth();
+    const { data: user } = useCurrentUser();
     const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verifying');
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [isResending, setIsResending] = useState(false);
@@ -86,7 +86,7 @@ const EmailVerificationPage: React.FC = () => {
 
         try {
             setIsResending(true);
-            clearError();
+            // clearError removed - not needed with TanStack Query
 
             await authService.resendVerification({ email: user.email });
             setResendCooldown(60); // 60 second cooldown

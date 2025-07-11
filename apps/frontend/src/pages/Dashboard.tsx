@@ -5,22 +5,17 @@
 import { LogOut, RefreshCw, Settings, Shield, User } from 'lucide-react';
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useCurrentUser } from '../hooks/useAuthQuery';
+import { useLogout } from '../hooks/useAuthMutations';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const DashboardPage: React.FC = () => {
-    const { user, logout, getCurrentUser } = useAuth();
+    const { data: user, refetch: refetchUser } = useCurrentUser();
+    const logoutMutation = useLogout();
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
-
-    // 只在用户数据为空时获取用户数据（避免不必要的API调用）
-    React.useEffect(() => {
-        if (!user) {
-            getCurrentUser().catch(console.error);
-        }
-    }, []); // 只在组件挂载时检查一次
 
     // Close user menu when clicking outside
     React.useEffect(() => {
@@ -37,18 +32,14 @@ const DashboardPage: React.FC = () => {
         };
     }, [isUserMenuOpen]);
 
-    const handleLogout = async () => {
-        try {
-            await logout();
-        } catch (error) {
-            console.error('Logout failed:', error);
-        }
+    const handleLogout = () => {
+        logoutMutation.mutate();
     };
 
     const handleRefresh = async () => {
         try {
             setIsRefreshing(true);
-            await getCurrentUser();
+            await refetchUser();
         } catch (error) {
             console.error('Failed to refresh user data:', error);
         } finally {

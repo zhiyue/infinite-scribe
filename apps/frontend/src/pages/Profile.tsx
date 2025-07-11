@@ -8,7 +8,8 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../hooks/useAuth';
+import { useCurrentUser } from '../hooks/useAuthQuery';
+import { useUpdateProfile } from '../hooks/useAuthMutations';
 import type { UpdateProfileRequest } from '../types/auth';
 
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,8 @@ const profileSchema = z.object({
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
-    const { user, updateProfile, isLoading } = useAuth();
+    const { data: user, isLoading } = useCurrentUser();
+    const updateProfileMutation = useUpdateProfile();
     const [updateSuccess, setUpdateSuccess] = useState(false);
     const [updateError, setUpdateError] = useState<string | null>(null);
 
@@ -89,7 +91,7 @@ const ProfilePage: React.FC = () => {
         try {
             setUpdateError(null);
             setUpdateSuccess(false);
-            await updateProfile(data);
+            await updateProfileMutation.mutateAsync(data);
             setUpdateSuccess(true);
             // Clear success message after 5 seconds
             setTimeout(() => setUpdateSuccess(false), 5000);
@@ -239,12 +241,12 @@ const ProfilePage: React.FC = () => {
                                     type="button"
                                     variant="outline"
                                     onClick={() => navigate('/dashboard')}
-                                    disabled={isLoading || isSubmitting}
+                                    disabled={isLoading || isSubmitting || updateProfileMutation.isPending}
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={isLoading || isSubmitting}>
-                                    {(isLoading || isSubmitting) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                <Button type="submit" disabled={isLoading || isSubmitting || updateProfileMutation.isPending}>
+                                    {(isLoading || isSubmitting || updateProfileMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Save Changes
                                 </Button>
                             </div>

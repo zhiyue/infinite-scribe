@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../../hooks/useAuth';
+import { useResetPassword } from '../../hooks/useAuthMutations';
 import type { ResetPasswordFormData } from '../../types/auth';
 import { PasswordValidator } from '../../utils/passwordValidator';
 
@@ -31,7 +31,7 @@ const resetPasswordSchema = z.object({
 const ResetPasswordPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { resetPassword, isLoading, error, clearError } = useAuth();
+    const resetPasswordMutation = useResetPassword();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<{
@@ -70,14 +70,13 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         try {
-            clearError();
-            await resetPassword({
+            await resetPasswordMutation.mutateAsync({
                 token,
                 new_password: data.password,
             });
             setIsResetComplete(true);
         } catch (error) {
-            // Error is handled by the auth store
+            // Error is handled by the mutation
             console.error('Reset password failed:', error);
         }
     };
@@ -155,10 +154,10 @@ const ResetPasswordPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="reset-password-form">
-                            {error && (
+                            {resetPasswordMutation.error && (
                                 <div className="rounded-md bg-destructive/15 p-3" role="alert">
                                     <div className="text-sm text-destructive error-message">
-                                        {error}
+                                        {(resetPasswordMutation.error as any)?.response?.data?.detail || (resetPasswordMutation.error as any)?.message || 'Failed to reset password'}
                                     </div>
                                 </div>
                             )}
@@ -260,8 +259,8 @@ const ResetPasswordPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="reset-password-submit-button">
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" className="w-full" disabled={resetPasswordMutation.isPending} data-testid="reset-password-submit-button">
+                                {resetPasswordMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Reset password
                             </Button>
 
