@@ -86,11 +86,39 @@
      - 实现了 useRefreshToken mutation
 
 ### 下一步任务
-1. **改造 useAuth.ts**
-   - 移除 user 状态存储
-   - 精简为只管理认证标志（isAuthenticated）
-   - 移除冗余的方法
-
-2. **组件迁移**
+1. **组件迁移**（已开始）
+   - ✅ 改造 useAuth.ts - 已精简为只管理认证状态
    - 开始从低风险组件迁移
    - 更新使用 useAuth().user 的地方为 useCurrentUser()
+
+### 2025-01-11 下午更新
+
+#### 完成的核心改造
+1. **useAuth.ts 彻底精简**
+   - 移除了所有用户数据管理
+   - 只保留 isAuthenticated 状态
+   - 添加了 handleTokenExpired 方法
+   - 清理了所有兼容性代码（因为是新项目）
+
+2. **更新所有相关 hooks**
+   - useAuthQuery.ts: 调整为使用新的 useAuth
+   - useAuthMutations.ts: 移除了对旧 store 方法的依赖
+   - 所有 mutations 现在只处理认证状态，用户数据完全由 TanStack Query 管理
+
+#### 组件迁移完成
+1. **RequireAuth 组件**
+   - 使用 useCurrentUser 替代 useAuth 中的 user
+   - 保持原有的认证检查逻辑
+
+2. **Dashboard 页面**
+   - 移除了 getCurrentUser 调用，数据自动由 TanStack Query 管理
+   - 使用 useLogout mutation 替代直接调用 logout
+   - 使用 refetch 方法刷新用户数据
+   - 所有用户信息显示现在从 useCurrentUser 获取
+
+### 成果总结
+- ✅ 基础设施配置完成（QueryClient, Provider, DevTools）
+- ✅ 核心 hooks 实现完成（useCurrentUser, mutations）
+- ✅ useAuth 精简完成，只管理认证状态
+- ✅ 低风险组件迁移完成（RequireAuth, Dashboard）
+- ✅ 实现了单一数据源原则，避免了数据双写问题
