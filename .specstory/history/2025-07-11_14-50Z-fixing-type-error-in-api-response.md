@@ -15,7 +15,70 @@ How can I resolve this? If you propose a fix, please make it concise.
 
 _**Assistant**_
 
+<think><details><summary>Thought Process</summary>The user is getting an error because they're trying to mock the `authService.logout` method, but the mock response is missing the `data` property that's required by the `ApiSuccessResponse<void>` type.
 
+Looking at the error, it shows that `ApiSuccessResponse<void>` requires a `data` property, but the mock response only has `success` and `message` properties.
+
+For a `void` response, the `data` property should be `undefined` (or possibly `null`).
+
+Let me provide a concise fix.</details></think>
+
+---
+
+The error occurs because `ApiSuccessResponse<void>` requires a `data` property. For a `void` response, add `data: undefined`:
+
+```typescript
+vi.mocked(authService.logout).mockResolvedValueOnce({
+  success: true,
+  data: undefined,
+  message: 'Logged out',
+})
+```
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Object literal may only specify known properties, and 'confirm_new_password' does not exist in type 'ChangePasswordRequest'.
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The user is getting an error about 'confirm_new_password' not existing in type 'ChangePasswordRequest'. I need to look at what the actual property name should be in the ChangePasswordRequest type.
+
+Looking at the error, it seems like the property name should be different. I need to check what the correct property name is. Since I can't see the actual type definition, I need to make an educated guess based on common naming conventions.
+
+The error says 'confirm_new_password' does not exist in type 'ChangePasswordRequest'. This suggests that the property name might be different, perhaps 'confirmNewPassword' (camelCase) or 'new_password_confirm' or similar.
+
+Let me look at what they currently have:
+- current_password: 'old'
+- new_password: 'new'  
+- confirm_new_password: 'new'
+
+Given that they're using snake_case for the other properties, it's likely that the confirmation field has a different name. Common variations might be:
+- confirmNewPassword
+- new_password_confirm
+- confirm_password
+- password_confirm
+
+Without seeing the actual type definition, I'll make a reasonable guess based on common patterns. The most likely candidates are either 'confirmNewPassword' (camelCase) or 'new_password_confirm' (snake_case but different order).</details></think>
+
+---
+
+The error indicates that `confirm_new_password` doesn't exist in `ChangePasswordRequest`. Try changing it to `confirmNewPassword` (camelCase):
+
+```typescript
+await result.current.mutateAsync({
+  current_password: 'old',
+  new_password: 'new',
+  confirmNewPassword: 'new',
+})
+```
 
 ---
 

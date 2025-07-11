@@ -77,7 +77,7 @@ const createTestQueryClient = () =>
     defaultOptions: {
       queries: {
         // 使用智能重试逻辑，就像生产环境一样
-        retry: (failureCount, error: any) => {
+        retry: (failureCount: number, error: { status?: number }) => {
           // 401 错误不重试
           if (error?.status === 401) {
             return false
@@ -117,7 +117,7 @@ describe('TanStack Query 缓存集成测试', () => {
   beforeEach(() => {
     // 不再全局使用假定时器，只在需要的测试中使用
     // vi.useFakeTimers() - 移除以修复 waitFor 轮询问题
-    
+
     // 创建全新的 queryClient 确保测试隔离
     queryClient = createTestQueryClient()
     mockSetAuthenticated = vi.fn()
@@ -133,12 +133,12 @@ describe('TanStack Query 缓存集成测试', () => {
     vi.mocked(authService.changePassword).mockClear()
 
     // 清理 location.href 的赋值
-    delete (window as any).location
-    window.location = { href: '' } as any
+    delete (window as Window & { location?: Location }).location
+    window.location = { href: '' } as Location
 
     // 清理导航 mock
     mockNavigate.mockClear()
-    
+
     // 注意：不要在这里重置 useAuthStore mock，因为 setupAuthenticatedState 会处理它
   })
 
@@ -149,15 +149,15 @@ describe('TanStack Query 缓存集成测试', () => {
       setAuthenticated: mockSetAuthenticated,
       clearAuth: mockClearAuth,
       handleTokenExpired: vi.fn(),
-    } as any
+    }
 
     // 重置并重新设置 mock
     vi.mocked(useAuthStore).mockReset()
-    
+
     // 设置 mock 实现 - 确保总是返回认证状态
     vi.mocked(useAuthStore).mockImplementation(() => authStoreValue)
     vi.mocked(useAuthStore).mockReturnValue(authStoreValue)
-    
+
     // 添加 store 的静态方法
     Object.assign(vi.mocked(useAuthStore), {
       getState: () => authStoreValue,
@@ -168,11 +168,11 @@ describe('TanStack Query 缓存集成测试', () => {
 
     // 验证 mock 是否正确工作
     const testResult = vi.mocked(useAuthStore)()
-    
+
     if (!testResult.isAuthenticated) {
       throw new Error('Auth store mock is not working correctly!')
     }
-    
+
     return authStoreValue
   }
 
@@ -190,7 +190,7 @@ describe('TanStack Query 缓存集成测试', () => {
   afterEach(() => {
     // 恢复真实计时器
     vi.useRealTimers()
-    
+
     // 彻底清理 queryClient
     queryClient.clear()
     queryClient.cancelQueries()
@@ -258,7 +258,7 @@ describe('TanStack Query 缓存集成测试', () => {
 
       // 创建多个使用用户数据的 hook 实例
       const { result: user1 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      
+
       const { result: user2 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
 
       // 等待初始数据加载 - 直接检查数据，跳过 toBeTruthy
@@ -266,22 +266,22 @@ describe('TanStack Query 缓存集成测试', () => {
         expect(user1.current?.isSuccess).toBe(true)
         expect(user1.current?.data).toBeDefined()
       }, { timeout: 15000 })
-      
+
       await waitFor(() => {
         expect(user2.current).toBeTruthy()
       })
-      
+
       await waitFor(() => {
         expect(user1.current.data).toEqual(mockUser)
       })
-      
+
       await waitFor(() => {
         expect(user2.current.data).toEqual(mockUser)
       })
 
       // 直接更新缓存数据，模拟 mutation 完成后的状态
       const updatedUser = { ...mockUser, first_name: 'Updated', last_name: 'Name' }
-      
+
       await act(async () => {
         queryClient.setQueryData(queryKeys.currentUser(), updatedUser)
       })
@@ -417,7 +417,7 @@ describe('TanStack Query 缓存集成测试', () => {
         resolveUpdate = resolve
       })
 
-      vi.mocked(authService.updateProfile).mockReturnValueOnce(updatePromise as any)
+      vi.mocked(authService.updateProfile).mockReturnValueOnce(updatePromise as Promise<ReturnType<typeof authService.updateProfile>>)
 
       const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
       const { result: updateResult } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() })
@@ -480,7 +480,7 @@ describe('TanStack Query 缓存集成测试', () => {
       await act(async () => {
         try {
           await updateResult.current.mutateAsync(updateData)
-        } catch (error) {
+        } catch {
           // 忽略错误
         }
       })
@@ -536,7 +536,7 @@ describe('TanStack Query 缓存集成测试', () => {
       ]
 
       // Mock 每次更新
-      updates.forEach((update, index) => {
+      updates.forEach((update) => {
         vi.mocked(authService.updateProfile).mockResolvedValueOnce({
           success: true,
           data: { ...mockUser, ...update },
@@ -629,7 +629,7 @@ describe('TanStack Query 缓存集成测试', () => {
 
       // 只在需要控制时间的部分使用假定时器
       vi.useFakeTimers()
-      
+
       // 模拟窗口失去和重新获得焦点
       await act(async () => {
         window.dispatchEvent(new Event('blur'))
@@ -654,7 +654,7 @@ describe('TanStack Query 缓存集成测试', () => {
   describe('错误边界测试', () => {
     it.skip('单个查询失败不应该影响其他查询 (跳过: 权限API未实现)', async () => {
       // 先设置认证状态
-      const authStore = setupAuthenticatedState()
+      setupAuthenticatedState()
 
       // 用户查询成功
       vi.mocked(authService.getCurrentUser).mockResolvedValue({
@@ -697,7 +697,7 @@ describe('TanStack Query 缓存集成测试', () => {
       await waitFor(() => {
         // 调试：检查权限查询的状态
         const { permissions } = result.current
-        
+
         // 权限查询可能还未启动（如果用户数据还没有 role）
         // 或者可能正在加载中
         // 我们期望它最终会失败

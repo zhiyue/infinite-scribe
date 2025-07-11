@@ -46,7 +46,11 @@ The error occurs because in Pydantic v2, the `example` parameter in `Field` has 
 
 ---
 
+<think><details><summary>Thought Process</summary>The fix has been applied successfully. The change is from `example="user@example.com"` to `examples=["user@example.com"]` which is the correct syntax for Pydantic v2. This should resolve the linter error.</details></think>
 
+---
+
+The fix changes `example` to `examples` and wraps the value in a list, which is the correct syntax for Pydantic v2.
 
 ---
 

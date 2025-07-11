@@ -42,7 +42,8 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit",
-        "source.fixAll.ruff": "explicit"
+        "source.fixAll.ruff": "explicit",
+        "source.fixAll.eslint": "always",
     },
     // Python 特定文件配置
     "[python]": {
@@ -88,4 +89,19 @@
     "files.autoSave": "onFocusChange",
     // GitHub Actions 配置 - 禁用 linting 以避免误报
     // "github-actions.workflows.linting.enabled": false
+    "eslint.validate": [
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact",
+        "vue",
+        "html"
+    ],
+    "eslint.useFlatConfig": true,
+    "eslint.workingDirectories": [
+        {
+            "directory": "./apps/frontend",
+            "changeProcessCWD": true
+        }
+    ]
 }

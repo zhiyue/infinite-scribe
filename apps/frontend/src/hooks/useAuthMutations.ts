@@ -7,25 +7,24 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { queryKeys } from '../lib/queryClient'
 import { authService } from '../services/auth'
-import type { 
-  LoginRequest, 
-  UpdateProfileRequest, 
-  User,
+import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  LoginRequest,
   RegisterRequest,
   ResendVerificationRequest,
-  ForgotPasswordRequest,
   ResetPasswordRequest,
-  ChangePasswordRequest
+  UpdateProfileRequest,
+  User
 } from '../types/auth'
-import { useAuthStore } from './useAuth'
 import { unwrapApiResponse } from '../utils/api-response'
+import { useAuthStore } from './useAuth'
 
 /**
  * 登录 Mutation
  */
 export function useLogin() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { setAuthenticated } = useAuthStore()
 
   return useMutation({
@@ -42,11 +41,8 @@ export function useLogin() {
 
       // 3. 预取相关数据（如果有权限接口）
       // TODO: 实现权限预取
-
-      console.log('[useLogin] Login success, user data set, auth state updated');
     },
-    onError: (error: any) => {
-      console.log('[useLogin] Login failed:', error);
+    onError: () => {
       // 清理状态
       setAuthenticated(false)
       queryClient.clear() // 清除所有缓存
@@ -204,7 +200,7 @@ export function useResetPassword() {
 export function useChangePassword() {
   const queryClient = useQueryClient()
   const { clearAuth } = useAuthStore()
-  
+
   return useMutation({
     mutationFn: (data: ChangePasswordRequest) => authService.changePassword(data),
     onSuccess: () => {
@@ -220,13 +216,13 @@ export function useChangePassword() {
  */
 export function useVerifyEmail() {
   const navigate = useNavigate()
-  
+
   return useMutation({
     mutationFn: (token: string) => authService.verifyEmail(token),
     onSuccess: () => {
       // 验证成功后跳转到登录页
-      navigate('/login', { 
-        state: { message: 'Email verified successfully. You can now login.' } 
+      navigate('/login', {
+        state: { message: 'Email verified successfully. You can now login.' }
       })
     }
   })

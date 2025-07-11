@@ -46,7 +46,7 @@ export function usePermissions() {
         try {
           const response = await authService.getPermissions()
           return unwrapApiResponse(response)
-        } catch (error) {
+        } catch {
           // 如果接口未实现，返回空数组
           return []
         }

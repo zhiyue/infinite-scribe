@@ -96,7 +96,17 @@ However, looking at the original linter errors provided by the user, there were 
 Since the user asked for a concise fix and I shouldn't loop more than 3 times on fixing linter errors, I should focus on the most straightforward fixes. The issue is that this SQLAlchemy model is using the older declarative style, and the type checker is getting confused between Column descriptors and actual runtime values.
 
 For the assignment issue on line 113, the problem is likely that `used_at` should not have a type annotation as `Column[datetime]` because at runtime we assign datetime values to it, not Column objects.
-</details></think>
+
+
+I'll investigate the SQLAlchemy model's type structure. The current approach seems outdated, with type annotations that don't align with runtime behavior. Modern SQLAlchemy uses more precise type hints like `Mapped[datetime | None]`, which would resolve these compatibility issues. However, a full refactoring would be more extensive than the user requested.
+
+The core challenge is bridging the gap between the SQLAlchemy Column definition and Python's type checking. While I've addressed the immediate `purpose` column issue, the model's type annotations need a more comprehensive review to fully resolve the linter errors.</details></think>
+
+---
+
+I've fixed the specific `purpose` type annotation error you mentioned. The new linter error that appeared is related to SQLAlchemy's type system - the model has other type annotation issues throughout that would require a more comprehensive refactoring to properly handle SQLAlchemy's Column types vs runtime values.
+
+The key fix was adding `Column[VerificationPurpose]` as the type annotation for the `purpose` field, which resolves your original error.
 
 ---
 

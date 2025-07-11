@@ -119,3 +119,204 @@ I need to address several key points regarding the SSE design, including the nee
 
 ---
 
+_**User**_
+
+@10-migration-async-tasks.sql  review 一下,如果想改造成更加通用的异步任务 sse 方案应该怎么修改
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The user is looking for suggestions to modify the 10-migration-async-tasks.sql script, specifically to convert it from genesis-specific tasks to a more general asynchronous task SSE scheme. I’ll need to analyze the existing script and propose changes like renaming tables to be more generic, such as turning the tasks table into async_tasks and adding attributes like project_type. I should also consider decoupling from genesis, removing references, and creating generic foreign keys. I'll explain these ideas without diving into code, ensuring clarity in terms of associations and function names.
+I need to outline key points for a review that includes what's working well and areas for improvement. A suggestion is to create a base table called async_tasks with more generic fields while keeping genesis_tasks as a view. We should also consider supporting other flows, like chapter_generation, and potentially adapt the event_table and background worker while unifying everything in the root. I’ll provide a clear explanation without needing to reference any tools.</details></think>
+
+---
+
+以下评审聚焦于 `10-migration-async-tasks.sql` 脚本，并围绕“将 **Genesis Task** 专属设计抽象为 **通用异步任务 + SSE** 基础设施”给出修改建议。  
+为便于阅读，分为三部分：现状优劣、通用化思路、关键 SQL 调整（仅列核心字段/约束，非完整脚本）。
+
+───────────────────────────────
+1. 现状评估
+───────────────────────────────
+优点  
+1. 表结构完整：进度、阶段、性能计量、自动时间戳 & 触发器、索引、管理函数一应俱全。  
+2. 约束严谨：`progress_range`、`valid_*` 等 CHECK 保证状态与数据一致。  
+3. 性能考虑：典型查询索引 + 汇总视图 + 监控函数 + 清理函数。
+
+局限  
+1. **强耦合 Genesis**  
+   • `session_id` 引用 `genesis_sessions`，`target_stage`/`task_type` 都是 Genesis 枚举。  
+2. **单租户/单流程假设**  
+   • 没有 `tenant_id / project_id / novel_id` 等更广义上下文。  
+3. **仅支持阶段型进度**  
+   • 复杂任务（多子任务、依赖关系）不易表达；缺乏父子层级、排队顺序。  
+4. **动作触发函数名过于领域化**  
+   • `create_genesis_task / complete_genesis_task` 等直接绑定业务域。
+
+───────────────────────────────
+2. 通用异步任务模型要点
+───────────────────────────────
+🌍 适用范围：所有需要「后台长耗时 + 实时推送 + 进度轮询」的业务（Genesis 流程、章节生成、批量导入等）。
+
+① 顶层抽象  
+```
+async_tasks            -- 任务元表（单行 = 单任务实例）
+async_task_events      -- 任务事件流（可选，做细粒度进度/日志）
+async_task_types       -- （可选查表）任务类型注册表
+```
+
+② 核心字段  
+* `id` UUID PK  
+* `scope` TEXT  —— 业务域标识（如 GENESIS / CHAPTER / IMPORT）。  
+* `entity_type` TEXT & `entity_id` UUID  —— 关联的业务实体（如 novel / chapter）。  
+* `status` ENUM(task_status)  —— 沿用现有枚举。  
+* `progress` NUMERIC(5,4)  —— 0-1。  
+* `stage_key` TEXT  —— 可存 `"preference_analysis"`、`"vector_indexing"`.  
+* `message` TEXT  
+* `input_data / result_data / error_data` JSONB  
+* `parent_task_id` UUID  —— 支持父子/批量任务。  
+* `queue` TEXT  —— Kafka topic / 优先级 / worker pool。  
+* `created_by / agent_type`  TEXT / ENUM  
+* 时间戳：`created_at / updated_at / started_at / completed_at`.  
+* 计量：`estimated_duration_seconds / actual_duration_seconds / attempts`.
+
+③ 事件流（可选但推荐）  
+```
+async_task_events (
+  id UUID PK
+  task_id UUID REFERENCES async_tasks(id) ON DELETE CASCADE
+  seq SERIAL          -- 递增顺序
+  event_type TEXT     -- progress_update / log / warning / ...
+  payload   JSONB
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)
+```
+• SSE 推送时可直接订阅 `task_id`，按 `seq` 增量发送；页面恢复时也能补偿日志。  
+• 对应 `task_service.update_progress()` 同时插一条事件记录即可。
+
+④ 函数 / 视图命名  
+* `create_async_task()` / `update_async_task_progress()` / `complete_async_task()` / `fail_async_task()`  
+* `async_task_summary` 视图保持不变，只是联表来源不同。
+
+⑤ 索引策略  
+* `(scope, status)`、`(entity_type, entity_id, status)`、`GIN(result_data)` 等。  
+* 对 `async_task_events(task_id, seq DESC)` BTREE 索引。
+
+⑥ 向后兼容  
+1. 保留 `genesis_tasks` 视图：  
+   ```sql
+   CREATE VIEW genesis_tasks AS
+   SELECT * FROM async_tasks
+   WHERE scope = 'GENESIS';
+   ```  
+2. 旧代码最小改动即可过渡。
+
+───────────────────────────────
+3. 关键 SQL 修改示例
+───────────────────────────────
+以下仅示意核心差异，不含索引/注释/触发器等重复逻辑。  
+```sql
+-- 1. ENUM 仍保留
+CREATE TYPE task_status AS ENUM ('PENDING','RUNNING','COMPLETED','FAILED','CANCELLED');
+
+-- 2. 通用任务表
+CREATE TABLE async_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- 任务域 & 关联上下文
+    scope TEXT NOT NULL,                   -- 业务域 GENESIS / CHAPTER / IMPORT...
+    entity_type TEXT,                      -- 关联实体类型，可空
+    entity_id UUID,                        -- 关联实体ID，可空
+    parent_task_id UUID REFERENCES async_tasks(id) ON DELETE SET NULL,
+
+    -- 调度 & 元信息
+    task_type TEXT NOT NULL,               -- 任务类型字符串或引用 async_task_types
+    queue TEXT,                            -- 执行队列 / 优先级
+    agent_type agent_type,                 -- 执行者
+
+    -- 状态 & 进度
+    status task_status NOT NULL DEFAULT 'PENDING',
+    progress NUMERIC(5,4) NOT NULL DEFAULT 0,
+    stage_key TEXT,
+    message TEXT,
+
+    -- 数据
+    input_data  JSONB NOT NULL,
+    result_data JSONB,
+    error_data  JSONB,
+
+    -- 计量
+    estimated_duration_seconds INTEGER,
+    actual_duration_seconds    INTEGER,
+    attempts INTEGER NOT NULL DEFAULT 0,
+
+    -- 时间
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+
+    CONSTRAINT progress_valid CHECK (progress >= 0 AND progress <= 1)
+);
+
+-- 3. 任务事件表（可选）
+CREATE TABLE async_task_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID NOT NULL REFERENCES async_tasks(id) ON DELETE CASCADE,
+    seq BIGINT GENERATED ALWAYS AS IDENTITY,
+    event_type TEXT NOT NULL,
+    payload JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. 通用函数 (示例)
+CREATE OR REPLACE FUNCTION create_async_task(
+    p_scope TEXT,
+    p_task_type TEXT,
+    p_input_data JSONB,
+    p_entity_type TEXT DEFAULT NULL,
+    p_entity_id UUID DEFAULT NULL,
+    p_queue TEXT DEFAULT NULL
+) RETURNS UUID AS $$
+DECLARE new_id UUID;
+BEGIN
+    INSERT INTO async_tasks(scope, task_type, input_data, entity_type, entity_id, queue)
+    VALUES (p_scope, p_task_type, p_input_data, p_entity_type, p_entity_id, p_queue)
+    RETURNING id INTO new_id;
+    RETURN new_id;
+END; $$ LANGUAGE plpgsql;
+
+-- 其余 update / complete / fail 函数同理，替换表名 + 字段
+```
+
+───────────────────────────────
+4. 迁移与落地步骤
+───────────────────────────────
+1. **创建新表 & 视图**  
+   • 不动现有 `genesis_tasks` 表，避免业务中断 → 先建 `async_tasks` + 视图适配。  
+2. **调整任务 Service / Agent util**  
+   • 改调用通用函数；scope = 'GENESIS'；其余流程逐步迁移。  
+3. **前端 / SSE 通道**  
+   • 事件 payload 新增 `scope / task_type / entity` 字段，让 UI 可区分不同业务域。  
+4. **数据迁移脚本**（可选）  
+   ```sql
+   INSERT INTO async_tasks (...)
+   SELECT id, 'GENESIS' AS scope, ... FROM genesis_tasks;
+   ```  
+5. **下线旧表**  
+   • 所有调用替换完后再 drop / 重命名。
+
+───────────────────────────────
+5. 总结
+───────────────────────────────
+现有 `genesis_tasks` 迁移脚本已为“长耗时任务 + SSE”奠定良好基础。要变成 **通用异步任务平台**，关键是：
+
+1. 打破对 Genesis 会话 / 阶段 / 枚举的硬耦合；  
+2. 引入统一 `scope` & `entity` 模型，支持多业务域、多租户；  
+3. 通过父子任务、事件流为更复杂的任务编排留接口；  
+4. 保留触发器、索引、统计函数等成熟逻辑，只需替换新表名和字段。
+
+这样不仅能满足 Genesis 流程，也能无缝复用到章节生成、批量导入、模型训练等所有后台异步场景，真正做到“一张表，万物皆任务”。
+
+---
+

@@ -10,11 +10,23 @@ import { vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { AuthStore } from './useAuth'
 
+interface QueryClientOverrides {
+  queries?: Partial<{
+    retry: boolean | number | ((failureCount: number, error: unknown) => boolean)
+    refetchOnWindowFocus: boolean
+    staleTime: number
+    gcTime: number
+  }>
+  mutations?: Partial<{
+    retry: boolean | number
+  }>
+}
+
 /**
  * 创建测试用的 QueryClient
  * 默认配置：关闭重试、关闭窗口聚焦刷新
  */
-export const createTestQueryClient = (overrides?: any) =>
+export const createTestQueryClient = (overrides?: QueryClientOverrides) =>
   new QueryClient({
     defaultOptions: {
       queries: {
@@ -37,7 +49,7 @@ export const createTestQueryClientWithSmartRetry = (maxRetries = 2) =>
   new QueryClient({
     defaultOptions: {
       queries: {
-        retry: (failureCount, error: any) => {
+        retry: (failureCount: number, error: { status?: number }) => {
           if (error?.status === 401) return false
           return failureCount < maxRetries
         },
@@ -74,7 +86,7 @@ export const createMockAuthStore = (overrides?: Partial<AuthStore>) => {
     clearAuth: vi.fn(),
     handleTokenExpired: vi.fn(),
     ...overrides,
-  } as any
+  }
 
   // 创建完整的 Zustand store mock
   const mockStore = Object.assign(() => defaultAuthStoreValue, {
@@ -115,8 +127,8 @@ export const setupCommonMocks = () => {
  * 用于测试需要修改 location 的场景
  */
 export const cleanupWindowLocation = () => {
-  delete (window as any).location
-  window.location = { href: '' } as any
+  delete (window as Window & { location?: Location }).location
+  window.location = { href: '' } as Location
 }
 
 /**

@@ -124,7 +124,88 @@ FROM async_tasks at;
 ─────────────────────────────
 五、小结
 
-是的，完全可以把 `
+是的，完全可以把 `genesis_tasks` 抽象为通用异步任务表。  
+推荐遵循上述方案：  
+1. 改名 `async_tasks`（或其它中性名称）；  
+2. 引入 `context_type/context_id`；  
+3. 泛化 `task_kind`；  
+4. 同步函数/视图。  
+
+如此既保留现在的业务能力，也为未来扩展打下坚实基础。
+
+---
+
+_**User**_
+
+result_step_id 呢？
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>**Creating a generalization plan**
+
+I'm focusing on crafting a message that outlines the rationale, suggestions, and migration steps to generalize a concept. It seems straightforward; I won't need tool calls or technical details, just a clear and conceptual answer. I think about the best way to structure my response so it effectively communicates the plan. I want to make it easy for the user to follow and understand, ensuring that every part connects well.</details></think>
+
+---
+
+`result_step_id` 这列目前强耦合到 `genesis_steps`。  
+如果要把整张表抽象成“通用异步任务”，那条 **“结果指向”** 也应该像任务的 “上下文” 一样，多态化。推荐 3 种做法，按灵活度与实现成本排序：
+
+─────────────────────────────
+1. **双字段多态引用（最通用，推荐）**  
+```
+result_entity_type   VARCHAR(50)   -- 结果实体类型，如 'genesis_step'、'export_file'、'audit_record'
+result_entity_id     UUID          -- 对应实体表主键
+```
+• 与 `context_type/context_id` 形成对称设计。  
+• 值得引用任何结果对象，无论是步骤、文件、记录还是其它。  
+• 如果某些任务没有结构化结果，仅用 `result_data` JSON 即可，把两列留空。
+
+迁移示例：
+```sql
+ALTER TABLE async_tasks
+  ADD COLUMN result_entity_type VARCHAR(50),
+  ADD COLUMN result_entity_id   UUID;
+
+-- 把旧数据迁过去
+UPDATE async_tasks
+SET
+  result_entity_type = 'genesis_step',
+  result_entity_id   = result_step_id;
+
+-- 迁移完再删掉旧列 & 外键
+ALTER TABLE async_tasks
+  DROP COLUMN result_step_id;
+```
+
+─────────────────────────────
+2. **保持 `result_data` JSONB，去掉外键**  
+• 如果大多数任务结果都可以 JSON 化（例如文本、统计、URL），直接继续用 `result_data` 存储。  
+• 当需要结构化索引时，再按具体业务在其它表落地。  
+• 代价最小，但失去外键完整性与快捷 JOIN。
+
+─────────────────────────────
+3. **拆分“领域结果表”**  
+• 异步任务表只管状态；真正的结果由各业务自己存到专属表。  
+• 用 `context_type/context_id` 反向查询或在 `result_data` 里存指向信息。  
+• 适合结果特别大或有复杂专属字段的场景（比如导出生成的多文件、统计报表等）。  
+• 但跨域聚合查询时要多一次 JOIN。
+
+─────────────────────────────
+【推荐策略】  
+• 采用 **方案 1**：`result_entity_type + result_entity_id`，保持外键能力并且完全通用。  
+• 如果短期内只有 Genesis 会写入结果，可保留一个 **视图** 来兼容旧代码：
+```sql
+CREATE OR REPLACE VIEW genesis_task_result AS
+SELECT id,
+       result_entity_id AS result_step_id
+FROM   async_tasks
+WHERE  result_entity_type = 'genesis_step';
+```
+现有查询无需立刻改动。
+
+这样，`async_tasks` 既能继续关联 `genesis_steps`，又为以后任何新任务类型预留了统一的结果指针。
 
 ---
 

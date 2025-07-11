@@ -10,7 +10,214 @@ review 一下当前的修改
 
 _**Assistant**_
 
+<think><details><summary>Thought Process</summary>**Reviewing key points**
 
+I want to provide a thorough review without making it overly long. It’s important to focus on the key aspects like architecture, consistency, completeness, and risk. I’ll create a structured review using bullet points to highlight strengths, areas for improvement, missing details, and alignment with architecture and standards. Additionally, I want to consider security and deployment factors in my final response, ensuring it delivers clear and helpful insights. Let’s put all this together!</details></think>
+
+---
+
+以下是对当前 `docs/architecture.md` 修改版本的快速审阅与建议，供参考：
+
+优势亮点  
+1. 结构清晰、信息密度高  
+   • “高阶架构图 + C4 + DFD + 时序图”多视角覆盖，方便新成员快速建立全局认知。  
+   • Tech-Stack、数据模型、核心工作流、部署与安全策略等一应俱全。  
+2. 单一事实源（SSoT）思路明确  
+   • 明确声明本文档是“唯一技术事实来源”，与事件溯源理念保持一致。  
+3. 多数据库混合模型设计合理  
+   • PostgreSQL = 事实来源；Milvus/Neo4j = 检索 & 关系视图。  
+   • CDC→Kafka→Graph Sync 方案为后期一致性奠定基础。  
+4. 架构模式与落地技术紧密结合  
+   • CQRS / 事务性 Outbox / Pause-Resume Flow 等关键机制描述详实，可直接指导实现。  
+5. DevOps / IaC / 安全章节补足，覆盖 SDLC 全流程。  
+
+可改进之处（优先级＝P0> P1 > P2）
+
+P0 高优  
+1. 文档过长，缺失导航  
+   • 建议在开头添加 TOC（目录），或按照一级标题生成自动目录，便于查阅。  
+2. 数据模型 – 表/字段与代码包映射  
+   • `packages/shared-types` 对应文件名/类名尚未给出示例，最好补 1-2 行 import 示范，减少歧义。  
+3. 事件命名规范缺失  
+   • 虽列出示例 `Chapter.GenerationRequested` 等，但未给出统一命名约定（动词时态、颗粒度、包前缀）。  
+   • 建议在 “Core Workflows” 前增加“事件命名约定”一节，便于后端 & Agent 对齐。  
+
+P1 中优  
+4. CDC 方案落地路径  
+   • MVP 采用“双写”说明已写，但缺少“如何迁移到 CDC”步骤/里程碑。可在 *Infrastructure Roadmap* 里补一小节。  
+5. 事务边界说明  
+   • Outbox & Inbox 表已详述，但 API 网关写入流程示例缺少异常回滚场景说明；可补一句“事务失败时全部回滚”。  
+6. Prefect Resume Handle 缓存策略  
+   • 文档描述“Redis 可选”，未说明失效策略与一致性影响；建议列出 TTL 与降级路径。  
+
+P2 低优  
+7. 图示统一性  
+   • 部分 Mermaid 图双语注释，部分仅中文，可统一为 “中文主 + 英文括注” 或反之，以利国际化。  
+8. Tech-Stack 版本锁定  
+   • 表中多处 `LATEST`、`最新稳定版镜像` 等字样，CI/CD 难以重现；建议都改为显式 tag。  
+9. Security 节段可加“依赖 SBOM / SLSA”引用，呼应供应链安全。  
+
+书写/格式微调  
+• SQL DDL 中局部中文注释与英文混排，可考虑统一语言。  
+• `WorldviewEntry` 模型章节标题可加 “(Neo4j & PG)” 与上文保持一致。  
+• 若文档需生成站点，建议 Markdown 标题层级不要超过 H4。  
+
+整体评价  
+该版本已具备作为“蓝图”的完整性与可操作性，主要改进点集中在：  
+1) **导航与可读性** 2) **规范细节落地** 3) **版本/一致性**。  
+处理完 P0/P1 级别反馈后，可考虑冻结 1.x 文档并推送审阅。
+
+---
+
+_**User**_
+
+review 一下选中的部分
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+以下是对「事件命名约定」小节（行 742-799）的针对性审阅与改进建议。
+
+优点  
+1. 规则一目了然  
+   • 先给出核心公式 `<Domain>.<Aggregate>.<ActionInPastTense>`，再逐条解释，层次清晰。  
+2. 关键陷阱已覆盖  
+   • 强调“过去式”与“单一事实”两条铁律，可有效遏制把命令/技术事件混进领域事件。  
+3. 示例表直观可用  
+   • 将旧概念名 → 标准化事件名并列，便于迁移与落地。  
+4. DLQ 要求补充到位  
+   • 明确消费者失败后必须投递死信，体现成熟的事件治理思路。  
+
+可改进点（P0 > P1）
+
+P0（高优）  
+1. 示例中的 Aggregate 层级不一致  
+   • 如 `Genesis.ConceptGenerationRequested` 中 `Concept` 并非聚合根（真正的根是 GenesisSession），易误导开发者。  
+   • 建议统一到“真正挂载的聚合根”或在文档中说明“可选虚拟聚合用于可读性”。  
+
+2. Action 词汇需限定表  
+   • 目前同时出现 `Completed` / `Finished` / `Done` 等同义过去式。建议在附录列出“官方动词表”，避免多写法并存。  
+
+3. 版本/演进策略缺失  
+   • 当事件 schema 需要破坏性变更时如何命名（如 `Chapter.DraftCreated.v2` 或 `event_version` 字段）应在此节说明，以免后期分叉。  
+
+P1（中优）  
+4. 事件源上下文字段  
+   • 建议在此节补一句“所有事件 payload 必含 `event_id` `aggregate_id` `correlation_id` `causation_id` 字段”，与前文 PostgreSQL DDL 对齐。  
+
+5. 命名与 Kafka Topic 对应规则  
+   • 可增一行说明：默认 Topic = `<Domain>.<Aggregate>`（或 kebab-case 版本），Action 体现在消息内容。方便新人理解 topic 规划。  
+
+6. 复合动作场景指导  
+   • 仅强调“原子事实”，但实际常见“同时更新多聚合”场景。可给出推荐：拆分多个事件 or 使用 `<Aggregate>Updated` 并在 payload 中列出变动字段。  
+
+7. 国际化细节  
+   • 小节标题已中英双语，正文中文为主，示例表标题列均英文，可酌情统一。  
+
+微调建议  
+• `## Event Naming Conventions (事件命名约定)` 可放入一级目录并加入 TOC 说明，方便跳转。  
+• “死信队列”一节可加“建议重试次数（如 3 次）”或“采用带退避的手动 ack”。  
+
+总体评价  
+该小节已基本满足团队落地标准化事件命名的需求；补充上述 P0 要点（真实聚合根、官方动词表、版本策略）后，可作为正式规范发布。
+
+---
+
+_**User**_
+
+为简化事件路由，事件名称到Kafka主题的映射遵循以下规则：
+规则: 默认Topic名称 = <Domain>.<AggregateRoot>，并转换为kebab-case（短横线连接）格式，最后加上-events后缀。
+示例:
+Genesis.Session.* 的所有事件 -> genesis-session-events 主题。
+Chapter.* 的所有事件 -> chapter-events 主题。
+Character.* 的所有事件 -> character-events 主题。
+说明: 具体的<ActionInPastTense>体现在消息的event_type字段中，由消费者进行过滤，而不是通过不同的Topic来区分。 这个做法正确吗
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>**Evaluating event routing strategy**
+
+The user is seeking clarity on simplifying event routing by mapping event names to Kafka topics. The proposed method converts default topic names to kebab-case with a `-events` suffix, for example, mapping Genesis.Session.* to genesis-session-events. It seems they want an evaluation of whether this strategy is effective, especially regarding how specific actions are managed in the event_type field, and whether this mapping technique is appropriate for routing events. Let's analyze this approach together.
+**Analyzing event routing practices**
+
+I need to provide a balance of pros and cons regarding event routing practices, considering trade-offs like the number of topics versus partitioning and subscription overhead. It seems common to have one topic per aggregate root and to store actions in the event_type. I should note that naming conventions are important. The user asked if this approach is correct, and I think it’s reasonable with typical benefits, but there are caveats like ensuring stable aggregate root naming and considering high throughput. I'll also explore potential guidelines further.</details></think>
+
+---
+
+整体思路是「⼀个聚合根对应⼀个 Topic，事件具体动作通过 event_type 字段区分」——这在事件溯源 / DDD 场景下是⼴⾏且⾜够可扩展的做法，原则上 **可以采纳**。  
+下面把利弊、实现要点及可能的“例外”场景列出来，供你决定是否直接落地或做微调。  
+
+────────────────────────────────────────  
+1. 为什么说“正确”（优势）  
+• 语义清晰：  
+  – Topic 名只表⽰“哪个聚合根（Aggregate Root）的事件流”，符合 DDD 概念。  
+  – 同聚合根的所有事件完全有序（单 key 分区时），⽅便还原状态。  
+
+• Topic 数量可控：  
+  – 系统内聚合根有限（Novel、Chapter、Character…），避免“每个动作一个 Topic”带来的 Topic 爆炸。  
+  – 对运维、ACL 管理、监控都更友好。  
+
+• 消费者解耦：  
+  – 业务服务只订阅自己关心的聚合根 Topic，再根据 event_type 做细粒度过滤即可。  
+  – 新增动作不会触发 Topic 变动，无需改动 ACL / 流程。  
+
+• 兼容扩展：  
+  – 需要更细分或更粗分时，可以用 Kafka Streams / KSQL 做“逻辑分流”或“Topic 合并”，不伤已有 Producer/Consumer。  
+
+────────────────────────────────────────  
+2. 需要注意 / 补充的点  
+
+P0 （上线前必须确认）  
+① **分区键（partition key）**  
+   – 若要保证同⼀ aggregate_id （同一条业务实体）事件严格有序，Producer 必须用 aggregate_id 作 key。  
+   – 否则聚合根 Topic 仍可多分区实现并⾏消费，但单个实体事件顺序将无法保证。  
+
+② **Topic 命名合法性**  
+   – kebab-case OK；别包含大写、空格或特殊字符。  
+   – 建议统一小写；Kafka 默认允许 “._-”。  
+
+③ **死信 / 补偿**  
+   – 每个聚合根 Topic 可配对一个 `<topic>-dlq`，也可统一 `domain-events.dlq`。  
+   – 消费失败后写 DLQ 时务必保留原 key 及 headers，便于重放。  
+
+P1 （中期可补充）  
+④ **版本演进**  
+   – event_type 字段外，再加 `event_version`（DDL 已有），Consumer 处理多版本时更稳。  
+
+⑤ **行动粒度过细引发的流量**  
+   – 极端情况下（⾼频改写、点击流）单聚合根 Topic 可能吞吐过⼤；可通过 **Topic 后缀** 分片：  
+      `chapter-events-p0` / `chapter-events-p1`… 或者按 ChapterID 的 hash 分区。  
+
+⑥ **跨聚合查询**  
+   – 如果有需要“同⼀小说下所有角色 + 章节”汇聚流，可建立 materialized view 或用 KTable join，不宜回退到“加更多 Topic 切分”。  
+
+P2 （低优，但最好落地）  
+⑦ **官方动词表 & Topic 简写**  
+   – 为避免同义词 (`Finished` vs `Completed`)，在规约里提供一张“动作枚举表”。  
+   – 聚合根名过长时可定义缩写映射，比如 `KnowledgeBase.WorldviewEntry` → `knowledge-wv-entry-events`。  
+
+────────────────────────────────────────  
+3. 结论 / 建议  
+
+1. **规则可直接上线**：  
+   Topic = `<domain>-<aggregate-root>-events`（kebab-case），事件动作放 event_type，符合主流实践。  
+
+2. **上线 checklist**：  
+   • Producer key = `aggregate_id` 以保证单实体事件顺序。  
+   • 制定 **event_type + event_version** 枚举/约束，写到 schema registry。  
+   • 为每个业务 Topic 配置 DLQ & 监控指标（lag、失败率）。  
+
+3. **文档补充**：  
+   在「事件命名约定」小节下方增一段 “Topic 映射规则 & 分区策略” 说明，附一两个配置示例 (kafka-ACL / spring-kafka YAML 等)，新人即可照抄。  
+
+按照以上要点补充后，你的事件路由设计就既 **易理解** 又 **可运维**，后续扩容、重放、观测都不会踩坑。
 
 ---
 

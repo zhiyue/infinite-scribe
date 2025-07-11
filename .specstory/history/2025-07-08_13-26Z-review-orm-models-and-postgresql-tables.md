@@ -21,3 +21,128 @@ Starting with the `Novel`, its columns match in names and types in both the ORM 
 
 ---
 
+Read file: apps/backend/src/models/orm_models.py
+
+---
+
+<think><details><summary>Thought Process</summary>**Identifying mapping discrepancies**
+
+I'm noticing a few inconsistencies in the ChapterVersion and DomainEvent mappings. The version_metadata maps to the metadata column in JSONB format, which aligns well with the ORM. However, for DomainEvent, the event_metadata also maps to the metadata column.
+
+Now, I need to look closer at the mismatches: 
+
+1. Thematic tags differ in type: ARRAY(Text) vs. JSONB.
+2. Complexity level constraints vary between not null and nullable.
+3. Universal appeal and active status have similar discrepancies.
+4. The creator defaults differ.
+5. ID types might need clarification.  
+
+Let’s work through these.
+**Summarizing potential differences**
+
+I'm identifying some differences in the ORM and SQL mappings. The ChapterVersion has a "metadata" column that corresponds correctly with the version_metadata mapping and includes a unique constraint for the idempotency_key—an important detail. Both DomainEvent and AsyncTask mappings align with the column types, though there's a slight difference in default values. I'm noting that while DomainEvent uses UUID without constraints, ORM defines all tables. I'll wrap this up by confirming that enumerations match SQL types, so no code change is needed.</details></think>
+
+---
+
+对照 `apps/backend/src/models/orm_models.py` 与 `infrastructure/docker/init/postgres/*.sql`（00-11）各张表的定义，整体一致性良好，仅发现以下几处不匹配 / 易踩坑点：
+
+1. concept_templates  
+   • thematic_tags  
+     – ORM：`ARRAY(Text)`，可空，默认 `[]`  
+     – SQL：`JSONB NOT NULL DEFAULT '[]'`  
+     → 类型、NULL 约束和默认值均不一致。  
+   • complexity_level / universal_appeal / is_active  
+     – ORM 未显式 `nullable=False`，SQL 均 `NOT NULL`（且 complexity_level 有 check 枚举）。  
+   • created_by  
+     – ORM 无默认值；SQL `DEFAULT 'system'`。  
+   → 以上字段如果通过 ORM 插入 NULL，数据库会拒绝。
+
+2. domain_events.id  
+   • ORM：`Integer`（PostgreSQL 默认 `int4`，上限 2 147 483 647）  
+   • SQL：`BIGSERIAL`（`int8`，上限 9 223 372 036 854 775 807）  
+   → 若事件量极大，ORM 需改为 `BigInteger` 或 `BigInteger().with_variant()`，否则溢出风险。
+
+3. ORM-only 属性名映射  
+   • chapter_versions.version_metadata → 列名 `metadata`  
+   • domain_events.event_metadata     → 列名 `metadata`  
+   → 映射正确，但若后续直接写原列名请注意保持一致。
+
+4. 约束／触发器  
+   • SQL 脚本中大量 `CHECK`、触发器（自动更新时间戳、乐观锁版本递增等）未在 ORM 中显式声明——这没问题，但  
+     – ORM 执行 `session.add()/update()` 时仍会触发 DB 级检查；  
+     – 若想在单元测试用 SQLite 等内存 DB 复用模型，需要注意这些约束/触发器可能缺失。
+
+5. ENUM 定义  
+   • ORM Enum 类与 `02-init-enums.sql` 中 10 个枚举名和值完全一致；未发现拼写差异。
+
+6. 其他字段细节  
+   • async_tasks.progress 默认值  
+     – ORM `Decimal('0.00')`；SQL `0.0`（数值一致，格式差异可忽略）。  
+   • 绝大多数 `server_default=func.now()` 与 SQL 的 `DEFAULT NOW()` 对应正常。
+
+建议 / 下一步
+
+1. **修正 ConceptTemplate 模型**  
+   ```python
+   thematic_tags   = Column(JSONB, nullable=False, default=list)
+   complexity_level = Column(String(20), nullable=False, default="medium")
+   universal_appeal = Column(Boolean, nullable=False, default=True)
+   is_active        = Column(Boolean, nullable=False, default=True)
+   created_by       = Column(String(50), server_default="system")
+   ```
+
+2. **将 DomainEvent.id 改为 BigInteger**  
+   ```python
+   from sqlalchemy import BigInteger
+   id = Column(BigInteger, primary_key=True, autoincrement=True)
+   ```
+
+3. 若要保持严格一致，可在 ORM 层补充 `CheckConstraint` 与 `Enum` 的 `create_constraint=True` 选项，确保迁移工具（Alembic 等）能检测到差异。
+
+除上述差异外，其余表名、列名、类型、外键、唯一/索引约束均与 SQL 初始化脚本对齐，可放心使用。
+
+---
+
+_**User**_
+
+修改完毕再 review 一下
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>**Reviewing ORM and SQL alignment**
+
+I need to check for AsyncTask and similar items, while noting that the DomainEvent metadata is complete. There are lingering linter issues with the path import that aren’t part of this review. After making changes, the ORM now aligns with SQL, aside from minor discrepancies like the absence of check constraints on complexity_level. Using BigInteger autoincrement might call for a Sequence in Postgres, but that’s fine. I should prepare a final message confirming alignment and noting any remaining mismatches and the development environment.</details></think>
+
+---
+
+已重新对比最新 `apps/backend/src/models/orm_models.py` 与 `infrastructure/docker/init/postgres` 各 SQL 初始化脚本，结果如下。
+
+✅ 已解决的问题  
+1. ConceptTemplate  
+   • `thematic_tags` 改为 `JSONB, nullable=False, default=list` – 与 SQL 的 `JSONB NOT NULL DEFAULT '[]'` 一致。  
+   • `complexity_level / universal_appeal / is_active` 均显式 `nullable=False`，`created_by` 增加 `server_default='system'` – 与 SQL 匹配。  
+
+2. DomainEvent  
+   • `id` 已改为 `BigInteger`，可覆盖 SQL 的 `BIGSERIAL` 范围，无溢出风险。  
+
+3. metadata 字段  
+   • `ChapterVersion.version_metadata` / `DomainEvent.event_metadata` 都映射为列名 `metadata`，与 SQL 一致。  
+
+4. 其余 10 张表（novels、chapters、chapter_versions、characters、worldview_entries、story_arcs、reviews、genesis_sessions、command_inbox、async_tasks、event_outbox、flow_resume_handles）字段、类型、默认值、外键、唯一索引等与 SQL 脚本保持一致，未再发现差异。  
+
+⚠️ 仍可考虑（非必须）  
+• SQL 端对 `concept_templates.complexity_level` 还有  
+  ```sql
+  CHECK (complexity_level IN ('simple','medium','complex'))
+  ```  
+  如果想让 Alembic 检测到此差异，可在 ORM 中再加 `CheckConstraint(...)`；否则依赖数据库层面的检查也无碍。  
+
+• 同理，SQL 中大量 `CHECK`、触发器逻辑（乐观锁 `version` 自增、`updated_at` 自动更新时间戳等）在 ORM 未显式声明，运行时会由 DB 级别生效；如需让 SQLite-based 测试完全复现，可额外在 ORM 层补充。  
+
+结论  
+ORM 与 SQL 初始化脚本已保持语义一致，可正常迁移 / 运行。 
+
+---
+

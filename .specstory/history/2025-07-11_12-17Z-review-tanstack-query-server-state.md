@@ -10,7 +10,53 @@ review 一下 @/tanstack-query-server-state
 
 _**Assistant**_
 
+<think><details><summary>Thought Process</summary>**Summarizing the task review**
 
+The user is asking for a review of the tanstack-query-server-state task. They provided documentation for this, likely wanting a summary of the plan. They used an @ symbol, indicating a path alias for quick reference. My focus will be on creating a concise review of the task's objective, design, migration steps, task list, risks, and next steps. Since the necessary documentation is already available, I won’t need to call any code tools. Let's craft a thorough summary!</details></think>
+
+---
+
+下面是一份针对 `docs/development/tasks/tanstack-query-server-state` 目录下全部文档的快速评审，帮助你确认方案完整性与下一步重点。
+
+1. 背景与目标  
+   • 当前仅 `useHealthCheck` 使用 TanStack Query，用户/认证数据仍由 axios + Zustand 维护，导致数据源分散、同步复杂。  
+   • 目标明确：TanStack Query 统一管理所有「服务器状态」，Zustand 仅保留会话与 token，消除双写与不一致问题，并充分利用 Query 的缓存、失效、后台同步等特性。
+
+2. 技术方案（implementation-plan.md）  
+   • 已给出:
+     – QueryClient 全局配置（staleTime=5 min, cacheTime=10 min, retry=1, 关闭 window refetch）。  
+     – `useCurrentUser` Hook 示例：`enabled` 取决于 `isAuthenticated`。  
+     – Auth store 精简为纯会话状态与动作。  
+   • 设计图（架构、数据流、状态职责）清晰，能帮助新人快速理解边界。  
+   • 迁移策略拆成三阶段：基础设施→认证改造→组件迁移，颗粒度合适。  
+   • 风险与缓解措施完整（缓存一致性、性能、迁移复杂度、用户体验）。  
+   • 测试计划覆盖单元/集成/E2E，符合 TDD 规则。
+
+3. TODO 列表（todo-list.md）  
+   • 任务细粒度良好，从基础设施、核心 Hooks、认证改造、组件迁移到测试与文档一应俱全。  
+   • 建议为「进行中 / 已完成」及时更新状态，突出优先级（可考虑在列表前加星号或 priority 字段）。  
+   • 可按阶段或模块再切分子清单，便于多人并行。
+
+4. 进度记录（progress.md）  
+   • 已记录 2025-01-11 的初期分析与下一步计划（配置 QueryClient → `useCurrentUser` → 认证改造）。  
+   • 建议保持每日/每阶段更新，特别是问题与决策，以便追溯。
+
+5. 可改进/待确认要点  
+   • QueryClient `staleTime`/`cacheTime` 是否需要按资源类型细化？例如用户数据保持时间可更长。  
+   • 登录成功后调用 `queryClient.setQueryData('currentUser')` 的实现细节（返回数据结构、无用户信息时的 fallback）。  
+   • token 过期自动刷新：计划里提到 refreshToken，但未展示 useQuery/useMutation 结合的具体实现。  
+   • 对公共 API 层（`api.ts`）的错误格式统一、重试策略、401 全局拦截等，可加入 TODO。  
+   • 组件迁移顺序：可以先迁移低风险页面验证流程，逐步推进核心区域。  
+   • 测试覆盖率目标未量化（例如 ≥80%），可在测试计划中补充。
+
+6. 下一步建议  
+   ① 完成基础设施：提交 `queryClient.ts`、在 `App.tsx` 注入 Provider，并接入 React Query DevTools（仅开发环境）。  
+   ② 实现并单测 `useCurrentUser`；确保登录、刷新、登出时缓存行为正确。  
+   ③ 并行推进 Auth Store 改造与 `useLogin/useLogout` mutation hooks。  
+   ④ 开启组件逐页迁移：从公共导航栏用户信息开始，可较早暴露潜在问题。  
+   ⑤ 每完成一阶段，及时更新 `progress.md` 和勾选 todo。
+
+整体而言，文档体系完善，计划合理，可按阶段平滑落地。只需在实现细节与进度追踪上保持节奏，即可顺利完成迁移。
 
 ---
 

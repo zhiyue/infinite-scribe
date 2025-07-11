@@ -56,7 +56,302 @@ Here's the concise fix:
 
 ---
 
+<think><details><summary>Thought Process</summary>The import was added correctly, but the core issue remains. The problem is that when using SQLAlchemy, the comparison `datetime.now(UTC) > self.expires_at` is being interpreted as a SQLAlchemy expression rather than a Python boolean comparison.
 
+This typically happens when:
+1. The method is called on the class rather than an instance
+2. The SQLAlchemy model isn't properly loaded/hydrated
+
+The solution is to ensure we're working with the actual datetime value. We can do this by explicitly accessing the value or by checking if it's None first.
+
+Let me fix this by ensuring we're working with actual datetime values:</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>The issue persists. This is a common problem with SQLAlchemy type annotations. The issue is that the type checker thinks `self.expires_at` is still a Column object rather than a datetime value.
+
+Looking at the code more carefully, I see that `expires_at` is defined as:
+```python
+expires_at = Column(DateTime, nullable=False)
+```
+
+But in the type annotation context, the type checker is seeing this as a Column rather than as the actual datetime value that it contains when accessed on an instance.
+
+The proper fix is to use a type annotation that tells the type checker what the actual runtime type will be. We can use TYPE_CHECKING and proper annotations, or we can cast the value.
+
+Let me try a cast approach:</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>I need to use edit_file instead. Let me add the typing import and fix the property method.</details></think>
+
+---
+
+```diff
+  from datetime import UTC, datetime, timedelta
+  from enum import Enum
++ from typing import cast
+  
+  from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
+```
+
+```diff
+          if self.expires_at is None:
+              return True
+-         return datetime.now(UTC) > self.expires_at
++         expires_at = cast(datetime, self.expires_at)
++         return datetime.now(UTC) > expires_at
+  
+      @property
+```
+
+---
+
+<think><details><summary>Thought Process</summary>Good! Now I need to also fix the other linter errors mentioned in the original error list. Looking at the errors:
+
+```
+122 |             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+Err | Invalid conditional operand of type "Column[datetime]"
+  Method __bool__ for type "Column[datetime]" returns type "Never" rather than "bool"
+123 |             "used_at": self.used_at.isoformat() if self.used_at else None,
+Err | Invalid conditional operand of type "Column[datetime] | datetime"
+  Method __bool__ for type "Column[datetime]" returns type "Never" rather than "bool"
+124 |             "created_at": self.created_at.isoformat() if self.created_at else None,
+Err | Invalid conditional operand of type "Column[datetime]"
+  Method __bool__ for type "Column[datetime]" returns type "Never" rather than "bool"
+```
+
+These are in the `to_dict` method and have the same issue - the type checker thinks these are Column objects rather than datetime values. I need to apply the same cast fix to these.</details></think>
+
+---
+
+```diff
+      def to_dict(self) -> dict:
+          """Convert verification to dictionary."""
++         expires_at = cast(datetime, self.expires_at) if self.expires_at else None
++         used_at = cast(datetime, self.used_at) if self.used_at else None
++         created_at = cast(datetime, self.created_at) if self.created_at else None
++         
+          return {
+              "id": self.id,
+```
+
+```diff
+              "is_expired": self.is_expired,
+              "is_used": self.is_used,
+-             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+-             "used_at": self.used_at.isoformat() if self.used_at else None,
+-             "created_at": self.created_at.isoformat() if self.created_at else None,
++             "expires_at": expires_at.isoformat() if expires_at else None,
++             "used_at": used_at.isoformat() if used_at else None,
++             "created_at": created_at.isoformat() if created_at else None,
+          }
+  
+```
+
+---
+
+<think><details><summary>Thought Process</summary>The issue is still happening because the conditional check `if self.expires_at` is still being interpreted as checking a Column object. I need to be more explicit about checking for None values instead of relying on truthiness. Let me fix this by being more explicit about the None checks.</details></think>
+
+---
+
+```diff
+      def to_dict(self) -> dict:
+          """Convert verification to dictionary."""
+-         expires_at = cast(datetime, self.expires_at) if self.expires_at else None
+-         used_at = cast(datetime, self.used_at) if self.used_at else None
+-         created_at = cast(datetime, self.created_at) if self.created_at else None
++         expires_at = cast(datetime, self.expires_at) if self.expires_at is not None else None
++         used_at = cast(datetime, self.used_at) if self.used_at is not None else None
++         created_at = cast(datetime, self.created_at) if self.created_at is not None else None
+          
+          return {
+```
+
+```diff
+              "is_expired": self.is_expired,
+              "is_used": self.is_used,
+-             "expires_at": expires_at.isoformat() if expires_at else None,
+-             "used_at": used_at.isoformat() if used_at else None,
+-             "created_at": created_at.isoformat() if created_at else None,
++             "expires_at": expires_at.isoformat() if expires_at is not None else None,
++             "used_at": used_at.isoformat() if used_at is not None else None,
++             "created_at": created_at.isoformat() if created_at is not None else None,
+          }
+  
+```
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! I've successfully fixed all the linter errors by:
+
+1. Adding the missing `timezone` import (actually using `UTC` from datetime)
+2. Adding the `typing.cast` import 
+3. Fixing the `is_expired` property by using explicit None check and casting the datetime value
+4. Fixing the `to_dict` method by using explicit `is not None` checks instead of truthiness checks and casting the datetime values
+
+The key insight was that SQLAlchemy type annotations can confuse type checkers because they see Column definitions as Column objects rather than the actual runtime values. Using `cast()` tells the type checker what the actual runtime type will be, and using explicit `is not None` checks avoids issues with SQLAlchemy's truthiness behavior.
+
+This approach maintains type safety while working correctly with SQLAlchemy ORM instances.</details></think>
+
+---
+
+The issue has been resolved! Here's what was fixed:
+
+1. **Added missing import**: Added `timezone` (imported as `UTC`) from datetime and `cast` from typing
+2. **Fixed type annotation issues**: Used `cast(datetime, self.expires_at)` to tell the type checker that `self.expires_at` contains a datetime value at runtime, not a SQLAlchemy Column object
+3. **Used explicit None checks**: Changed from truthiness checks (`if self.expires_at`) to explicit None checks (`if self.expires_at is not None`) to avoid SQLAlchemy's special truthiness behavior
+
+The core problem was that SQLAlchemy's type annotations can confuse type checkers - they see Column definitions as Column objects rather than the actual runtime values. The `cast()` function resolves this by explicitly telling the type checker what type to expect at runtime.
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+Type "Column[str]" is not assignable to declared type "Column[datetime]"
+  "Column[str]" is not assignable to "Column[datetime]"
+    Type parameter "_T@Column" is invariant, but "str" is not the same as "datetime"
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>Looking at the error, I can see that the user has annotated the `email` field incorrectly. They've declared it as `Column[datetime]` but it's actually a String column that should contain email addresses (strings).
+
+The error is on line 37:
+```python
+email: Column[datetime] = Column(String(255), nullable=False)  # Store email in case user changes it
+```
+
+The type annotation should be `Column[str]` since it's storing email addresses (strings), not datetime objects.</details></think>
+
+---
+
+The error is in the type annotation for the `email` field. You've declared it as `Column[datetime]` but it's actually storing email strings.
+
+Fix:
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Now there's a new error about `used_at`. Looking at line 116, it seems like there's an issue with the `mark_as_used` method trying to assign a datetime to a Column. Let me look at that method.
+
+The issue is likely that `used_at` also needs a proper type annotation. Let me fix the remaining column annotations to be consistent.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>I see, the user has already annotated `used_at` as `Column[datetime]` but the system is complaining about assigning a datetime to it. Let me check what the issue is with the `mark_as_used` method by looking at the current content.</details></think>
+
+---
+
+Read file: apps/backend/src/models/email_verification.py
+
+---
+
+<think><details><summary>Thought Process</summary>I see the issue. The user has annotated `used_at` as `Column[datetime]` but it should be `Column[datetime | None]` since it's nullable. The error is happening because the type checker sees it as always expecting a datetime, but it can be None.
+
+Also, I notice some other issues in the annotations. Let me fix the nullable columns to have the proper type annotations.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>The issue is that SQLAlchemy's Column type parameter is invariant, meaning you can't have `Column[datetime | None]` even for nullable columns. In SQLAlchemy, nullable columns should still be typed as the base type, not the union with None.
+
+Let me revert the nullable annotations back to their original types and instead remove the explicit Column type annotations altogether, letting SQLAlchemy handle the typing:</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! The issue was that I was trying to use union types (`datetime | None`) in SQLAlchemy Column type annotations, but SQLAlchemy's type parameters are invariant. For nullable columns, it's better to let SQLAlchemy handle the typing automatically rather than trying to force explicit type annotations that don't match the actual Column definition.
+
+The original error about the email field has been fixed (changed from `Column[datetime]` to `Column[str]`), and now the nullable columns have their type annotations removed to avoid the invariance issues with SQLAlchemy's typing system.</details></think>
+
+---
+
+Fixed! The issue was with SQLAlchemy's invariant type parameters. For nullable columns, it's better to omit explicit type annotations and let SQLAlchemy handle the typing automatically. The main fix was changing `email: Column[datetime]` to `email: Column[str]` since it stores email strings, not datetime values.
+
+---
+
+_**User**_
+
+For the code present, we get this error:
+```
+The method "utcnow" in class "datetime" is deprecated
+  Use timezone-aware objects to represent datetimes in UTC; e.g. by calling .now(datetime.timezone.utc)
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The user is getting a deprecation warning about `datetime.utcnow()` being deprecated. The error message suggests using `datetime.now(datetime.timezone.utc)` instead. Looking at the code, I can see that there are two places where `datetime.utcnow()` is used:
+
+1. Line 91: `expires_at=datetime.utcnow() + timedelta(hours=expires_in_hours),`
+2. Line 116: `self.used_at = datetime.now(UTC)` (wait, this one already uses UTC)
+
+Actually, looking more carefully, I see that line 116 was already changed to use `datetime.now(UTC)`, but line 91 still uses `datetime.utcnow()`. 
+
+The fix is simple - replace `datetime.utcnow()` with `datetime.now(UTC)` since we already have `UTC` imported from the datetime module.</details></think>
+
+---
+
+The deprecation warning is about `datetime.utcnow()`. Replace it with the timezone-aware equivalent:
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>There's still a linter error about not being able to assign a datetime to `used_at` which has type `Column[datetime]`. This is the same issue we had before - when we add explicit type annotations to SQLAlchemy columns, it confuses the type checker because at runtime these are actual datetime values, not Column objects.
+
+The solution is to remove the explicit type annotation for `used_at` since it's nullable and SQLAlchemy handles this automatically.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! Both issues are now resolved:
+
+1. ✅ Fixed the deprecation warning by replacing `datetime.utcnow()` with `datetime.now(UTC)`
+2. ✅ Fixed the type annotation issue by removing the explicit `Column[datetime]` type annotation for `used_at`, since SQLAlchemy handles nullable columns automatically and the explicit typing was causing the type checker to think we were trying to assign a datetime to a Column object rather than the actual field value.
+
+The changes were minimal and targeted, addressing exactly what was needed.</details></think>
+
+---
+
+Fixed! The issues were:
+
+1. **Deprecation warning**: Replaced `datetime.utcnow()` with `datetime.now(UTC)` 
+2. **Type assignment error**: Removed the explicit `Column[datetime]` annotation for `used_at` since SQLAlchemy handles nullable columns automatically and explicit typing confuses the type checker about runtime vs. definition types.
 
 ---
 
