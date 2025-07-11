@@ -34,16 +34,26 @@ export function useCurrentUser() {
  */
 export function usePermissions() {
   const { data: user } = useCurrentUser()
-
+  
+  // 提取用户角色，只有角色变化时才会触发重新查询
+  const userRole = user?.role
+  
   return useQuery({
-    queryKey: queryKeys.permissions(),
+    queryKey: [...queryKeys.permissions(), userRole], // 将角色作为查询键的一部分
     queryFn: async () => {
-      // TODO: 实现权限获取 API
-      // const response = await authService.getPermissions()
-      // return unwrapApiResponse(response)
+      // 如果 authService.getPermissions 已实现，使用它
+      if (authService.getPermissions) {
+        try {
+          const response = await authService.getPermissions()
+          return unwrapApiResponse(response)
+        } catch (error) {
+          // 如果接口未实现，返回空数组
+          return []
+        }
+      }
       return []
     },
-    enabled: !!user?.role, // 仅在有用户角色时查询
+    enabled: !!userRole, // 仅在有用户角色时查询
     // 使用权限数据的特定配置
     ...queryOptions.permissions,
   })
@@ -66,6 +76,7 @@ export function useSessions() {
       return unwrapApiResponse(response)
     },
     enabled: isAuthenticated,
+    placeholderData: [], // 使用 placeholderData 而不是 initialData，避免 undefined 闪烁
     // 使用会话数据的特定配置
     ...queryOptions.sessions,
   })

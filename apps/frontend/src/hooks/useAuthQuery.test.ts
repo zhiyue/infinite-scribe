@@ -311,7 +311,7 @@ describe('useAuthQuery hooks', () => {
       expect(vi.mocked(authService.getPermissions)).not.toHaveBeenCalled()
     })
 
-    it('应该在有用户角色时返回空权限数组（API未实现）', async () => {
+    it('应该在有用户角色时尝试获取权限并处理错误', async () => {
       const mockUser: User = {
         id: 1,
         username: 'testuser',
@@ -360,10 +360,10 @@ describe('useAuthQuery hooks', () => {
         expect(result.current.permissions.isLoading).toBe(false)
       })
 
-      // 由于权限API未实现，应该返回空数组
+      // 由于权限API可能未实现，应该返回空数组
       expect(result.current.permissions.data).toEqual([])
-      // 不应该调用authService.getPermissions（因为API未实现）
-      expect(vi.mocked(authService.getPermissions)).not.toHaveBeenCalled()
+      // 应该尝试调用authService.getPermissions
+      expect(vi.mocked(authService.getPermissions)).toHaveBeenCalled()
     }, 10000)
 
     it('应该处理权限接口不存在的情况', async () => {
@@ -436,7 +436,7 @@ describe('useAuthQuery hooks', () => {
       const { result } = renderHook(() => useSessions(), { wrapper })
 
       expect(result.current.isLoading).toBe(false)
-      expect(result.current.data).toBeUndefined()
+      expect(result.current.data).toEqual([]) // 现在有 initialData
       expect(vi.mocked(authService.getSessions)).not.toHaveBeenCalled()
     })
 
@@ -459,10 +459,12 @@ describe('useAuthQuery hooks', () => {
 
       const { result } = renderHook(() => useSessions(), { wrapper })
 
-      expect(result.current.isLoading).toBe(true)
-
+      // 由于有 initialData，isLoading 应该是 false
+      expect(result.current.isLoading).toBe(false)
+      
+      // 等待查询完成
       await waitFor(() => {
-        expect(result.current.isLoading).toBe(false)
+        expect(result.current.isSuccess).toBe(true)
       })
 
       // 由于mock返回空数组，应该得到空数组
@@ -517,11 +519,11 @@ describe('useAuthQuery hooks', () => {
 
       const { result } = renderHook(() => useSessions(), { wrapper })
 
-      // 初始加载状态
-      expect(result.current.isLoading).toBe(true)
+      // 由于有 initialData，isLoading 应该是 false
+      expect(result.current.isLoading).toBe(false)
 
       await waitFor(() => {
-        expect(result.current.isLoading).toBe(false)
+        expect(result.current.isSuccess).toBe(true)
       })
 
       // 由于mock返回空数组，应该得到空数组

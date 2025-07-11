@@ -148,7 +148,8 @@ export function useRefreshToken() {
   return useMutation({
     mutationFn: () => authService.refreshTokens(),
     onSuccess: () => {
-      // Token 刷新成功，使所有查询失效以获取新数据
+      // Token 刷新成功（tokens 已经在 authService 内部保存）
+      // 使所有查询失效以获取新数据
       queryClient.invalidateQueries()
     },
     onError: () => {
