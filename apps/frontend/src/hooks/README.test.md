@@ -12,7 +12,8 @@
 
 2. **useAuthMutations.test.ts** - 变更 hooks 的测试
    - 12 个测试用例
-   - 覆盖了 `useLogin`、`useLogout`、`useUpdateProfile`、`useRefreshToken` 的所有场景
+   - 覆盖了 `useLogin`、`useLogout`、`useUpdateProfile`、`useRefreshToken`
+     的所有场景
    - 包含集成测试
 
 3. **queryClient.test.ts** - 查询客户端配置的测试
@@ -26,6 +27,7 @@
 ### 测试场景覆盖
 
 #### 查询测试 (useAuthQuery)
+
 - ✅ 未认证时不执行查询
 - ✅ 认证后正确获取数据
 - ✅ 401 错误不重试
@@ -36,6 +38,7 @@
 - ✅ 自动刷新机制
 
 #### 变更测试 (useAuthMutations)
+
 - ✅ 登录成功处理
 - ✅ 登录失败处理
 - ✅ 权限预取逻辑
@@ -46,6 +49,7 @@
 - ✅ 完整的登录-更新-登出流程集成测试
 
 #### 配置测试 (queryClient)
+
 - ✅ 查询重试逻辑
 - ✅ 窗口聚焦行为
 - ✅ staleTime 和 gcTime 配置
@@ -55,6 +59,7 @@
 - ✅ 不同资源的特定配置
 
 #### 错误处理测试 (errorHandler)
+
 - ✅ AppError 类的创建和使用
 - ✅ HTTP 状态码到错误码的映射
 - ✅ API 响应错误解析
@@ -92,6 +97,7 @@ pnpm test -- --watch
 ### 测试结果
 
 ✅ **总计**: 71 个测试全部通过
+
 - queryClient.test.ts: 15/15 ✅
 - useAuthMutations.test.ts: 12/12 ✅
 - useAuthQuery.test.ts: 12/12 ✅

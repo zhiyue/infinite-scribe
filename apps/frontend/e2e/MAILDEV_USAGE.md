@@ -2,7 +2,8 @@
 
 ## ✅ 正确使用方式（使用主项目配置）
 
-项目的主 `docker-compose.yml` 已经包含了 MailDev 服务配置，无需额外的启动脚本或独立容器。
+项目的主 `docker-compose.yml`
+已经包含了 MailDev 服务配置，无需额外的启动脚本或独立容器。
 
 ### 启动 MailDev
 
@@ -62,8 +63,8 @@ maildev:
   profiles:
     - development
   ports:
-    - "1080:1080" # Web UI
-    - "1025:1025" # SMTP Server
+    - '1080:1080' # Web UI
+    - '1025:1025' # SMTP Server
   networks:
     - infinite-scribe-network
   environment:

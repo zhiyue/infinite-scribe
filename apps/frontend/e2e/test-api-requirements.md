@@ -4,7 +4,8 @@
 
 ## 1. 环境判断
 
-建议通过环境变量（如 `ENVIRONMENT=test` 或 `TESTING=true`）来控制测试特性的启用。
+建议通过环境变量（如 `ENVIRONMENT=test` 或
+`TESTING=true`）来控制测试特性的启用。
 
 ## 2. 测试模式下的认证端点增强
 
@@ -77,7 +78,7 @@ POST /api/v1/test/verify-email/{user_id}
 POST /api/v1/test/create-verified-user
 {
   "username": "testuser",
-  "email": "test@example.com", 
+  "email": "test@example.com",
   "password": "TestPassword123!"
 }
 ```
@@ -141,11 +142,11 @@ const registerResponse = await apiClient.createTestUser({
   username: testUser.username,
   email: testUser.email,
   password: testUser.password,
-});
+})
 
 // 使用返回的令牌进行验证
 if (registerResponse.verification_token) {
-  await apiClient.verifyEmail(registerResponse.verification_token);
+  await apiClient.verifyEmail(registerResponse.verification_token)
 }
 ```
 

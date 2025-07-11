@@ -2,7 +2,9 @@
 
 本目录包含 Infinite Scribe 前端应用的端对端测试，使用 Playwright 测试框架。
 
-> **🎉 最新更新**: 已完成从 MailHog 到 MailDev 的迁移，提供更友好的 Web UI 和更丰富的邮件测试功能。查看 [MailDev 使用指南](./maildev-guide.md) 了解详情。
+> **🎉 最新更新**: 已完成从 MailHog 到 MailDev 的迁移，提供更友好的 Web
+> UI 和更丰富的邮件测试功能。查看 [MailDev 使用指南](./maildev-guide.md)
+> 了解详情。
 
 ## 测试覆盖范围
 
@@ -50,26 +52,29 @@
 
 1. **确保后端服务正在运行**
 2. **启动 MailDev 邮件测试服务**（用于邮箱验证测试）：
+
    ```bash
    # 一键启动 MailDev（使用项目的 docker-compose 配置）
    pnpm frontend:maildev:start
-   
+
    # 或直接使用 Docker Compose
    docker-compose --profile development up -d maildev
-   
+
    # 验证 MailDev 运行状态
    pnpm frontend:maildev:status
-   
+
    # Web UI: http://localhost:1080
    # SMTP: localhost:1025
    ```
+
 3. **安装 Playwright 浏览器**（首次运行时）：
+
    ```bash
    # 从项目根目录运行
    pnpm test:e2e:install
    # 或
    pnpm frontend:e2e:install
-   
+
    # 从 frontend 目录运行
    pnpm test:e2e:install
    ```
@@ -77,6 +82,7 @@
 ### 运行所有测试
 
 从项目根目录运行：
+
 ```bash
 # 运行所有端对端测试
 pnpm frontend:e2e
@@ -98,6 +104,7 @@ pnpm frontend:e2e:report
 ```
 
 MailDev 服务管理：
+
 ```bash
 # 启动 MailDev 服务（使用项目的 docker-compose 配置）
 pnpm frontend:maildev:start
@@ -113,6 +120,7 @@ pnpm frontend:maildev:stop
 ```
 
 从 frontend 目录运行：
+
 ```bash
 # 运行所有端对端测试
 pnpm test:e2e
@@ -186,7 +194,8 @@ SMTP_USE_TLS=false
 
 ## 测试最佳实践
 
-1. **使用 Page Object Model**：所有页面交互都通过 `pages/auth-pages.ts` 中的页面对象进行
+1. **使用 Page Object Model**：所有页面交互都通过 `pages/auth-pages.ts`
+   中的页面对象进行
 2. **测试数据隔离**：每个测试使用唯一的测试数据（时间戳+随机数）
 3. **等待策略**：使用 Playwright 的智能等待而非硬编码的 sleep
 4. **错误处理**：测试同时覆盖成功和失败场景
@@ -199,6 +208,7 @@ SMTP_USE_TLS=false
 如果遇到浏览器下载失败的问题，可以：
 
 1. 使用代理：
+
    ```bash
    export HTTPS_PROXY=http://your-proxy:port
    pnpm test:e2e:install
@@ -268,18 +278,18 @@ docker-compose stop maildev
 
 ```typescript
 // 在测试中自动获取邮件验证令牌
-const verificationToken = await getEmailVerificationToken(user.email);
-await page.goto(`/auth/verify-email?token=${verificationToken}`);
+const verificationToken = await getEmailVerificationToken(user.email)
+await page.goto(`/auth/verify-email?token=${verificationToken}`)
 
 // 密码重置令牌获取
-const resetToken = await getPasswordResetToken(user.email);
-await page.goto(`/auth/reset-password?token=${resetToken}`);
+const resetToken = await getPasswordResetToken(user.email)
+await page.goto(`/auth/reset-password?token=${resetToken}`)
 ```
 
 ### 相关文档
 
 - 📖 [MailDev 详细使用指南](./maildev-guide.md) - 完整的配置和故障排除
-- ⚙️ [测试环境配置](./test-environment-setup.md) - 后端配置说明  
+- ⚙️ [测试环境配置](./test-environment-setup.md) - 后端配置说明
 - 🔌 [API 需求文档](./test-api-requirements.md) - 后端 API 修改建议
 - 🐳 [Docker Compose 配置](./docker-compose.maildev.yml) - 容器化部署
 - 📝 [后端修改示例](./example-backend-modification.py) - 代码示例
