@@ -83,39 +83,40 @@ export interface BaseEvent {
  * 所有模型名称的联合类型
  */
 export type ModelName =
-  | "Novel"
-  | "Chapter"
-  | "ChapterVersion"
-  | "Character"
-  | "WorldviewEntry"
-  | "StoryArc"
-  | "Review"
-  | "Outline"
-  | "SceneCard"
-  | "CharacterInteraction"
-  | "WorkflowRun"
-  | "AgentActivity"
-  | "Event"
-  | "AgentConfiguration"
-  | "GenesisSession"
-  | "GenesisStep"
-  | "AuditLog"
+  | 'Novel'
+  | 'Chapter'
+  | 'ChapterVersion'
+  | 'Character'
+  | 'WorldviewEntry'
+  | 'StoryArc'
+  | 'Review'
+  | 'Outline'
+  | 'SceneCard'
+  | 'CharacterInteraction'
+  | 'WorkflowRun'
+  | 'AgentActivity'
+  | 'Event'
+  | 'AgentConfiguration'
+  | 'GenesisSession'
+  | 'GenesisStep'
+  | 'AuditLog'
 
 /**
  * 模型关系映射类型
  * 用于理解表间关系
  */
-export type ModelRelationships = {
-  [K in ModelName]: {
+export type ModelRelationships = Record<
+  ModelName,
+  {
     children: readonly ModelName[]
     foreign_keys: readonly string[]
   }
-}
+>
 
 /**
  * 常量导出
  */
-export const VERSION = "0.1.0"
+export const VERSION = '0.1.0'
 
 /**
  * 模型关系映射常量
@@ -124,78 +125,78 @@ export const VERSION = "0.1.0"
 export const MODEL_RELATIONSHIPS = {
   Novel: {
     children: [
-      "Chapter",
-      "Character",
-      "WorldviewEntry",
-      "StoryArc",
-      "GenesisSession",
-      "SceneCard",
-      "CharacterInteraction",
+      'Chapter',
+      'Character',
+      'WorldviewEntry',
+      'StoryArc',
+      'GenesisSession',
+      'SceneCard',
+      'CharacterInteraction',
     ] as const satisfies readonly ModelName[],
     foreign_keys: [] as const,
   },
   Chapter: {
-    children: ["ChapterVersion", "Outline", "SceneCard"] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    children: ['ChapterVersion', 'Outline', 'SceneCard'] as const satisfies readonly ModelName[],
+    foreign_keys: ['novel_id'] as const,
   },
   ChapterVersion: {
-    children: ["Review"] as const satisfies readonly ModelName[],
-    foreign_keys: ["chapter_id", "parent_version_id"] as const,
+    children: ['Review'] as const satisfies readonly ModelName[],
+    foreign_keys: ['chapter_id', 'parent_version_id'] as const,
   },
   Character: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    foreign_keys: ['novel_id'] as const,
   },
   WorldviewEntry: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    foreign_keys: ['novel_id'] as const,
   },
   StoryArc: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    foreign_keys: ['novel_id'] as const,
   },
   GenesisSession: {
-    children: ["GenesisStep"] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    children: ['GenesisStep'] as const satisfies readonly ModelName[],
+    foreign_keys: ['novel_id'] as const,
   },
   GenesisStep: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["session_id"] as const,
+    foreign_keys: ['session_id'] as const,
   },
   Outline: {
-    children: ["SceneCard"] as const satisfies readonly ModelName[],
-    foreign_keys: ["chapter_id"] as const,
+    children: ['SceneCard'] as const satisfies readonly ModelName[],
+    foreign_keys: ['chapter_id'] as const,
   },
   SceneCard: {
-    children: ["CharacterInteraction"] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id", "chapter_id", "outline_id", "pov_character_id"] as const,
+    children: ['CharacterInteraction'] as const satisfies readonly ModelName[],
+    foreign_keys: ['novel_id', 'chapter_id', 'outline_id', 'pov_character_id'] as const,
   },
   CharacterInteraction: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id", "chapter_id", "scene_card_id"] as const,
+    foreign_keys: ['novel_id', 'chapter_id', 'scene_card_id'] as const,
   },
   Review: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["chapter_id", "chapter_version_id"] as const,
+    foreign_keys: ['chapter_id', 'chapter_version_id'] as const,
   },
   WorkflowRun: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id"] as const,
+    foreign_keys: ['novel_id'] as const,
   },
   AgentActivity: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["workflow_run_id", "novel_id", "target_entity_id"] as const,
+    foreign_keys: ['workflow_run_id', 'novel_id', 'target_entity_id'] as const,
   },
   Event: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id", "workflow_run_id"] as const,
+    foreign_keys: ['novel_id', 'workflow_run_id'] as const,
   },
   AgentConfiguration: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["novel_id", "agent_type"] as const,
+    foreign_keys: ['novel_id', 'agent_type'] as const,
   },
   AuditLog: {
     children: [] as const satisfies readonly ModelName[],
-    foreign_keys: ["record_id"] as const,
+    foreign_keys: ['record_id'] as const,
   },
 } as const satisfies ModelRelationships

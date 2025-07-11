@@ -108,7 +108,7 @@ export interface GenesisProgressEvent extends BaseEvent {
 /**
  * 所有事件类型的联合类型
  */
-export type DomainEvent = 
+export type DomainEvent =
   | NovelCreatedEvent
   | ChapterUpdatedEvent
   | WorkflowStartedEvent

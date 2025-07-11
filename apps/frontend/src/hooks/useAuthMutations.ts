@@ -15,7 +15,7 @@ import type {
   ResendVerificationRequest,
   ResetPasswordRequest,
   UpdateProfileRequest,
-  User
+  User,
 } from '../types/auth'
 import { unwrapApiResponse } from '../utils/api-response'
 import { useAuthStore } from './useAuth'
@@ -46,7 +46,7 @@ export function useLogin() {
       // 清理状态
       setAuthenticated(false)
       queryClient.clear() // 清除所有缓存
-    }
+    },
   })
 }
 
@@ -78,7 +78,7 @@ export function useLogout() {
       clearAuth()
       queryClient.clear()
       navigate('/login', { replace: true })
-    }
+    },
   })
 }
 
@@ -106,7 +106,7 @@ export function useUpdateProfile() {
       if (previousUser) {
         queryClient.setQueryData<User>(queryKeys.currentUser(), {
           ...previousUser,
-          ...newData
+          ...newData,
         })
       }
 
@@ -130,7 +130,7 @@ export function useUpdateProfile() {
     // 无论成功失败都重新获取最新数据
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.currentUser() })
-    }
+    },
   })
 }
 
@@ -152,7 +152,7 @@ export function useRefreshToken() {
       // Token 刷新失败，清理状态并跳转登录
       clearAuth()
       window.location.href = '/login'
-    }
+    },
   })
 }
 
@@ -207,7 +207,7 @@ export function useChangePassword() {
       // 修改密码成功后，清理状态，但让组件处理跳转
       clearAuth()
       queryClient.clear()
-    }
+    },
   })
 }
 
@@ -222,8 +222,8 @@ export function useVerifyEmail() {
     onSuccess: () => {
       // 验证成功后跳转到登录页
       navigate('/login', {
-        state: { message: 'Email verified successfully. You can now login.' }
+        state: { message: 'Email verified successfully. You can now login.' },
       })
-    }
+    },
   })
 }

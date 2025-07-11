@@ -13,8 +13,8 @@ interface RequestConfig extends RequestInit {
 class ApiService {
   private baseURL: string
   private defaultTimeout = 30000 // 30秒
-  private requestInterceptors: Array<(config: RequestConfig) => RequestConfig> = []
-  private responseInterceptors: Array<(response: Response) => Response> = []
+  private requestInterceptors: ((config: RequestConfig) => RequestConfig)[] = []
+  private responseInterceptors: ((response: Response) => Response)[] = []
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL
@@ -30,24 +30,26 @@ class ApiService {
     this.responseInterceptors.push(interceptor)
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestConfig = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
     let config = { ...options }
-    const { timeout = this.defaultTimeout, retries = 0, retryDelay = 1000, ...fetchOptions } = config
-    
+    const {
+      timeout = this.defaultTimeout,
+      retries = 0,
+      retryDelay = 1000,
+      ...fetchOptions
+    } = config
+
     // 应用请求拦截器
     for (const interceptor of this.requestInterceptors) {
       config = interceptor(config)
     }
-    
+
     const url = `${this.baseURL}${endpoint}`
-    
+
     // 创建 AbortController 用于超时控制
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
-    
+
     try {
       let response = await fetch(url, {
         ...fetchOptions,
@@ -96,21 +98,21 @@ class ApiService {
       return data as T
     } catch (error: unknown) {
       clearTimeout(timeoutId)
-      
+
       // 处理网络错误
       if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError')) {
         const appError = handleNetworkError(error)
         logError(appError, { endpoint, method: fetchOptions.method })
-        
+
         // 重试逻辑
         if (retries > 0 && !error.name.includes('Abort')) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          await new Promise((resolve) => setTimeout(resolve, retryDelay))
           return this.request<T>(endpoint, { ...options, retries: retries - 1 })
         }
-        
+
         throw appError
       }
-      
+
       // 重新抛出应用错误
       throw error
     }
@@ -120,7 +122,11 @@ class ApiService {
     return this.request<T>(endpoint, { ...config, method: 'GET' })
   }
 
-  async post<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T> {
+  async post<T>(
+    endpoint: string,
+    data?: unknown,
+    config?: Omit<RequestConfig, 'method' | 'body'>,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
       ...config,
       method: 'POST',
@@ -128,7 +134,11 @@ class ApiService {
     })
   }
 
-  async put<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T> {
+  async put<T>(
+    endpoint: string,
+    data?: unknown,
+    config?: Omit<RequestConfig, 'method' | 'body'>,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
       ...config,
       method: 'PUT',

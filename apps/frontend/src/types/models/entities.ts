@@ -13,7 +13,7 @@ import {
   WorkflowStatus,
   ActivityStatus,
   EventStatus,
-  OperationType
+  OperationType,
 } from '../enums'
 
 /**

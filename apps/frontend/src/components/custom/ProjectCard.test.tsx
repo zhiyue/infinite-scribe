@@ -6,11 +6,7 @@ import type { Project } from '@/types'
 
 // 包装组件以提供路由上下文
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  )
+  return render(<BrowserRouter>{component}</BrowserRouter>)
 }
 
 // 模拟项目数据
@@ -28,37 +24,37 @@ const mockProject: Project = {
 describe('ProjectCard', () => {
   it('应该渲染项目标题', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     expect(screen.getByText('测试小说标题')).toBeInTheDocument()
   })
 
   it('应该渲染项目描述', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     expect(screen.getByText(/这是一个测试小说的描述/)).toBeInTheDocument()
   })
 
   it('应该显示正确的状态', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     expect(screen.getByText('草稿')).toBeInTheDocument()
   })
 
   it('应该显示章节数量', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     expect(screen.getByText('5 章节')).toBeInTheDocument()
   })
 
   it('应该显示字数统计', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     expect(screen.getByText('12,345 字')).toBeInTheDocument()
   })
 
   it('应该链接到正确的项目页面', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    
+
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', '/projects/test-id-1/overview')
   })
@@ -72,7 +68,7 @@ describe('ProjectCard', () => {
     rerender(
       <BrowserRouter>
         <ProjectCard project={completedProject} />
-      </BrowserRouter>
+      </BrowserRouter>,
     )
     expect(screen.getByText('已完成')).toBeInTheDocument()
   })

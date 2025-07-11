@@ -13,11 +13,11 @@ function shouldRetryError(error: any): boolean {
     error?.status === 401 || // 未授权
     error?.status === 403 || // 禁止访问
     error?.status === 404 || // 资源不存在
-    error?.status === 422   // 验证错误
+    error?.status === 422 // 验证错误
   ) {
     return false
   }
-  
+
   // 重试的情况
   if (
     error?.status === 408 || // 请求超时
@@ -33,7 +33,7 @@ function shouldRetryError(error: any): boolean {
   ) {
     return true
   }
-  
+
   return false
 }
 
@@ -47,18 +47,18 @@ export const queryClient = new QueryClient({
         if (!shouldRetryError(error)) {
           return false
         }
-        
+
         // 对于限流错误，检查 Retry-After 头
         if (error?.status === 429 && error?.headers?.['retry-after']) {
           const retryAfter = parseInt(error.headers['retry-after'], 10)
           if (!isNaN(retryAfter)) {
             // 等待指定的时间后重试
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
               setTimeout(() => resolve(true), retryAfter * 1000)
             })
           }
         }
-        
+
         // 普通错误：最多重试 3 次
         return failureCount < 3
       },
@@ -69,7 +69,7 @@ export const queryClient = new QueryClient({
       // 数据被认为是新鲜的时间（在此期间不会重新获取）
       staleTime: 5 * 60 * 1000, // 5分钟
       // 数据在缓存中保留的时间（v5中 cacheTime 改为 gcTime）
-      gcTime: 10 * 60 * 1000,    // 10分钟垃圾回收
+      gcTime: 10 * 60 * 1000, // 10分钟垃圾回收
     },
     mutations: {
       // mutations 有选择地重试
@@ -91,7 +91,7 @@ export const queryClient = new QueryClient({
           // 跳转登录
           window.location.href = '/login'
         }
-      }
+      },
     },
   },
 })

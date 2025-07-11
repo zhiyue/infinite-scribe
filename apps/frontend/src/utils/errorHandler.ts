@@ -8,16 +8,16 @@ export enum ErrorCode {
   FORBIDDEN = 'FORBIDDEN',
   NOT_FOUND = 'NOT_FOUND',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
-  
+
   // 服务端错误
   INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
   SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
   GATEWAY_TIMEOUT = 'GATEWAY_TIMEOUT',
-  
+
   // 网络错误
   NETWORK_ERROR = 'NETWORK_ERROR',
   TIMEOUT_ERROR = 'TIMEOUT_ERROR',
-  
+
   // 业务错误
   BUSINESS_ERROR = 'BUSINESS_ERROR',
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
@@ -70,18 +70,22 @@ const httpStatusToErrorCode: Record<number, ErrorCode> = {
 // 解析 API 响应错误
 export function parseApiError(response: Response, data?: unknown): AppError {
   const errorCode = httpStatusToErrorCode[response.status] || ErrorCode.UNKNOWN_ERROR
-  
+
   // 尝试从响应数据中获取错误信息
   if (data && typeof data === 'object' && 'error' in data) {
-    const errorData = data.error as { code?: string; message?: string; details?: unknown }
+    const errorData = data.error as {
+      code?: string
+      message?: string
+      details?: unknown
+    }
     return new AppError(
       errorData.code || errorCode,
       errorData.message,
       response.status,
-      errorData.details
+      errorData.details,
     )
   }
-  
+
   return new AppError(errorCode, undefined, response.status)
 }
 
@@ -91,14 +95,14 @@ export function handleNetworkError(error: unknown): AppError {
     if (error.name === 'AbortError') {
       return new AppError(ErrorCode.TIMEOUT_ERROR, '请求已取消')
     }
-    
+
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       return new AppError(ErrorCode.NETWORK_ERROR, '网络连接失败，请检查网络设置')
     }
-    
+
     return new AppError(ErrorCode.UNKNOWN_ERROR, error.message)
   }
-  
+
   return new AppError(ErrorCode.UNKNOWN_ERROR, String(error))
 }
 
@@ -108,12 +112,12 @@ export function handleError(error: unknown): AppError {
   if (error instanceof AppError) {
     return error
   }
-  
+
   // 处理其他类型的错误
   if (error instanceof Error) {
     return handleNetworkError(error)
   }
-  
+
   // 处理未知错误
   return new AppError(ErrorCode.UNKNOWN_ERROR, String(error))
 }

@@ -41,7 +41,11 @@ vi.mock('../lib/queryClient', async () => {
           return failureCount < 2
         },
       },
-      permissions: { staleTime: 1000 * 60 * 30, gcTime: 1000 * 60 * 120, retry: 2 },
+      permissions: {
+        staleTime: 1000 * 60 * 30,
+        gcTime: 1000 * 60 * 120,
+        retry: 2,
+      },
       sessions: { staleTime: 1000 * 60 * 5, gcTime: 1000 * 60 * 15, retry: 1 },
     },
   }
@@ -145,7 +149,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getCurrentUser).mockResolvedValueOnce({
         success: true,
         data: mockUser,
-        message: 'User profile retrieved successfully'
+        message: 'User profile retrieved successfully',
       })
 
       const { result } = renderHook(() => useCurrentUser(), { wrapper })
@@ -155,9 +159,12 @@ describe('useAuthQuery hooks', () => {
       expect(result.current.data).toBeUndefined()
 
       // 等待数据加载完成
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false)
-      }, { timeout: 2000 })
+      await waitFor(
+        () => {
+          expect(result.current.isLoading).toBe(false)
+        },
+        { timeout: 2000 },
+      )
 
       expect(result.current.data).toEqual(mockUser)
       expect(result.current.error).toBeNull()
@@ -176,16 +183,19 @@ describe('useAuthQuery hooks', () => {
 
       // 创建符合 authService.handleApiError 处理后的错误结构
       const error401 = new Error('Unauthorized')
-        ; (error401 as any).status = 401
-        ; (error401 as any).response = { status: 401 }
+      ;(error401 as any).status = 401
+      ;(error401 as any).response = { status: 401 }
 
       vi.mocked(authService.getCurrentUser).mockRejectedValueOnce(error401)
 
       const { result } = renderHook(() => useCurrentUser(), { wrapper })
 
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true)
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(result.current.isError).toBe(true)
+        },
+        { timeout: 3000 },
+      )
 
       expect(result.current.error).toEqual(error401)
       // 确保只调用一次，没有重试
@@ -223,7 +233,9 @@ describe('useAuthQuery hooks', () => {
         return React.createElement(QueryClientProvider, { client: testQueryClient }, children)
       }
 
-      const { result } = renderHook(() => useCurrentUser(), { wrapper: testWrapper })
+      const { result } = renderHook(() => useCurrentUser(), {
+        wrapper: testWrapper,
+      })
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true)
@@ -260,11 +272,13 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getCurrentUser).mockResolvedValue({
         success: true,
         data: mockUser,
-        message: 'User profile retrieved successfully'
+        message: 'User profile retrieved successfully',
       })
 
       // 第一次渲染
-      const { result: result1 } = renderHook(() => useCurrentUser(), { wrapper })
+      const { result: result1 } = renderHook(() => useCurrentUser(), {
+        wrapper,
+      })
 
       await waitFor(() => {
         expect(result1.current.isLoading).toBe(false)
@@ -274,7 +288,9 @@ describe('useAuthQuery hooks', () => {
       expect(vi.mocked(authService.getCurrentUser)).toHaveBeenCalledTimes(1)
 
       // 第二次渲染应该使用缓存
-      const { result: result2 } = renderHook(() => useCurrentUser(), { wrapper })
+      const { result: result2 } = renderHook(() => useCurrentUser(), {
+        wrapper,
+      })
 
       // 由于数据已经在缓存中，第二次应该立即获得数据
       expect(result2.current.isLoading).toBe(false)
@@ -303,7 +319,7 @@ describe('useAuthQuery hooks', () => {
             permissions: usePermissions(),
           }
         },
-        { wrapper }
+        { wrapper },
       )
 
       expect(result.current.permissions.isLoading).toBe(false)
@@ -338,7 +354,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getCurrentUser).mockResolvedValueOnce({
         success: true,
         data: mockUser,
-        message: 'User profile retrieved successfully'
+        message: 'User profile retrieved successfully',
       })
 
       const { result } = renderHook(
@@ -347,7 +363,7 @@ describe('useAuthQuery hooks', () => {
           const permissions = usePermissions()
           return { user, permissions }
         },
-        { wrapper }
+        { wrapper },
       )
 
       // 等待用户数据加载
@@ -393,7 +409,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getCurrentUser).mockResolvedValueOnce({
         success: true,
         data: mockUser,
-        message: 'User profile retrieved successfully'
+        message: 'User profile retrieved successfully',
       })
       // 模拟 getPermissions 不存在
       vi.mocked(authService.getPermissions).mockImplementation(undefined as any)
@@ -404,7 +420,7 @@ describe('useAuthQuery hooks', () => {
           const permissions = usePermissions()
           return { user, permissions }
         },
-        { wrapper }
+        { wrapper },
       )
 
       // 等待用户数据加载
@@ -454,7 +470,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getSessions).mockResolvedValueOnce({
         success: true,
         data: [],
-        message: 'No sessions found'
+        message: 'No sessions found',
       })
 
       const { result } = renderHook(() => useSessions(), { wrapper })
@@ -514,7 +530,7 @@ describe('useAuthQuery hooks', () => {
       vi.mocked(authService.getSessions).mockResolvedValue({
         success: true,
         data: [],
-        message: 'No sessions found'
+        message: 'No sessions found',
       })
 
       const { result } = renderHook(() => useSessions(), { wrapper })

@@ -8,16 +8,14 @@ export function EmptyProjectGuide() {
       <div className="mb-8 rounded-full bg-muted p-6">
         <BookOpen className="h-12 w-12 text-muted-foreground" />
       </div>
-      
+
       <h2 className="mb-2 text-2xl font-semibold">开始创作您的第一部小说</h2>
       <p className="mb-8 max-w-md text-center text-muted-foreground">
         欢迎使用 Infinite Scribe！点击下方按钮，开启您的AI辅助创作之旅。
       </p>
-      
+
       <Link to="/create-novel">
-        <Button size="lg">
-          创建新小说
-        </Button>
+        <Button size="lg">创建新小说</Button>
       </Link>
     </div>
   )

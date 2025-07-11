@@ -11,20 +11,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../lib/queryClient'
 import { authService } from '../services/auth'
 import type {
-    ChangePasswordRequest,
-    ForgotPasswordRequest,
-    RegisterRequest,
-    ResendVerificationRequest,
-    ResetPasswordRequest
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  RegisterRequest,
+  ResendVerificationRequest,
+  ResetPasswordRequest,
 } from '../types/auth'
 import { useAuthStore } from './useAuth'
 import {
-    useChangePassword,
-    useForgotPassword,
-    useRegister,
-    useResendVerification,
-    useResetPassword,
-    useVerifyEmail
+  useChangePassword,
+  useForgotPassword,
+  useRegister,
+  useResendVerification,
+  useResetPassword,
+  useVerifyEmail,
 } from './useAuthMutations'
 
 // Mock 认证服务
@@ -105,7 +105,7 @@ describe('额外的 useAuthMutations hooks', () => {
     return React.createElement(
       BrowserRouter,
       {},
-      React.createElement(QueryClientProvider, { client: queryClient }, children)
+      React.createElement(QueryClientProvider, { client: queryClient }, children),
     )
   }
 
@@ -210,7 +210,7 @@ describe('额外的 useAuthMutations hooks', () => {
       })
 
       expect(vi.mocked(authService.resendVerification)).toHaveBeenCalledWith(resendData)
-      
+
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true)
       })
@@ -281,7 +281,7 @@ describe('额外的 useAuthMutations hooks', () => {
       })
 
       expect(vi.mocked(authService.forgotPassword)).toHaveBeenCalledWith(forgotData)
-      
+
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true)
       })
@@ -468,7 +468,7 @@ describe('额外的 useAuthMutations hooks', () => {
 
       expect(vi.mocked(authService.verifyEmail)).toHaveBeenCalledWith(verifyToken)
       expect(mockNavigate).toHaveBeenCalledWith('/login', {
-        state: { message: 'Email verified successfully. You can now login.' }
+        state: { message: 'Email verified successfully. You can now login.' },
       })
     })
 
@@ -527,7 +527,9 @@ describe('额外的 useAuthMutations hooks', () => {
         message: 'Registration successful',
       })
 
-      const { result: registerResult } = renderHook(() => useRegister(), { wrapper })
+      const { result: registerResult } = renderHook(() => useRegister(), {
+        wrapper,
+      })
 
       await act(async () => {
         await registerResult.current.mutateAsync(registerData)
@@ -545,7 +547,9 @@ describe('额外的 useAuthMutations hooks', () => {
         message: 'Email verified successfully',
       })
 
-      const { result: verifyResult } = renderHook(() => useVerifyEmail(), { wrapper })
+      const { result: verifyResult } = renderHook(() => useVerifyEmail(), {
+        wrapper,
+      })
 
       await act(async () => {
         await verifyResult.current.mutateAsync(verifyToken)
@@ -553,7 +557,7 @@ describe('额外的 useAuthMutations hooks', () => {
 
       // useVerifyEmail 仍然会自动导航
       expect(mockNavigate).toHaveBeenCalledWith('/login', {
-        state: { message: 'Email verified successfully. You can now login.' }
+        state: { message: 'Email verified successfully. You can now login.' },
       })
 
       // 步骤 3: 之后用户可以使用 useLogin 登录
@@ -571,7 +575,9 @@ describe('额外的 useAuthMutations hooks', () => {
         message: 'Password reset email sent',
       })
 
-      const { result: forgotResult } = renderHook(() => useForgotPassword(), { wrapper })
+      const { result: forgotResult } = renderHook(() => useForgotPassword(), {
+        wrapper,
+      })
 
       await act(async () => {
         await forgotResult.current.mutateAsync(forgotData)
@@ -594,7 +600,9 @@ describe('额外的 useAuthMutations hooks', () => {
         message: 'Password reset successfully',
       })
 
-      const { result: resetResult } = renderHook(() => useResetPassword(), { wrapper })
+      const { result: resetResult } = renderHook(() => useResetPassword(), {
+        wrapper,
+      })
 
       await act(async () => {
         await resetResult.current.mutateAsync(resetData)

@@ -74,7 +74,7 @@ export default function CreateNovel() {
                     'flex h-10 w-10 items-center justify-center rounded-full border-2',
                     currentStep >= step.id
                       ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-muted-foreground text-muted-foreground'
+                      : 'border-muted-foreground text-muted-foreground',
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -82,7 +82,7 @@ export default function CreateNovel() {
                 <span
                   className={cn(
                     'ml-2 text-sm font-medium',
-                    currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
+                    currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
                   {step.title}
@@ -91,7 +91,7 @@ export default function CreateNovel() {
                   <div
                     className={cn(
                       'mx-4 h-0.5 w-full',
-                      currentStep > step.id ? 'bg-primary' : 'bg-muted'
+                      currentStep > step.id ? 'bg-primary' : 'bg-muted',
                     )}
                   />
                 )}
@@ -105,24 +105,18 @@ export default function CreateNovel() {
       <Card>
         <CardHeader>
           <CardTitle>{steps[currentStep - 1].title}</CardTitle>
-          <CardDescription>
-            请填写以下信息，AI 将根据您的设定协助创作
-          </CardDescription>
+          <CardDescription>请填写以下信息，AI 将根据您的设定协助创作</CardDescription>
         </CardHeader>
         <CardContent>{renderStepContent()}</CardContent>
       </Card>
 
       {/* 导航按钮 */}
       <div className="mt-6 flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handlePrev}
-          disabled={currentStep === 1}
-        >
+        <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1}>
           <ChevronLeft className="mr-2 h-4 w-4" />
           上一步
         </Button>
-        
+
         {currentStep < steps.length ? (
           <Button onClick={handleNext}>
             下一步

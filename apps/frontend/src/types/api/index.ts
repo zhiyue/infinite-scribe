@@ -3,15 +3,15 @@
  * 用于前后端 API 通信
  */
 
-import type { 
-  Novel, 
-  Chapter, 
+import type {
+  Novel,
+  Chapter,
   // @ts-expect-error - Used in CreateCharacterRequest
-  Character, 
+  Character,
   // @ts-expect-error - Used in CreateWorldviewEntryRequest
   WorldviewEntry,
   GenesisSession,
-  WorkflowRun 
+  WorkflowRun,
 } from '../models/entities'
 import { GenesisMode } from '../enums'
 
@@ -146,7 +146,8 @@ export interface CreateWorldviewEntryRequest {
 /**
  * 更新世界观条目请求
  */
-export interface UpdateWorldviewEntryRequest extends Omit<CreateWorldviewEntryRequest, 'novel_id'> {}
+export interface UpdateWorldviewEntryRequest
+  extends Omit<CreateWorldviewEntryRequest, 'novel_id'> {}
 
 // ===== 创世流程相关 API =====
 

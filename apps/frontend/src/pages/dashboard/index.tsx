@@ -17,7 +17,7 @@ export default function Dashboard() {
       <header className="border-b bg-card">
         <div className="flex h-16 items-center justify-between px-6">
           <h1 className="text-2xl font-bold">项目仪表盘</h1>
-          
+
           <div className="flex items-center gap-4">
             {/* 健康检查状态 */}
             <div className="flex items-center gap-2 text-sm">
@@ -30,7 +30,7 @@ export default function Dashboard() {
                 <span className="text-red-500">异常</span>
               )}
             </div>
-            
+
             {/* 创建新项目按钮 */}
             <Link
               to="/create-novel"

@@ -61,7 +61,7 @@ describe('认证 Mock 测试', () => {
       return React.createElement(
         BrowserRouter,
         {},
-        React.createElement(QueryClientProvider, { client: queryClient }, children)
+        React.createElement(QueryClientProvider, { client: queryClient }, children),
       )
     }
   }
@@ -73,7 +73,7 @@ describe('认证 Mock 测试', () => {
       setAuthenticated: vi.fn(),
       clearAuth: vi.fn(),
     }
-    
+
     vi.mocked(useAuthStore).mockReturnValue(mockAuthStore)
 
     // 测试 mock 是否工作
@@ -89,7 +89,7 @@ describe('认证 Mock 测试', () => {
       setAuthenticated: vi.fn(),
       clearAuth: vi.fn(),
     }
-    
+
     vi.mocked(useAuthStore).mockImplementation(() => mockAuthStore)
 
     // 设置 API mock
@@ -99,7 +99,9 @@ describe('认证 Mock 测试', () => {
       message: 'Success',
     })
 
-    const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    })
 
     // 验证 hook 正确渲染
     expect(result.current).not.toBeNull()
@@ -119,10 +121,12 @@ describe('认证 Mock 测试', () => {
       setAuthenticated: vi.fn(),
       clearAuth: vi.fn(),
     }
-    
+
     vi.mocked(useAuthStore).mockImplementation(() => mockAuthStore)
 
-    const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    })
 
     // 验证 hook 正确渲染但查询被禁用
     expect(result.current).not.toBeNull()

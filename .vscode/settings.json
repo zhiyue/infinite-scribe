@@ -57,6 +57,7 @@
             120
         ]
     },
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     // 文件关联
     "files.associations": {
         "pyrightconfig.json": "jsonc"
@@ -103,5 +104,7 @@
             "directory": "./apps/frontend",
             "changeProcessCWD": true
         }
-    ]
+    ],
+    "prettier.configPath": "./apps/frontend/.prettierrc.js"
+
 }

@@ -1,7 +1,7 @@
 /**
  * 共享类型定义主入口
  * 从 @infinitescribe/shared-types 迁移而来
- * 
+ *
  * @version 0.1.0
  * @description 提供前端使用的所有类型定义
  */
