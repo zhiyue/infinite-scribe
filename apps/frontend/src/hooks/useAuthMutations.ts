@@ -17,7 +17,7 @@ import type {
   ResetPasswordRequest,
   ChangePasswordRequest
 } from '../types/auth'
-import { useAuth } from './useAuth'
+import { useAuthStore } from './useAuth'
 import { unwrapApiResponse } from '../utils/api-response'
 
 /**
@@ -26,7 +26,7 @@ import { unwrapApiResponse } from '../utils/api-response'
 export function useLogin() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { setAuthenticated } = useAuth()
+  const { setAuthenticated } = useAuthStore()
 
   return useMutation({
     mutationFn: async (credentials: LoginRequest) => {
@@ -60,7 +60,7 @@ export function useLogin() {
 export function useLogout() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { clearAuth } = useAuth()
+  const { clearAuth } = useAuthStore()
 
   return useMutation({
     mutationFn: () => authService.logout(),
@@ -143,7 +143,7 @@ export function useUpdateProfile() {
  */
 export function useRefreshToken() {
   const queryClient = useQueryClient()
-  const { clearAuth } = useAuth()
+  const { clearAuth } = useAuthStore()
 
   return useMutation({
     mutationFn: () => authService.refreshTokens(),
@@ -202,7 +202,7 @@ export function useResetPassword() {
  */
 export function useChangePassword() {
   const queryClient = useQueryClient()
-  const { clearAuth } = useAuth()
+  const { clearAuth } = useAuthStore()
   
   return useMutation({
     mutationFn: (data: ChangePasswordRequest) => authService.changePassword(data),
