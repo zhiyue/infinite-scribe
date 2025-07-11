@@ -214,7 +214,9 @@ describe('errorHandler', () => {
     let dateSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // 故意为空 - 抑制测试中的错误日志输出
+      })
       dateSpy = vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2024-01-01T00:00:00.000Z')
     })
 
@@ -348,7 +350,9 @@ describe('errorHandler', () => {
       const error = parseApiError(response, responseData)
 
       // 记录错误
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // 故意为空 - 抑制测试中的错误日志输出
+      })
       logError(error, { endpoint: '/api/register' })
 
       // 获取用户友好消息

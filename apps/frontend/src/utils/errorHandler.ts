@@ -137,7 +137,7 @@ export function logError(error: AppError, context?: unknown): void {
 // 用户友好的错误消息
 export function getUserFriendlyMessage(error: AppError): string {
   // 对于某些错误，返回更友好的消息
-  switch (error.code) {
+  switch (error.code as ErrorCode) {
     case ErrorCode.NETWORK_ERROR:
       return '网络连接失败，请检查您的网络设置'
     case ErrorCode.TIMEOUT_ERROR:

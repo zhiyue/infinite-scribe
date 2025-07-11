@@ -7,7 +7,7 @@
 import type { ApiError } from '../types/auth'
 
 // 通用成功响应接口
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse<T = unknown> {
   success: true
   data: T
   message?: string
@@ -18,17 +18,17 @@ export interface ApiErrorResponse {
   success: false
   error: string
   status_code?: number
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 }
 
 // 统一的 API 响应类型
-export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse
+export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse
 
 /**
  * 检查响应是否已经包含 success 字段
  */
-function hasSuccessField(response: any): boolean {
-  return response && typeof response === 'object' && 'success' in response
+function hasSuccessField(response: unknown): response is { success: boolean } {
+  return response !== null && typeof response === 'object' && 'success' in response
 }
 
 /**
@@ -38,16 +38,20 @@ function hasSuccessField(response: any): boolean {
  * @param defaultMessage - 默认成功消息
  * @returns 统一格式的响应
  */
-export function wrapApiResponse<T>(response: any, defaultMessage?: string): ApiSuccessResponse<T> {
+export function wrapApiResponse<T>(
+  response: unknown,
+  defaultMessage?: string,
+): ApiSuccessResponse<T> {
   // 如果响应已经有 success 字段且为 true，直接返回
-  if (hasSuccessField(response) && response.success === true) {
+  if (hasSuccessField(response) && (response as { success: boolean }).success === true) {
+    const responseObj = response as { success: true; data?: T; message?: string }
     // 对于 login/register 等响应，数据在响应本身
     // 对于其他响应，可能需要提取 data 字段
-    const data = response.data || response
+    const data = responseObj.data || (response as T)
     return {
       success: true,
-      data: data as T,
-      message: response.message || defaultMessage,
+      data,
+      message: responseObj.message || defaultMessage,
     }
   }
 
@@ -65,32 +69,45 @@ export function wrapApiResponse<T>(response: any, defaultMessage?: string): ApiS
  * @param error - 原始错误
  * @returns 统一格式的错误响应
  */
-export function wrapApiError(error: ApiError | any): ApiErrorResponse {
+export function wrapApiError(error: unknown): ApiErrorResponse {
   // 如果已经是 ApiError 格式
-  if (error.detail) {
+  if (error && typeof error === 'object' && 'detail' in error) {
+    const apiError = error as {
+      detail: string
+      status_code?: number
+      response?: { data?: { details?: Record<string, unknown> } }
+    }
     return {
       success: false,
-      error: error.detail,
-      status_code: error.status_code,
-      details: error.response?.data?.details,
+      error: apiError.detail,
+      status_code: apiError.status_code,
+      details: apiError.response?.data?.details,
     }
   }
 
   // 如果是标准错误响应格式
-  if (hasSuccessField(error) && error.success === false) {
+  if (hasSuccessField(error) && (error as { success: boolean }).success === false) {
+    const errorObj = error as {
+      success: false
+      error?: string
+      message?: string
+      status_code?: number
+      details?: Record<string, unknown>
+    }
     return {
       success: false,
-      error: error.error || error.message || 'Unknown error',
-      status_code: error.status_code,
-      details: error.details,
+      error: errorObj.error || errorObj.message || 'Unknown error',
+      status_code: errorObj.status_code,
+      details: errorObj.details,
     }
   }
 
   // 其他错误格式
+  const errorObj = error as { message?: string; error?: string; status_code?: number }
   return {
     success: false,
-    error: error.message || error.error || 'An unexpected error occurred',
-    status_code: error.status_code || 0,
+    error: errorObj.message || errorObj.error || 'An unexpected error occurred',
+    status_code: errorObj.status_code || 0,
   }
 }
 

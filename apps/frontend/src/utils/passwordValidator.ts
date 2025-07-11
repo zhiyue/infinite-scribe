@@ -63,7 +63,7 @@ export class PasswordValidator {
     }
 
     // 特殊字符检查（加分项）
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       score += 1
       if (score > 5) score = 5
     } else {
