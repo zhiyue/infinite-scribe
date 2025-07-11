@@ -138,7 +138,7 @@ class AuthService {
     // Refresh token is handled via httpOnly cookies
   }
 
-  private clearTokens() {
+  clearTokens() {
     this.accessToken = null
     this.refreshToken = null
 
