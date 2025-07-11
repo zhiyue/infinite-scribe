@@ -4,13 +4,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
-import React from 'react'
+import { QueryClient } from '@tanstack/react-query'
 import { useLogin, useLogout, useUpdateProfile, useRefreshToken } from './useAuthMutations'
 import { useAuthStore } from './useAuth'
 import { authService } from '../services/auth'
 import { queryKeys } from '../lib/queryClient'
+import { createTestQueryClient, createWrapper, createMockAuthStore, cleanupWindowLocation } from './test-utils'
 import type { User, LoginRequest, LoginResponse, UpdateProfileRequest, TokenResponse } from '../types/auth'
 
 // Mock 认证服务
@@ -39,54 +38,28 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-// 创建测试用的 QueryClient
-const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        refetchOnWindowFocus: false,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  })
 
 describe('useAuthMutations hooks', () => {
   let queryClient: QueryClient
-  let mockSetAuthenticated: ReturnType<typeof vi.fn>
-  let mockClearAuth: ReturnType<typeof vi.fn>
+  let mockAuthStore: ReturnType<typeof createMockAuthStore>
+  let wrapper: ({ children }: { children: React.ReactNode }) => React.ReactElement
 
   beforeEach(() => {
     queryClient = createTestQueryClient()
-    mockSetAuthenticated = vi.fn()
-    mockClearAuth = vi.fn()
+    mockAuthStore = createMockAuthStore()
+    wrapper = createWrapper(queryClient)
     vi.clearAllMocks()
 
     // 设置默认的 useAuthStore mock
-    vi.mocked(useAuthStore).mockReturnValue({
-      isAuthenticated: false,
-      setAuthenticated: mockSetAuthenticated,
-      clearAuth: mockClearAuth,
-    } as any)
+    vi.mocked(useAuthStore).mockReturnValue(mockAuthStore.storeValue)
 
     // 清理 location.href 的赋值
-    delete (window as any).location
-    window.location = { href: '' } as any
+    cleanupWindowLocation()
   })
 
   afterEach(() => {
     queryClient.clear()
   })
-
-  const wrapper = ({ children }: { children: React.ReactNode }) => {
-    return React.createElement(
-      BrowserRouter,
-      {},
-      React.createElement(QueryClientProvider, { client: queryClient }, children)
-    )
-  }
 
   describe('useLogin', () => {
     it('应该成功处理登录', async () => {
@@ -130,7 +103,7 @@ describe('useAuthMutations hooks', () => {
 
       // 验证调用
       expect(vi.mocked(authService.login)).toHaveBeenCalledWith(loginData)
-      expect(mockSetAuthenticated).toHaveBeenCalledWith(true)
+      expect(mockAuthStore.storeValue.setAuthenticated).toHaveBeenCalledWith(true)
 
       // 验证缓存设置
       const cachedUser = queryClient.getQueryData(queryKeys.currentUser())
@@ -161,7 +134,7 @@ describe('useAuthMutations hooks', () => {
       })
 
       // 验证错误处理
-      expect(mockSetAuthenticated).toHaveBeenCalledWith(false)
+      expect(mockAuthStore.storeValue.setAuthenticated).toHaveBeenCalledWith(false)
       expect(queryClient.getQueryState(queryKeys.currentUser())).toBeUndefined()
     })
 
@@ -204,7 +177,7 @@ describe('useAuthMutations hooks', () => {
       })
 
       // 验证基本功能正常
-      expect(mockSetAuthenticated).toHaveBeenCalledWith(true)
+      expect(mockAuthStore.storeValue.setAuthenticated).toHaveBeenCalledWith(true)
       expect(queryClient.getQueryData(queryKeys.currentUser())).toEqual(mockUser)
     })
   })
@@ -222,7 +195,7 @@ describe('useAuthMutations hooks', () => {
 
       // 验证调用
       expect(vi.mocked(authService.logout)).toHaveBeenCalled()
-      expect(mockClearAuth).toHaveBeenCalled()
+      expect(mockAuthStore.storeValue.clearAuth).toHaveBeenCalled()
       expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true })
     })
 
@@ -242,7 +215,7 @@ describe('useAuthMutations hooks', () => {
       })
 
       // 验证即使失败也清理状态
-      expect(mockClearAuth).toHaveBeenCalled()
+      expect(mockAuthStore.storeValue.clearAuth).toHaveBeenCalled()
       expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true })
     })
   })
@@ -426,7 +399,7 @@ describe('useAuthMutations hooks', () => {
       })
 
       // 验证错误处理
-      expect(mockClearAuth).toHaveBeenCalled()
+      expect(mockAuthStore.storeValue.clearAuth).toHaveBeenCalled()
       expect(window.location.href).toBe('/login')
     })
   })
@@ -503,7 +476,7 @@ describe('useAuthMutations hooks', () => {
       })
 
       expect(queryClient.getQueryData(queryKeys.currentUser())).toBeUndefined()
-      expect(mockClearAuth).toHaveBeenCalled()
+      expect(mockAuthStore.storeValue.clearAuth).toHaveBeenCalled()
     })
   })
 })
