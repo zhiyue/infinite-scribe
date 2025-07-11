@@ -69,6 +69,8 @@ const ignoreBlock = {
     // e2e 测试目录
     'e2e/**',
     '.prettierrc.cjs',
+    // 忽略 shadcn 组件
+    'src/components/ui',
   ],
 }
 
