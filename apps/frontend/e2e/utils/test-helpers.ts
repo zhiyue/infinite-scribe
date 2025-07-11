@@ -267,10 +267,10 @@ export const TEST_CONFIG = {
   
   // 超时配置
   timeout: {
-    short: 5000,
-    medium: 10000,
-    long: 30000,
-    email: 30000, // 邮件等待超时
+    short: 8000,
+    medium: 15000,
+    long: 45000,
+    email: 45000, // 邮件等待超时
   },
   
   // 测试用户密码

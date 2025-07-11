@@ -34,16 +34,19 @@ export function useLogin() {
       return unwrapApiResponse(response)
     },
     onSuccess: (data) => {
-      // 1. 更新认证状态
-      setAuthenticated(true)
-
-      // 2. 设置用户数据到缓存
+      // 1. 先设置用户数据到缓存
       queryClient.setQueryData(queryKeys.currentUser(), data.user)
+
+      // 2. 然后更新认证状态（这会触发useCurrentUser重新验证，但数据已经在缓存中）
+      setAuthenticated(true)
 
       // 3. 预取相关数据（如果有权限接口）
       // TODO: 实现权限预取
+
+      console.log('[useLogin] Login success, user data set, auth state updated');
     },
     onError: (error: any) => {
+      console.log('[useLogin] Login failed:', error);
       // 清理状态
       setAuthenticated(false)
       queryClient.clear() // 清除所有缓存
@@ -160,16 +163,9 @@ export function useRefreshToken() {
  * 注册 Mutation
  */
 export function useRegister() {
-  const navigate = useNavigate()
-  
   return useMutation({
     mutationFn: (data: RegisterRequest) => authService.register(data),
-    onSuccess: () => {
-      // 注册成功后跳转到登录页
-      navigate('/login', { 
-        state: { message: 'Registration successful! Please check your email to verify your account.' } 
-      })
-    }
+    // 移除自动跳转，让组件处理成功状态
   })
 }
 
@@ -195,16 +191,9 @@ export function useForgotPassword() {
  * 重置密码 Mutation
  */
 export function useResetPassword() {
-  const navigate = useNavigate()
-  
   return useMutation({
     mutationFn: (data: ResetPasswordRequest) => authService.resetPassword(data),
-    onSuccess: () => {
-      // 重置成功后跳转到登录页
-      navigate('/login', { 
-        state: { message: 'Password reset successfully. Please login with your new password.' } 
-      })
-    }
+    // 移除自动跳转，让组件处理成功状态
   })
 }
 
@@ -213,18 +202,14 @@ export function useResetPassword() {
  */
 export function useChangePassword() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { clearAuth } = useAuth()
   
   return useMutation({
     mutationFn: (data: ChangePasswordRequest) => authService.changePassword(data),
     onSuccess: () => {
-      // 修改密码成功后，清理状态并重新登录
+      // 修改密码成功后，清理状态，但让组件处理跳转
       clearAuth()
       queryClient.clear()
-      navigate('/login', { 
-        state: { message: 'Password changed successfully. Please login with your new password.' } 
-      })
     }
   })
 }

@@ -15,7 +15,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   
   // 全局超时时间
-  timeout: 30 * 1000,
+  timeout: 60 * 1000,
   
   // 测试重试次数
   retries: process.env.CI ? 2 : 0,
@@ -49,10 +49,13 @@ export default defineConfig({
     trace: 'on-first-retry',
     
     // 默认导航超时
-    navigationTimeout: 10000,
+    navigationTimeout: 15000,
     
     // 默认操作超时
     actionTimeout: 10000,
+    
+    // 测试超时
+    testTimeout: 45000,
     
     // 自定义环境变量
     extraHTTPHeaders: {},

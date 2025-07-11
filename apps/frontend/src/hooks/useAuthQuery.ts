@@ -58,10 +58,12 @@ export function useSessions() {
   return useQuery({
     queryKey: queryKeys.sessions(),
     queryFn: async () => {
-      // TODO: 实现会话获取 API
-      // const response = await authService.getSessions()
-      // return unwrapApiResponse(response)
-      return []
+      // 如果后端还没有会话管理接口，返回空数组
+      if (!authService.getSessions) {
+        return []
+      }
+      const response = await authService.getSessions()
+      return unwrapApiResponse(response)
     },
     enabled: isAuthenticated,
     // 使用会话数据的特定配置

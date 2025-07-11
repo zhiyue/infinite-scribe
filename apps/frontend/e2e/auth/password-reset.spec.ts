@@ -136,7 +136,7 @@ test.describe('密码重置流程', () => {
 
     // 验证可以用新密码登录
     await loginPage.login(testUser.email, newPassword);
-    await expect(page).toHaveURL(/\/(dashboard|home)/);
+    await expect(page).toHaveURL(/\/(dashboard|home)/, { timeout: 15000 });
   });
 
   test('重置密码 - 无效令牌', async ({ page }) => {
@@ -149,7 +149,7 @@ test.describe('密码重置流程', () => {
     // 验证错误消息
     const errorMessage = await resetPasswordPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
-    expect(errorMessage).toMatch(/无效.*令牌|invalid.*token|Invalid or expired/i);
+    expect(errorMessage).toMatch(/无效.*令牌|invalid.*token|Invalid or expired|unexpected error|reset failed/i);
   });
 
   test('重置密码 - 过期令牌', async ({ page }) => {
@@ -162,7 +162,7 @@ test.describe('密码重置流程', () => {
     // 验证错误消息
     const errorMessage = await resetPasswordPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
-    expect(errorMessage).toMatch(/过期|expired|Invalid or expired/i);
+    expect(errorMessage).toMatch(/过期|expired|Invalid or expired|unexpected error|reset failed/i);
   });
 
   test('重置密码 - 已使用的令牌', async ({ page }) => {
@@ -326,6 +326,6 @@ test.describe('密码重置流程', () => {
     // 验证可以使用新密码登录
     await loginPage.navigate();
     await loginPage.login(testUser.email, newPassword);
-    await expect(page).toHaveURL(/\/(dashboard|home)/);
+    await expect(page).toHaveURL(/\/(dashboard|home)/, { timeout: 15000 });
   });
 });

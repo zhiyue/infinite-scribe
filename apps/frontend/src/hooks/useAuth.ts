@@ -20,12 +20,16 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isAuthenticated: false,
       
-      setAuthenticated: (value) => set({ isAuthenticated: value }),
+      setAuthenticated: (value) => {
+        console.log('[useAuth] Setting authenticated to:', value);
+        set({ isAuthenticated: value });
+      },
       
       clearAuth: () => {
+        console.log('[useAuth] Clearing auth');
         // 清理 tokens
         authService.clearTokens()
         // 清理认证状态
@@ -54,6 +58,25 @@ export const useAuthStore = create<AuthStore>()(
       name: 'auth-storage',
       // 只持久化认证状态
       partialize: (state) => ({ isAuthenticated: state.isAuthenticated }),
+      // 在 hydration 完成后检查 token 状态
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // 检查是否有有效的 access token
+          const hasToken = localStorage.getItem('access_token');
+          console.log('[useAuth] Rehydrated, hasToken:', !!hasToken, 'isAuthenticated:', state.isAuthenticated);
+          
+          // 如果没有 token 但状态显示已认证，清理状态
+          if (!hasToken && state.isAuthenticated) {
+            console.log('[useAuth] No token found but state shows authenticated, clearing auth');
+            state.isAuthenticated = false;
+          }
+          // 如果有 token 但状态显示未认证，更新状态
+          else if (hasToken && !state.isAuthenticated) {
+            console.log('[useAuth] Token found but state shows unauthenticated, setting authenticated');
+            state.isAuthenticated = true;
+          }
+        }
+      }
     }
   )
 )

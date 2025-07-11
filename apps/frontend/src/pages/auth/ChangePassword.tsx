@@ -84,25 +84,24 @@ const ChangePasswordPage: React.FC = () => {
         setUpdateError(null);
         setUpdateSuccess(false);
         
-        try {
-            console.log('[ChangePassword] Calling changePassword...');
-            await changePasswordMutation.mutateAsync(data);
-            console.log('[ChangePassword] Success!');
-            setUpdateSuccess(true);
-            reset(); // Clear form
-            // Redirect to dashboard after success
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 2000);
-        } catch (error: any) {
-            console.log('[ChangePassword] Failed! Error:', error);
-            const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to change password';
-            setUpdateError(errorMessage);
-            // 再次验证状态
-            setTimeout(() => {
-                console.log('[ChangePassword] Error state check:', { updateError, errorMessage });
-            }, 0);
-        }
+        changePasswordMutation.mutate(data, {
+            onSuccess: () => {
+                console.log('[ChangePassword] Success!');
+                setUpdateSuccess(true);
+                reset(); // Clear form
+                // Redirect to login page after success (since auth is cleared)
+                setTimeout(() => {
+                    navigate('/login', { 
+                        state: { message: 'Password changed successfully. Please login with your new password.' } 
+                    });
+                }, 2000);
+            },
+            onError: (error: any) => {
+                console.log('[ChangePassword] Failed! Error:', error);
+                const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to change password';
+                setUpdateError(errorMessage);
+            }
+        });
     };
 
     const getPasswordStrengthColor = (score: number) => {

@@ -25,39 +25,108 @@ export class BasePage {
 
   async getErrorMessage(): Promise<string | null> {
     try {
-      // 支持新的 Tailwind 错误样式 `text-red-600`
-      const selector = '[role="alert"], .error-message, .text-red-500, .text-red-600, .text-destructive';
-      try {
-        // 先等待可见元素出现
-        const errorElement = await this.page.waitForSelector(selector, {
-          timeout: 10000,
-          state: 'visible',
-        });
-        return await errorElement.textContent();
-      } catch {
-        // 若超时，尝试直接读取（元素可能存在但被动画/布局影响未标记为可见）
-        const errorElement = await this.page.locator(selector).first();
-        if (await errorElement.count()) {
-          return await errorElement.textContent();
+      // 支持多种错误消息选择器，包括邮箱验证页面的特殊格式
+      const selectors = [
+        '[role="alert"]',
+        '.error-message', 
+        '.text-red-500', 
+        '.text-red-600', 
+        '.text-destructive',
+        // 专门为邮箱验证页面添加的选择器
+        '.text-2xl:has-text("failed")', // "Verification failed" 标题
+        'h2:has-text("failed")',
+        'h1:has-text("failed")',
+        // CardDescription 中的错误描述
+        '.text-red-500:has-text("verify")',
+        '.text-red-500:has-text("couldn\'t")',
+      ];
+      
+      // 等待请求完成
+      await this.page.waitForTimeout(1000);
+      
+      // 尝试每个选择器
+      for (const selector of selectors) {
+        try {
+          const elements = await this.page.locator(selector).all();
+          for (const element of elements) {
+            const text = await element.textContent();
+            const isVisible = await element.isVisible();
+            console.log(`[getErrorMessage] Checking selector "${selector}": "${text}", visible: ${isVisible}`);
+            if (text && text.trim() && isVisible) {
+              console.log(`[getErrorMessage] Found error message: "${text.trim()}"`);
+              return text.trim();
+            }
+          }
+        } catch (e) {
+          console.log(`[getErrorMessage] Selector ${selector} failed: ${e}`);
         }
-        return null;
       }
-    } catch {
-      // 如果没有错误元素出现，返回null
+      
+      // 如果找不到特定的错误元素，检查页面是否包含错误相关的文本
+      const pageText = await this.page.textContent('body');
+      console.log(`[getErrorMessage] Page text contains error patterns`);
+      
+      // 检查是否包含常见的错误文本模式
+      const errorPatterns = [
+        /verification failed/i,
+        /couldn't verify/i,
+        /we couldn't verify/i,
+        /invalid.*token/i,
+        /expired/i,
+        /unexpected error/i
+      ];
+      
+      for (const pattern of errorPatterns) {
+        if (pageText && pattern.test(pageText)) {
+          const match = pageText.match(pattern);
+          console.log(`[getErrorMessage] Found error pattern match: "${match?.[0]}"`);
+          return match?.[0] || null;
+        }
+      }
+      
+      console.log(`[getErrorMessage] No error message found`);
+      return null;
+    } catch (error) {
+      console.log(`[getErrorMessage] Exception: ${error}`);
       return null;
     }
   }
 
   async getSuccessMessage(): Promise<string | null> {
     try {
-      // 等待成功元素出现（最多等待5秒）
-      const successElement = await this.page.waitForSelector('[data-testid="success-message"], .success-message, .text-green-500, [role="status"]', {
-        timeout: 5000,
-        state: 'visible'
-      });
-      return await successElement.textContent();
-    } catch {
-      // 如果没有成功元素出现，返回null
+      const selector = '[data-testid="success-message"], .success-message, .text-green-500, [role="status"]';
+      
+      // 等待一下让UI更新
+      await this.page.waitForTimeout(500);
+      
+      try {
+        // 等待成功元素出现
+        const successElement = await this.page.waitForSelector(selector, {
+          timeout: 10000,
+          state: 'visible'
+        });
+        const text = await successElement.textContent();
+        console.log(`[getSuccessMessage] Found success element with text: "${text}"`);
+        return text;
+      } catch {
+        // 若超时，尝试直接读取
+        const successElements = await this.page.locator(selector).all();
+        console.log(`[getSuccessMessage] Found ${successElements.length} success elements via locator`);
+        
+        for (const element of successElements) {
+          const text = await element.textContent();
+          const isVisible = await element.isVisible();
+          console.log(`[getSuccessMessage] Element text: "${text}", visible: ${isVisible}`);
+          if (text && text.trim()) {
+            return text.trim();
+          }
+        }
+        
+        console.log(`[getSuccessMessage] No success message found`);
+        return null;
+      }
+    } catch (error) {
+      console.log(`[getSuccessMessage] Exception: ${error}`);
       return null;
     }
   }
@@ -87,16 +156,32 @@ export class LoginPage extends BasePage {
   }
 
   async login(email: string, password: string) {
+    console.log(`[LoginPage] Attempting login with email: ${email}`);
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
     await this.submitButton.click();
-    // 等待按钮变为启用状态（表示请求完成）
-    await this.page.waitForFunction(() => {
-      const button = document.querySelector('[data-testid="login-submit-button"]');
-      return button && !button.hasAttribute('disabled');
-    }, { timeout: 10000 }).catch(() => {
-      // 如果按钮保持禁用状态，可能是因为错误发生了
+    
+    // 等待登录请求完成 - 要么跳转，要么显示错误
+    await Promise.race([
+      // 成功：跳转到 dashboard/home
+      this.page.waitForURL(/\/(dashboard|home)/, { timeout: 15000 }),
+      // 失败：显示错误消息
+      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      // 邮箱验证需求：显示验证提示
+      this.page.waitForSelector('[role="alert"] .error-message', { timeout: 15000 }),
+      // 等待按钮重新启用（表示请求完成）
+      this.page.waitForFunction(() => {
+        const button = document.querySelector('[data-testid="login-submit-button"]');
+        return button && !button.hasAttribute('disabled');
+      }, { timeout: 15000 })
+    ]).catch(() => {
+      console.log(`[LoginPage] Login timeout or no expected response`);
     });
+    
+    // 额外等待确保DOM更新
+    await this.page.waitForTimeout(1000);
+    
+    console.log(`[LoginPage] Login completed, current URL: ${this.page.url()}`);
   }
 
   async clickForgotPassword() {
@@ -136,6 +221,7 @@ export class RegisterPage extends BasePage {
   }
 
   async register(username: string, email: string, password: string, confirmPassword?: string) {
+    console.log(`[RegisterPage] Attempting registration with email: ${email}, username: ${username}`);
     await this.usernameInput.fill(username);
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
@@ -145,6 +231,26 @@ export class RegisterPage extends BasePage {
     }
 
     await this.submitButton.click();
+    
+    // 等待注册请求完成 - 要么成功要么显示错误
+    await Promise.race([
+      // 成功：显示成功消息或页面改变
+      this.page.waitForSelector('.success-message, [data-testid="success-message"]', { timeout: 15000 }),
+      // 失败：显示错误消息
+      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      // 等待按钮重新启用（表示请求完成）
+      this.page.waitForFunction(() => {
+        const button = document.querySelector('[data-testid="register-submit-button"]');
+        return button && !button.hasAttribute('disabled');
+      }, { timeout: 15000 })
+    ]).catch(() => {
+      console.log(`[RegisterPage] Registration timeout or no expected response`);
+    });
+    
+    // 额外等待确保DOM更新
+    await this.page.waitForTimeout(1000);
+    
+    console.log(`[RegisterPage] Registration completed, current URL: ${this.page.url()}`);
   }
 
   async getPasswordStrength(): Promise<string | null> {
@@ -208,6 +314,7 @@ export class ResetPasswordPage extends BasePage {
   }
 
   async resetPassword(newPassword: string, confirmPassword?: string) {
+    console.log(`[ResetPasswordPage] Attempting password reset`);
     await this.newPasswordInput.fill(newPassword);
 
     if (await this.confirmPasswordInput.isVisible()) {
@@ -215,6 +322,26 @@ export class ResetPasswordPage extends BasePage {
     }
 
     await this.submitButton.click();
+    
+    // 等待重置请求完成 - 要么成功要么显示错误
+    await Promise.race([
+      // 成功：显示成功消息或页面改变
+      this.page.waitForSelector('.success-message, [data-testid="success-message"], h1:has-text("Password Reset Successful"), h1:has-text("密码重置成功")', { timeout: 15000 }),
+      // 失败：显示错误消息
+      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      // 等待按钮重新启用（表示请求完成）
+      this.page.waitForFunction(() => {
+        const button = document.querySelector('[data-testid="reset-password-submit-button"]');
+        return button && !button.hasAttribute('disabled');
+      }, { timeout: 15000 })
+    ]).catch(() => {
+      console.log(`[ResetPasswordPage] Password reset timeout or no expected response`);
+    });
+    
+    // 额外等待确保DOM更新
+    await this.page.waitForTimeout(1000);
+    
+    console.log(`[ResetPasswordPage] Password reset completed, current URL: ${this.page.url()}`);
   }
 }
 
@@ -258,6 +385,7 @@ export class ChangePasswordPage extends BasePage {
   }
 
   async changePassword(currentPassword: string, newPassword: string, confirmPassword?: string) {
+    console.log(`[ChangePasswordPage] Attempting password change`);
     await this.currentPasswordInput.fill(currentPassword);
     await this.newPasswordInput.fill(newPassword);
 
@@ -267,13 +395,27 @@ export class ChangePasswordPage extends BasePage {
 
     await this.submitButton.click();
 
-    // 等待请求完成 - 要么重定向到登录页面（成功），要么显示错误消息
+    // 等待请求完成 - 要么显示成功/错误消息，要么重定向
     await Promise.race([
-      this.page.waitForURL(/\/login/, { timeout: 10000 }),
-      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 10000 })
+      // 成功：显示成功消息
+      this.page.waitForSelector('.success-message, [role="status"]', { timeout: 15000 }),
+      // 失败：显示错误消息
+      this.page.waitForSelector('[role="alert"], .error-message', { timeout: 15000 }),
+      // 可能重定向到登录页面
+      this.page.waitForURL(/\/login/, { timeout: 15000 }),
+      // 等待按钮重新启用（表示请求完成）
+      this.page.waitForFunction(() => {
+        const button = document.querySelector('[data-testid="change-password-submit-button"]');
+        return button && !button.hasAttribute('disabled');
+      }, { timeout: 15000 })
     ]).catch(() => {
-      // 如果两者都没有发生，继续执行
+      console.log(`[ChangePasswordPage] Password change timeout or no expected response`);
     });
+    
+    // 额外等待确保DOM更新
+    await this.page.waitForTimeout(1000);
+    
+    console.log(`[ChangePasswordPage] Password change completed, current URL: ${this.page.url()}`);
   }
 }
 
@@ -296,6 +438,20 @@ export class EmailVerificationPage extends BasePage {
     } else {
       await super.navigate('/verify-email');
     }
+    
+    // 等待验证处理完成（不再显示 "Verifying your email" 加载状态）
+    await this.page.waitForFunction(
+      () => {
+        const loadingElement = document.querySelector('h1:has-text("Verifying your email"), .text-2xl');
+        return !loadingElement || !loadingElement.textContent?.includes('Verifying');
+      },
+      { timeout: 30000 }
+    ).catch(() => {
+      console.log('[EmailVerificationPage] Timeout waiting for verification to complete');
+    });
+    
+    // 附加等待时间让 UI 更新完成
+    await this.page.waitForTimeout(1000);
   }
 
   async resendVerification() {
