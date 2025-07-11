@@ -140,7 +140,6 @@ describe('TanStack Query 缓存集成测试', () => {
     mockNavigate.mockClear()
     
     // 注意：不要在这里重置 useAuthStore mock，因为 setupAuthenticatedState 会处理它
-    console.log('[beforeEach] Setup complete, useAuthStore will be configured by setupAuthenticatedState')
   })
 
   // 在每个测试中设置认证状态的帮助函数
@@ -169,7 +168,6 @@ describe('TanStack Query 缓存集成测试', () => {
 
     // 验证 mock 是否正确工作
     const testResult = vi.mocked(useAuthStore)()
-    console.log('[setupAuthenticatedState] Mock verification - isAuthenticated:', testResult.isAuthenticated)
     
     if (!testResult.isAuthenticated) {
       throw new Error('Auth store mock is not working correctly!')
@@ -259,39 +257,25 @@ describe('TanStack Query 缓存集成测试', () => {
       })
 
       // 创建多个使用用户数据的 hook 实例
-      console.log('[test] About to render user1 hook...')
       const { result: user1 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      console.log('[test] user1 result:', user1)
-      console.log('[test] user1.current (immediate):', user1.current)
       
-      console.log('[test] About to render user2 hook...')
       const { result: user2 } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() })
-      console.log('[test] user2 result:', user2)
-      console.log('[test] user2.current (immediate):', user2.current)
 
       // 等待初始数据加载 - 直接检查数据，跳过 toBeTruthy
       await waitFor(() => {
-        console.log('[test] Inside waitFor - user1.current.data exists:', !!user1.current?.data)
-        console.log('[test] Inside waitFor - user1.current.isSuccess:', user1.current?.isSuccess)
         expect(user1.current?.isSuccess).toBe(true)
         expect(user1.current?.data).toBeDefined()
       }, { timeout: 15000 })
       
       await waitFor(() => {
-        console.log('[test] Checking user2.current...')
         expect(user2.current).toBeTruthy()
       })
       
       await waitFor(() => {
-        console.log('[test] Checking user1.current.data...')
-        console.log('[test] user1.current.data:', user1.current?.data)
-        console.log('[test] mockUser:', mockUser)
         expect(user1.current.data).toEqual(mockUser)
       })
       
       await waitFor(() => {
-        console.log('[test] Checking user2.current.data...')
-        console.log('[test] user2.current.data:', user2.current?.data)
         expect(user2.current.data).toEqual(mockUser)
       })
 
