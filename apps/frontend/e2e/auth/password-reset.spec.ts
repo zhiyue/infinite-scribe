@@ -238,7 +238,13 @@ test.describe('密码重置流程', () => {
 
   test('返回登录页链接', async ({ page }) => {
     await forgotPasswordPage.navigate();
+    
+    // 等待页面加载完成
+    await page.waitForSelector('[data-testid="forgot-password-card"]', { timeout: 10000 });
 
+    // 等待链接可见后再点击
+    await page.waitForSelector('[data-testid="back-to-login-link"]', { state: 'visible', timeout: 10000 });
+    
     // 点击返回登录链接
     await forgotPasswordPage.clickBackToLogin();
 

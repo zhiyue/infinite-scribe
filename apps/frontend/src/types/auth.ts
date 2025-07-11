@@ -92,6 +92,18 @@ export interface AuthState {
     error: string | null;
 }
 
+// Result types for auth operations
+export interface AuthResult<T = void> {
+    success: boolean;
+    data?: T;
+    error?: string;
+}
+
+export type LoginResult = AuthResult<LoginResponse>;
+export type RegisterResult = AuthResult<RegisterResponse>;
+export type UpdateProfileResult = AuthResult<User>;
+export type OperationResult = AuthResult;
+
 // API 错误响应 - 匹配后端错误格式
 export interface ApiError {
     detail: string;                // FastAPI 标准错误格式

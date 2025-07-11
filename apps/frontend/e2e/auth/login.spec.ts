@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures';
 import { generateTestUser } from '../utils/test-helpers';
-import { DashboardPage } from '../pages/auth-pages';
+import { DashboardPage, LoginPage } from '../pages/auth-pages';
 
 test.describe('用户登录流程', () => {
   // 使用 fixture 自动创建并验证用户
@@ -14,6 +14,9 @@ test.describe('用户登录流程', () => {
     
     // 输入凭据并登录
     await loginPage.login(testUser.email, testUser.password);
+    
+    // 等待导航完成
+    await page.waitForURL(/\/(dashboard|home)/, { timeout: 15000 });
     
     // 验证登录成功并跳转到仪表板
     await expect(page).toHaveURL(/\/(dashboard|home)/);
@@ -91,7 +94,7 @@ test.describe('用户登录流程', () => {
     for (let i = 0; i < 5; i++) {
       await loginPage.login(testUser.email, 'WrongPassword123!');
       // 等待错误消息出现，替代 waitForTimeout
-      await expect(page.locator('[role="alert"], .error-message')).toBeVisible();
+      await expect(page.locator('[role="alert"]')).toBeVisible();
     }
     
     // 第6次尝试使用错误密码，确认账户已被锁定
