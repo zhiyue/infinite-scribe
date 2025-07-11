@@ -15,11 +15,11 @@
 - [x] 创建 useUpdateProfile mutation hook（含乐观更新） - **优先级: 中**
 
 ### 改造认证系统
-- [ ] ⭐ 修改 useAuth hook，移除 user 状态存储 - **优先级: 高**
-- [ ] ⭐ 更新 login 方法，添加 queryClient.setQueryData - **优先级: 高**
-- [ ] ⭐ 更新 logout 方法，添加缓存清理逻辑 - **优先级: 高**
-- [ ] 实现 handleTokenExpired 方法 - **优先级: 高**
-- [ ] 处理 token 自动刷新的缓存同步 - **优先级: 中**
+- [x] ⭐ 修改 useAuth hook，移除 user 状态存储 - **优先级: 高**
+- [x] ⭐ 更新 login 方法，添加 queryClient.setQueryData - **优先级: 高**
+- [x] ⭐ 更新 logout 方法，添加缓存清理逻辑 - **优先级: 高**
+- [x] 实现 handleTokenExpired 方法 - **优先级: 高**
+- [x] 处理 token 自动刷新的缓存同步 - **优先级: 中**
 
 ### API 服务层适配
 - [ ] 统一 authService 响应格式 - **优先级: 高**
@@ -29,17 +29,17 @@
 
 ### 组件迁移（按风险顺序）
 #### 第一批：低风险组件
-- [ ] 迁移导航栏用户信息显示 - **优先级: 高**
-- [ ] 迁移 Profile 页面（只读） - **优先级: 高**
-- [ ] 迁移 Dashboard 欢迎信息 - **优先级: 中**
+- [x] 迁移导航栏用户信息显示 - **优先级: 高**
+- [x] 迁移 Profile 页面（只读） - **优先级: 高**
+- [x] 迁移 Dashboard 欢迎信息 - **优先级: 中**
 
 #### 第二批：中风险组件
-- [ ] ⭐ 迁移 RequireAuth 组件 - **优先级: 高**
-- [ ] 迁移 ChangePassword 页面 - **优先级: 中**
+- [x] ⭐ 迁移 RequireAuth 组件 - **优先级: 高**
+- [x] 迁移 ChangePassword 页面 - **优先级: 中**
 
 #### 第三批：高风险组件
-- [ ] 迁移登录页面流程 - **优先级: 高**
-- [ ] 迁移注册页面流程 - **优先级: 中**
+- [x] 迁移登录页面流程 - **优先级: 高**
+- [x] 迁移注册页面流程 - **优先级: 中**
 - [ ] 迁移 token 刷新逻辑 - **优先级: 高**
 
 ### 优化和增强
@@ -64,7 +64,7 @@
 - [ ] 更新项目 README - **优先级: 低**
 
 ## 进行中
-- [ ] ⭐ 修改 useAuth hook，移除 user 状态存储 - **优先级: 高**
+- [ ] 统一 authService 响应格式 - **优先级: 高**
 
 ## 已完成
 - [x] 根据最佳实践文档更新实现方案
@@ -73,3 +73,10 @@
 - [x] 创建 queryClient 配置文件（含查询键管理）
 - [x] 创建 useAuthQuery.ts（useCurrentUser、usePermissions、useSessions）
 - [x] 创建 useAuthMutations.ts（useLogin、useLogout、useUpdateProfile、useRefreshToken）
+- [x] 扩展 useAuthMutations.ts 添加所有认证相关 mutations
+- [x] 修改 useAuth hook，移除 user 状态存储
+- [x] 更新 login 方法，添加 queryClient.setQueryData
+- [x] 更新 logout 方法，添加缓存清理逻辑
+- [x] 实现 handleTokenExpired 方法
+- [x] 处理 token 自动刷新的缓存同步
+- [x] 迁移所有组件使用 TanStack Query（Profile、ChangePassword、EmailVerification、Register、ForgotPassword、ResetPassword）

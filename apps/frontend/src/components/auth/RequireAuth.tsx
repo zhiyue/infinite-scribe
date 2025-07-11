@@ -5,6 +5,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useCurrentUser } from '../../hooks/useAuthQuery';
 
 interface RequireAuthProps {
     children: React.ReactNode;
@@ -15,7 +16,8 @@ const RequireAuth: React.FC<RequireAuthProps> = ({
     children,
     requireVerified = false
 }) => {
-    const { user, isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated } = useAuth();
+    const { data: user, isLoading } = useCurrentUser();
     const location = useLocation();
 
     // Show loading spinner while checking authentication

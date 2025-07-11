@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../../hooks/useAuth';
+import { useLogin, useResendVerification } from '../../hooks/useAuthMutations';
 import type { LoginFormData } from '../../types/auth';
 
 import { Button } from '@/components/ui/button';
@@ -26,11 +26,11 @@ const loginSchema = z.object({
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { login, resendVerification, isLoading, error, clearError } = useAuth();
+    const loginMutation = useLogin();
+    const resendVerificationMutation = useResendVerification();
     const [showPassword, setShowPassword] = useState(false);
     const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
     const [verificationEmail, setVerificationEmail] = useState('');
-    const [resendLoading, setResendLoading] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
 
     const {
@@ -46,38 +46,38 @@ const LoginPage: React.FC = () => {
     const from = location.state?.from?.pathname || '/dashboard';
 
     const onSubmit = async (data: LoginFormData) => {
-        try {
-            clearError();
-            setNeedsEmailVerification(false);
-            setResendSuccess(false);
-            await login(data);
-            navigate(from, { replace: true });
-        } catch (error: any) {
-            // Check if the error is about email verification
-            const errorMessage = error?.detail || '';
-            const statusCode = error?.status_code || error?.response?.status;
-            
-            if (statusCode === 403 && errorMessage.toLowerCase().includes('verify your email')) {
-                setNeedsEmailVerification(true);
-                setVerificationEmail(data.email);
+        setNeedsEmailVerification(false);
+        setResendSuccess(false);
+        
+        loginMutation.mutate(data, {
+            onSuccess: () => {
+                navigate(from, { replace: true });
+            },
+            onError: (error: any) => {
+                // Check if the error is about email verification
+                const errorMessage = error?.detail || '';
+                const statusCode = error?.status_code || error?.response?.status;
+                
+                if (statusCode === 403 && errorMessage.toLowerCase().includes('verify your email')) {
+                    setNeedsEmailVerification(true);
+                    setVerificationEmail(data.email);
+                }
+                console.error('Login failed:', error);
             }
-            console.error('Login failed:', error);
-        }
+        });
     };
 
     const handleResendVerification = async () => {
-        try {
-            setResendLoading(true);
-            clearError();
-            await resendVerification({ email: verificationEmail });
-            setResendSuccess(true);
-            // 清除成功消息
-            setTimeout(() => setResendSuccess(false), 5000);
-        } catch (error) {
-            console.error('Failed to resend verification:', error);
-        } finally {
-            setResendLoading(false);
-        }
+        resendVerificationMutation.mutate({ email: verificationEmail }, {
+            onSuccess: () => {
+                setResendSuccess(true);
+                // 清除成功消息
+                setTimeout(() => setResendSuccess(false), 5000);
+            },
+            onError: (error) => {
+                console.error('Failed to resend verification:', error);
+            }
+        });
     };
 
     const togglePasswordVisibility = () => {
@@ -96,10 +96,10 @@ const LoginPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
-                            {error && !needsEmailVerification && (
+                            {loginMutation.error && !needsEmailVerification && (
                                 <div className="rounded-md bg-destructive/15 p-3" role="alert">
                                     <div className="text-sm text-destructive error-message">
-                                        {error}
+                                        {(loginMutation.error as any)?.detail || (loginMutation.error as any)?.message || 'Login failed'}
                                     </div>
                                 </div>
                             )}
@@ -110,7 +110,7 @@ const LoginPage: React.FC = () => {
                                     <AlertTitle className="text-orange-800">Email Verification Required</AlertTitle>
                                     <AlertDescription className="text-orange-700 error-message">
                                         <p className="mb-3">
-                                            {error || "Please verify your email address before logging in. Check your inbox for the verification link."}
+                                            {(loginMutation.error as any)?.detail || "Please verify your email address before logging in. Check your inbox for the verification link."}
                                         </p>
                                         <div className="space-y-2">
                                             <Button
@@ -119,9 +119,9 @@ const LoginPage: React.FC = () => {
                                                 size="sm"
                                                 className="w-full border-orange-300 hover:bg-orange-100"
                                                 onClick={handleResendVerification}
-                                                disabled={resendLoading}
+                                                disabled={resendVerificationMutation.isPending}
                                             >
-                                                {resendLoading ? (
+                                                {resendVerificationMutation.isPending ? (
                                                     <>
                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                         Sending...
@@ -199,8 +199,8 @@ const LoginPage: React.FC = () => {
                                 </Link>
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="login-submit-button">
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" className="w-full" disabled={loginMutation.isPending} data-testid="login-submit-button">
+                                {loginMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Sign in
                             </Button>
 

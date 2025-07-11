@@ -10,6 +10,7 @@ export interface User {
     first_name?: string;
     last_name?: string;
     bio?: string;
+    role?: string;                 // 用户角色
     is_active: boolean;
     is_verified: boolean;
     is_superuser: boolean;
@@ -17,6 +18,25 @@ export interface User {
     updated_at: string;            // ISO datetime string
     email_verified_at?: string;    // ISO datetime string
     last_login_at?: string;        // ISO datetime string
+}
+
+// 用户权限
+export interface Permission {
+    id: number;
+    name: string;
+    code: string;
+    description?: string;
+}
+
+// 用户会话
+export interface Session {
+    id: string;
+    user_id: number;
+    ip_address: string;
+    user_agent: string;
+    created_at: string;
+    last_activity: string;
+    is_current: boolean;
 }
 
 // Login request/response

@@ -1,5 +1,8 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import RequireAuth from './components/auth/RequireAuth';
+import { queryClient } from './lib/queryClient';
 
 // Pages
 import EmailVerificationPage from './pages/auth/EmailVerification';
@@ -16,9 +19,10 @@ import './index.css';
 
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <Routes>
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <div className="App">
+          <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -60,6 +64,11 @@ function App() {
         </Routes>
       </div>
     </Router>
+    {/* React Query DevTools - 仅在开发环境显示 */}
+    {process.env.NODE_ENV === 'development' && (
+      <ReactQueryDevtools initialIsOpen={false} />
+    )}
+  </QueryClientProvider>
   );
 }
 

@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../../hooks/useAuth';
+import { useRegister } from '../../hooks/useAuthMutations';
 import type { RegisterFormData } from '../../types/auth';
 import { PasswordValidator } from '../../utils/passwordValidator';
 
@@ -37,7 +37,7 @@ const registerSchema = z.object({
 
 const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
-    const { register: registerUser, isLoading, error, clearError } = useAuth();
+    const registerMutation = useRegister();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<{
@@ -70,8 +70,7 @@ const RegisterPage: React.FC = () => {
 
     const onSubmit = async (data: RegisterFormData) => {
         try {
-            clearError();
-            await registerUser({
+            await registerMutation.mutateAsync({
                 email: data.email,
                 username: data.username,
                 password: data.password,
@@ -80,8 +79,7 @@ const RegisterPage: React.FC = () => {
             });
             setIsRegistered(true);
         } catch (error) {
-            // 错误已经被 auth store 处理并设置到 error state
-            // 不需要额外处理，错误会自动显示在 UI 中
+            // 错误会通过 mutation 的 error 状态处理
             console.error('Registration failed:', error);
         }
     };
@@ -131,7 +129,7 @@ const RegisterPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="register-form">
-                            {error && (
+                            {registerMutation.error && (
                                 <div className="rounded-md bg-red-50 border border-red-200 p-4" role="alert">
                                     <div className="flex">
                                         <div className="flex-shrink-0">
@@ -142,7 +140,7 @@ const RegisterPage: React.FC = () => {
                                         <div className="ml-3">
                                             <h3 className="text-sm font-medium text-red-800">Registration Error</h3>
                                             <div className="mt-1 text-sm text-red-700 error-message">
-                                                {error}
+                                                {(registerMutation.error as any)?.response?.data?.detail || (registerMutation.error as any)?.message || 'Registration failed'}
                                             </div>
                                         </div>
                                     </div>
@@ -301,8 +299,8 @@ const RegisterPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="register-submit-button">
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" className="w-full" disabled={registerMutation.isPending} data-testid="register-submit-button">
+                                {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Create account
                             </Button>
 

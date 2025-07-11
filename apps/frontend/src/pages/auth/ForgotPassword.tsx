@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
-import { useAuth } from '../../hooks/useAuth';
+import { useForgotPassword } from '../../hooks/useAuthMutations';
 import type { ForgotPasswordFormData } from '../../types/auth';
 
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ const forgotPasswordSchema = z.object({
 });
 
 const ForgotPasswordPage: React.FC = () => {
-    const { forgotPassword, isLoading, error, clearError } = useAuth();
+    const forgotPasswordMutation = useForgotPassword();
     const [isEmailSent, setIsEmailSent] = useState(false);
     const [sentEmail, setSentEmail] = useState('');
 
@@ -36,12 +36,11 @@ const ForgotPasswordPage: React.FC = () => {
 
     const onSubmit = async (data: ForgotPasswordFormData) => {
         try {
-            clearError();
-            await forgotPassword(data);
+            await forgotPasswordMutation.mutateAsync(data);
             setSentEmail(data.email);
             setIsEmailSent(true);
         } catch (error) {
-            // Error is handled by the auth store
+            // Error is handled by the mutation
             console.error('Forgot password failed:', error);
         }
     };
@@ -99,10 +98,10 @@ const ForgotPasswordPage: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="forgot-password-form">
-                            {error && (
+                            {forgotPasswordMutation.error && (
                                 <div className="rounded-md bg-destructive/15 p-3" role="alert">
                                     <div className="text-sm text-destructive error-message">
-                                        {error}
+                                        {(forgotPasswordMutation.error as any)?.response?.data?.detail || (forgotPasswordMutation.error as any)?.message || 'Failed to send reset email'}
                                     </div>
                                 </div>
                             )}
@@ -122,8 +121,8 @@ const ForgotPasswordPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={isLoading} data-testid="send-reset-link-button">
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" className="w-full" disabled={forgotPasswordMutation.isPending} data-testid="send-reset-link-button">
+                                {forgotPasswordMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Send reset link
                             </Button>
 
