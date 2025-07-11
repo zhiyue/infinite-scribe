@@ -47,8 +47,8 @@ SMTP_PASSWORD=""
 
 ```typescript
 // 获取发送的邮件
-const response = await fetch('http://localhost:1080/email');
-const messages = await response.json();
+const response = await fetch('http://localhost:1080/email')
+const messages = await response.json()
 // 解析验证链接
 ```
 
@@ -62,7 +62,7 @@ const messages = await response.json();
 class Settings(BaseSettings):
     # ... 其他配置
     TESTING: bool = Field(default=False, env="TESTING")
-    
+
     # 测试环境下返回令牌（仅用于自动化测试）
     TEST_RETURN_TOKENS: bool = Field(default=False, env="TEST_RETURN_TOKENS")
 ```
@@ -79,10 +79,10 @@ async def register(
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     # ... 现有的注册逻辑
-    
+
     # 创建响应
     response_data = UserResponse.from_orm(user)
-    
+
     # 仅在测试环境返回验证令牌
     if settings.TESTING and settings.TEST_RETURN_TOKENS:
         # 从数据库获取刚创建的验证令牌
@@ -90,10 +90,10 @@ async def register(
             EmailVerification.user_id == user.id,
             EmailVerification.purpose == "email_verify"
         ).first()
-        
+
         if verification:
             response_data.verification_token = verification.token
-    
+
     return response_data
 ```
 
@@ -108,22 +108,20 @@ async def register(
 ```typescript
 // e2e/utils/mock-email-service.ts
 export class MockEmailService {
-  private emails: Map<string, any[]> = new Map();
-  
+  private emails: Map<string, any[]> = new Map()
+
   async getVerificationToken(email: string): Promise<string> {
     // 模拟从邮件中提取令牌
-    const emails = this.emails.get(email) || [];
-    const verificationEmail = emails.find(e => 
-      e.subject.includes('Verify')
-    );
-    
+    const emails = this.emails.get(email) || []
+    const verificationEmail = emails.find((e) => e.subject.includes('Verify'))
+
     if (verificationEmail) {
       // 解析令牌
-      const match = verificationEmail.body.match(/token=([^&\s]+)/);
-      return match ? match[1] : null;
+      const match = verificationEmail.body.match(/token=([^&\s]+)/)
+      return match ? match[1] : null
     }
-    
-    return null;
+
+    return null
   }
 }
 ```
@@ -151,12 +149,12 @@ async def db_session():
 ```typescript
 // 生成测试用户时使用特定前缀
 export function generateTestUser() {
-  const timestamp = Date.now();
+  const timestamp = Date.now()
   return {
     username: `e2e_test_${timestamp}`,
     email: `e2e_test_${timestamp}@example.com`,
     password: 'TestPassword123!',
-  };
+  }
 }
 ```
 
@@ -170,7 +168,7 @@ export function generateTestUser() {
 // e2e/global-teardown.ts
 export default async function globalTeardown() {
   // 清理所有测试数据
-  await cleanupTestUsers();
+  await cleanupTestUsers()
 }
 ```
 

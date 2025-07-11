@@ -29,11 +29,13 @@ VITE_APP_ENV=development
 ### 创建本地环境配置
 
 1. 复制环境配置模板：
+
 ```bash
 cp .env.example .env.local
 ```
 
 2. 修改 `.env.local` 中的配置：
+
 ```bash
 # 本地开发
 VITE_API_GATEWAY_URL=http://localhost:8000
@@ -44,7 +46,8 @@ VITE_API_GATEWAY_URL=http://192.168.2.201:8000
 
 ### Nginx 配置
 
-`nginx.conf` 文件中使用了环境变量 `${API_GATEWAY_URL}`，这个变量在 Docker 容器启动时通过环境变量注入。
+`nginx.conf` 文件中使用了环境变量
+`${API_GATEWAY_URL}`，这个变量在 Docker 容器启动时通过环境变量注入。
 
 #### 环境变量替换
 
@@ -94,7 +97,7 @@ services:
   frontend:
     image: infinite-scribe-frontend
     ports:
-      - "80:80"
+      - '80:80'
     environment:
       - API_GATEWAY_URL=http://api-gateway:8000
     depends_on:
@@ -104,6 +107,7 @@ services:
 ### 构建配置
 
 #### 开发环境构建
+
 ```bash
 npm run dev
 # 或
@@ -111,6 +115,7 @@ pnpm dev
 ```
 
 #### 生产环境构建
+
 ```bash
 npm run build
 # 或
@@ -118,6 +123,7 @@ pnpm build
 ```
 
 #### 预览生产构建
+
 ```bash
 npm run preview
 # 或
