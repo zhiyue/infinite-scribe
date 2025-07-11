@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
 import { useLogin, useLogout, useUpdateProfile, useRefreshToken } from './useAuthMutations'
+import { useCurrentUser } from './useAuthQuery'
 import { useAuthStore } from './useAuth'
 import { authService } from '../services/auth'
 import { queryKeys } from '../lib/queryClient'
@@ -20,6 +21,7 @@ vi.mock('../services/auth', () => ({
     updateProfile: vi.fn(),
     refreshTokens: vi.fn(),
     getPermissions: vi.fn(),
+    getCurrentUser: vi.fn(),
   },
 }))
 
@@ -334,19 +336,34 @@ describe('useAuthMutations hooks', () => {
       expect(cachedUser).toEqual(mockUser)
     })
 
-    it('应该在完成后使查询失效', async () => {
+    it('应该在完成后刷新用户数据', async () => {
+      const mockUser: User = {
+        id: 1,
+        username: 'testuser',
+        email: 'test@example.com',
+        first_name: 'Test',
+        last_name: 'User',
+        is_active: true,
+      }
+
       const updateData: UpdateProfileRequest = {
         first_name: 'Updated',
         last_name: 'User',
       }
 
+      const updatedUser = { ...mockUser, ...updateData }
+
+      // 设置初始用户数据
+      queryClient.setQueryData(queryKeys.currentUser(), mockUser)
+      
       vi.mocked(authService.updateProfile).mockResolvedValueOnce({
         success: true,
-        data: { ...mockUser, ...updateData },
+        data: updatedUser,
         message: 'Profile updated successfully'
       })
 
-      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+      // Mock getCurrentUser 用于查询刷新
+      vi.mocked(authService.getCurrentUser).mockResolvedValueOnce(updatedUser)
 
       const { result } = renderHook(() => useUpdateProfile(), { wrapper })
 
@@ -354,8 +371,12 @@ describe('useAuthMutations hooks', () => {
         await result.current.mutateAsync(updateData)
       })
 
-      // 验证查询失效
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.currentUser() })
+      // 使用 useCurrentUser hook 来验证数据是否被刷新
+      const { result: userResult } = renderHook(() => useCurrentUser(), { wrapper })
+      
+      await waitFor(() => {
+        expect(userResult.current.data).toEqual(updatedUser)
+      })
     })
   })
 
@@ -369,19 +390,22 @@ describe('useAuthMutations hooks', () => {
 
       vi.mocked(authService.refreshTokens).mockResolvedValueOnce(mockTokenResponse)
 
-      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-
       const { result } = renderHook(() => useRefreshToken(), { wrapper })
 
       await act(async () => {
         await result.current.mutateAsync()
       })
 
-      // 验证调用
+      // 验证 mutation 成功完成
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true)
+      })
+      
+      // 验证返回的数据
+      expect(result.current.data).toEqual(mockTokenResponse)
+      
+      // 验证 refreshTokens 被调用
       expect(vi.mocked(authService.refreshTokens)).toHaveBeenCalled()
-
-      // 验证所有查询失效
-      expect(invalidateSpy).toHaveBeenCalledWith()
     })
 
     it('应该处理 token 刷新失败', async () => {
