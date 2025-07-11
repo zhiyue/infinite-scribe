@@ -42,6 +42,21 @@ test.describe('已登录用户修改密码', () => {
     await expect(page).toHaveURL(/\/(dashboard|home)/);
   });
 
+  test.afterEach(async ({ page, context }) => {
+    try {
+      // 确保页面处于稳定状态，等待任何正在进行的请求完成
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+        console.log('[afterEach] Network not idle, continuing cleanup');
+      });
+      
+      // 取消任何正在进行的导航或操作
+      await page.waitForTimeout(500);
+      
+    } catch (error) {
+      console.log('[afterEach] Cleanup error:', error);
+    }
+  });
+
   test('成功修改密码', async ({ page }) => {
     // 使用API直接修改密码（避免UI认证问题）
     const newPassword = 'NewSecurePassword123!';
@@ -77,6 +92,9 @@ test.describe('已登录用户修改密码', () => {
     const errorMessage = await changePasswordPage.getErrorMessage();
     expect(errorMessage).toBeTruthy();
     expect(errorMessage).toMatch(/当前密码.*错误|current password.*incorrect/i);
+    
+    // 确保测试完成后页面处于稳定状态
+    await page.waitForTimeout(1000);
   });
 
   test('新密码与当前密码相同', async ({ page }) => {
