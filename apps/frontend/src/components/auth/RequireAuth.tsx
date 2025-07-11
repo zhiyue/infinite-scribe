@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../hooks/useAuth';
 import { useCurrentUser } from '../../hooks/useAuthQuery';
 
 interface RequireAuthProps {
@@ -16,7 +16,7 @@ const RequireAuth: React.FC<RequireAuthProps> = ({
     children,
     requireVerified = false
 }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated } = useAuthStore();
     const { data: user, isLoading, error } = useCurrentUser();
     const location = useLocation();
 
