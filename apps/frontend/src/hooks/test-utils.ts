@@ -80,21 +80,32 @@ export const createWrapper = (queryClient: QueryClient) => {
  * 提供完整的 Zustand store 接口
  */
 export const createMockAuthStore = (overrides?: Partial<AuthStore>) => {
+  const setAuthenticated = vi.fn<[boolean], void>()
+  const clearAuth = vi.fn<[], void>()
+  const handleTokenExpired = vi.fn<[], Promise<void>>()
+
   const defaultAuthStoreValue: AuthStore = {
     isAuthenticated: false,
-    setAuthenticated: vi.fn(),
-    clearAuth: vi.fn(),
-    handleTokenExpired: vi.fn(),
-    ...overrides,
+    setAuthenticated,
+    clearAuth,
+    handleTokenExpired,
+    ...(overrides || {}),
   }
 
   // 创建完整的 Zustand store mock
-  const mockStore = Object.assign(() => defaultAuthStoreValue, {
+  type MockStoreType = (() => AuthStore) & {
+    getState: () => AuthStore
+    subscribe: ReturnType<typeof vi.fn>
+    setState: ReturnType<typeof vi.fn>
+    destroy: ReturnType<typeof vi.fn>
+  }
+
+  const mockStore: MockStoreType = Object.assign(() => defaultAuthStoreValue, {
     getState: () => defaultAuthStoreValue,
     subscribe: vi.fn(() => vi.fn()),
     setState: vi.fn(),
     destroy: vi.fn(),
-  })
+  }) as MockStoreType
 
   return {
     storeValue: defaultAuthStoreValue,
@@ -136,6 +147,7 @@ export const cleanupWindowLocation = () => {
  * 用于测试 refetchInterval 等场景
  */
 export const flushPromisesAndTimers = async () => {
+  const { act } = await import('@testing-library/react')
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })

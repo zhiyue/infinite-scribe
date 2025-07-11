@@ -42,7 +42,7 @@ export const useAuthStore = create<AuthStore>()(
           // 尝试刷新 token
           await authService.refreshTokens()
           // 刷新成功，使所有查询失效以获取新数据
-          queryClient.invalidateQueries()
+          await queryClient.invalidateQueries()
         } catch {
           // 刷新失败，清理状态并跳转登录
           authService.clearTokens()
