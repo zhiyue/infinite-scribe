@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import React from 'react'
 import { useLogin, useLogout, useUpdateProfile, useRefreshToken } from './useAuthMutations'
-import { useAuth } from './useAuth'
+import { useAuthStore } from './useAuth'
 import { authService } from '../services/auth'
 import { queryKeys } from '../lib/queryClient'
 import type { User, LoginRequest, LoginResponse, UpdateProfileRequest, TokenResponse } from '../types/auth'
@@ -24,9 +24,9 @@ vi.mock('../services/auth', () => ({
   },
 }))
 
-// Mock useAuth hook
+// Mock useAuthStore hook
 vi.mock('./useAuth', () => ({
-  useAuth: vi.fn(),
+  useAuthStore: vi.fn(),
 }))
 
 // Mock useNavigate
@@ -64,8 +64,8 @@ describe('useAuthMutations hooks', () => {
     mockClearAuth = vi.fn()
     vi.clearAllMocks()
 
-    // 设置默认的 useAuth mock
-    vi.mocked(useAuth).mockReturnValue({
+    // 设置默认的 useAuthStore mock
+    vi.mocked(useAuthStore).mockReturnValue({
       isAuthenticated: false,
       setAuthenticated: mockSetAuthenticated,
       clearAuth: mockClearAuth,

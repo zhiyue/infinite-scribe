@@ -58,7 +58,19 @@ describe('queryClient 配置', () => {
 
     it('应该禁用 mutation 重试', () => {
       const options = queryClient.getDefaultOptions()
-      expect(options.mutations?.retry).toBe(0)
+      // mutation.retry 是一个函数，测试它对于非网络错误返回 false
+      const retryFunction = options.mutations?.retry as any
+      expect(typeof retryFunction).toBe('function')
+      
+      // 测试非网络错误不重试
+      expect(retryFunction(0, { status: 400 })).toBe(false)
+      expect(retryFunction(0, { status: 401 })).toBe(false)
+      expect(retryFunction(0, { status: 500 })).toBe(false)
+      
+      // 测试网络错误会重试（最多2次）
+      expect(retryFunction(0, {})).toBe(true)
+      expect(retryFunction(1, {})).toBe(true)
+      expect(retryFunction(2, {})).toBe(false) // 超过2次不重试
     })
 
     it('应该在 401 错误时清理缓存并跳转登录', () => {
@@ -96,19 +108,19 @@ describe('queryClient 配置', () => {
     it('应该为不同资源提供特定的配置', () => {
       // 用户数据配置
       expect(queryOptions.user.staleTime).toBe(1000 * 60 * 10) // 10分钟
-      expect(queryOptions.user.cacheTime).toBe(1000 * 60 * 30) // 30分钟
+      expect(queryOptions.user.gcTime).toBe(1000 * 60 * 30) // 30分钟
 
       // 项目列表配置
       expect(queryOptions.projects.staleTime).toBe(1000 * 60 * 2) // 2分钟
-      expect(queryOptions.projects.cacheTime).toBe(1000 * 60 * 10) // 10分钟
+      expect(queryOptions.projects.gcTime).toBe(1000 * 60 * 10) // 10分钟
 
       // 健康检查配置
       expect(queryOptions.health.staleTime).toBe(1000 * 30) // 30秒
-      expect(queryOptions.health.cacheTime).toBe(1000 * 60) // 1分钟
+      expect(queryOptions.health.gcTime).toBe(1000 * 60) // 1分钟
 
       // 文档内容配置
       expect(queryOptions.documents.staleTime).toBe(1000 * 60 * 15) // 15分钟
-      expect(queryOptions.documents.cacheTime).toBe(1000 * 60 * 60) // 1小时
+      expect(queryOptions.documents.gcTime).toBe(1000 * 60 * 60) // 1小时
     })
   })
 
