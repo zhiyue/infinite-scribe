@@ -17,6 +17,7 @@ import type {
     UpdateProfileRequest,
     User,
 } from '../types/auth';
+import { wrapApiResponse, type ApiSuccessResponse } from '../utils/api-response';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -145,90 +146,97 @@ class AuthService {
     }
 
     // Authentication methods
-    async login(credentials: LoginRequest): Promise<LoginResponse> {
+    async login(credentials: LoginRequest): Promise<ApiSuccessResponse<LoginResponse>> {
         try {
             const response: AxiosResponse<LoginResponse> = await this.api.post('/login', credentials);
             const { access_token, refresh_token } = response.data;
             this.setTokens(access_token, refresh_token);
-            return response.data;
+            return wrapApiResponse<LoginResponse>(response.data);
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async register(data: RegisterRequest): Promise<RegisterResponse> {
+    async register(data: RegisterRequest): Promise<ApiSuccessResponse<RegisterResponse>> {
         try {
             const response: AxiosResponse<RegisterResponse> = await this.api.post('/register', data);
-            return response.data;
+            return wrapApiResponse<RegisterResponse>(response.data);
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async logout(): Promise<void> {
+    async logout(): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.post('/logout');
+            const response = await this.api.post('/logout');
+            return wrapApiResponse<void>(response.data, 'Logged out successfully');
         } catch (error) {
             // Continue with logout even if API call fails
             console.warn('Logout API call failed:', error);
+            return wrapApiResponse<void>(undefined, 'Logged out successfully');
         } finally {
             this.clearTokens();
         }
     }
 
-    async getCurrentUser(): Promise<User> {
+    async getCurrentUser(): Promise<ApiSuccessResponse<User>> {
         try {
             const response: AxiosResponse<User> = await this.api.get('/me');
-            return response.data;
+            return wrapApiResponse<User>(response.data, 'User profile retrieved successfully');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async updateProfile(data: UpdateProfileRequest): Promise<User> {
+    async updateProfile(data: UpdateProfileRequest): Promise<ApiSuccessResponse<User>> {
         try {
             const response: AxiosResponse<User> = await this.api.put('/me', data);
-            return response.data;
+            return wrapApiResponse<User>(response.data, 'Profile updated successfully');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async changePassword(data: ChangePasswordRequest): Promise<void> {
+    async changePassword(data: ChangePasswordRequest): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.post('/change-password', data);
+            const response = await this.api.post('/change-password', data);
+            return wrapApiResponse<void>(response.data, 'Password changed successfully');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async forgotPassword(data: ForgotPasswordRequest): Promise<void> {
+    async forgotPassword(data: ForgotPasswordRequest): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.post('/forgot-password', data);
+            const response = await this.api.post('/forgot-password', data);
+            return wrapApiResponse<void>(response.data, 'Password reset email sent');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async resetPassword(data: ResetPasswordRequest): Promise<void> {
+    async resetPassword(data: ResetPasswordRequest): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.post('/reset-password', data);
+            const response = await this.api.post('/reset-password', data);
+            return wrapApiResponse<void>(response.data, 'Password reset successfully');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async verifyEmail(token: string): Promise<void> {
+    async verifyEmail(token: string): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.get(`/verify-email?token=${token}`);
+            const response = await this.api.get(`/verify-email?token=${token}`);
+            return wrapApiResponse<void>(response.data, 'Email verified successfully');
         } catch (error: any) {
             throw this.handleApiError(error);
         }
     }
 
-    async resendVerification(data: ResendVerificationRequest): Promise<void> {
+    async resendVerification(data: ResendVerificationRequest): Promise<ApiSuccessResponse<void>> {
         try {
-            await this.api.post('/resend-verification', data);
+            const response = await this.api.post('/resend-verification', data);
+            return wrapApiResponse<void>(response.data, 'Verification email resent');
         } catch (error: any) {
             throw this.handleApiError(error);
         }

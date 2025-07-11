@@ -18,6 +18,7 @@ import type {
   ChangePasswordRequest
 } from '../types/auth'
 import { useAuth } from './useAuth'
+import { unwrapApiResponse } from '../utils/api-response'
 
 /**
  * 登录 Mutation
@@ -28,7 +29,10 @@ export function useLogin() {
   const { setAuthenticated } = useAuth()
 
   return useMutation({
-    mutationFn: (credentials: LoginRequest) => authService.login(credentials),
+    mutationFn: async (credentials: LoginRequest) => {
+      const response = await authService.login(credentials)
+      return unwrapApiResponse(response)
+    },
     onSuccess: (data) => {
       // 1. 更新认证状态
       setAuthenticated(true)
@@ -37,12 +41,7 @@ export function useLogin() {
       queryClient.setQueryData(queryKeys.currentUser(), data.user)
 
       // 3. 预取相关数据（如果有权限接口）
-      if (authService.getPermissions) {
-        queryClient.prefetchQuery({
-          queryKey: queryKeys.permissions(),
-          queryFn: () => authService.getPermissions!()
-        })
-      }
+      // TODO: 实现权限预取
     },
     onError: (error: any) => {
       // 清理状态
@@ -91,7 +90,10 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: UpdateProfileRequest) => authService.updateProfile(data),
+    mutationFn: async (data: UpdateProfileRequest) => {
+      const response = await authService.updateProfile(data)
+      return response // 保持包装格式，以便在 onSuccess 中解包
+    },
 
     // 乐观更新
     onMutate: async (newData) => {
@@ -120,8 +122,9 @@ export function useUpdateProfile() {
     },
 
     // 成功后重新验证
-    onSuccess: (updatedUser) => {
+    onSuccess: async (response) => {
       // 使用服务器返回的数据更新缓存
+      const updatedUser = unwrapApiResponse(response)
       queryClient.setQueryData(queryKeys.currentUser(), updatedUser)
     },
 

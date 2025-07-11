@@ -7,7 +7,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 import { useCurrentUser, usePermissions, useSessions } from './useAuthQuery'
-import { useAuth } from './useAuth'
+import { useAuth, useAuthStore } from './useAuth'
 import { authService } from '../services/auth'
 import type { User } from '../types/auth'
 
@@ -23,6 +23,7 @@ vi.mock('../services/auth', () => ({
 // Mock useAuth hook
 vi.mock('./useAuth', () => ({
   useAuth: vi.fn(),
+  useAuthStore: vi.fn(),
 }))
 
 // 创建测试用的 QueryClient
@@ -54,11 +55,14 @@ describe('useAuthQuery hooks', () => {
 
   describe('useCurrentUser', () => {
     it('应该在未认证时不执行查询', () => {
-      vi.mocked(useAuth).mockReturnValue({
+      const mockAuthStore = {
         isAuthenticated: false,
         setAuthenticated: vi.fn(),
         clearAuth: vi.fn(),
-      } as any)
+      } as any
+      
+      vi.mocked(useAuth).mockReturnValue(mockAuthStore)
+      vi.mocked(useAuthStore).mockReturnValue(mockAuthStore)
 
       const { result } = renderHook(() => useCurrentUser(), { wrapper })
 
