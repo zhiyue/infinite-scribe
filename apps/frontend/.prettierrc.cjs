@@ -11,7 +11,7 @@ module.exports = {
   bracketSpacing: true,
   bracketSameLine: false,
   arrowParens: 'always',
-  
+
   // Language-specific
   proseWrap: 'preserve',
   htmlWhitespaceSensitivity: 'css',
@@ -19,7 +19,7 @@ module.exports = {
   endOfLine: 'lf',
   embeddedLanguageFormatting: 'auto',
   singleAttributePerLine: false,
-  
+
   // Overrides for specific file types
   overrides: [
     {

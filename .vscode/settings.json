@@ -105,6 +105,6 @@
             "changeProcessCWD": true
         }
     ],
-    "prettier.configPath": "./apps/frontend/.prettierrc.js"
+    "prettier.configPath": "./apps/frontend/.prettierrc.cjs"
 
 }
