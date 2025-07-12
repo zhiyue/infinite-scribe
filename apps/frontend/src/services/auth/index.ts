@@ -5,72 +5,80 @@
 
 // 核心接口和类型
 export type {
-  // 服务接口
-  IAuthService,
-  IStorageService,
-  INavigationService,
-  IHttpClient,
-  ITokenManager,
-  IAuthApiClient,
-  
-  // 配置和依赖注入
-  AuthServiceConfig,
   AuthDependencies,
-  AuthServiceFactoryOptions,
-  
-  // 事件和回调
-  AuthEventType,
   AuthEvent,
   AuthEventListener,
-  ErrorHandler,
-  TokenRefreshCallback,
+  // 事件和回调
+  AuthEventType,
+  // 配置和依赖注入
+  AuthServiceConfig,
+  AuthServiceFactoryOptions,
   AuthStateChangeListener,
+  ErrorHandler,
+  IAuthApiClient,
+  // 服务接口
+  IAuthService,
+  IHttpClient,
+  INavigationService,
+  IStorageService,
+  ITokenManager,
+  TokenRefreshCallback,
 } from './types'
 
 // 核心实现类
+export { AuthApiClient } from './auth-api-client'
 export { AuthService } from './auth-service'
 export { TokenManager } from './token-manager'
-export { AuthApiClient } from './auth-api-client'
 
 // 存储服务
 export {
-  LocalStorageService,
-  SessionStorageService,
-  MemoryStorageService,
   createStorageService,
+  LocalStorageService,
+  MemoryStorageService,
+  SessionStorageService,
 } from './storage'
 
 // 导航服务
 export {
   BrowserNavigationService,
+  createAutoNavigationService,
+  createNavigationService,
   HistoryNavigationService,
   MockNavigationService,
-  createNavigationService,
-  createAutoNavigationService,
   NavigationUtils,
 } from './navigation'
 
 // HTTP 客户端
 export {
   AxiosHttpClient,
+  createAutoHttpClient,
+  createHttpClient,
   FetchHttpClient,
   MockHttpClient,
-  createHttpClient,
-  createAutoHttpClient,
 } from './http-client'
 
 // 工厂函数
 export {
-  createAuthService,
-  createTestAuthService,
-  createDevelopmentAuthService,
-  createProductionAuthService,
-  createEnvironmentAuthService,
-  validateAuthServiceConfig,
-  getDefaultAuthServiceConfig,
-  getEnvironmentConfig,
   AuthServiceBuilder,
   authServiceBuilder,
+  createAuthService,
+  createDevelopmentAuthService,
+  createEnvironmentAuthService,
+  createProductionAuthService,
+  createTestAuthService,
+  getDefaultAuthServiceConfig,
+  getEnvironmentConfig,
+  validateAuthServiceConfig,
+} from './factory'
+
+// 导入工厂函数用于内部使用
+import {
+  createAuthService,
+  createDevelopmentAuthService,
+  createEnvironmentAuthService,
+  createProductionAuthService,
+  createTestAuthService,
+  validateAuthServiceConfig,
 } from './factory'
 
 // 便利的默认导出
@@ -93,7 +101,6 @@ export const QuickStart = {
    * 创建默认认证服务（适用于大多数应用）
    */
   createDefault: (apiBaseUrl?: string) => {
-    const { createEnvironmentAuthService } = require('./factory')
     return createEnvironmentAuthService(undefined, {
       apiBaseUrl: apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
     })
@@ -103,7 +110,6 @@ export const QuickStart = {
    * 创建开发环境服务（启用调试和更短的刷新间隔）
    */
   createDev: (apiBaseUrl?: string) => {
-    const { createDevelopmentAuthService } = require('./factory')
     return createDevelopmentAuthService({
       apiBaseUrl: apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
     })
@@ -113,7 +119,6 @@ export const QuickStart = {
    * 创建测试服务（使用内存存储和模拟服务）
    */
   createTest: (mockResponses?: Record<string, any>) => {
-    const { createTestAuthService } = require('./factory')
     return createTestAuthService({
       mockResponses,
       enableLogging: false,
@@ -124,7 +129,6 @@ export const QuickStart = {
    * 创建生产环境服务（优化的安全配置）
    */
   createProd: (apiBaseUrl: string) => {
-    const { createProductionAuthService } = require('./factory')
     return createProductionAuthService({
       apiBaseUrl,
     })
@@ -141,7 +145,6 @@ export const Migration = {
    * 保持与原有 API 的完全兼容性
    */
   createCompatible: () => {
-    const { createAuthService } = require('./factory')
     return createAuthService({
       config: {
         // 使用与原服务相同的配置
@@ -159,7 +162,6 @@ export const Migration = {
    * 检查配置兼容性
    */
   checkCompatibility: (config: any) => {
-    const { validateAuthServiceConfig } = require('./factory')
     return validateAuthServiceConfig(config)
   },
 }
@@ -193,7 +195,7 @@ export const Debug = {
    */
   enableLogging: () => {
     if (typeof window !== 'undefined') {
-      (window as any).__AUTH_DEBUG__ = true
+      ;(window as any).__AUTH_DEBUG__ = true
     }
   },
 
@@ -202,7 +204,7 @@ export const Debug = {
    */
   disableLogging: () => {
     if (typeof window !== 'undefined') {
-      (window as any).__AUTH_DEBUG__ = false
+      ;(window as any).__AUTH_DEBUG__ = false
     }
   },
 }
@@ -222,10 +224,12 @@ export const TypeGuards = {
    * 检查是否是有效的配置
    */
   isValidConfig: (config: any): config is AuthServiceConfig => {
-    return config && 
-           typeof config.apiBaseUrl === 'string' &&
-           typeof config.authApiPrefix === 'string' &&
-           typeof config.accessTokenKey === 'string'
+    return (
+      config &&
+      typeof config.apiBaseUrl === 'string' &&
+      typeof config.authApiPrefix === 'string' &&
+      typeof config.accessTokenKey === 'string'
+    )
   },
 }
 
