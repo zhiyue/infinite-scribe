@@ -5,60 +5,37 @@
 _**User**_
 
 For the code present, we get this error:
+
 ```
 Argument of type '{ success: true; message: string; }' is not assignable to parameter of type 'ApiSuccessResponse<void>'.
   Property 'data' is missing in type '{ success: true; message: string; }' but required in type 'ApiSuccessResponse<void>'.
 ```
+
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>Looking at the error message, it seems like the `authService.logout` method is expected to return an `ApiSuccessResponse<void>` type, but the mock is only providing `{ success: true, message: string }` and missing the required `data` property.
+The error occurs because the mocked return value for `authService.logout` (and
+similar functions) is missing the required `data` property, which is expected by
+the `ApiSuccessResponse<void>` type.
 
-For `ApiSuccessResponse<void>`, the `data` property should be `undefined` or `null` since it's `void`.
+**Concise Fix:**  
+Add `data: undefined` to the returned object, so it matches the expected type.
 
-Let me look at the specific line in the file that's causing the issue:
+**Example:**
 
 ```typescript
 vi.mocked(authService.logout).mockResolvedValueOnce({
   success: true,
   message: 'Logged out',
+  data: undefined, // <-- Add this line
 })
 ```
 
-The fix would be to add the `data` property with a value appropriate for void type. Since it's `ApiSuccessResponse<void>`, the `data` should be `undefined`.
-
-Looking at the linter errors, I can see there are multiple similar issues:
-1. Line 264: logout mock missing `data` property
-2. Line 290: changePassword mock missing `data` property
-3. Line 299: wrong property name `currentPassword` should be `current_password`
-4. Line 523, 538, 547, 598, 601: methods `getSessions` and `getPermissions` don't exist on AuthService
-
-The user is asking specifically about the first error, so I'll provide a concise fix for that.</details></think>
+**Apply the same fix** to any other mocks for functions returning
+`ApiSuccessResponse<void>`, such as `changePassword`.  
+This will resolve the type error.
 
 ---
-
-The error indicates that `ApiSuccessResponse<void>` requires a `data` property. Since the return type is `void`, add `data: undefined`:
-
-```typescript
-vi.mocked(authService.logout).mockResolvedValueOnce({
-  success: true,
-  data: undefined,
-  message: 'Logged out',
-})
-```
-
-You'll need to apply the same fix to the `changePassword` mock on line 290:
-
-```typescript
-vi.mocked(authService.changePassword).mockResolvedValueOnce({
-  success: true,
-  data: undefined,
-  message: 'Password changed',
-})
-```
-
----
-

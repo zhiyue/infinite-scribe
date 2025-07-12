@@ -5,52 +5,66 @@
 _**User**_
 
 For the code present, we get this error:
+
 ```
 No overloads for "Field" match the provided arguments
   Argument types: (EllipsisType, Literal['Email address'], Literal['user@example.com'])
 ```
+
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>Looking at the error, it seems that the `Field` function from Pydantic is not accepting the `example` parameter in the way it's being used. This is likely because in Pydantic v2, the `example` parameter in `Field` was changed or deprecated in favor of using it in a different way.
-
-In Pydantic v2, examples should be provided in the field definition differently. Let me check the current usage:
+<think><details><summary>Thought Process</summary>The user is showing a linter
+error about the Pydantic `Field` function. Looking at the code:
 
 ```python
 email: EmailStr = Field(..., description="Email address", example="user@example.com")
 ```
 
-The error suggests that `Field` doesn't have an overload that matches `(EllipsisType, Literal['Email address'], Literal['user@example.com'])`.
+The error says "No overloads for "Field" match the provided arguments" with
+argument types
+`(EllipsisType, Literal['Email address'], Literal['user@example.com'])`.
 
-In Pydantic v2, the `example` parameter in `Field` was replaced with `examples` (plural), and it expects a list. Alternatively, you can use the model's `model_config` to set examples at the model level.
+This suggests that the `Field` function doesn't accept the `example` parameter
+in this position. In Pydantic v2, the signature of `Field` has changed.
+
+Looking at the Pydantic v2 documentation, the `example` parameter should be
+passed differently. In Pydantic v2, examples are typically handled through the
+field's schema or through `Field(examples=[...])` for multiple examples.
 
 The fix would be to either:
-1. Change `example` to `examples` and provide a list
-2. Remove the `example` parameter if it's not needed
-3. Use the model-level configuration for examples
 
-Since this is just one field and the example is simple, the easiest fix would be to change `example` to `examples` and provide a list.</details></think>
+1. Remove the `example` parameter if it's not needed
+2. Use the correct parameter name/format for Pydantic v2
+3. Use `examples` (plural) instead of `example`
+
+Let me check what the correct format should be. In Pydantic v2, the `Field`
+function should use `examples` parameter instead of `example`, and it should be
+a list.
+
+So the fix would be:
+
+```python
+email: EmailStr = Field(..., description="Email address", examples=["user@example.com"])
+```
+
+This is a simple and concise fix.</details></think>
 
 ---
 
-The error occurs because in Pydantic v2, the `example` parameter in `Field` has been replaced with `examples` (plural) and expects a list.
+The error occurs because in Pydantic v2, the `Field` function uses `examples`
+(plural) instead of `example`.
 
 **Fix:**
 
----
+```python
+email: EmailStr = Field(..., description="Email address", examples=["user@example.com"])
+```
 
-
-
----
-
-<think><details><summary>Thought Process</summary>The fix has been applied successfully. The change is from `example="user@example.com"` to `examples=["user@example.com"]` which is the correct syntax for Pydantic v2. This should resolve the linter error.</details></think>
-
----
-
-The fix changes `example` to `examples` and wraps the value in a list, which is the correct syntax for Pydantic v2.
+Change `example="user@example.com"` to `examples=["user@example.com"]` (note the
+plural and list format).
 
 ---
-

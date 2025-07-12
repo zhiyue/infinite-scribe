@@ -5,16 +5,56 @@
 _**User**_
 
 For the code present, we get this error:
+
 ```
 Import "resend.emails.types" could not be resolved
 ```
+
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
-
-
 ---
 
+```diff
+  import resend
+  from jinja2 import Environment, FileSystemLoader, select_autoescape
+- from resend.emails.types import SendParams
+
+  from src.core.auth_config import auth_config
+```
+
+```diff
+                  headers_list.append("X-Entity-Ref-ID: development")
+
+-             # Construct SendParams object
+-             send_params = SendParams(
+-                 from_=from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
+-                 to=to,
+-                 subject=subject,
+-                 html=html_content,
+-                 text=text_content,
+-                 reply_to=reply_to,
+-                 headers=headers_list if headers_list else None,
+-             )
++             # Build request payload
++             send_params: dict[str, object] = {
++                 "from": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
++                 "to": to,
++                 "subject": subject,
++                 "html": html_content,
++             }
++
++             if text_content:
++                 send_params["text"] = text_content
++             if reply_to:
++                 send_params["reply_to"] = reply_to
++             if headers_list:
++                 send_params["headers"] = headers_list
+
+              # Send email
+```
+
+---
