@@ -174,6 +174,18 @@ export interface ITokenManager {
    * 检查是否有有效的访问令牌
    */
   hasValidAccessToken(): boolean
+
+  /**
+   * 获取令牌信息摘要（用于调试）
+   */
+  getTokenSummary(): {
+    hasAccessToken: boolean
+    hasRefreshToken: boolean
+    accessTokenExpiry: Date | null
+    isAccessTokenValid: boolean
+    isAccessTokenExpiringSoon: boolean
+    timeToRefresh: number | null
+  }
 }
 
 /**
