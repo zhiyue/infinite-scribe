@@ -153,7 +153,25 @@
   - 实现了多架构构建支持（amd64, arm64）
   - 集成了 Trivy 安全扫描、Cosign 签名、SBOM 生成
   - 配置了路径触发条件，只在前端文件变化时构建
-  - 设置了独立的镜像仓库标签（-frontend 后缀）
+  - 设置了独立的镜像仓库标签（-web 后缀）
+  
+- ✅ **完成**：路径过滤器和手动触发优化
+  - 为后端 workflow 添加了 paths 过滤器（apps/backend/**, pyproject.toml, uv.lock）
+  - 为前端 workflow 添加了 workflow 文件自身变化检测
+  - 为前后端 workflow 都添加了 workflow_dispatch 手动触发选项
+  - 支持环境选择（dev/staging/prod）和自定义构建参数
+  
+- ✅ **完成**：镜像命名优化
+  - 将前端镜像名称从 `-frontend` 改为 `-web`，更简洁常见
+  - 更新了相关的标签和描述：`Infinite Scribe Web`
+  - 更新了 SBOM 文件名：`web-sbom`
+  
+- ✅ **完成**：手动触发选项优化
+  - 修正了误导性的 "Environment to deploy to" 描述
+  - 改为更准确的 "Image tag suffix" 参数
+  - 新增 "Force rebuild without cache" 布尔选项
+  - 实现了自定义标签逻辑：dev/staging/prod 或 manual-{run_number}
+  - 支持在手动触发时禁用缓存进行完全重建
 
 #### 镜像大小优化完成（2025-07-17）
 - ✅ **完成**：Docker 镜像大小分析和优化

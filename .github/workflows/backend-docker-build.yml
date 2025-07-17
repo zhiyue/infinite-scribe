@@ -1,11 +1,44 @@
-name: Docker Build and Push
+name: Backend Docker Build and Push
 
 on:
   push:
     branches: [main, develop]
     tags: ['v*']
+    paths:
+      - 'apps/backend/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend-docker-build.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend-docker-build.yml'
+  workflow_dispatch:
+    inputs:
+      tag_suffix:
+        description: 'Image tag suffix (e.g., dev, staging, prod)'
+        required: false
+        default: 'manual'
+        type: choice
+        options:
+          - manual
+          - dev
+          - staging
+          - prod
+          - hotfix
+      force_rebuild:
+        description: 'Force rebuild without cache'
+        required: false
+        default: false
+        type: boolean
+      build_args:
+        description: 'Additional build arguments'
+        required: false
+        default: ''
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -86,6 +119,8 @@ jobs:
             type=semver,pattern={{major}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix != 'manual' }}
+            type=raw,value=manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix == 'manual' }}
           labels: |
             org.opencontainers.image.title=Infinite Scribe API Gateway
             org.opencontainers.image.description=API Gateway and Agent Services
@@ -104,10 +139,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha' || '' }}
+          cache-to: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha,mode=max' || '' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            ${{ github.event.inputs.build_args }}
       
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.20.0
