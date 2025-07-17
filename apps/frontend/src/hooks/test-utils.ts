@@ -49,8 +49,8 @@ export const createTestQueryClientWithSmartRetry = (maxRetries = 2) =>
   new QueryClient({
     defaultOptions: {
       queries: {
-        retry: (failureCount: number, error: { status?: number }) => {
-          if (error?.status === 401) return false
+        retry: (failureCount: number, error: unknown) => {
+          if ((error as { status?: number })?.status === 401) return false
           return failureCount < maxRetries
         },
         refetchOnWindowFocus: false,
