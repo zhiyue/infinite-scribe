@@ -216,14 +216,14 @@ jobs:
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: backend-sbom.spdx.json
 
       - name: Upload SBOM to release
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: sbom
-          path: sbom.spdx.json
+          name: backend-sbom
+          path: backend-sbom.spdx.json
 
   # 清理旧镜像 job（按计划运行，避免影响主工作流）
   cleanup:
