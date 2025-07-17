@@ -3,16 +3,19 @@
 ## 待办事项
 
 ### 1. Docker 配置文件创建
-- [ ] 创建 `apps/backend/Dockerfile` 多阶段构建配置
-- [ ] 创建 `apps/backend/.dockerignore` 文件
+- [x] ~~创建 `apps/backend/Dockerfile` 多阶段构建配置~~（已存在单阶段版本，需重构）
+- [x] 创建 `apps/backend/.dockerignore` 文件
+- [ ] **重构 Dockerfile 为多阶段构建**（高优先级）
 - [ ] 创建 `apps/backend/docker-entrypoint.sh` 启动脚本
 - [ ] 更新 `docker-compose.yml` 集成 API Gateway 服务
 
 ### 2. GitHub Actions 工作流配置
 - [ ] 创建 `.github/workflows/docker-build.yml` 主工作流
-- [ ] 配置 GitHub Package Registry 认证
+- [ ] 配置 GitHub Package Registry 认证（使用 GITHUB_TOKEN）
 - [ ] 设置多架构构建支持（amd64、arm64）
-- [ ] 配置构建缓存策略
+- [ ] 配置构建缓存策略（GitHub Actions Cache）
+- [ ] 集成前置测试 job（确保代码质量）
+- [ ] 配置 docker/metadata-action 自动标签生成
 
 ### 3. 版本管理和标签策略
 - [ ] 实现基于 Git 分支的版本标签生成
@@ -21,10 +24,14 @@
 - [ ] 创建版本清理策略
 
 ### 4. 安全和质量保障
-- [ ] 集成 Trivy 安全扫描
-- [ ] 配置镜像漏洞检测
+- [ ] 集成 Trivy 安全扫描（CRITICAL 和 HIGH 级别）
+- [ ] 配置镜像漏洞检测和 SARIF 报告上传
 - [ ] 实现构建失败通知机制
-- [ ] 添加镜像签名验证
+- [ ] 添加 Cosign 镜像签名验证
+- [ ] 集成 GitLeaks 或 TruffleHog 进行 Secret 扫描
+- [ ] 生成 SBOM（软件物料清单）
+- [ ] 配置非 root 用户运行容器
+- [ ] 锁定 GitHub Actions 版本防止供应链攻击
 
 ### 5. 本地开发支持
 - [ ] 创建本地构建脚本 `scripts/docker/build.sh`
@@ -62,6 +69,11 @@
 - [x] 绘制系统架构图
 - [x] 制定风险评估计划
 - [x] 规划测试策略
+- [x] 创建 .dockerignore 文件
+- [x] 深度 Review 分析和改进建议
+- [x] 更新实施方案文档（包含完整示例）
+- [x] 修正 Dockerfile 状态信息差
+- [x] 完善 GitHub Actions 工作流配置
 
 ## 里程碑
 
