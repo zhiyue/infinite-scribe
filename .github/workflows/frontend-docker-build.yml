@@ -123,7 +123,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ github.event.inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix != 'manual' }}
             type=raw,value=manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix == 'manual' }}
@@ -167,12 +167,13 @@ jobs:
           echo "## 🔒 Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # 同时生成表格格式的报告
-          docker run --rm -v $PWD:/workspace aquasecurity/trivy:latest image \
-            --format table \
-            --severity CRITICAL,HIGH \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }} \
-            || true
+          # 显示扫描结果（如果存在）
+          if [ -f "trivy-results.sarif" ]; then
+            echo "✅ Trivy scan completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "📋 Results uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Trivy scan failed or no results file found" >> $GITHUB_STEP_SUMMARY
+          fi
       
       - name: Upload Trivy scan results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
