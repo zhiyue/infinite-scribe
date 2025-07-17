@@ -1,0 +1,399 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to build (comma-separated: backend,frontend or all)'
+        required: false
+        default: 'all'
+        type: string
+      tag_suffix:
+        description: 'Image tag suffix (e.g., dev, staging, prod)'
+        required: false
+        default: 'manual'
+        type: choice
+        options:
+          - manual
+          - dev
+          - staging
+          - prod
+          - hotfix
+      force_rebuild:
+        description: 'Force rebuild without cache'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository }}
+
+jobs:
+  # 检测变化的服务
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      services: ${{ steps.matrix.outputs.services }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/docker-build.yml'
+            frontend:
+              - 'apps/frontend/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/docker-build.yml'
+
+      - name: Generate build matrix
+        id: matrix
+        run: |
+          services=()
+          
+          # 如果是手动触发，解析输入的服务
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            input_services="${{ github.event.inputs.services }}"
+            if [ "$input_services" = "all" ]; then
+              services=("backend" "frontend")
+            else
+              IFS=',' read -ra service_array <<< "$input_services"
+              services=("${service_array[@]}")
+            fi
+          else
+            # 根据文件变化决定构建哪些服务
+            if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+              services+=("backend")
+            fi
+            if [ "${{ steps.changes.outputs.frontend }}" = "true" ]; then
+              services+=("frontend")
+            fi
+          fi
+          
+          # 如果没有检测到变化，在 push 到 main 分支时构建所有服务
+          if [ ${#services[@]} -eq 0 ] && [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            services=("backend" "frontend")
+          fi
+          
+          # 生成 JSON 格式的矩阵
+          if [ ${#services[@]} -gt 0 ]; then
+            services_json=$(printf '%s\n' "${services[@]}" | jq -R . | jq -s .)
+            echo "services=${services_json}" >> $GITHUB_OUTPUT
+            echo "Found services to build: ${services[*]}"
+          else
+            echo "services=[]" >> $GITHUB_OUTPUT
+            echo "No services to build"
+          fi
+
+  # 运行测试
+  test:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.services != '[]'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run backend tests
+        if: matrix.service == 'backend'
+        run: |
+          pip install uv
+          cd apps/backend
+          uv sync --all-extras
+          uv run pytest tests/ -v
+          uv run ruff check src/
+          uv run mypy src/ --ignore-missing-imports
+      
+      - name: Run frontend tests
+        if: matrix.service == 'frontend'
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          cd apps/frontend
+          pnpm test
+          pnpm lint
+          pnpm build
+
+  # 构建和推送 Docker 镜像
+  build:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test]
+    if: needs.detect-changes.outputs.services != '[]'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
+    
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+        platform: [linux/amd64, linux/arm64]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set service configuration
+        id: config
+        run: |
+          case "${{ matrix.service }}" in
+            backend)
+              echo "image_name=${{ env.IMAGE_NAMESPACE }}/backend" >> $GITHUB_OUTPUT
+              echo "dockerfile=./apps/backend/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              echo "title=Infinite Scribe Backend API" >> $GITHUB_OUTPUT
+              echo "description=Backend API Gateway and Agent Services" >> $GITHUB_OUTPUT
+              ;;
+            frontend)
+              echo "image_name=${{ env.IMAGE_NAMESPACE }}/frontend" >> $GITHUB_OUTPUT
+              echo "dockerfile=./apps/frontend/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              echo "title=Infinite Scribe Frontend Web" >> $GITHUB_OUTPUT
+              echo "description=Frontend React Web Application" >> $GITHUB_OUTPUT
+              ;;
+          esac
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{date 'YYYYMMDD'}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix != 'manual' }}
+            type=raw,value=manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix == 'manual' }}
+          labels: |
+            # 标准 OCI 注释
+            org.opencontainers.image.title=${{ steps.config.outputs.title }}
+            org.opencontainers.image.description=${{ steps.config.outputs.description }}
+            org.opencontainers.image.vendor=Infinite Scribe Team
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+            # 自定义元数据
+            com.infinitescribe.service.type=${{ matrix.service }}
+            com.infinitescribe.service.name=infinite-scribe-${{ matrix.service }}
+            com.infinitescribe.build.branch=${{ github.ref_name }}
+            com.infinitescribe.build.commit.sha=${{ github.sha }}
+            com.infinitescribe.build.number=${{ github.run_number }}
+            com.infinitescribe.build.actor=${{ github.actor }}
+            com.infinitescribe.build.platform=${{ matrix.platform }}
+      
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.config.outputs.context }}
+          file: ${{ steps.config.outputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha' || '' }}
+          cache-to: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha,mode=max' || '' }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            SERVICE=${{ matrix.service }}
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
+      
+      - name: Set platform identifier
+        id: platform
+        run: |
+          # 将平台标识符转换为文件名友好的格式
+          PLATFORM_ID=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
+          echo "id=${PLATFORM_ID}" >> $GITHUB_OUTPUT
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}-${{ steps.platform.outputs.id }}.sarif'
+          exit-code: '0'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}-${{ steps.platform.outputs.id }}.sarif'
+          category: 'trivy-${{ matrix.service }}-${{ steps.platform.outputs.id }}'
+      
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3.5.0
+      
+      - name: Sign container image
+        if: github.event_name != 'pull_request'
+        run: |
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts: Signing ${{ matrix.service }} image for ${{ steps.platform.outputs.id }}..."
+            
+            if timeout 300 cosign sign --yes ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
+              echo "✅ ${{ matrix.service }} image signed successfully for ${{ steps.platform.outputs.id }}"
+              exit 0
+            else
+              echo "❌ Attempt $attempt failed"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+            fi
+            
+            attempt=$((attempt + 1))
+          done
+          
+          echo "⚠️ All signing attempts failed for ${{ matrix.service }} (${{ steps.platform.outputs.id }}), but continuing workflow..."
+          exit 0
+        env:
+          COSIGN_EXPERIMENTAL: 1
+      
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0.20.2
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: ${{ matrix.service }}-${{ steps.platform.outputs.id }}-sbom.spdx.json
+          artifact-name: ${{ matrix.service }}-${{ steps.platform.outputs.id }}-sbom
+
+  # 创建多平台镜像清单
+  create-manifest:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set service configuration
+        id: config
+        run: |
+          case "${{ matrix.service }}" in
+            backend)
+              echo "image_name=${{ env.IMAGE_NAMESPACE }}/backend" >> $GITHUB_OUTPUT
+              ;;
+            frontend)
+              echo "image_name=${{ env.IMAGE_NAMESPACE }}/frontend" >> $GITHUB_OUTPUT
+              ;;
+          esac
+      
+      - name: Create and push manifest
+        run: |
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}"
+          
+          # 获取构建的镜像标签（简化版，主要用于 latest）
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAG="latest"
+            echo "Creating manifest for latest tag..."
+            
+            # 创建多平台清单
+            docker buildx imagetools create -t ${IMAGE_NAME}:${TAG} \
+              ${IMAGE_NAME}:${TAG}
+          fi
+
+  # 清理旧镜像
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, create-manifest]
+    if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      packages: write
+    
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    
+    steps:
+      - name: Delete old container images
+        uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}
+          package-type: container
+          min-versions-to-keep: 20
+          delete-only-untagged-versions: true
