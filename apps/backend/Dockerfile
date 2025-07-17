@@ -24,6 +24,9 @@ RUN uv sync --no-dev --frozen
 # Copy application source code for installation
 COPY ./apps/backend/src/ ./src/
 
+# Clean up cache to reduce layer size
+RUN rm -rf ~/.cache/pip ~/.cache/uv /tmp/*
+
 # ==================== Runtime Stage ====================
 FROM python:3.11-slim AS runtime
 
@@ -59,6 +62,7 @@ ENV PYTHONPATH=/app
 ENV SERVICE_TYPE=$SERVICE_TYPE
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+ENV HOME=/app
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app

@@ -15,6 +15,7 @@ REGISTRY="ghcr.io"
 FULL_IMAGE_NAME=""
 NO_CACHE=false
 CACHE_DIR="${HOME}/.cache/buildx"
+TEST=false
 
 # Enable Docker Buildkit
 export DOCKER_BUILDKIT=1
@@ -94,6 +95,15 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Set up QEMU for multi-platform builds if needed
+    if [[ "$PLATFORM" == *"arm64"* ]] || [[ "$PLATFORM" == *","* ]]; then
+        print_info "Multi-platform build detected, setting up QEMU..."
+        if ! docker run --privileged --rm tonistiigi/binfmt --install all >/dev/null 2>&1; then
+            print_warning "Failed to set up QEMU for multi-platform builds"
+            print_info "Multi-platform build may still work if QEMU is already configured"
+        fi
+    fi
+    
     print_success "Prerequisites check passed"
 }
 
@@ -125,6 +135,9 @@ build_image() {
             "--cache-from" "type=local,src=$CACHE_DIR"
             "--cache-to" "type=local,dest=$CACHE_DIR"
         )
+    else
+        # Truly disable all caching, including Docker layer cache
+        build_cmd+=("--no-cache")
     fi
     
     if [ "$PUSH" = true ]; then
