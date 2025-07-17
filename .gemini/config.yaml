@@ -1,0 +1,10 @@
+have_fun: false # 关掉“诗歌梗”等娱乐内容
+code_review:
+  disable: false # 开启 PR 审查
+  comment_severity_threshold: MEDIUM
+  max_review_comments: 50
+  pull_request_opened:
+    help: false
+    summary: true
+    code_review: true
+ignore_patterns: [] # 根据需要排除大文件/生成物
