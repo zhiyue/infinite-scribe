@@ -1,61 +1,71 @@
-# Backend Dockerfile for API Gateway and Agent Services
-FROM python:3.11-slim
+# ==================== Builder Stage ====================
+FROM python:3.11-slim AS builder
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies for building
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files from root context
-COPY ./pyproject.toml ./
-COPY ./uv.lock ./
+# Upgrade pip and install uv with wheel caching
+RUN pip install --upgrade pip && pip install uv
 
-# Install uv and Python dependencies
-RUN pip install uv && \
-    uv sync --no-dev
+# Copy dependency files
+COPY ./apps/backend/pyproject.toml ./
+COPY ./apps/backend/uv.lock ./
 
-# Copy application code
+# Install Python dependencies globally (not in venv)
+RUN uv pip install --system --editable .
+
+# ==================== Runtime Stage ====================
+FROM python:3.11-slim AS runtime
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python dependencies from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /usr/local/include/python3.11 /usr/local/include/python3.11
+
+# Copy application source code
 COPY ./apps/backend/src/ ./src/
+
+# Copy entrypoint script
+COPY ./apps/backend/docker-entrypoint.sh ./
+RUN chmod +x ./docker-entrypoint.sh
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
-ENV SERVICE_TYPE=${SERVICE_TYPE:-api-gateway}
 ENV PYTHONPATH=/app
+ENV SERVICE_TYPE=${SERVICE_TYPE:-api-gateway}
 
-# Default port (can be overridden)
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Default port
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Dynamic command based on SERVICE_TYPE
-CMD if [ "$SERVICE_TYPE" = "api-gateway" ]; then \
-        uvicorn src.api.main:app --host 0.0.0.0 --port 8000; \
-    elif [ "$SERVICE_TYPE" = "agent-worldsmith" ]; then \
-        python -m src.agents.worldsmith.main; \
-    elif [ "$SERVICE_TYPE" = "agent-plotmaster" ]; then \
-        python -m src.agents.plotmaster.main; \
-    elif [ "$SERVICE_TYPE" = "agent-outliner" ]; then \
-        python -m src.agents.outliner.main; \
-    elif [ "$SERVICE_TYPE" = "agent-director" ]; then \
-        python -m src.agents.director.main; \
-    elif [ "$SERVICE_TYPE" = "agent-characterexpert" ]; then \
-        python -m src.agents.characterexpert.main; \
-    elif [ "$SERVICE_TYPE" = "agent-worldbuilder" ]; then \
-        python -m src.agents.worldbuilder.main; \
-    elif [ "$SERVICE_TYPE" = "agent-writer" ]; then \
-        python -m src.agents.writer.main; \
-    elif [ "$SERVICE_TYPE" = "agent-critic" ]; then \
-        python -m src.agents.critic.main; \
-    elif [ "$SERVICE_TYPE" = "agent-factchecker" ]; then \
-        python -m src.agents.factchecker.main; \
-    elif [ "$SERVICE_TYPE" = "agent-rewriter" ]; then \
-        python -m src.agents.rewriter.main; \
-    else \
-        echo "Unknown SERVICE_TYPE: $SERVICE_TYPE" && exit 1; \
-    fi
+# Use entrypoint script instead of complex CMD
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["api-gateway"]

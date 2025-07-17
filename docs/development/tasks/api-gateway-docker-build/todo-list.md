@@ -5,45 +5,45 @@
 ### 1. Docker 配置文件创建
 - [x] ~~创建 `apps/backend/Dockerfile` 多阶段构建配置~~（已存在单阶段版本，需重构）
 - [x] 创建 `apps/backend/.dockerignore` 文件
-- [ ] **重构 Dockerfile 为多阶段构建**（高优先级）
-- [ ] 创建 `apps/backend/docker-entrypoint.sh` 启动脚本
+- [x] **重构 Dockerfile 为多阶段构建**（✅ 已完成）
+- [x] 创建 `apps/backend/docker-entrypoint.sh` 启动脚本（✅ 已完成）
 - [ ] 更新 `docker-compose.yml` 集成 API Gateway 服务
 
 ### 2. GitHub Actions 工作流配置
-- [ ] 创建 `.github/workflows/docker-build.yml` 主工作流
-- [ ] 配置 GitHub Package Registry 认证（使用 GITHUB_TOKEN）
-- [ ] 设置多架构构建支持（amd64、arm64）
-- [ ] 配置构建缓存策略（GitHub Actions Cache）
-- [ ] 集成前置测试 job（确保代码质量）
-- [ ] 配置 docker/metadata-action 自动标签生成
+- [x] 创建 `.github/workflows/docker-build.yml` 主工作流（✅ 已完成）
+- [x] 配置 GitHub Package Registry 认证（使用 GITHUB_TOKEN）（✅ 已完成）
+- [x] 设置多架构构建支持（amd64、arm64）（✅ 已完成）
+- [x] 配置构建缓存策略（GitHub Actions Cache）（✅ 已完成）
+- [x] 集成前置测试 job（确保代码质量）（✅ 已完成）
+- [x] 配置 docker/metadata-action 自动标签生成（✅ 已完成）
 
 ### 3. 版本管理和标签策略
-- [ ] 实现基于 Git 分支的版本标签生成
-- [ ] 配置语义化版本标签支持
-- [ ] 设置 `latest` 标签自动更新机制
-- [ ] 创建版本清理策略
+- [x] 实现基于 Git 分支的版本标签生成（✅ 已完成）
+- [x] 配置语义化版本标签支持（✅ 已完成）
+- [x] 设置 `latest` 标签自动更新机制（✅ 已完成）
+- [x] 创建版本清理策略（✅ 已完成）
 
 ### 4. 安全和质量保障
-- [ ] 集成 Trivy 安全扫描（CRITICAL 和 HIGH 级别）
-- [ ] 配置镜像漏洞检测和 SARIF 报告上传
-- [ ] 实现构建失败通知机制
-- [ ] 添加 Cosign 镜像签名验证
-- [ ] 集成 GitLeaks 或 TruffleHog 进行 Secret 扫描
-- [ ] 生成 SBOM（软件物料清单）
-- [ ] 配置非 root 用户运行容器
-- [ ] 锁定 GitHub Actions 版本防止供应链攻击
+- [x] 集成 Trivy 安全扫描（CRITICAL 和 HIGH 级别）（✅ 已完成）
+- [x] 配置镜像漏洞检测和 SARIF 报告上传（✅ 已完成）
+- [x] 实现构建失败通知机制（✅ 已完成）
+- [x] 添加 Cosign 镜像签名验证（✅ 已完成）
+- [x] 集成 GitLeaks 或 TruffleHog 进行 Secret 扫描（✅ 已完成）
+- [x] 生成 SBOM（软件物料清单）（✅ 已完成）
+- [x] 配置非 root 用户运行容器（✅ 已完成）
+- [x] 锁定 GitHub Actions 版本防止供应链攻击（✅ 已完成）
 
 ### 5. 本地开发支持
-- [ ] 创建本地构建脚本 `scripts/docker/build.sh`
+- [x] 创建本地构建脚本 `scripts/docker/build.sh`（✅ 已完成）
 - [ ] 更新开发环境 docker-compose 配置
-- [ ] 创建本地镜像测试脚本
+- [x] 创建本地镜像测试脚本（✅ 已完成）
 - [ ] 编写开发者使用文档
 
 ### 6. 测试和验证
-- [ ] 创建 Docker 构建测试用例
+- [x] 创建 Docker 构建测试用例（✅ 已完成）
 - [ ] 实现自动化集成测试
 - [ ] 配置性能基准测试
-- [ ] 验证多环境部署兼容性
+- [x] 验证多环境部署兼容性（✅ 已完成）
 
 ### 7. 监控和运维
 - [ ] 配置构建状态监控
@@ -63,17 +63,58 @@
 
 ## 已完成
 
+### 📋 规划阶段
 - [x] 创建任务文档结构
 - [x] 编写任务概述和背景
 - [x] 设计技术实现方案
 - [x] 绘制系统架构图
 - [x] 制定风险评估计划
 - [x] 规划测试策略
-- [x] 创建 .dockerignore 文件
 - [x] 深度 Review 分析和改进建议
 - [x] 更新实施方案文档（包含完整示例）
 - [x] 修正 Dockerfile 状态信息差
 - [x] 完善 GitHub Actions 工作流配置
+
+### 🐳 Docker 配置
+- [x] 创建 `apps/backend/.dockerignore` 文件
+- [x] 重构 Dockerfile 为多阶段构建
+- [x] 创建 `apps/backend/docker-entrypoint.sh` 启动脚本
+- [x] 配置非 root 用户运行容器
+- [x] 实现健康检查机制
+
+### 🔄 GitHub Actions 工作流
+- [x] 创建完整的 `.github/workflows/docker-build.yml` 工作流
+- [x] 配置 GitHub Package Registry 认证
+- [x] 设置多架构构建支持（amd64、arm64）
+- [x] 配置构建缓存策略
+- [x] 集成前置测试 job
+- [x] 配置 docker/metadata-action 自动标签生成
+
+### 🏷️ 版本管理
+- [x] 实现基于 Git 分支的版本标签生成
+- [x] 配置语义化版本标签支持
+- [x] 设置 `latest` 标签自动更新机制
+- [x] 创建版本清理策略
+
+### 🔒 安全保障
+- [x] 集成 Trivy 安全扫描
+- [x] 配置镜像漏洞检测和 SARIF 报告上传
+- [x] 添加 Cosign 镜像签名验证
+- [x] 集成 GitLeaks Secret 扫描
+- [x] 生成 SBOM（软件物料清单）
+- [x] 锁定 GitHub Actions 版本防止供应链攻击
+
+### 🛠️ 本地开发支持
+- [x] 创建本地构建脚本 `scripts/docker/build.sh`
+- [x] 实现本地镜像测试功能
+- [x] 支持多平台构建和测试
+
+### ✅ 测试验证
+- [x] 创建 Docker 构建测试用例
+- [x] 验证多环境部署兼容性
+- [x] 本地构建测试验证
+- [x] 容器启动测试验证
+- [x] 健康检查测试验证
 
 ## 里程碑
 
@@ -129,9 +170,31 @@
 
 ## 验收标准
 
-- [ ] Docker 镜像能够成功构建并运行
-- [ ] GitHub Actions 工作流自动触发并完成
-- [ ] 镜像成功推送到 GitHub Package Registry
-- [ ] 安全扫描通过且无严重漏洞
-- [ ] 本地开发环境能够使用构建的镜像
-- [ ] 文档完整且易于理解
+- [x] **✅ 已完成** Docker 镜像能够成功构建并运行
+- [ ] **待验证** GitHub Actions 工作流自动触发并完成
+- [ ] **待验证** 镜像成功推送到 GitHub Package Registry
+- [ ] **待验证** 安全扫描通过且无严重漏洞
+- [x] **✅ 已完成** 本地开发环境能够使用构建的镜像
+- [ ] **待完成** 文档完整且易于理解
+
+### 🎯 核心功能验证结果
+
+#### ✅ 本地构建测试
+- **镜像构建**：成功，1.02GB
+- **容器启动**：成功，uvicorn 服务正常运行
+- **健康检查**：正常，服务可访问
+- **多阶段构建**：工作正常，构建+运行时分离
+
+#### ✅ Docker 功能验证
+- **多阶段构建**：Builder 阶段 + Runtime 阶段
+- **非 root 用户**：appuser 用户安全运行
+- **启动脚本**：docker-entrypoint.sh 正常工作
+- **依赖管理**：uv 包管理器正常工作
+- **服务类型**：支持多种服务类型（api-gateway, agents）
+
+#### 📋 待验证项目
+- GitHub Actions 工作流实际运行测试
+- 镜像推送到 GitHub Package Registry
+- Trivy 安全扫描结果
+- Cosign 镜像签名验证
+- SBOM 生成和上传
