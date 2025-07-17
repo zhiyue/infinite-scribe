@@ -455,6 +455,35 @@ permissions:
 | **依赖审查前置** | 早期发现供应链风险 |
 | **权限精确化** | 降低安全攻击面 |
 
+## 🔧 问题修复记录
+
+### JSON 矩阵生成修复 ✅
+
+**问题**: 使用 `jq` 生成 JSON 矩阵时出现格式错误
+```bash
+Error: Invalid format '  "backend",' 错误
+```
+
+**原因**: `printf '%s\n' "${services[@]}" | jq -R . | jq -s .` 在某些环境下可能产生格式问题
+
+**解决方案**: 使用纯 Bash 实现 JSON 生成
+```bash
+# 修复前 - 依赖 jq
+services_json=$(printf '%s\n' "${services[@]}" | jq -R . | jq -s .)
+
+# 修复后 - 纯 Bash 实现
+services_json="["
+for i in "${!services[@]}"; do
+  if [ $i -gt 0 ]; then
+    services_json="${services_json},"
+  fi
+  services_json="${services_json}\"${services[i]}\""
+done
+services_json="${services_json}]"
+```
+
+**验证**: 创建了测试脚本 `scripts/test-matrix-generation.sh` 验证所有场景
+
 ## 🔄 第二轮改进 (基于专业 Review)
 
 ### 修复的关键问题
