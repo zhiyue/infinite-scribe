@@ -440,29 +440,28 @@ jobs:
           fi
 
       - name: Install Cosign
-        if: false  # 暂时禁用签名来验证镜像标签显示
+        if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3.5.0
 
       - name: Sign container image
-        if: false  # 暂时禁用签名来验证镜像标签显示
+        if: github.event_name != 'pull_request'
         env:
           MAX_ATTEMPTS: 3
           RETRY_DELAY: 30
         run: |
-          echo "🔐 Image signing temporarily disabled for testing"
-          # echo "🔐 Starting image signing process..."
-          # for attempt in $(seq 1 $MAX_ATTEMPTS); do
-          #   echo "🔐 Signing attempt $attempt/$MAX_ATTEMPTS for ${{ matrix.service }}..."
-          #   if timeout 300 cosign sign --yes --recursive \
-          #     ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
-          #     echo "✅ Image signed successfully"
-          #     exit 0
-          #   fi
-          #   echo "⚠️ Signing attempt $attempt failed"
-          #   [ $attempt -lt $MAX_ATTEMPTS ] && sleep $RETRY_DELAY
-          # done
-          # echo "❌ All signing attempts failed for ${{ matrix.service }}"
-          # exit 1
+          echo "🔐 Starting image signing process..."
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "🔐 Signing attempt $attempt/$MAX_ATTEMPTS for ${{ matrix.service }}..."
+            if timeout 300 cosign sign --yes \
+              ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
+              echo "✅ Image signed successfully"
+              exit 0
+            fi
+            echo "⚠️ Signing attempt $attempt failed"
+            [ $attempt -lt $MAX_ATTEMPTS ] && sleep $RETRY_DELAY
+          done
+          echo "❌ All signing attempts failed for ${{ matrix.service }}"
+          exit 1
 
       - name: Verify SBOM and Provenance
         if: github.event_name != 'pull_request'
@@ -506,7 +505,7 @@ jobs:
           - **SBOM**: ✅ Auto-generated and attached as attestation
           - **Provenance**: ✅ Auto-generated and attached as attestation
           - **Vulnerability Scan**: ✅ Trivy SARIF uploaded to Security tab
-          - **Image Signing**: ⚠️ Temporarily disabled for testing
+          - **Image Signing**: ✅ Cosign signature applied (non-recursive)
 
           ### 🔗 Quick Links
           - [View Image](https://github.com/${{ github.repository }}/pkgs/container/${{ matrix.service }})
