@@ -1,16 +1,30 @@
-# API Gateway Docker 镜像构建与 GitHub Package Registry 自动化部署
+# API Gateway Docker 构建流程优化
 
 ## 任务背景
 
-当前 API Gateway 服务缺乏标准化的容器化部署方案，需要建立 Docker 镜像构建流程并集成到 GitHub Package Registry 中，实现自动化构建和分发。这将提高服务部署的一致性和可靠性，同时便于在不同环境中快速部署 API Gateway 服务。
+当前项目的 Docker 构建流程存在以下具体问题：
+
+1. **构建覆盖不完整**：
+   - 现有 `docker-build.yml` 只构建后端镜像
+   - 前端有 `Dockerfile` 但没有 CI/CD 流程
+   - 缺少统一的多服务构建策略
+
+2. **工作流依赖关系问题**：
+   - 前置测试和安全扫描 job 阻塞构建流程
+   - 需要优化依赖关系让构建流程先跑通
+   - 测试失败会阻止 Docker 构建验证
+
+3. **文件组织和命名**：
+   - 需要评估 `docker-build.yml` 是否需要重命名
+   - 考虑是否需要拆分为多个独立的构建流程
 
 ## 目标
 
-1. 为 API Gateway 服务创建 Dockerfile 和相关配置文件
-2. 设置 GitHub Actions 工作流，实现自动化 Docker 镜像构建
-3. 配置 GitHub Package Registry 集成，自动推送构建的镜像
-4. 建立多环境构建支持（开发、测试、生产）
-5. 实现基于 Git 标签的版本化镜像构建
+1. **优化现有构建流程**：让 Docker 构建流程能够先跑通
+2. **完善构建覆盖**：添加前端 Docker 构建支持
+3. **改进依赖关系**：优化前置测试和安全扫描的依赖结构
+4. **评估文件组织**：确定最佳的 workflow 文件结构
+5. **实现多服务构建**：支持前端和后端的独立或并行构建
 
 ## 相关文件
 

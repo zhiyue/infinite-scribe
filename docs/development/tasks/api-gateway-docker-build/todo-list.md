@@ -1,21 +1,30 @@
-# API Gateway Docker 镜像构建任务清单
+# Docker 构建流程优化任务清单
 
 ## 待办事项
 
-### 1. Docker 配置文件创建
-- [x] ~~创建 `apps/backend/Dockerfile` 多阶段构建配置~~（已存在单阶段版本，需重构）
-- [x] 创建 `apps/backend/.dockerignore` 文件
-- [x] **重构 Dockerfile 为多阶段构建**（✅ 已完成）
-- [x] 创建 `apps/backend/docker-entrypoint.sh` 启动脚本（✅ 已完成）
-- [ ] 更新 `docker-compose.yml` 集成 API Gateway 服务
+### 1. 工作流依赖关系优化
+- [ ] 分析当前 docker-build.yml 的依赖关系问题
+- [ ] 临时优化：注释掉 `needs: test` 让构建流程先跑通
+- [ ] 评估前置测试失败对构建流程的影响
+- [ ] 设计渐进式恢复策略（构建 → 基本测试 → 完整测试）
 
-### 2. GitHub Actions 工作流配置
-- [x] 创建 `.github/workflows/docker-build.yml` 主工作流（✅ 已完成）
-- [x] 配置 GitHub Package Registry 认证（使用 GITHUB_TOKEN）（✅ 已完成）
-- [x] 设置多架构构建支持（amd64、arm64）（✅ 已完成）
-- [x] 配置构建缓存策略（GitHub Actions Cache）（✅ 已完成）
-- [x] 集成前置测试 job（确保代码质量）（✅ 已完成）
-- [x] 配置 docker/metadata-action 自动标签生成（✅ 已完成）
+### 2. 前端构建流程补充
+- [ ] 分析前端 Dockerfile 配置（apps/frontend/Dockerfile）
+- [ ] 创建前端 Docker 构建 GitHub Actions 工作流
+- [ ] 配置前端镜像推送到 GitHub Package Registry
+- [ ] 实现前端构建的安全扫描和质量检查
+
+### 3. 文件组织和命名评估
+- [ ] 评估 docker-build.yml 文件命名是否合适
+- [ ] 考虑重命名为 backend-docker-build.yml
+- [ ] 设计多服务构建的文件组织结构
+- [ ] 确定最终的 workflow 文件命名策略
+
+### 4. 多服务构建策略
+- [ ] 设计前端和后端的独立构建流程
+- [ ] 实现构建流程的并行执行
+- [ ] 配置不同服务的构建触发条件
+- [ ] 统一版本标签和镜像命名策略
 
 ### 3. 版本管理和标签策略
 - [x] 实现基于 Git 分支的版本标签生成（✅ 已完成）
