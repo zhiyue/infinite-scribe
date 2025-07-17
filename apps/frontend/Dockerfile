@@ -28,6 +28,9 @@ RUN pnpm build
 # 第二阶段：生产环境
 FROM nginx:alpine
 
+# 更新 Alpine 软件包以修复安全漏洞
+RUN apk update && apk upgrade
+
 # 复制nginx配置
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
