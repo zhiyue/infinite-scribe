@@ -31,6 +31,11 @@ RUN pnpm build
 # 第二阶段：生产环境
 FROM nginx:alpine
 
+# 标签元数据（符合 GitHub Container Registry 规范）
+LABEL org.opencontainers.image.source=https://github.com/zhiyue/infinite-scribe
+LABEL org.opencontainers.image.description="Frontend React Web Application for Infinite Scribe"
+LABEL org.opencontainers.image.licenses=MIT
+
 # 更新 Alpine 软件包以修复安全漏洞
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 

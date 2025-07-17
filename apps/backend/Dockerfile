@@ -36,6 +36,11 @@ RUN find /app/.venv/lib/python3.11/site-packages -name "test*" -type d -exec rm 
 # 使用 Bookworm 基础镜像并升级系统包以修复 CVE-2023-45853 (zlib1g 漏洞)
 FROM python:3.11-slim-bookworm AS runtime
 
+# 标签元数据（符合 GitHub Container Registry 规范）
+LABEL org.opencontainers.image.source=https://github.com/zhiyue/infinite-scribe
+LABEL org.opencontainers.image.description="Backend API Gateway and Agent Services for Infinite Scribe"
+LABEL org.opencontainers.image.licenses=MIT
+
 # Install minimal runtime dependencies with security updates
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     curl \
