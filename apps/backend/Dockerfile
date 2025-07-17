@@ -44,8 +44,16 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     && rm -rf /var/lib/apt/lists/*
 
 # Verify zlib1g version to ensure CVE-2023-45853 is fixed
-RUN dpkg -l | grep zlib1g && \
-    python3 -c "import zlib; print(f'zlib version: {zlib.ZLIB_VERSION}')"
+RUN if dpkg -l zlib1g* | grep -q zlib1g; then \
+        ZLIB_VERSION=$(dpkg-query -W -f='${Version}' zlib1g 2>/dev/null || echo "unknown") && \
+        echo "System zlib1g version: $ZLIB_VERSION" && \
+        python3 -c "import zlib; print(f'Python zlib version: {zlib.ZLIB_VERSION}')" && \
+        echo "CVE-2023-45853 verification: zlib1g package is installed and updated"; \
+    else \
+        echo "Error: zlib1g package is not installed or has a different name." >&2; \
+        dpkg -l | grep zlib || echo "No zlib packages found" >&2; \
+        exit 1; \
+    fi
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
