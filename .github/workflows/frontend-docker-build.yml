@@ -190,6 +190,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
       
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
