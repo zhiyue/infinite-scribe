@@ -3,16 +3,23 @@
 ## 待办事项
 
 ### 1. 工作流依赖关系优化
-- [ ] 分析当前 docker-build.yml 的依赖关系问题
-- [ ] 临时优化：注释掉 `needs: test` 让构建流程先跑通
-- [ ] 评估前置测试失败对构建流程的影响
-- [ ] 设计渐进式恢复策略（构建 → 基本测试 → 完整测试）
+- [x] 分析当前 docker-build.yml 的依赖关系问题
+- [x] 临时优化：注释掉 `needs: test` 让构建流程先跑通
+- [x] 评估前置测试失败对构建流程的影响
+- [x] 设计渐进式恢复策略（构建 → 基本测试 → 完整测试）
 
 ### 2. 前端构建流程补充
-- [ ] 分析前端 Dockerfile 配置（apps/frontend/Dockerfile）
-- [ ] 创建前端 Docker 构建 GitHub Actions 工作流
-- [ ] 配置前端镜像推送到 GitHub Package Registry
-- [ ] 实现前端构建的安全扫描和质量检查
+- [x] 分析前端 Dockerfile 配置（apps/frontend/Dockerfile）
+- [x] 创建前端 Docker 构建 GitHub Actions 工作流
+- [x] 配置前端镜像推送到 GitHub Package Registry
+- [x] 实现前端构建的安全扫描和质量检查
+
+### 5. GitHub Actions 版本升级修复（2025-07-17 新增）
+- [x] 修复 `actions/upload-artifact@v3` 废弃问题，升级到 v4
+- [x] 升级 `actions/setup-python@v4` 到 v5
+- [x] 升级 `github/codeql-action/upload-sarif@v2` 到 v3
+- [x] 升级 `actions/delete-package-versions@v4` 到 v5
+- [x] 验证前后端 workflow 文件语法正确性
 
 ### 3. 文件组织和命名评估
 - [ ] 评估 docker-build.yml 文件命名是否合适
@@ -207,3 +214,12 @@
 - Trivy 安全扫描结果
 - Cosign 镜像签名验证
 - SBOM 生成和上传
+
+### 🔧 GitHub Actions 版本升级修复（2025-07-17）
+- [x] 识别 `actions/upload-artifact@v3` 废弃导致的构建失败
+- [x] 升级后端 workflow 中的 `actions/upload-artifact@v3` 到 `@v4`
+- [x] 升级前端 workflow 中的 `actions/upload-artifact@v3` 到 `@v4`
+- [x] 升级后端 workflow 中的 `actions/setup-python@v4` 到 `@v5`
+- [x] 升级前后端 workflow 中的 `github/codeql-action/upload-sarif@v2` 到 `@v3`
+- [x] 升级前后端 workflow 中的 `actions/delete-package-versions@v4` 到 `@v5`
+- [x] 验证修复后的 workflow 文件语法正确性
