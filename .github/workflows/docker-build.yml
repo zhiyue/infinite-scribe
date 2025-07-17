@@ -55,7 +55,7 @@ on:
 
 # 添加全局并发控制
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && github.ref || '' }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && '-tag' || '' }}
   cancel-in-progress: true
 
 env:
@@ -63,6 +63,8 @@ env:
   IMAGE_NAMESPACE: ${{ github.repository }}
   # 构建时间监控
   BUILD_START_TIME: ${{ github.event.head_commit.timestamp || github.event.pull_request.updated_at || github.run_id }}
+  # 缓存控制
+  FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}
 
 jobs:
   # 检测变化的服务
@@ -74,7 +76,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # 只需要比较最近的提交，减少克隆时间
+          fetch-depth: 1  # 只需要当前提交，最快的克隆方式
 
       - name: Detect changes
         uses: dorny/paths-filter@v3
@@ -147,7 +149,9 @@ jobs:
 
   # 运行测试
   test:
+    name: Test (${{ matrix.service }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: detect-changes
     if: needs.detect-changes.outputs.services != '[]'
     strategy:
@@ -180,6 +184,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+
+      - name: Cache pnpm store
+        if: matrix.service == 'frontend'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Run backend tests
         if: matrix.service == 'backend'
@@ -219,7 +232,9 @@ jobs:
 
   # 构建和推送 Docker 镜像
   build:
+    name: Build (${{ matrix.service }})
     runs-on: ubuntu-latest
+    timeout-minutes: 60  # 防止无限计费循环
     needs: [detect-changes, test]
     if: needs.detect-changes.outputs.services != '[]'
     permissions:
@@ -286,8 +301,6 @@ jobs:
               echo "context=." >> $GITHUB_OUTPUT
               echo "title=Infinite Scribe Backend API" >> $GITHUB_OUTPUT
               echo "description=Backend API Gateway and Agent Services" >> $GITHUB_OUTPUT
-              echo "healthcheck_path=/health" >> $GITHUB_OUTPUT
-              echo "default_port=8000" >> $GITHUB_OUTPUT
               ;;
             frontend)
               echo "image_name=${{ env.IMAGE_NAMESPACE }}/frontend" >> $GITHUB_OUTPUT
@@ -295,8 +308,6 @@ jobs:
               echo "context=." >> $GITHUB_OUTPUT
               echo "title=Infinite Scribe Frontend Web" >> $GITHUB_OUTPUT
               echo "description=Frontend React Web Application" >> $GITHUB_OUTPUT
-              echo "healthcheck_path=/health" >> $GITHUB_OUTPUT
-              echo "default_port=80" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "❌ Unknown service: ${{ matrix.service }}"
@@ -350,11 +361,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
-            ${{ github.event.inputs.force_rebuild != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}
+            ${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
+            ${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}
           cache-to: |
-            ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
-            ${{ github.event.inputs.force_rebuild != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}
+            ${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
+            ${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             SERVICE=${{ matrix.service }}
@@ -409,7 +420,6 @@ jobs:
       - name: Sign container image
         if: github.event_name != 'pull_request'
         env:
-          COSIGN_EXPERIMENTAL: 1
           MAX_ATTEMPTS: 3
           RETRY_DELAY: 30
         run: |
@@ -482,17 +492,18 @@ jobs:
           EOF
 
       - name: Notify on failure
-        if: failure() && github.event.inputs.notify_slack == 'true'
+        if: failure() && (github.event.inputs.notify_slack || 'false') == 'true'
         run: |
           echo "🚨 Build failed for ${{ matrix.service }}"
           echo "This is where you would send a Slack/Teams notification"
           # 示例 Slack webhook 调用（需要配置 SLACK_WEBHOOK_URL secret）
           # curl -X POST -H 'Content-type: application/json' \
           #   --data '{"text":"🚨 Docker build failed for ${{ matrix.service }} in ${{ github.repository }}"}' \
-          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+          #   "${{ secrets.SLACK_WEBHOOK_URL }}"
 
   # 清理旧镜像
   cleanup:
+    name: Cleanup (${{ matrix.service }})
     runs-on: ubuntu-latest
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -504,7 +515,7 @@ jobs:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
 
     concurrency:
-      group: cleanup-${{ matrix.service }}-${{ github.ref }}
+      group: cleanup-${{ matrix.service }}-${{ github.ref_name }}
       cancel-in-progress: true
 
     steps:
@@ -527,7 +538,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     needs: [detect-changes, build, cleanup]
-    if: always() && needs.detect-changes.outputs.services != '[]' && github.event.inputs.notify_slack == 'true'
+    if: always() && needs.detect-changes.outputs.services != '[]' && (github.event.inputs.notify_slack || 'false') == 'true'
 
     steps:
       - name: Generate final notification

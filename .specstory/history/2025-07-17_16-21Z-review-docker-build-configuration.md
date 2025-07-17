@@ -136,3 +136,121 @@ Let me know if you’d like sample patches or deeper dives into any section!
 
 ---
 
+_**User**_
+
+修改完成了再次 review 一下
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>**Planning workflow file review**
+
+The user requested another review after completing modifications. They previously asked me to review the docker-build.yml, so now I need to check the updated version again. We'll use tools to read it, but since it’s 545 lines long and I can’t read the whole file at once, I'll split it into segments. I plan to read lines 1-250 and 251-545 in parallel to ensure I can inspect everything efficiently. Let's get started!</details></think>
+
+---
+
+Read file: .github/workflows/docker-build.yml
+
+---
+
+Read file: .github/workflows/docker-build.yml
+
+---
+
+Read file: .github/workflows/docker-build.yml
+
+---
+
+
+
+---
+
+已核查最新版 `.github/workflows/docker-build.yml`，整体改动落实了上轮多数建议 👍。  
+以下按优先级列出仍可改进或需留意的细节（✅=已改进 ⚠️=需关注）。
+
+--------------------------------------------------------------------
+1. 触发与并发控制
+--------------------------------------------------------------------
+✅ 全局 `concurrency` 已增加 tag 额外区分，避免 tag-run 取消 branch-run。  
+⚠️ 但当前字符串会重复 tag 值，示例：  
+```
+${{ github.workflow }}-${{ github.ref }}refs/tags/v1.0
+```  
+可改为：  
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && '-tag' || '' }}
+```
+这样 tag 触发时只是追加 `-tag`，而不是整条 ref 再拼一次。
+
+⚠️ `cleanup` job 的 `concurrency.group` 从 `branch` 改成仅 `cleanup-${{ matrix.service }}`。  
+如果两条不同分支同时进到 cleanup，会相互取消；若只在 main 触发可接受，否则可再拼接 `${{ github.ref_name }}` 以隔离。
+
+--------------------------------------------------------------------
+2. 检测与 Matrix 构建
+--------------------------------------------------------------------
+✅ `fetch-depth: 2` 比默认全历史更快。若无合并基比较需求，可继续降到 `1`。  
+✅ 新增 `valid_services` 校验，错误输入会 fail-early。  
+✅ 手动触发未选中服务时不再静默跳过。
+
+--------------------------------------------------------------------
+3. Test Job
+--------------------------------------------------------------------
+✅ 前端增加 `pnpm-store` 缓存，命中率更高。  
+⚠️ 若测试时间 > 30 min，可考虑给 `timeout-minutes`。  
+⚠️ 可以把 lint / type-check 拆子 job，失败更易定位（可选）。
+
+--------------------------------------------------------------------
+4. Build Job
+--------------------------------------------------------------------
+✅ 加入 `timeout-minutes: 60`，可防失控计费。  
+✅ `force_rebuild`/`notify_slack` 统一用 `... || 'false'` 兜底，已无 undefined 警告。  
+⚠️ `cache-from` / `cache-to` 表达式仍较长，后期可用 YAML anchor 简化。  
+⚠️ `COSIGN_EXPERIMENTAL` 仅 v1 时代必需；若已升到 cosign >= 2.x 且只签 image，可删除该 env 以减少 log 噪音。
+
+--------------------------------------------------------------------
+5. 结果通知
+--------------------------------------------------------------------
+✅ 所有 `notify_slack` 判断已加兜底。  
+⚠️ 如需 Slack 可考虑 `voxmedia/github-action-slack-notify-build` 之类封装 action，省去 curl。
+
+--------------------------------------------------------------------
+6. 其它细节 / 建议
+--------------------------------------------------------------------
+• OCI label 部分仍引用 `BUILD_DATE/ID`，很好；若未来用 **SBOM** 可额外 embed healthcheck path 等自定义注释。  
+• Job 名仍为 `build`, `test` —— 可在 `name:` 加 `(${{ matrix.service }})`，Action UI 更直观。  
+• 若想进一步节省费用，可把测试与构建合并同一 runner job (matrix-strategy) 并用 condition 拆步骤。
+
+--------------------------------------------------------------------
+小结
+--------------------------------------------------------------------
+- 关键问题只剩 **全局 concurrency 字符串重复**；修复后即可发布。  
+- 其它皆属可选优化（job 超时、命名、Action 抽象等）。  
+
+如需示例 patch 或对特定部分深入探讨，随时告诉我！
+
+---
+
+_**User**_
+
+修改完毕再次 review
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>**Reviewing updates for concurrency**
+
+The user mentioned they've fixed issues and want another review. So, my next step is to reread the updated workflow with fresh eyes. I need to pay special attention to the concurrency group string, make sure any cleanup related to concurrency is in order, and carefully examine the first lines again. I'll focus on confirming that the concurrency group has indeed been updated and check the lines leading up to the concurrency definition for clarity.</details></think>
+
+---
+
+Read file: .github/workflows/docker-build.yml
+
+---
+
+
+
+---
+

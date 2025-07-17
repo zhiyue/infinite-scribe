@@ -284,6 +284,160 @@ notify:
 4. **安全性加强**：更全面的漏洞扫描和报告
 5. **维护效率**：自动化清理和通知机制
 
+## 🔄 第二轮改进 (基于专业 Review)
+
+### 🎯 关键问题修复
+
+#### 1. **并发控制字符串重复问题** ✅
+```yaml
+# 修复前 - 会产生重复的 tag 值
+group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && github.ref || '' }}
+# 结果: docker-build-refs/tags/v1.0refs/tags/v1.0
+
+# 修复后 - 只追加 -tag 后缀
+group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && '-tag' || '' }}
+# 结果: docker-build-refs/tags/v1.0-tag
+```
+
+#### 2. **清理作业并发控制改进** ✅
+```yaml
+# 修复前 - 不同分支会相互取消
+group: cleanup-${{ matrix.service }}
+
+# 修复后 - 按分支隔离
+group: cleanup-${{ matrix.service }}-${{ github.ref_name }}
+```
+
+### 🚀 用户体验改进
+
+#### 3. **作业名称显示优化** ✅
+```yaml
+# 改进前 - 通用名称
+test:
+  runs-on: ubuntu-latest
+
+# 改进后 - 显示具体服务
+test:
+  name: Test (${{ matrix.service }})
+  runs-on: ubuntu-latest
+```
+
+#### 4. **超时保护增强** ✅
+```yaml
+test:
+  name: Test (${{ matrix.service }})
+  timeout-minutes: 30  # 测试作业超时
+
+build:
+  name: Build (${{ matrix.service }})
+  timeout-minutes: 60  # 构建作业超时
+```
+
+### ⚡ 性能优化
+
+#### 5. **克隆速度优化** ✅
+```yaml
+# 进一步优化 - 只克隆当前提交
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 1  # 最快的克隆方式
+```
+
+#### 6. **缓存表达式简化** ✅
+```yaml
+# 添加环境变量简化表达式
+env:
+  FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}
+
+# 简化后的缓存配置
+cache-from: |
+  ${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
+```
+
+#### 7. **移除过时环境变量** ✅
+```yaml
+# 移除 cosign >= 2.x 不再需要的实验性标志
+- name: Sign container image
+  env:
+    # COSIGN_EXPERIMENTAL: 1  # 已移除
+    MAX_ATTEMPTS: 3
+    RETRY_DELAY: 30
+```
+
+## 🔄 第二轮改进 (基于专业 Review)
+
+### 修复的关键问题
+
+1. **github.event.inputs 空值引用问题** ✅
+   ```yaml
+   # 修复前
+   if: failure() && github.event.inputs.notify_slack == 'true'
+
+   # 修复后
+   if: failure() && (github.event.inputs.notify_slack || 'false') == 'true'
+   ```
+
+2. **手动输入验证** ✅
+   ```yaml
+   # 验证输入的服务名称
+   for service in "${service_array[@]}"; do
+     service=$(echo "$service" | xargs)  # 去除空格
+     if [[ " ${valid_services[*]} " =~ " ${service} " ]]; then
+       services+=("$service")
+     else
+       echo "❌ Invalid service name: '$service'. Valid options: ${valid_services[*]}"
+       exit 1
+     fi
+   done
+   ```
+
+3. **作业级别超时** ✅
+   ```yaml
+   build:
+     runs-on: ubuntu-latest
+     timeout-minutes: 60  # 防止无限计费循环
+   ```
+
+4. **并发控制优化** ✅
+   ```yaml
+   # 全局并发控制 - 避免标签构建取消分支构建
+   concurrency:
+     group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && github.ref || '' }}
+     cancel-in-progress: true
+
+   # 清理作业并发控制 - 按服务隔离
+   concurrency:
+     group: cleanup-${{ matrix.service }}
+     cancel-in-progress: true
+   ```
+
+5. **缓存策略改进** ✅
+   ```yaml
+   # 减少克隆时间
+   - uses: actions/checkout@v4
+     with:
+       fetch-depth: 2  # 只需要比较最近的提交
+
+   # 添加 pnpm store 缓存
+   - name: Cache pnpm store
+     if: matrix.service == 'frontend'
+     uses: actions/cache@v4
+     with:
+       path: ~/.pnpm-store
+       key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+   ```
+
+6. **清理未使用的输出变量** ✅
+   - 移除了 `healthcheck_path` 和 `default_port` 输出变量（未在工作流中使用）
+
+### 性能和可靠性提升
+
+- **减少构建时间**: fetch-depth 从 0 改为 2，减少克隆时间
+- **防止无限计费**: 添加 60 分钟超时限制
+- **更好的错误处理**: 手动输入验证防止静默失败
+- **改进的缓存策略**: pnpm store 缓存提高前端构建效率
+- **更精确的并发控制**: 避免不必要的构建取消
+
 ## 🚀 后续优化建议
 
 1. **添加性能基准测试**：集成镜像大小和启动时间监控
@@ -291,3 +445,5 @@ notify:
 3. **增强通知系统**：支持更多通知渠道（Teams、Discord 等）
 4. **添加健康检查**：构建后自动验证镜像健康状态
 5. **集成质量门禁**：基于测试覆盖率和安全扫描结果的自动决策
+6. **使用 GitHub OIDC**: 替换 PAT 进行容器注册表登录
+7. **实现可重用工作流**: 通过 workflow_call 支持其他仓库复用
