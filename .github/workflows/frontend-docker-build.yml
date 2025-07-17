@@ -223,13 +223,25 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: spdx-json
           output-file: frontend-sbom.spdx.json
+          upload-artifact: false
       
       - name: Upload SBOM to release
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ -f "frontend-sbom.spdx.json" ]; then
+            echo "✅ SBOM file found, uploading as artifact"
+          else
+            echo "❌ SBOM file not found, skipping upload"
+            exit 0
+          fi
+      
+      - name: Upload SBOM artifact
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: frontend-sbom
           path: frontend-sbom.spdx.json
+          if-no-files-found: warn
 
   # 清理旧镜像 job（按计划运行，避免影响主工作流）
   cleanup:
