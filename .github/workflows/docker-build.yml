@@ -73,6 +73,7 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
+              - 'packages/**'
               - 'pyproject.toml'
               - 'uv.lock'
               - '.github/workflows/docker-build.yml'
@@ -171,12 +172,28 @@ jobs:
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-        platform: [linux/amd64, linux/arm64]
       fail-fast: false
+    
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.service }}-${{ github.ref }}
+      cancel-in-progress: true
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Set up Python
+        if: matrix.service == 'backend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js
+        if: matrix.service == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
       
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -244,7 +261,7 @@ jobs:
             com.infinitescribe.build.commit.sha=${{ github.sha }}
             com.infinitescribe.build.number=${{ github.run_number }}
             com.infinitescribe.build.actor=${{ github.actor }}
-            com.infinitescribe.build.platform=${{ matrix.platform }}
+            com.infinitescribe.build.platforms=linux/amd64,linux/arm64
       
       - name: Build and push Docker image
         id: build
@@ -252,31 +269,24 @@ jobs:
         with:
           context: ${{ steps.config.outputs.context }}
           file: ${{ steps.config.outputs.dockerfile }}
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha' || '' }}
-          cache-to: ${{ github.event.inputs.force_rebuild != 'true' && 'type=gha,mode=max' || '' }}
+          cache-from: ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
+          cache-to: ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             SERVICE=${{ matrix.service }}
             GIT_COMMIT=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
       
-      - name: Set platform identifier
-        id: platform
-        run: |
-          # 将平台标识符转换为文件名友好的格式
-          PLATFORM_ID=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
-          echo "id=${PLATFORM_ID}" >> $GITHUB_OUTPUT
-      
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
           format: 'sarif'
-          output: 'trivy-results-${{ matrix.service }}-${{ steps.platform.outputs.id }}.sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
           exit-code: '0'
           vuln-type: 'os,library'
           severity: 'CRITICAL'
@@ -285,8 +295,8 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results-${{ matrix.service }}-${{ steps.platform.outputs.id }}.sarif'
-          category: 'trivy-${{ matrix.service }}-${{ steps.platform.outputs.id }}'
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
       
       - name: Install Cosign
         if: github.event_name != 'pull_request'
@@ -299,10 +309,10 @@ jobs:
           attempt=1
           
           while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts: Signing ${{ matrix.service }} image for ${{ steps.platform.outputs.id }}..."
+            echo "Attempt $attempt of $max_attempts: Signing ${{ matrix.service }} multi-arch image..."
             
-            if timeout 300 cosign sign --yes ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
-              echo "✅ ${{ matrix.service }} image signed successfully for ${{ steps.platform.outputs.id }}"
+            if timeout 300 cosign sign --yes --recursive ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
+              echo "✅ ${{ matrix.service }} multi-arch image signed successfully"
               exit 0
             else
               echo "❌ Attempt $attempt failed"
@@ -315,7 +325,7 @@ jobs:
             attempt=$((attempt + 1))
           done
           
-          echo "⚠️ All signing attempts failed for ${{ matrix.service }} (${{ steps.platform.outputs.id }}), but continuing workflow..."
+          echo "⚠️ All signing attempts failed for ${{ matrix.service }}, but continuing workflow..."
           exit 0
         env:
           COSIGN_EXPERIMENTAL: 1
@@ -326,60 +336,19 @@ jobs:
         with:
           image: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: ${{ matrix.service }}-${{ steps.platform.outputs.id }}-sbom.spdx.json
-          artifact-name: ${{ matrix.service }}-${{ steps.platform.outputs.id }}-sbom
-
-  # 创建多平台镜像清单
-  create-manifest:
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      packages: write
-    
-    strategy:
-      matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-    
-    steps:
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+          output-file: ${{ matrix.service }}-sbom.spdx.json
+          artifact-name: ${{ matrix.service }}-sbom
+      
+      - name: Generate build provenance
+        if: github.event_name != 'pull_request'
+        uses: github/attest-build-provenance@v1
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Set service configuration
-        id: config
-        run: |
-          case "${{ matrix.service }}" in
-            backend)
-              echo "image_name=${{ env.IMAGE_NAMESPACE }}/backend" >> $GITHUB_OUTPUT
-              ;;
-            frontend)
-              echo "image_name=${{ env.IMAGE_NAMESPACE }}/frontend" >> $GITHUB_OUTPUT
-              ;;
-          esac
-      
-      - name: Create and push manifest
-        run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}"
-          
-          # 获取构建的镜像标签（简化版，主要用于 latest）
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            TAG="latest"
-            echo "Creating manifest for latest tag..."
-            
-            # 创建多平台清单
-            docker buildx imagetools create -t ${IMAGE_NAME}:${TAG} \
-              ${IMAGE_NAME}:${TAG}
-          fi
+          subject-path: ${{ steps.build.outputs.digest }}
 
   # 清理旧镜像
   cleanup:
     runs-on: ubuntu-latest
-    needs: [detect-changes, create-manifest]
+    needs: [detect-changes, build]
     if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
@@ -387,6 +356,10 @@ jobs:
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    
+    concurrency:
+      group: cleanup-${{ matrix.service }}-${{ github.ref }}
+      cancel-in-progress: true
     
     steps:
       - name: Delete old container images
