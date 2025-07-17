@@ -24,8 +24,12 @@ RUN uv sync --no-dev --frozen
 # Copy application source code for installation
 COPY ./apps/backend/src/ ./src/
 
-# Clean up cache to reduce layer size
-RUN rm -rf ~/.cache/pip ~/.cache/uv /tmp/*
+# Clean up unnecessary files to reduce layer size
+RUN find /app/.venv/lib/python3.11/site-packages -name "test*" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /app/.venv/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /app/.venv/lib/python3.11/site-packages -name "*.pyo" -delete 2>/dev/null || true && \
+    find /app/.venv/lib/python3.11/site-packages -name "*.pyc" -delete 2>/dev/null || true && \
+    rm -rf ~/.cache/pip ~/.cache/uv /tmp/*
 
 # ==================== Runtime Stage ====================
 FROM python:3.11-slim AS runtime
@@ -43,14 +47,10 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set working directory
 WORKDIR /app
 
-# Copy virtual environment from builder
-COPY --from=builder /app/.venv /app/.venv
-
-# Copy application source code
-COPY ./apps/backend/src/ ./src/
-
-# Copy entrypoint script
-COPY ./apps/backend/docker-entrypoint.sh ./
+# Copy files with correct ownership directly (避免chown重复层)
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --chown=appuser:appuser ./apps/backend/src/ ./src/
+COPY --chown=appuser:appuser ./apps/backend/docker-entrypoint.sh ./
 RUN chmod +x ./docker-entrypoint.sh
 
 # Build-time arguments
@@ -63,9 +63,6 @@ ENV SERVICE_TYPE=$SERVICE_TYPE
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 ENV HOME=/app
-
-# Change ownership to non-root user
-RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
