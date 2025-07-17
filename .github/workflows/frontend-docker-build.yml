@@ -119,22 +119,29 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.event.inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix != 'manual' }}
-            type=raw,value=manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix == 'manual' }}
+            type=ref,event=branch,suffix=-frontend
+            type=ref,event=pr,suffix=-frontend
+            type=semver,pattern={{version}},suffix=-frontend
+            type=semver,pattern={{major}}.{{minor}},suffix=-frontend
+            type=semver,pattern={{major}},suffix=-frontend
+            type=sha,prefix=frontend-{{date 'YYYYMMDD'}}-
+            type=raw,value=frontend-latest,enable={{is_default_branch}}
+            type=raw,value=frontend-${{ github.event.inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix != 'manual' }}
+            type=raw,value=frontend-manual-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_suffix == 'manual' }}
           labels: |
-            org.opencontainers.image.title=Infinite Scribe Web
-            org.opencontainers.image.description=React Web Application
+            org.opencontainers.image.title=Infinite Scribe Frontend Web
+            org.opencontainers.image.description=Frontend React Web Application for Infinite Scribe
             org.opencontainers.image.vendor=Infinite Scribe Team
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            service.type=frontend
+            service.name=infinite-scribe-frontend
+            build.branch=${{ github.ref_name }}
+            build.commit.short=${{ github.sha }}
+            build.number=${{ github.run_number }}
+            build.date=${{ github.event.head_commit.timestamp }}
       
       - name: Build and push Docker image
         id: build
@@ -235,11 +242,11 @@ jobs:
       packages: write
     
     steps:
-      - name: Delete old container images
+      - name: Delete old frontend container images
         uses: actions/delete-package-versions@v5
         continue-on-error: true  # 如果包不存在不要失败
         with:
           package-name: ${{ github.repository }}-web
           package-type: container
-          min-versions-to-keep: 10
+          min-versions-to-keep: 15  # 保留更多版本，因为现在有更多有意义的标签
           delete-only-untagged-versions: true
