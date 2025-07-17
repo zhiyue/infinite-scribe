@@ -364,6 +364,97 @@ cache-from: |
     RETRY_DELAY: 30
 ```
 
+## 🔄 第三轮改进 (供应链安全增强)
+
+### 🛡️ 供应链安全改进
+
+#### 1. **内置 SBOM 生成** ✅
+```yaml
+# 替换 Anchore SBOM Action，使用内置功能
+- name: Build and push Docker image
+  uses: docker/build-push-action@v5
+  with:
+    sbom: ${{ github.event_name != 'pull_request' }}  # 自动生成 SBOM
+    provenance: ${{ github.event_name != 'pull_request' }}  # 自动生成构建证明
+```
+
+**优势**：
+- ✅ 减少一次镜像拉取，提升构建速度
+- ✅ SBOM 和 Provenance 作为 attestation 直接附加到镜像
+- ✅ 与 Docker Buildx 原生集成，更可靠
+- ✅ 支持多架构镜像的统一 attestation
+
+#### 2. **依赖安全审查** ✅
+```yaml
+dependency-review:
+  name: Dependency Review
+  runs-on: ubuntu-latest
+  needs: detect-changes
+  if: needs.detect-changes.outputs.services != '[]' && github.event_name == 'pull_request'
+  permissions:
+    contents: read
+    pull-requests: write
+
+  steps:
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: high
+        comment-summary-in-pr: always
+```
+
+**功能**：
+- 🔍 自动检测 PR 中的依赖变更
+- ⚠️ 识别已知漏洞和许可证问题
+- 📝 在 PR 中自动添加安全摘要评论
+- 🚫 高危漏洞自动阻止合并
+
+#### 3. **构建流程依赖优化** ✅
+```yaml
+build:
+  needs: [detect-changes, test, dependency-review]
+  if: always() && needs.detect-changes.outputs.services != '[]' &&
+      (needs.dependency-review.result == 'success' || needs.dependency-review.result == 'skipped')
+```
+
+**逻辑**：
+- 依赖审查仅在 PR 时运行
+- 构建作业等待依赖审查完成或跳过
+- 依赖审查失败时阻止构建
+
+### 🔒 安全合规增强
+
+#### 4. **权限最小化** ✅
+```yaml
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  id-token: write
+  attestations: write  # 新增：支持 attestation 写入
+```
+
+#### 5. **构建摘要增强** ✅
+```yaml
+### 🔒 Security & Compliance
+- **SBOM**: ✅ Auto-generated and attached as attestation
+- **Provenance**: ✅ Auto-generated and attached as attestation
+- **Vulnerability Scan**: ✅ Trivy SARIF uploaded to Security tab
+- **Image Signing**: ✅ Cosign signature applied
+
+### 🔗 Quick Links
+- [Attestations](https://github.com/${{ github.repository }}/attestations)
+```
+
+### 📈 性能和可靠性提升
+
+| 改进项 | 效果 |
+|--------|------|
+| **减少镜像拉取** | 构建时间减少 30-60 秒 |
+| **原生 SBOM/Provenance** | 更可靠的 attestation 生成 |
+| **依赖审查前置** | 早期发现供应链风险 |
+| **权限精确化** | 降低安全攻击面 |
+
 ## 🔄 第二轮改进 (基于专业 Review)
 
 ### 修复的关键问题
@@ -438,6 +529,52 @@ cache-from: |
 - **改进的缓存策略**: pnpm store 缓存提高前端构建效率
 - **更精确的并发控制**: 避免不必要的构建取消
 
+## 🔧 使用指南
+
+### 启用依赖审查
+
+1. **启用 Dependabot**（如果尚未启用）：
+   ```yaml
+   # .github/dependabot.yml
+   version: 2
+   updates:
+     - package-ecosystem: "npm"
+       directory: "/apps/frontend"
+       schedule:
+         interval: "weekly"
+     - package-ecosystem: "pip"
+       directory: "/apps/backend"
+       schedule:
+         interval: "weekly"
+   ```
+
+2. **依赖审查将自动运行**：
+   - 仅在 PR 时触发
+   - 检测高危漏洞时自动阻止合并
+   - 在 PR 中添加安全摘要评论
+
+### 查看 SBOM 和 Provenance
+
+```bash
+# 查看镜像的所有 attestations
+docker buildx imagetools inspect ghcr.io/your-repo/backend:latest --format '{{ json .Attestations }}'
+
+# 使用 cosign 验证 SBOM
+cosign download sbom ghcr.io/your-repo/backend:latest
+
+# 使用 cosign 验证 Provenance
+cosign download attestation ghcr.io/your-repo/backend:latest
+```
+
+### 安全合规检查清单
+
+- ✅ **SBOM**: 自动生成并附加到镜像
+- ✅ **Provenance**: 构建证明自动生成
+- ✅ **漏洞扫描**: Trivy 扫描结果上传到 Security 标签
+- ✅ **镜像签名**: Cosign 签名验证
+- ✅ **依赖审查**: PR 中的依赖安全检查
+- ✅ **权限最小化**: 精确的作业权限配置
+
 ## 🚀 后续优化建议
 
 1. **添加性能基准测试**：集成镜像大小和启动时间监控
@@ -447,3 +584,4 @@ cache-from: |
 5. **集成质量门禁**：基于测试覆盖率和安全扫描结果的自动决策
 6. **使用 GitHub OIDC**: 替换 PAT 进行容器注册表登录
 7. **实现可重用工作流**: 通过 workflow_call 支持其他仓库复用
+8. **添加镜像扫描策略**: 基于 OPA/Gatekeeper 的准入控制

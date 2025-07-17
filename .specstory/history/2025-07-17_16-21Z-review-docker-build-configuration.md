@@ -254,3 +254,122 @@ Read file: .github/workflows/docker-build.yml
 
 ---
 
+<details>
+            <summary>Grep search for "cleanup-\$\{\{ matrix.service" • **2** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L517 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L517 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
+
+</details>
+
+---
+
+
+
+---
+
+<details>
+            <summary>Grep search for "build:\n" • **2** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L233 | `build:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:
+        description: 'Force rebuild without cache'` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L233 | `build:
+    name: Build (${{ matrix.service }})` |
+
+</details>
+
+---
+
+
+
+---
+
+Read file: .github/workflows/docker-build.yml
+
+---
+
+
+
+---
+
+<details>
+            <summary>Grep search for "FORCE_REBUILD" • **2** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L66 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L363 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L366 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L66 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L363 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L366 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+
+</details>
+
+---
+
+
+
+---
+
+已复审最新版本，主要问题已全部解决 🎉  
+下面仅剩一些微调/可选优化，可视需求采纳。
+
+--------------------------------------------------------------------
+1. 并发与触发
+--------------------------------------------------------------------
+✅ 全局 `concurrency.group` 采用 `...-${{ github.ref }}${{ github.ref_type == 'tag' && '-tag' || '' }}`  
+ • Tag run 不再重复 ref，且与分支 run 可并行。  
+✅ `cleanup` job 并发已改为 `cleanup-${{ matrix.service }}-${{ github.ref_name }}`，不同分支互不取消。  
+✅ `FORCE_REBUILD` 抽为全局 env，表达式更简洁。
+
+--------------------------------------------------------------------
+2. Matrix 检测 & 输入校验
+--------------------------------------------------------------------
+✅ `fetch-depth: 1` 进一步加速 checkout。  
+✅ `valid_services` 校验逻辑到位，非法输入直接 fail。  
+✅ push → main 且无 diff 时仍全量构建，逻辑完整。
+
+--------------------------------------------------------------------
+3. Test / Build 作业
+--------------------------------------------------------------------
+✅ Job `name:` 已加 `(${{ matrix.service }})`，Action UI 更清晰。  
+✅ `timeout-minutes`：Test 30 min、Build 60 min——很好。  
+✅ Cache 表达式统一使用 `env.FORCE_REBUILD`，易维护。  
+⚠️ Cosign 仍设置 `COSIGN_EXPERIMENTAL=1`；若已升级至 cosign ≥ 2.0 且只签镜像，可移除以减少日志（可选）。  
+⚠️ 若未来需 Node ~20 以外版本，可把 node-version 抽成 matrix 变量（可选）。
+
+--------------------------------------------------------------------
+4. 通知 & 错误处理
+--------------------------------------------------------------------
+✅ 所有 `notify_slack` 判定均加默认值，避免非 dispatch 触发报错。  
+⚠️ Slack curl 示例中引用 `"${{ secrets.SLACK_WEBHOOK_URL }}"` 已转义；上线前记得解注释或改用现成通知 Action。
+
+--------------------------------------------------------------------
+5. 其余可选优化
+--------------------------------------------------------------------
+• 目前 Build cache-to 使用 `mode=max`；若想节省 GHA 存储，可调成 `min` 或混合策略。  
+• `docker/build-push-action@v5` 支持 `sbom=true` 自动生成 SBOM，可考虑替代 Anchore（减少一次拉取）。  
+• 若 repo 启用 Dependabot，可在 Build 作业前插一条 `actions/dependency-review-action` 加强供应链扫描。  
+• 将常用步骤（Checkout、Setup Python/Node）抽为 YAML anchor 或复用 reusable workflow，可再减冗余。
+
+--------------------------------------------------------------------
+结论
+--------------------------------------------------------------------
+当前 Workflow 已满足生产级可靠性与可观测性要求；剩余皆属提升可维护性 / 减成本的“糖”。  
+如需进一步脚本化通知、优化缓存或迁移到 OIDC 登陆，请随时告知！
+
+---
+
