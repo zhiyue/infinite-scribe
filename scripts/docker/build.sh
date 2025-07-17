@@ -16,6 +16,7 @@ FULL_IMAGE_NAME=""
 NO_CACHE=false
 CACHE_DIR="${HOME}/.cache/buildx"
 TEST=false
+VERBOSE="${VERBOSE:-false}"
 
 # Enable Docker Buildkit
 export DOCKER_BUILDKIT=1
@@ -61,6 +62,7 @@ Options:
   --test                  Run container after build for testing
   --multi-arch            Build for multiple architectures (linux/amd64,linux/arm64)
   --cache-dir DIR         Cache directory (default: ~/.cache/buildx)
+  --verbose               Enable verbose build output (--progress=plain)
 
 Examples:
   $0                      Build local image
@@ -128,6 +130,13 @@ build_image() {
         "-f" "apps/backend/Dockerfile"
         "-t" "$FULL_IMAGE_NAME"
     )
+    
+    # Set build progress output based on VERBOSE setting
+    if [ "$VERBOSE" = true ]; then
+        build_cmd+=("--progress" "plain")
+    else
+        build_cmd+=("--progress" "auto")
+    fi
     
     # Set up cache arguments
     if [ "$NO_CACHE" != true ]; then
@@ -271,6 +280,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --multi-arch)
             PLATFORM="linux/amd64,linux/arm64"
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
             shift
             ;;
         *)

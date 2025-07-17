@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Upgrade pip and install uv with wheel caching
-RUN pip install --upgrade pip && pip install uv
+# Copy uv from official static image to avoid pip install layer
+COPY --from=ghcr.io/astral-sh/uv:0.4.9 /uv /usr/local/bin/uv
 
 # Copy dependency files
 COPY ./apps/backend/pyproject.toml ./
