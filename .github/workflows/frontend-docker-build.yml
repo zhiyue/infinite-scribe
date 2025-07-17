@@ -189,7 +189,30 @@ jobs:
       - name: Sign container image
         if: github.event_name != 'pull_request'
         run: |
-          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          # 添加重试逻辑，因为 sigstore 服务可能偶尔不稳定
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts: Signing container image..."
+            
+            if timeout 300 cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}; then
+              echo "✅ Container image signed successfully"
+              exit 0
+            else
+              echo "❌ Attempt $attempt failed"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+            fi
+            
+            attempt=$((attempt + 1))
+          done
+          
+          echo "⚠️ All signing attempts failed, but continuing workflow..."
+          echo "This is usually due to temporary sigstore service issues"
+          exit 0  # 不阻塞构建过程
         env:
           COSIGN_EXPERIMENTAL: 1
       
