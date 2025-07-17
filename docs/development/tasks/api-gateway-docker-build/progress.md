@@ -187,11 +187,39 @@
   - 健康检查按预期返回 503（外部服务未连接）
   - 所有优化功能正常工作
 
+#### GitHub Actions 版本升级修复（2025-07-17）
+- ✅ **完成**：通过 `gh` 命令识别构建失败原因
+  - 发现 `actions/upload-artifact@v3` 废弃问题导致构建失败
+  - 确认前后端 Docker build workflows 都受影响
+  - 分析具体错误日志：`This request has been automatically failed because it uses a deprecated version of actions/upload-artifact: v3`
+  
+- ✅ **完成**：查询并验证 GitHub Actions 最新版本
+  - 确认 `actions/upload-artifact` 最新版本：v4（v3 已于 2025-01-30 废弃）
+  - 确认 `actions/setup-python` 最新版本：v5
+  - 确认 `github/codeql-action/upload-sarif` 最新版本：v3（v2 已于 2025-01-10 废弃）
+  - 确认 `actions/delete-package-versions` 最新版本：v5
+  
+- ✅ **完成**：升级后端和前端 Docker build workflows 中的 Actions
+  - 后端 `backend-docker-build.yml` 升级：
+    - `actions/upload-artifact@v3` → `@v4`
+    - `actions/setup-python@v4` → `@v5`
+    - `github/codeql-action/upload-sarif@v2` → `@v3`
+    - `actions/delete-package-versions@v4` → `@v5`
+  - 前端 `frontend-docker-build.yml` 升级：
+    - `actions/upload-artifact@v3` → `@v4`
+    - `github/codeql-action/upload-sarif@v2` → `@v3`
+    - `actions/delete-package-versions@v4` → `@v5`
+  
+- ✅ **完成**：更新任务文档
+  - 更新 `todo-list.md` 添加版本升级修复完成项目
+  - 更新 `progress.md` 记录修复过程和结果
+
 #### 下一步计划
-1. 在实际 GitHub 仓库中测试 CI/CD 流程
+1. 在实际 GitHub 仓库中测试修复后的 CI/CD 流程
 2. 验证镜像推送到 GitHub Package Registry
 3. 验证安全扫描和签名功能
 4. 完善文档和使用指南
+5. 监控构建成功率和性能指标
 
 ---
 
