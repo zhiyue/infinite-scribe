@@ -18,8 +18,11 @@ RUN pip install --upgrade pip && pip install uv
 COPY ./apps/backend/pyproject.toml ./
 COPY ./apps/backend/uv.lock ./
 
-# Install Python dependencies globally (not in venv)
-RUN uv pip install --system --editable .
+# Install Python dependencies with uv sync (creates virtual environment)
+RUN uv sync --no-dev --frozen
+
+# Copy application source code for installation
+COPY ./apps/backend/src/ ./src/
 
 # ==================== Runtime Stage ====================
 FROM python:3.11-slim AS runtime
@@ -27,6 +30,7 @@ FROM python:3.11-slim AS runtime
 # Install minimal runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,10 +40,8 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set working directory
 WORKDIR /app
 
-# Copy Python dependencies from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /usr/local/include/python3.11 /usr/local/include/python3.11
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application source code
 COPY ./apps/backend/src/ ./src/
@@ -48,10 +50,15 @@ COPY ./apps/backend/src/ ./src/
 COPY ./apps/backend/docker-entrypoint.sh ./
 RUN chmod +x ./docker-entrypoint.sh
 
+# Build-time arguments
+ARG SERVICE_TYPE=api-gateway
+
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-ENV SERVICE_TYPE=${SERVICE_TYPE:-api-gateway}
+ENV SERVICE_TYPE=$SERVICE_TYPE
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
@@ -61,6 +68,9 @@ USER appuser
 
 # Default port
 EXPOSE 8000
+
+# Set stop signal for graceful shutdown
+STOPSIGNAL SIGTERM
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
