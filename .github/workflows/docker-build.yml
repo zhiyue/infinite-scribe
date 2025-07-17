@@ -183,7 +183,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+      
+      - name: Enable corepack and install pnpm
+        if: matrix.service == 'frontend'
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.15.9 --activate
 
       - name: Cache pnpm store
         if: matrix.service == 'frontend'
@@ -214,6 +219,7 @@ jobs:
         if: matrix.service == 'frontend'
         run: |
           corepack enable
+          corepack prepare pnpm@8.15.9 --activate
           pnpm install --frozen-lockfile
           cd apps/frontend
           echo "Running unit tests..."
@@ -292,7 +298,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+      
+      - name: Enable corepack and install pnpm
+        if: matrix.service == 'frontend'
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.15.9 --activate
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -388,10 +399,8 @@ jobs:
           provenance: ${{ github.event_name != 'pull_request' }}  # 自动生成构建证明
           cache-from: |
             ${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
-            ${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}
           cache-to: |
             ${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
-            ${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             SERVICE=${{ matrix.service }}
