@@ -3,7 +3,7 @@
 # Local Docker build script for Infinite Scribe API Gateway
 # Usage: ./scripts/docker/build.sh [OPTIONS]
 
-set -e
+set -e -u -o pipefail
 
 # Default values
 IMAGE_NAME="infinite-scribe"
@@ -13,6 +13,11 @@ SERVICE_TYPE="api-gateway"
 PUSH=false
 REGISTRY="ghcr.io"
 FULL_IMAGE_NAME=""
+NO_CACHE=false
+CACHE_DIR="${HOME}/.cache/buildx"
+
+# Enable Docker Buildkit
+export DOCKER_BUILDKIT=1
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,6 +50,7 @@ Usage: $0 [OPTIONS]
 
 Options:
   -h, --help              Show this help message
+  -n, --name NAME         Docker image name (default: infinite-scribe)
   -t, --tag TAG           Docker image tag (default: local)
   -p, --platform PLATFORM Multi-platform build (default: linux/amd64)
   -s, --service SERVICE   Service type to test (default: api-gateway)
@@ -53,13 +59,15 @@ Options:
   --no-cache              Build without cache
   --test                  Run container after build for testing
   --multi-arch            Build for multiple architectures (linux/amd64,linux/arm64)
+  --cache-dir DIR         Cache directory (default: ~/.cache/buildx)
 
 Examples:
   $0                      Build local image
-  $0 -t v1.0.0            Build with tag v1.0.0
+  $0 -n myapp -t v1.0.0   Build with custom name and tag
   $0 --multi-arch         Build for multiple architectures
   $0 --test               Build and run container for testing
   $0 --push -t latest     Build and push to registry
+  $0 --cache-dir ./cache  Use custom cache directory
 
 EOF
 }
@@ -93,9 +101,6 @@ check_prerequisites() {
 build_image() {
     print_info "Building Docker image..."
     
-    local build_args=""
-    local cache_args=""
-    
     # Set up full image name
     if [ "$PUSH" = true ]; then
         FULL_IMAGE_NAME="$REGISTRY/$IMAGE_NAME:$TAG"
@@ -103,32 +108,37 @@ build_image() {
         FULL_IMAGE_NAME="$IMAGE_NAME:$TAG"
     fi
     
+    # Create cache directory if it doesn't exist
+    mkdir -p "$CACHE_DIR"
+    
+    # Build command array for safer execution
+    local build_cmd=(
+        "docker" "buildx" "build"
+        "--platform" "$PLATFORM"
+        "-f" "apps/backend/Dockerfile"
+        "-t" "$FULL_IMAGE_NAME"
+    )
+    
     # Set up cache arguments
     if [ "$NO_CACHE" != true ]; then
-        cache_args="--cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache"
+        build_cmd+=(
+            "--cache-from" "type=local,src=$CACHE_DIR"
+            "--cache-to" "type=local,dest=$CACHE_DIR"
+        )
     fi
-    
-    # Build command
-    local build_cmd="docker buildx build"
-    build_cmd="$build_cmd --platform $PLATFORM"
-    build_cmd="$build_cmd -f apps/backend/Dockerfile"
-    build_cmd="$build_cmd -t $FULL_IMAGE_NAME"
-    build_cmd="$build_cmd $cache_args"
     
     if [ "$PUSH" = true ]; then
-        build_cmd="$build_cmd --push"
+        build_cmd+=("--push")
     else
-        build_cmd="$build_cmd --load"
+        build_cmd+=("--load")
     fi
     
-    build_cmd="$build_cmd ."
+    build_cmd+=(".")
     
-    print_info "Running: $build_cmd"
+    print_info "Running: ${build_cmd[*]}"
     
     # Execute build
-    eval $build_cmd
-    
-    if [ $? -eq 0 ]; then
+    if "${build_cmd[@]}"; then
         print_success "Docker image built successfully: $FULL_IMAGE_NAME"
     else
         print_error "Docker build failed"
@@ -139,7 +149,7 @@ build_image() {
 # Function to get image size
 get_image_size() {
     if [ "$PUSH" != true ]; then
-        local size=$(docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "$FULL_IMAGE_NAME" | awk '{print $2}')
+        local size=$(docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" --no-trunc | grep "$FULL_IMAGE_NAME" | awk '{print $2}')
         if [ -n "$size" ]; then
             print_info "Image size: $size"
         fi
@@ -152,13 +162,25 @@ test_container() {
     
     local container_name="infinite-scribe-test-$$"
     
+    # Set up automatic cleanup
+    cleanup_container() {
+        if [ -n "${container_name:-}" ]; then
+            docker stop "$container_name" >/dev/null 2>&1 || true
+            docker rm "$container_name" >/dev/null 2>&1 || true
+        fi
+    }
+    trap cleanup_container EXIT
+    
     # Run container
     print_info "Starting container: $container_name"
-    docker run -d \
+    if ! docker run -d \
         --name "$container_name" \
         -p 8000:8000 \
         -e SERVICE_TYPE="$SERVICE_TYPE" \
-        "$FULL_IMAGE_NAME"
+        "$FULL_IMAGE_NAME"; then
+        print_error "Failed to start container"
+        exit 1
+    fi
     
     # Wait for container to start
     sleep 5
@@ -174,6 +196,9 @@ test_container() {
                 print_success "Health check passed"
             else
                 print_warning "Health check failed or endpoint not available"
+                # Show container logs for debugging
+                print_info "Container logs for debugging:"
+                docker logs "$container_name"
             fi
         fi
         
@@ -184,12 +209,8 @@ test_container() {
     else
         print_error "Container failed to start"
         docker logs "$container_name"
+        exit 1
     fi
-    
-    # Cleanup
-    print_info "Cleaning up test container..."
-    docker stop "$container_name" > /dev/null 2>&1 || true
-    docker rm "$container_name" > /dev/null 2>&1 || true
 }
 
 # Parse command line arguments
@@ -198,6 +219,10 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             exit 0
+            ;;
+        -n|--name)
+            IMAGE_NAME="$2"
+            shift 2
             ;;
         -t|--tag)
             TAG="$2"
@@ -213,6 +238,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -r|--registry)
             REGISTRY="$2"
+            shift 2
+            ;;
+        --cache-dir)
+            CACHE_DIR="$2"
             shift 2
             ;;
         --push)

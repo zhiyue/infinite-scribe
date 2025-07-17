@@ -135,19 +135,22 @@ classDiagram
 
 ### 1. Docker 多阶段构建
 **核心解决方案**：
-- **Builder 阶段**：使用 `uv pip install --system --editable .` 全局安装依赖
-- **Runtime 阶段**：复制系统级 Python 包，避免虚拟环境问题
+- **Builder 阶段**：使用 `uv sync --no-dev --frozen` 创建虚拟环境（最佳实践）
+- **Runtime 阶段**：复制完整虚拟环境，确保依赖完整性
 - **非 root 用户**：创建 `appuser` 用户提高安全性
 - **健康检查**：内置 HTTP 健康检查机制
 
 **关键技术决策**：
 ```dockerfile
-# 解决 uvicorn 可执行文件问题
-RUN uv pip install --system --editable .
+# 使用 uv sync 最佳实践
+RUN uv sync --no-dev --frozen
 
-# 复制系统级依赖到运行时
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# 复制虚拟环境到运行时
+COPY --from=builder /app/.venv /app/.venv
+
+# 设置虚拟环境变量
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 ```
 
 ### 2. GitHub Actions 工作流
@@ -185,10 +188,11 @@ tags: |
 ### 1. uvicorn 可执行文件问题 ✅
 **问题**：多阶段构建中 `uv sync` 创建虚拟环境，运行时阶段无法访问 uvicorn
 
-**解决方案**：
-- 使用 `uv pip install --system --editable .` 替代 `uv sync`
-- 全局安装依赖到系统 Python 环境
-- 确保运行时可以直接访问 uvicorn
+**最终解决方案**：
+- 坚持使用 `uv sync --no-dev --frozen` 最佳实践
+- 正确复制虚拟环境：`COPY --from=builder /app/.venv /app/.venv`
+- 设置正确的环境变量：`ENV VIRTUAL_ENV=/app/.venv` 和 `ENV PATH="/app/.venv/bin:$PATH"`
+- 确保运行时可以通过虚拟环境访问 uvicorn
 
 ### 2. 依赖路径问题 ✅
 **问题**：Dockerfile 中依赖文件路径错误
@@ -212,9 +216,10 @@ tags: |
 | 指标 | 目标 | 实际 | 状态 |
 |------|------|------|------|
 | 构建时间 | < 5 分钟 | ~10 秒 | ✅ 超额完成 |
-| 镜像大小 | < 500MB | 1.02GB | ⚠️ 需优化 |
+| 镜像大小 | < 500MB | 1.67GB | ⚠️ 需优化 |
 | 构建成功率 | > 95% | 100% | ✅ 达标 |
 | 安全扫描 | 0 严重漏洞 | 待验证 | 🔄 进行中 |
+| uvicorn 可用性 | 100% | 100% | ✅ 达标 |
 
 ### 性能优化建议
 1. **镜像大小优化**：

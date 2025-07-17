@@ -77,6 +77,25 @@
   - 健康检查测试：✅ 服务可访问
   - 多阶段构建验证：✅ 工作正常
 
+#### 用户Review改进实施（2025-07-17）
+- ✅ **完成**：采纳用户建议，使用 `uv sync` 最佳实践
+  - 修改 Dockerfile 使用 `uv sync --no-dev --frozen` 而非 `--system` 安装
+  - 正确复制虚拟环境从 builder 到 runtime 阶段
+  - 设置正确的环境变量：`VIRTUAL_ENV=/app/.venv` 和 `PATH="/app/.venv/bin:$PATH"`
+  
+- ✅ **完成**：实施构建脚本安全改进
+  - 添加 `set -e -u -o pipefail` 提高脚本安全性
+  - 改进缓存目录处理：`CACHE_DIR="${HOME}/.cache/buildx"`
+  - 使用数组替代 eval 确保命令执行安全
+  - 增加镜像名称配置选项 `-n|--name`
+
+- ✅ **完成**：验证改进后的实现
+  - 本地构建成功：1.67GB 镜像大小
+  - uvicorn 服务正常启动，解决了之前的可执行文件问题
+  - 虚拟环境正确工作，依赖解析正常
+  - 容器启动和基本服务验证通过
+  - 健康检查符合预期（数据库服务未启动时返回503）
+
 #### 下一步计划
 1. 在实际 GitHub 仓库中测试 CI/CD 流程
 2. 验证镜像推送到 GitHub Package Registry

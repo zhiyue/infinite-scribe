@@ -27,6 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
+          cd apps/backend
           uv sync --all-extras
       
       - name: Run tests
