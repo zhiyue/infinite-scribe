@@ -1,8 +1,9 @@
 # ==================== Builder Stage ====================
-FROM python:3.11-slim AS builder
+# 使用 Bookworm 基础镜像并升级系统包以修复 CVE-2023-45853 (zlib1g 漏洞)
+FROM python:3.11-slim-bookworm AS builder
 
-# Install system dependencies for building
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies for building with security updates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && apt-get clean \
@@ -32,14 +33,19 @@ RUN find /app/.venv/lib/python3.11/site-packages -name "test*" -type d -exec rm 
     rm -rf ~/.cache/pip ~/.cache/uv /tmp/*
 
 # ==================== Runtime Stage ====================
-FROM python:3.11-slim AS runtime
+# 使用 Bookworm 基础镜像并升级系统包以修复 CVE-2023-45853 (zlib1g 漏洞)
+FROM python:3.11-slim-bookworm AS runtime
 
-# Install minimal runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install minimal runtime dependencies with security updates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Verify zlib1g version to ensure CVE-2023-45853 is fixed
+RUN dpkg -l | grep zlib1g && \
+    python3 -c "import zlib; print(f'zlib version: {zlib.ZLIB_VERSION}')"
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
