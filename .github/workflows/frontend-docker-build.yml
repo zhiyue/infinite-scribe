@@ -237,8 +237,9 @@ jobs:
     steps:
       - name: Delete old container images
         uses: actions/delete-package-versions@v5
+        continue-on-error: true  # 如果包不存在不要失败
         with:
-          package-name: ${{ env.IMAGE_NAME }}
+          package-name: ${{ github.repository }}-web
           package-type: container
           min-versions-to-keep: 10
           delete-only-untagged-versions: true
