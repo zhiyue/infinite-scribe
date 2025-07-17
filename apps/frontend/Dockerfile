@@ -1,6 +1,9 @@
 # 多阶段构建 - 第一阶段：构建应用
 FROM node:20-alpine AS builder
 
+# 更新 Alpine 软件包以修复安全漏洞
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
 # 安装pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
 
@@ -29,7 +32,7 @@ RUN pnpm build
 FROM nginx:alpine
 
 # 更新 Alpine 软件包以修复安全漏洞
-RUN apk update && apk upgrade
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
 # 复制nginx配置
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
