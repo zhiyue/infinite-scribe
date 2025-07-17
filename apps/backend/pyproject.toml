@@ -38,6 +38,8 @@ dependencies = [
     "alembic>=1.16.2",
     "sqlalchemy[mypy]>=2.0.41",
     "psycopg2-binary>=2.9.10",
+    # Security fix for CVE-2025-47273
+    "setuptools>=78.1.1",
 ]
 
 [dependency-groups]
