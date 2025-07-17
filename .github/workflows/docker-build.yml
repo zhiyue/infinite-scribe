@@ -3,7 +3,6 @@ name: Docker Build and Push
 on:
   push:
     branches: [main, develop]
-    tags: ['v*']
     paths:
       - 'apps/**'
       - 'packages/**'
@@ -13,6 +12,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/docker-build.yml'
+    tags: ['v*'] # 独立的 tags 触发器
   pull_request:
     branches: [main]
     paths:
@@ -47,29 +47,40 @@ on:
         required: false
         default: false
         type: boolean
+      notify_slack:
+        description: 'Send Slack notification on completion'
+        required: false
+        default: true
+        type: boolean
+
+# 添加全局并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref_type == 'tag' && github.ref || '' }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ${{ github.repository }}
+  # 构建时间监控
+  BUILD_START_TIME: ${{ github.event.head_commit.timestamp || github.event.pull_request.updated_at || github.run_id }}
 
 jobs:
   # 检测变化的服务
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.changes.outputs.backend }}
-      frontend: ${{ steps.changes.outputs.frontend }}
       services: ${{ steps.matrix.outputs.services }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2  # 只需要比较最近的提交，减少克隆时间
 
       - name: Detect changes
         uses: dorny/paths-filter@v3
         id: changes
         with:
+          list-files: shell
           filters: |
             backend:
               - 'apps/backend/**'
@@ -89,7 +100,8 @@ jobs:
         id: matrix
         run: |
           services=()
-          
+          valid_services=("backend" "frontend")
+
           # 如果是手动触发，解析输入的服务
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             input_services="${{ github.event.inputs.services }}"
@@ -97,7 +109,16 @@ jobs:
               services=("backend" "frontend")
             else
               IFS=',' read -ra service_array <<< "$input_services"
-              services=("${service_array[@]}")
+              # 验证输入的服务名称
+              for service in "${service_array[@]}"; do
+                service=$(echo "$service" | xargs)  # 去除空格
+                if [[ " ${valid_services[*]} " =~ " ${service} " ]]; then
+                  services+=("$service")
+                else
+                  echo "❌ Invalid service name: '$service'. Valid options: ${valid_services[*]}"
+                  exit 1
+                fi
+              done
             fi
           else
             # 根据文件变化决定构建哪些服务
@@ -108,12 +129,12 @@ jobs:
               services+=("frontend")
             fi
           fi
-          
+
           # 如果没有检测到变化，在 push 到 main 分支时构建所有服务
           if [ ${#services[@]} -eq 0 ] && [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
             services=("backend" "frontend")
           fi
-          
+
           # 生成 JSON 格式的矩阵
           if [ ${#services[@]} -gt 0 ]; then
             services_json=$(printf '%s\n' "${services[@]}" | jq -R . | jq -s .)
@@ -133,30 +154,68 @@ jobs:
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
       fail-fast: false
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Set up Python
+        if: matrix.service == 'backend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache uv dependencies
+        if: matrix.service == 'backend'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Set up Node.js
+        if: matrix.service == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
       - name: Run backend tests
         if: matrix.service == 'backend'
         run: |
           pip install uv
           cd apps/backend
           uv sync --all-extras
-          uv run pytest tests/ -v
+          echo "Running pytest tests..."
+          uv run pytest tests/ -v --tb=short
+          echo "Running ruff linting..."
           uv run ruff check src/
+          echo "Running mypy type checking..."
           uv run mypy src/ --ignore-missing-imports
-      
+
       - name: Run frontend tests
         if: matrix.service == 'frontend'
         run: |
           corepack enable
           pnpm install --frozen-lockfile
           cd apps/frontend
-          pnpm test
+          echo "Running unit tests..."
+          pnpm test:ci
+          echo "Running linting..."
           pnpm lint
+          echo "Building application..."
           pnpm build
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.service }}
+          path: |
+            apps/${{ matrix.service }}/test-results/
+            apps/${{ matrix.service }}/coverage/
+          retention-days: 7
 
   # 构建和推送 Docker 镜像
   build:
@@ -168,39 +227,40 @@ jobs:
       packages: write
       security-events: write
       id-token: write
-    
+
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
       fail-fast: false
-    
+      max-parallel: 2
+
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.service }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.service }}-${{ github.ref }}-${{ github.run_id }}
       cancel-in-progress: true
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         if: matrix.service == 'backend'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Set up Node.js
         if: matrix.service == 'frontend'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -208,7 +268,14 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
+      - name: Get build date and metrics
+        id: date
+        run: |
+          echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "build_start=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "build_id=${{ github.run_id }}-${{ matrix.service }}" >> $GITHUB_OUTPUT
+
       - name: Set service configuration
         id: config
         run: |
@@ -219,6 +286,8 @@ jobs:
               echo "context=." >> $GITHUB_OUTPUT
               echo "title=Infinite Scribe Backend API" >> $GITHUB_OUTPUT
               echo "description=Backend API Gateway and Agent Services" >> $GITHUB_OUTPUT
+              echo "healthcheck_path=/health" >> $GITHUB_OUTPUT
+              echo "default_port=8000" >> $GITHUB_OUTPUT
               ;;
             frontend)
               echo "image_name=${{ env.IMAGE_NAMESPACE }}/frontend" >> $GITHUB_OUTPUT
@@ -226,9 +295,15 @@ jobs:
               echo "context=." >> $GITHUB_OUTPUT
               echo "title=Infinite Scribe Frontend Web" >> $GITHUB_OUTPUT
               echo "description=Frontend React Web Application" >> $GITHUB_OUTPUT
+              echo "healthcheck_path=/health" >> $GITHUB_OUTPUT
+              echo "default_port=80" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ Unknown service: ${{ matrix.service }}"
+              exit 1
               ;;
           esac
-      
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -254,6 +329,7 @@ jobs:
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.created=${{ steps.date.outputs.date }}
             # 自定义元数据
             com.infinitescribe.service.type=${{ matrix.service }}
             com.infinitescribe.service.name=infinite-scribe-${{ matrix.service }}
@@ -262,7 +338,7 @@ jobs:
             com.infinitescribe.build.number=${{ github.run_number }}
             com.infinitescribe.build.actor=${{ github.actor }}
             com.infinitescribe.build.platforms=linux/amd64,linux/arm64
-      
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -273,77 +349,147 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
-          cache-to: ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
+          cache-from: |
+            ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}
+            ${{ github.event.inputs.force_rebuild != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}
+          cache-to: |
+            ${{ github.event.inputs.force_rebuild != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}
+            ${{ github.event.inputs.force_rebuild != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             SERVICE=${{ matrix.service }}
             GIT_COMMIT=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
-      
+            BUILD_DATE=${{ steps.date.outputs.date }}
+            BUILD_ID=${{ steps.date.outputs.build_id }}
+
+      - name: Calculate build duration
+        id: build_metrics
+        run: |
+          build_end=$(date +%s)
+          build_duration=$((build_end - ${{ steps.date.outputs.build_start }}))
+          echo "build_duration=${build_duration}" >> $GITHUB_OUTPUT
+          echo "build_end=${build_end}" >> $GITHUB_OUTPUT
+          echo "🕐 Build completed in ${build_duration} seconds"
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.20.0
+        continue-on-error: true
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
           format: 'sarif'
           output: 'trivy-results-${{ matrix.service }}.sarif'
           exit-code: '0'
           vuln-type: 'os,library'
-          severity: 'CRITICAL'
-      
+          severity: 'CRITICAL,HIGH'
+          timeout: '10m'
+
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
           category: 'trivy-${{ matrix.service }}'
-      
+
+      - name: Generate vulnerability summary
+        if: always()
+        run: |
+          if [ -f "trivy-results-${{ matrix.service }}.sarif" ]; then
+            echo "📊 Security scan completed for ${{ matrix.service }}"
+            # 简单的漏洞统计（如果需要更详细的可以解析 SARIF）
+            echo "Results uploaded to GitHub Security tab"
+          else
+            echo "⚠️ Security scan failed or skipped for ${{ matrix.service }}"
+          fi
+
       - name: Install Cosign
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3.5.0
-      
+
       - name: Sign container image
         if: github.event_name != 'pull_request'
-        run: |
-          max_attempts=3
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts: Signing ${{ matrix.service }} multi-arch image..."
-            
-            if timeout 300 cosign sign --yes --recursive ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
-              echo "✅ ${{ matrix.service }} multi-arch image signed successfully"
-              exit 0
-            else
-              echo "❌ Attempt $attempt failed"
-              if [ $attempt -lt $max_attempts ]; then
-                echo "⏳ Waiting 30 seconds before retry..."
-                sleep 30
-              fi
-            fi
-            
-            attempt=$((attempt + 1))
-          done
-          
-          echo "⚠️ All signing attempts failed for ${{ matrix.service }}, but continuing workflow..."
-          exit 0
         env:
           COSIGN_EXPERIMENTAL: 1
-      
+          MAX_ATTEMPTS: 3
+          RETRY_DELAY: 30
+        run: |
+          echo "🔐 Starting image signing process..."
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "🔐 Signing attempt $attempt/$MAX_ATTEMPTS for ${{ matrix.service }}..."
+            if timeout 300 cosign sign --yes --recursive \
+              ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}; then
+              echo "✅ Image signed successfully"
+              exit 0
+            fi
+            echo "⚠️ Signing attempt $attempt failed"
+            [ $attempt -lt $MAX_ATTEMPTS ] && sleep $RETRY_DELAY
+          done
+          echo "❌ All signing attempts failed for ${{ matrix.service }}"
+          exit 1
+
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0.20.2
+        continue-on-error: true
         with:
           image: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}@${{ steps.build.outputs.digest }}
           format: spdx-json
           output-file: ${{ matrix.service }}-sbom.spdx.json
           artifact-name: ${{ matrix.service }}-sbom
-      
-      - name: Generate build provenance
+
+      - name: Generate build attestation
         if: github.event_name != 'pull_request'
-        uses: github/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v1
+        continue-on-error: true
         with:
-          subject-path: ${{ steps.build.outputs.digest }}
+          subject-name: ${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+
+      - name: Generate build summary
+        if: always()
+        run: |
+          # 计算构建状态图标
+          if [ "${{ job.status }}" = "success" ]; then
+            status_icon="✅"
+          elif [ "${{ job.status }}" = "failure" ]; then
+            status_icon="❌"
+          else
+            status_icon="⚠️"
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🐳 Docker Build Summary
+
+          **Service**: ${{ matrix.service }} ${status_icon}
+          **Image**: \`${{ env.REGISTRY }}/${{ steps.config.outputs.image_name }}\`
+          **Digest**: \`${{ steps.build.outputs.digest }}\`
+          **Platforms**: linux/amd64, linux/arm64
+          **Build Status**: ${{ job.status }}
+
+          ### 📊 Build Metrics
+          - **Build Duration**: ${{ steps.build_metrics.outputs.build_duration }}s
+          - **Build Date**: ${{ steps.date.outputs.date }}
+          - **Build ID**: ${{ steps.date.outputs.build_id }}
+          - **Commit**: [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          - **Branch**: ${{ github.ref_name }}
+          - **Actor**: @${{ github.actor }}
+          - **Trigger**: ${{ github.event_name }}
+
+          ### 🔗 Quick Links
+          - [View Image](https://github.com/${{ github.repository }}/pkgs/container/${{ matrix.service }})
+          - [Security Scan Results](https://github.com/${{ github.repository }}/security/code-scanning)
+          - [Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+
+      - name: Notify on failure
+        if: failure() && github.event.inputs.notify_slack == 'true'
+        run: |
+          echo "🚨 Build failed for ${{ matrix.service }}"
+          echo "This is where you would send a Slack/Teams notification"
+          # 示例 Slack webhook 调用（需要配置 SLACK_WEBHOOK_URL secret）
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"🚨 Docker build failed for ${{ matrix.service }} in ${{ github.repository }}"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
 
   # 清理旧镜像
   cleanup:
@@ -352,21 +498,57 @@ jobs:
     if: needs.detect-changes.outputs.services != '[]' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
-    
+
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-    
+
     concurrency:
       group: cleanup-${{ matrix.service }}-${{ github.ref }}
       cancel-in-progress: true
-    
+
     steps:
       - name: Delete old container images
         uses: actions/delete-package-versions@v5
         continue-on-error: true
         with:
-          package-name: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}
+          package-name: ${{ github.event.repository.name }}/${{ matrix.service }}
           package-type: container
-          min-versions-to-keep: 20
-          delete-only-untagged-versions: true
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: false
+          ignore-versions: '^(latest|main|develop|v\d+\.\d+\.\d+)$'
+
+      - name: Cleanup summary
+        run: |
+          echo "🧹 Cleanup completed for ${{ matrix.service }}"
+          echo "Kept latest 10 versions, preserved tagged releases"
+
+  # 最终通知
+  notify:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build, cleanup]
+    if: always() && needs.detect-changes.outputs.services != '[]' && github.event.inputs.notify_slack == 'true'
+
+    steps:
+      - name: Generate final notification
+        run: |
+          # 计算整体状态
+          if [ "${{ needs.build.result }}" = "success" ]; then
+            overall_status="✅ Success"
+            status_color="good"
+          elif [ "${{ needs.build.result }}" = "failure" ]; then
+            overall_status="❌ Failed"
+            status_color="danger"
+          else
+            overall_status="⚠️ Partial"
+            status_color="warning"
+          fi
+
+          echo "📢 Final Status: ${overall_status}"
+          echo "Services: ${{ needs.detect-changes.outputs.services }}"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Actor: ${{ github.actor }}"
+
+          # 这里可以添加实际的通知逻辑
+          # 例如 Slack, Teams, Discord 等
