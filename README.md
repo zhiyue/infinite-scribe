@@ -106,6 +106,7 @@ infinite-scribe/
 - pnpm ~8.15
 - Docker & Docker Compose
 - Python ~3.11
+- SSH 访问权限（用于远程开发和测试环境）
 
 ### 开发命令说明
 
@@ -253,6 +254,57 @@ pnpm deploy:dev:backend      # 部署所有后端服务
 pnpm deploy:dev:agents       # 只部署所有 Agent 服务
 ```
 
+### 测试环境
+
+**重要：** 项目使用远程测试架构，所有测试必须在测试机器上运行。
+
+#### 测试机器配置
+
+- **开发机器 (192.168.2.201)**: 仅用于开发环境，**禁止运行测试**
+- **测试机器 (192.168.2.202)**: 专门用于所有测试，支持破坏性测试
+- **自定义测试机器**: 可通过 `TEST_MACHINE_IP` 环境变量配置
+
+#### 运行测试
+
+推荐使用 Docker 容器模式在测试机器上运行测试：
+
+```bash
+# 运行所有测试（推荐）
+pnpm test:all
+
+# 运行单元测试
+pnpm test:unit
+
+# 运行集成测试
+pnpm test:integration
+
+# 运行测试并生成覆盖率报告
+pnpm test:coverage
+
+# 使用自定义测试机器
+export TEST_MACHINE_IP=192.168.2.100
+pnpm test:all
+```
+
+#### 替代测试方式
+
+如果需要使用预部署的服务（不推荐）：
+
+```bash
+# 使用远程预部署服务
+pnpm test:all:remote
+```
+
+#### 代码质量检查
+
+```bash
+# 运行代码质量检查（linting、格式化、类型检查）
+pnpm test:lint
+
+# 运行完整检查
+pnpm check
+```
+
 ### 服务健康检查
 
 ```bash
@@ -309,6 +361,7 @@ cat docs/stories/1.1.story.md
 3. **核心 Agent 实现** - 计划中：世界观构建师等专业 AI 代理
 4. **前端界面开发** - 计划中：React 应用开发
 5. **集成测试** - 计划中：端到端功能测试
+6. **CI/CD 优化** - 持续改进：工作流安全性和性能优化
 
 > 📖 **故事详情**: 每个故事都包含详细的验收标准、任务分解、技术指导和测试要求，
 > 请查看 `docs/stories/` 目录中的具体文档。
@@ -317,9 +370,29 @@ cat docs/stories/1.1.story.md
 
 ### 基础设施说明
 
-- **开发服务器 (192.168.2.201)**: 仅用于开发环境的持久化服务，**不可用于任何测
-  试**
-- **测试服务器 (192.168.2.202)**: 专门用于所有测试，支持破坏性测试
+#### 远程开发架构
+
+项目采用远程开发架构，分离开发和测试环境：
+
+- **开发服务器 (192.168.2.201)**: 仅用于开发环境的持久化服务，**严禁运行任何测试**
+- **测试服务器 (默认 192.168.2.202)**: 专门用于所有测试，支持破坏性测试
+- **SSH 访问**: 可通过 SSH 访问远程机器进行开发和运维
+
+#### SSH 访问命令
+
+```bash
+# 访问开发服务器
+pnpm ssh:dev
+# 等同于：ssh zhiyue@192.168.2.201
+
+# 访问测试服务器
+pnpm ssh:test
+# 等同于：ssh zhiyue@192.168.2.202
+
+# 访问自定义测试机器
+export TEST_MACHINE_IP=192.168.2.100
+pnpm ssh:test
+```
 
 所有开发服务部署在 `192.168.2.201` 上，需要在同一内网才能访问。
 
@@ -360,10 +433,13 @@ cat docs/stories/1.1.story.md
 
 ### 代码规范
 
-- Python: 使用 Ruff + Black 进行代码格式化
-- TypeScript: 使用 ESLint + Prettier
-- 提交信息: 遵循 Conventional Commits 规范
-- 测试: 所有新功能需要包含相应测试
+- **Python**: 使用 Ruff + Black 进行代码格式化
+- **TypeScript**: 使用 ESLint + Prettier
+- **提交信息**: 遵循 Conventional Commits 规范
+- **测试**: 所有新功能需要包含相应测试
+- **代码注释**: 统一使用中文注释
+- **环境变量**: 禁止硬编码，必须使用环境变量或配置文件
+- **安全性**: 通过 Trivy 扫描，只关注 CRITICAL 级别漏洞
 
 > 📝 **详细规范**: 完整的代码规范说明、CI/CD 配置、测试环境配置等请参考
 > [详细开发指南](./docs/development/detailed-development-guide.md)。
@@ -383,8 +459,15 @@ cat docs/stories/1.1.story.md
 
 - [详细开发指南](./docs/development/detailed-development-guide.md) - 完整的技术
   配置和详细说明
+- [Python 开发快速入门](./docs/development/python-dev-quickstart.md)
 - [开发最佳实践](./docs/development/)
 - [部署指南](./docs/deployment/)
+- [任务管理指南](./docs/development/TASK_MANAGEMENT_GUIDE.md)
+
+### API 文档
+
+- [API 文档](./api-docs/) - OpenAPI 规范和 Hoppscotch 集成
+- [Hoppscotch 设置指南](./docs/api/hoppscotch-setup.md)
 
 ## 📄 许可证
 
@@ -400,3 +483,10 @@ cat docs/stories/1.1.story.md
 
 **注意**: 这是一个正在积极开发的项目，功能和 API 可能会频繁变更。建议开发者关注
 项目更新，并参考 `docs/stories/` 中的用户故事了解最新开发进度。
+
+### 最新更新
+
+- **2025-01-17**: 更新了 README.md 文档，增加了远程测试架构说明
+- **2025-01-17**: 移除了 Docker 构建工作流中的 GITLEAKS_LICENSE 环境变量
+- **安全改进**: 优化了 CI/CD 工作流的安全性配置
+- **测试优化**: 完善了远程测试机器的 Docker 容器支持
