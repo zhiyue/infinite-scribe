@@ -59,6 +59,11 @@ function App() {
             {/* Redirect root to dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+            {/* Redirect unimplemented feature routes to dashboard */}
+            <Route path="/projects" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/create-novel" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/help" element={<Navigate to="/dashboard" replace />} />
+
             {/* Catch all route - redirect to login */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

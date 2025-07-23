@@ -3,29 +3,28 @@
  * 测试重构后的认证服务主类的所有功能
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { AuthService } from '../auth-service'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  ITokenManager,
-  IStorageService,
-  INavigationService,
-  IHttpClient,
-  IAuthApiClient,
-  AuthServiceConfig,
-  AuthDependencies,
-} from '../types'
-import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
-  RegisterResponse,
-  User,
-  ChangePasswordRequest,
-  ForgotPasswordRequest,
+  ResendVerificationRequest,
   ResetPasswordRequest,
   UpdateProfileRequest,
-  ResendVerificationRequest,
+  User,
 } from '../../../types/auth'
+import { AuthService } from '../auth-service'
+import type {
+  AuthDependencies,
+  AuthServiceConfig,
+  IAuthApiClient,
+  IHttpClient,
+  INavigationService,
+  IStorageService,
+  ITokenManager,
+} from '../types'
 
 describe('AuthService', () => {
   let authService: AuthService

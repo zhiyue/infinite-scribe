@@ -3,11 +3,11 @@
  * 提供抽象的 HTTP 接口，支持多种 HTTP 库（axios、fetch、mock 等）
  */
 
-import axios, { 
-  type AxiosInstance, 
-  type AxiosRequestConfig, 
-  type AxiosResponse,
+import axios, {
   type AxiosError,
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
 import type { IHttpClient } from './types'
@@ -54,7 +54,11 @@ export class AxiosHttpClient implements IHttpClient {
   /**
    * POST 请求
    */
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async post<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     try {
       return await this.axiosInstance.post<T>(url, data, config)
     } catch (error) {
@@ -65,7 +69,11 @@ export class AxiosHttpClient implements IHttpClient {
   /**
    * PUT 请求
    */
-  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async put<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     try {
       return await this.axiosInstance.put<T>(url, data, config)
     } catch (error) {
@@ -106,10 +114,12 @@ export class AxiosHttpClient implements IHttpClient {
     onRejected?: (error: any) => any,
   ): number {
     const id = this.axiosInstance.interceptors.request.use(
-      onFulfilled as (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig>,
+      onFulfilled as (
+        config: InternalAxiosRequestConfig,
+      ) => InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig>,
       onRejected,
     )
-    
+
     this.interceptors.push({ id, type: 'request' })
     return id
   }
@@ -122,7 +132,7 @@ export class AxiosHttpClient implements IHttpClient {
     onRejected?: (error: any) => any,
   ): number {
     const id = this.axiosInstance.interceptors.response.use(onFulfilled, onRejected)
-    
+
     this.interceptors.push({ id, type: 'response' })
     return id
   }
@@ -138,8 +148,8 @@ export class AxiosHttpClient implements IHttpClient {
     }
 
     // 从记录中移除
-    const index = this.interceptors.findIndex(interceptor => 
-      interceptor.id === id && interceptor.type === type
+    const index = this.interceptors.findIndex(
+      (interceptor) => interceptor.id === id && interceptor.type === type,
     )
     if (index !== -1) {
       this.interceptors.splice(index, 1)
@@ -217,8 +227,8 @@ export class FetchHttpClient implements IHttpClient {
   private defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  private baseURL: string = ''
-  private timeout: number = 10000
+  private baseURL = ''
+  private timeout = 10000
 
   constructor(config?: { baseURL?: string; timeout?: number; headers?: Record<string, string> }) {
     if (config?.baseURL) {
@@ -236,11 +246,19 @@ export class FetchHttpClient implements IHttpClient {
     return this.request<T>('GET', url, undefined, config)
   }
 
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async post<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     return this.request<T>('POST', url, data, config)
   }
 
-  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async put<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     return this.request<T>('PUT', url, data, config)
   }
 
@@ -328,7 +346,7 @@ export class FetchHttpClient implements IHttpClient {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url
     }
-    
+
     return this.baseURL + (url.startsWith('/') ? url : `/${url}`)
   }
 
@@ -338,11 +356,11 @@ export class FetchHttpClient implements IHttpClient {
    */
   private async parseResponse<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type')
-    
+
     if (contentType && contentType.includes('application/json')) {
       return await response.json()
     }
-    
+
     return (await response.text()) as unknown as T
   }
 
@@ -368,7 +386,7 @@ export class FetchHttpClient implements IHttpClient {
       ;(timeoutError as any).code = 'ECONNABORTED'
       return timeoutError
     }
-    
+
     return error
   }
 }
@@ -378,9 +396,9 @@ export class FetchHttpClient implements IHttpClient {
  * 用于测试环境
  */
 export class MockHttpClient implements IHttpClient {
-  private responses: Map<string, any> = new Map()
+  private responses = new Map<string, any>()
   private defaultHeaders: Record<string, string> = {}
-  private delay: number = 0
+  private delay = 0
 
   constructor(config?: { delay?: number }) {
     if (config?.delay) {
@@ -392,11 +410,19 @@ export class MockHttpClient implements IHttpClient {
     return this.mockRequest<T>('GET', url, undefined, config)
   }
 
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async post<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     return this.mockRequest<T>('POST', url, data, config)
   }
 
-  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  async put<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
     return this.mockRequest<T>('PUT', url, data, config)
   }
 
@@ -457,7 +483,7 @@ export class MockHttpClient implements IHttpClient {
     config?: AxiosRequestConfig,
   ): Promise<AxiosResponse<T>> {
     if (this.delay > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.delay))
+      await new Promise((resolve) => setTimeout(resolve, this.delay))
     }
 
     const key = `${method.toUpperCase()} ${url}`

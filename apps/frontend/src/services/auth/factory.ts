@@ -73,7 +73,7 @@ function createAuthServiceConfig(
 ): AuthServiceConfig {
   const env = environment || import.meta.env.MODE || 'development'
   const envConfig = ENVIRONMENT_CONFIGS[env] || {}
-  
+
   return {
     ...DEFAULT_CONFIG,
     ...envConfig,
@@ -100,9 +100,7 @@ function createAuthStorageService(
 /**
  * 创建导航服务
  */
-function createAuthNavigationService(
-  customService?: INavigationService,
-): INavigationService {
+function createAuthNavigationService(customService?: INavigationService): INavigationService {
   if (customService) {
     return customService
   }
@@ -113,10 +111,7 @@ function createAuthNavigationService(
 /**
  * 创建 HTTP 客户端
  */
-function createAuthHttpClient(
-  customClient?: IHttpClient,
-  config?: AuthServiceConfig,
-): IHttpClient {
+function createAuthHttpClient(customClient?: IHttpClient, config?: AuthServiceConfig): IHttpClient {
   if (customClient) {
     return customClient
   }
@@ -146,10 +141,7 @@ function createAuthTokenManager(
 /**
  * 创建认证 API 客户端
  */
-function createAuthApiClient(
-  httpClient: IHttpClient,
-  config: AuthServiceConfig,
-): IAuthApiClient {
+function createAuthApiClient(httpClient: IHttpClient, config: AuthServiceConfig): IAuthApiClient {
   return new AuthApiClient(httpClient, config)
 }
 
@@ -169,7 +161,7 @@ export function createAuthService(options: AuthServiceFactoryOptions = {}): IAut
     const storageService = createAuthStorageService(options.storageService, config)
     const navigationService = createAuthNavigationService(options.navigationService)
     const httpClient = createAuthHttpClient(options.httpClient, config)
-    
+
     // 创建核心管理器和 API 客户端
     const tokenManager = createAuthTokenManager(storageService, config)
     const authApiClient = createAuthApiClient(httpClient, config)
@@ -202,11 +194,13 @@ export function createAuthService(options: AuthServiceFactoryOptions = {}): IAut
 /**
  * 创建测试用的认证服务
  */
-export function createTestAuthService(options: {
-  mockResponses?: Record<string, any>
-  config?: Partial<AuthServiceConfig>
-  enableLogging?: boolean
-} = {}): IAuthService {
+export function createTestAuthService(
+  options: {
+    mockResponses?: Record<string, any>
+    config?: Partial<AuthServiceConfig>
+    enableLogging?: boolean
+  } = {},
+): IAuthService {
   // 创建测试专用的服务实例
   const storageService = new MemoryStorageService('test_auth_')
   const navigationService = new MockNavigationService('/test')
@@ -380,7 +374,7 @@ export class AuthServiceBuilder {
   private storageService?: IStorageService
   private navigationService?: INavigationService
   private httpClient?: IHttpClient
-  private enableDebugLogging: boolean = false
+  private enableDebugLogging = false
 
   withConfig(config: Partial<AuthServiceConfig>): AuthServiceBuilder {
     this.config = { ...this.config, ...config }
@@ -402,7 +396,7 @@ export class AuthServiceBuilder {
     return this
   }
 
-  withDebugLogging(enable: boolean = true): AuthServiceBuilder {
+  withDebugLogging(enable = true): AuthServiceBuilder {
     this.enableDebugLogging = enable
     return this
   }

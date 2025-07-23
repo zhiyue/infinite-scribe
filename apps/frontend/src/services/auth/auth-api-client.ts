@@ -3,11 +3,7 @@
  * 负责所有认证相关的 HTTP 请求操作
  */
 
-import type {
-  IAuthApiClient,
-  IHttpClient,
-  AuthServiceConfig,
-} from './types'
+import type { IAuthApiClient, IHttpClient, AuthServiceConfig } from './types'
 import type {
   LoginRequest,
   LoginResponse,
@@ -38,13 +34,9 @@ export class AuthApiClient implements IAuthApiClient {
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
-      const response = await this.httpClient.post<LoginResponse>(
-        '/login',
-        credentials,
-        {
-          withCredentials: this.config.useHttpOnlyCookies,
-        },
-      )
+      const response = await this.httpClient.post<LoginResponse>('/login', credentials, {
+        withCredentials: this.config.useHttpOnlyCookies,
+      })
 
       if (!response.data) {
         throw new Error('Invalid login response')
@@ -78,9 +70,13 @@ export class AuthApiClient implements IAuthApiClient {
    */
   async logout(): Promise<void> {
     try {
-      await this.httpClient.post('/logout', {}, {
-        withCredentials: this.config.useHttpOnlyCookies,
-      })
+      await this.httpClient.post(
+        '/logout',
+        {},
+        {
+          withCredentials: this.config.useHttpOnlyCookies,
+        },
+      )
     } catch (error) {
       // 登出失败不阻断流程，但记录错误
       console.warn('Logout API call failed:', error)
@@ -93,17 +89,13 @@ export class AuthApiClient implements IAuthApiClient {
    */
   async refreshToken(refreshToken?: string): Promise<TokenResponse> {
     try {
-      const requestData = this.config.useHttpOnlyCookies 
+      const requestData = this.config.useHttpOnlyCookies
         ? {} // 使用 httpOnly cookies，不需要发送 refresh token
         : { refresh_token: refreshToken }
 
-      const response = await this.httpClient.post<TokenResponse>(
-        '/refresh',
-        requestData,
-        {
-          withCredentials: this.config.useHttpOnlyCookies,
-        },
-      )
+      const response = await this.httpClient.post<TokenResponse>('/refresh', requestData, {
+        withCredentials: this.config.useHttpOnlyCookies,
+      })
 
       if (!response.data) {
         throw new Error('Invalid token refresh response')
@@ -244,7 +236,7 @@ export class AuthApiClient implements IAuthApiClient {
       } else if (error.response.data.message) {
         apiError.detail = error.response.data.message
       }
-      
+
       apiError.status_code = error.response.status
       apiError.retry_after = error.response.data.retry_after
     } else if (error.request) {
@@ -306,14 +298,16 @@ export class AuthApiClient implements IAuthApiClient {
   /**
    * 获取用户会话列表
    */
-  async getUserSessions(): Promise<Array<{
-    id: string
-    ip_address: string
-    user_agent: string
-    created_at: string
-    last_activity: string
-    is_current: boolean
-  }>> {
+  async getUserSessions(): Promise<
+    {
+      id: string
+      ip_address: string
+      user_agent: string
+      created_at: string
+      last_activity: string
+      is_current: boolean
+    }[]
+  > {
     try {
       const response = await this.httpClient.get('/sessions')
       return response.data
@@ -349,7 +343,9 @@ export class AuthApiClient implements IAuthApiClient {
    */
   async enableTwoFactor(): Promise<{ secret: string; qr_code: string }> {
     try {
-      const response = await this.httpClient.post<{ secret: string; qr_code: string }>('/2fa/enable')
+      const response = await this.httpClient.post<{ secret: string; qr_code: string }>(
+        '/2fa/enable',
+      )
       return response.data
     } catch (error) {
       throw this.handleApiError(error, 'Failed to enable 2FA')
@@ -361,7 +357,9 @@ export class AuthApiClient implements IAuthApiClient {
    */
   async confirmTwoFactor(code: string): Promise<{ backup_codes: string[] }> {
     try {
-      const response = await this.httpClient.post<{ backup_codes: string[] }>('/2fa/confirm', { code })
+      const response = await this.httpClient.post<{ backup_codes: string[] }>('/2fa/confirm', {
+        code,
+      })
       return response.data
     } catch (error) {
       throw this.handleApiError(error, 'Failed to confirm 2FA')

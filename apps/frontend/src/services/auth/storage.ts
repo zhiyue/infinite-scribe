@@ -12,7 +12,7 @@ import type { IStorageService } from './types'
 export class LocalStorageService implements IStorageService {
   private readonly prefix: string
 
-  constructor(prefix: string = 'auth_') {
+  constructor(prefix = 'auth_') {
     this.prefix = prefix
   }
 
@@ -48,7 +48,7 @@ export class LocalStorageService implements IStorageService {
       localStorage.setItem(fullKey, value)
     } catch (error) {
       console.error(`Failed to set item in localStorage: ${key}`, error)
-      
+
       // 如果是存储空间不足错误，尝试清理旧数据
       if (this.isQuotaExceededError(error)) {
         this.handleQuotaExceeded(key, value)
@@ -85,7 +85,7 @@ export class LocalStorageService implements IStorageService {
 
       // 只清理带有当前前缀的键
       const keysToRemove: string[] = []
-      
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
         if (key && key.startsWith(this.prefix)) {
@@ -93,7 +93,7 @@ export class LocalStorageService implements IStorageService {
         }
       }
 
-      keysToRemove.forEach(key => localStorage.removeItem(key))
+      keysToRemove.forEach((key) => localStorage.removeItem(key))
     } catch (error) {
       console.error('Failed to clear localStorage', error)
     }
@@ -128,15 +128,17 @@ export class LocalStorageService implements IStorageService {
    */
   private isQuotaExceededError(error: any): boolean {
     // 在测试环境中，更宽松地检查错误类型
-    const isDOMException = error instanceof DOMException || 
-                          error?.constructor?.name === 'DOMException' ||
-                          (error && typeof error === 'object' && error.name === 'QuotaExceededError')
-    
-    return isDOMException && (
-      error.code === 22 ||
-      error.code === 1014 ||
-      error.name === 'QuotaExceededError' ||
-      error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    const isDOMException =
+      error instanceof DOMException ||
+      error?.constructor?.name === 'DOMException' ||
+      (error && typeof error === 'object' && error.name === 'QuotaExceededError')
+
+    return (
+      isDOMException &&
+      (error.code === 22 ||
+        error.code === 1014 ||
+        error.name === 'QuotaExceededError' ||
+        error.name === 'NS_ERROR_DOM_QUOTA_REACHED')
     )
   }
 
@@ -147,13 +149,13 @@ export class LocalStorageService implements IStorageService {
   private handleQuotaExceeded(key: string, value: string): void {
     try {
       console.warn('localStorage quota exceeded, attempting to free space')
-      
+
       // 尝试清理一些非关键数据（这里可以根据实际需求定制）
       const nonCriticalKeys = this.getNonCriticalKeys()
-      
+
       for (const keyToRemove of nonCriticalKeys) {
         localStorage.removeItem(keyToRemove)
-        
+
         // 尝试重新设置原始值
         try {
           const fullKey = this.getFullKey(key)
@@ -165,7 +167,7 @@ export class LocalStorageService implements IStorageService {
           continue
         }
       }
-      
+
       console.error('Failed to free enough space for localStorage')
     } catch (error) {
       console.error('Failed to handle quota exceeded error', error)
@@ -177,7 +179,7 @@ export class LocalStorageService implements IStorageService {
    */
   getNonCriticalKeys(): string[] {
     const nonCriticalKeys: string[] = []
-    
+
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
@@ -188,7 +190,7 @@ export class LocalStorageService implements IStorageService {
     } catch (error) {
       console.error('Failed to get non-critical keys', error)
     }
-    
+
     return nonCriticalKeys
   }
 
@@ -198,14 +200,8 @@ export class LocalStorageService implements IStorageService {
    */
   private isNonCriticalKey(key: string): boolean {
     // 定义非关键的键模式
-    const nonCriticalPatterns = [
-      'cache_',
-      'temp_',
-      'analytics_',
-      'debug_',
-      '_session_',
-    ]
-    
+    const nonCriticalPatterns = ['cache_', 'temp_', 'analytics_', 'debug_', '_session_']
+
     // 不删除认证相关的关键数据
     const criticalPatterns = [
       this.prefix, // 当前认证前缀
@@ -213,21 +209,21 @@ export class LocalStorageService implements IStorageService {
       'refresh_token',
       'user_',
     ]
-    
+
     // 检查是否是关键键
     for (const pattern of criticalPatterns) {
       if (key.includes(pattern)) {
         return false
       }
     }
-    
+
     // 检查是否是非关键键
     for (const pattern of nonCriticalPatterns) {
       if (key.includes(pattern)) {
         return true
       }
     }
-    
+
     return false
   }
 
@@ -282,7 +278,7 @@ export class LocalStorageService implements IStorageService {
 export class SessionStorageService implements IStorageService {
   private readonly prefix: string
 
-  constructor(prefix: string = 'auth_') {
+  constructor(prefix = 'auth_') {
     this.prefix = prefix
   }
 
@@ -341,7 +337,7 @@ export class SessionStorageService implements IStorageService {
         }
       }
 
-      keysToRemove.forEach(key => sessionStorage.removeItem(key))
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key))
     } catch (error) {
       console.error('Failed to clear sessionStorage', error)
     }
@@ -371,7 +367,7 @@ export class MemoryStorageService implements IStorageService {
   private storage = new Map<string, string>()
   private readonly prefix: string
 
-  constructor(prefix: string = 'auth_') {
+  constructor(prefix = 'auth_') {
     this.prefix = prefix
   }
 
@@ -398,7 +394,7 @@ export class MemoryStorageService implements IStorageService {
         keysToRemove.push(key)
       }
     }
-    keysToRemove.forEach(key => this.storage.delete(key))
+    keysToRemove.forEach((key) => this.storage.delete(key))
   }
 
   private getFullKey(key: string): string {

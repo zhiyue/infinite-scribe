@@ -21,13 +21,13 @@ interface JwtPayload {
 export class TokenManager implements ITokenManager {
   private refreshTimer: NodeJS.Timeout | null = null
   private refreshCallback: TokenRefreshCallback | null = null
-  private isRefreshing: boolean = false // 防止递归刷新
+  private isRefreshing = false // 防止递归刷新
 
   constructor(
     private readonly storageService: IStorageService,
-    private readonly accessTokenKey: string = 'access_token',
+    private readonly accessTokenKey = 'access_token',
     private readonly refreshTokenKey?: string, // 如果为空则使用 httpOnly cookies
-    private readonly refreshBufferMinutes: number = 5, // 提前5分钟刷新
+    private readonly refreshBufferMinutes = 5, // 提前5分钟刷新
   ) {}
 
   /**
@@ -79,11 +79,11 @@ export class TokenManager implements ITokenManager {
    */
   clearTokens(): void {
     this.storageService.removeItem(this.accessTokenKey)
-    
+
     if (this.refreshTokenKey) {
       this.storageService.removeItem(this.refreshTokenKey)
     }
-    
+
     this.cancelRefresh()
     this.isRefreshing = false // 重置刷新状态
   }
@@ -93,7 +93,7 @@ export class TokenManager implements ITokenManager {
    */
   isTokenExpired(token?: string): boolean {
     const targetToken = token || this.getAccessToken()
-    
+
     if (!targetToken) {
       return true
     }
@@ -113,14 +113,14 @@ export class TokenManager implements ITokenManager {
    */
   getTokenExpiration(token?: string): Date | null {
     const targetToken = token || this.getAccessToken()
-    
+
     if (!targetToken) {
       return null
     }
 
     try {
       const payload = this.parseJwtPayload(targetToken)
-      
+
       if (!payload.exp) {
         return null
       }
@@ -151,7 +151,7 @@ export class TokenManager implements ITokenManager {
     }
 
     // 计算刷新时间（提前指定分钟数刷新）
-    const refreshTime = expiration.getTime() - (this.refreshBufferMinutes * 60 * 1000)
+    const refreshTime = expiration.getTime() - this.refreshBufferMinutes * 60 * 1000
     const delay = refreshTime - Date.now()
 
     // 如果已经需要刷新或即将过期，立即刷新
@@ -201,7 +201,7 @@ export class TokenManager implements ITokenManager {
       // Base64URL 解码 payload
       const payload = parts[1]
       const decodedPayload = this.base64UrlDecode(payload)
-      
+
       return JSON.parse(decodedPayload)
     } catch (error) {
       throw new Error(`Failed to parse JWT payload: ${error}`)
@@ -215,7 +215,7 @@ export class TokenManager implements ITokenManager {
   private base64UrlDecode(str: string): string {
     // Base64URL 转 Base64
     let base64 = str.replace(/-/g, '+').replace(/_/g, '/')
-    
+
     // 补齐 padding
     while (base64.length % 4) {
       base64 += '='
@@ -249,7 +249,7 @@ export class TokenManager implements ITokenManager {
     try {
       console.debug('Executing token refresh')
       await this.refreshCallback()
-      
+
       // 刷新成功后重新调度下一次刷新
       // 检查是否有新的有效令牌
       const currentToken = this.getAccessToken()
@@ -289,7 +289,7 @@ export class TokenManager implements ITokenManager {
     }
 
     const bufferTime = bufferMinutes * 60 * 1000
-    return Date.now() >= (expiration.getTime() - bufferTime)
+    return Date.now() >= expiration.getTime() - bufferTime
   }
 
   /**
@@ -306,7 +306,7 @@ export class TokenManager implements ITokenManager {
     const accessToken = this.getAccessToken()
     const refreshToken = this.getRefreshToken()
     const accessTokenExpiry = this.getTokenExpiration(accessToken)
-    
+
     return {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,

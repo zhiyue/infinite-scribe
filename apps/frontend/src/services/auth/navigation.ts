@@ -124,7 +124,7 @@ export class HistoryNavigationService implements INavigationService {
     try {
       const normalizedPath = this.normalizeUrl(path)
       window.history.pushState(null, '', normalizedPath)
-      
+
       // 触发 popstate 事件，通知应用路由变化
       this.triggerRouteChange()
     } catch (error) {
@@ -161,7 +161,7 @@ export class HistoryNavigationService implements INavigationService {
     try {
       const normalizedPath = this.normalizeUrl(path)
       window.history.replaceState(null, '', normalizedPath)
-      
+
       // 触发 popstate 事件，通知应用路由变化
       this.triggerRouteChange()
     } catch (error) {
@@ -275,10 +275,10 @@ export class HistoryNavigationService implements INavigationService {
  * 用于测试环境或服务端渲染环境
  */
 export class MockNavigationService implements INavigationService {
-  private currentPath: string = '/'
+  private currentPath = '/'
   private searchParams: URLSearchParams = new URLSearchParams()
 
-  constructor(initialPath: string = '/') {
+  constructor(initialPath = '/') {
     this.currentPath = initialPath
     const url = new URL(initialPath, 'http://localhost')
     this.searchParams = new URLSearchParams(url.search)
@@ -313,7 +313,7 @@ export class MockNavigationService implements INavigationService {
   /**
    * 重置到初始状态（测试专用）
    */
-  reset(initialPath: string = '/'): void {
+  reset(initialPath = '/'): void {
     this.currentPath = initialPath
     const url = new URL(initialPath, 'http://localhost')
     this.searchParams = new URLSearchParams(url.search)
@@ -399,11 +399,11 @@ export const NavigationUtils = {
    */
   buildUrl(path: string, params: Record<string, string | number | boolean>): string {
     const url = new URL(path, 'http://localhost')
-    
+
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.set(key, String(value))
     })
-    
+
     return url.pathname + url.search + url.hash
   },
 
@@ -413,11 +413,11 @@ export const NavigationUtils = {
   parseSearchParams(search: string): Record<string, string> {
     const params = new URLSearchParams(search)
     const result: Record<string, string> = {}
-    
+
     params.forEach((value, key) => {
       result[key] = value
     })
-    
+
     return result
   },
 

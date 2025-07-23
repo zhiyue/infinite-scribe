@@ -40,7 +40,7 @@ export class AuthService implements IAuthService {
   private readonly config: AuthServiceConfig
 
   private refreshPromise: Promise<void> | null = null
-  private isInitialized: boolean = false
+  private isInitialized = false
 
   constructor(dependencies: AuthDependencies) {
     this.tokenManager = dependencies.tokenManager
@@ -59,10 +59,10 @@ export class AuthService implements IAuthService {
   async login(credentials: LoginRequest): Promise<ApiSuccessResponse<LoginResponse>> {
     try {
       const response = await this.authApiClient.login(credentials)
-      
+
       // 设置令牌
       this.tokenManager.setTokens(response.access_token, response.refresh_token)
-      
+
       // 如果启用自动刷新，开始调度
       if (this.config.enableAutoRefresh) {
         this.scheduleTokenRefresh()
@@ -93,10 +93,10 @@ export class AuthService implements IAuthService {
     try {
       // 取消令牌刷新
       this.tokenManager.cancelRefresh()
-      
+
       // 调用登出 API
       await this.authApiClient.logout()
-      
+
       return wrapApiResponse<void>(undefined, 'Logged out successfully')
     } catch (error) {
       // 即使 API 调用失败，也要清理本地状态
@@ -282,7 +282,7 @@ export class AuthService implements IAuthService {
 
           try {
             await this.performTokenRefresh()
-            
+
             // 重试原始请求
             const token = this.tokenManager.getAccessToken()
             if (token) {
@@ -307,9 +307,9 @@ export class AuthService implements IAuthService {
    */
   private isAuthEndpoint(url?: string): boolean {
     if (!url) return false
-    
+
     const authEndpoints = ['/login', '/register', '/refresh', '/logout']
-    return authEndpoints.some(endpoint => url.includes(endpoint))
+    return authEndpoints.some((endpoint) => url.includes(endpoint))
   }
 
   /**
@@ -331,7 +331,7 @@ export class AuthService implements IAuthService {
     }
 
     this.refreshPromise = this.executeTokenRefresh()
-    
+
     try {
       await this.refreshPromise
     } finally {
@@ -348,13 +348,13 @@ export class AuthService implements IAuthService {
       if (this.config.enableDebugLogging) {
         console.debug('Refreshing access token...')
       }
-      
+
       const refreshToken = this.tokenManager.getRefreshToken()
       const response = await this.authApiClient.refreshToken(refreshToken || undefined)
-      
+
       // 更新令牌
       this.tokenManager.setTokens(response.access_token, response.refresh_token)
-      
+
       if (this.config.enableDebugLogging) {
         console.debug('Token refresh successful')
       }
@@ -372,7 +372,7 @@ export class AuthService implements IAuthService {
   private handleRefreshFailure(): void {
     // 清理令牌和状态
     this.tokenManager.clearTokens()
-    
+
     // 重定向到登录页面
     this.navigationService.redirectTo(this.config.loginPath)
   }
@@ -409,15 +409,15 @@ export class AuthService implements IAuthService {
   destroy(): void {
     // 取消令牌刷新
     this.tokenManager.cancelRefresh()
-    
+
     // 清理 HTTP 拦截器
     this.httpClient.clearAllInterceptors?.()
-    
+
     // 销毁 TokenManager
     if (this.tokenManager.destroy && typeof this.tokenManager.destroy === 'function') {
       this.tokenManager.destroy()
     }
-    
+
     this.isInitialized = false
     if (this.config.enableDebugLogging) {
       console.debug('AuthService destroyed')
