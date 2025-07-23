@@ -342,15 +342,15 @@ const DashboardPage: React.FC = () => {
           </div>
 
           {/* Quick Actions Panel */}
-          <Card className="mb-8 border border-border bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2 text-foreground font-inter">
-                <div className="p-1.5 bg-primary/10 rounded-xl shadow-sm">
-                  <Sparkles className="h-4 w-4 text-primary" />
+          <Card className="mb-8 border border-gray-200/60 dark:border-gray-700/50 bg-gradient-to-br from-white/80 to-gray-50/60 dark:from-gray-900/80 dark:to-gray-800/60 shadow-xl hover:shadow-2xl transition-all duration-300 backdrop-blur-sm">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-xl font-bold flex items-center gap-3 text-gray-900 dark:text-white">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
+                  <Sparkles className="h-5 w-5 text-white" />
                 </div>
                 快速操作
               </CardTitle>
-              <CardDescription className="text-muted-foreground leading-relaxed font-inter">
+              <CardDescription className="text-gray-600 dark:text-gray-300 leading-relaxed text-base">
                 快速开始您的创作之旅，释放无限可能
               </CardDescription>
             </CardHeader>
@@ -358,44 +358,52 @@ const DashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Button 
                   asChild 
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-lg transition-all duration-200 group rounded-xl font-inter"
+                  className="h-24 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 group rounded-2xl border-0 hover:-translate-y-1"
                 >
                   <Link to="/create-novel">
-                    <PlusCircle className="h-6 w-6 group-hover:scale-110 transition-transform duration-200" />
-                    <span className="text-sm font-medium">创建新项目</span>
+                    <div className="p-2 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors duration-300">
+                      <PlusCircle className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
+                    </div>
+                    <span className="text-sm font-semibold">创建新项目</span>
                   </Link>
                 </Button>
 
                 <Button 
                   asChild 
                   variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 border-border hover:bg-accent hover:text-accent-foreground hover:border-primary/20 transition-all duration-200 group rounded-xl font-inter"
+                  className="h-24 flex flex-col items-center justify-center gap-3 border-2 border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 group rounded-2xl hover:-translate-y-1 hover:shadow-lg backdrop-blur-sm"
                 >
                   <Link to="/projects">
-                    <BookOpen className="h-6 w-6 text-muted-foreground group-hover:text-accent-foreground group-hover:scale-110 transition-all duration-200" />
-                    <span className="text-sm font-medium text-muted-foreground group-hover:text-accent-foreground">查看所有项目</span>
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors duration-300">
+                      <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-300" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-300">查看所有项目</span>
                   </Link>
                 </Button>
 
                 <Button 
                   asChild 
                   variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 border-border hover:bg-accent hover:text-accent-foreground hover:border-secondary/20 transition-all duration-200 group rounded-xl font-inter"
+                  className="h-24 flex flex-col items-center justify-center gap-3 border-2 border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300 group rounded-2xl hover:-translate-y-1 hover:shadow-lg backdrop-blur-sm"
                 >
                   <Link to="/help">
-                    <FileText className="h-6 w-6 text-muted-foreground group-hover:text-accent-foreground group-hover:scale-110 transition-all duration-200" />
-                    <span className="text-sm font-medium text-muted-foreground group-hover:text-accent-foreground">帮助文档</span>
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-xl group-hover:bg-purple-200 dark:group-hover:bg-purple-800/60 transition-colors duration-300">
+                      <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform duration-300" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-purple-700 dark:group-hover:text-purple-300">帮助文档</span>
                   </Link>
                 </Button>
 
                 <Button 
                   asChild 
                   variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 border-border hover:bg-accent hover:text-accent-foreground hover:border-success/20 transition-all duration-200 group rounded-xl font-inter"
+                  className="h-24 flex flex-col items-center justify-center gap-3 border-2 border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-300 dark:hover:border-emerald-600 transition-all duration-300 group rounded-2xl hover:-translate-y-1 hover:shadow-lg backdrop-blur-sm"
                 >
                   <Link to="/profile">
-                    <User className="h-6 w-6 text-muted-foreground group-hover:text-accent-foreground group-hover:scale-110 transition-all duration-200" />
-                    <span className="text-sm font-medium text-muted-foreground group-hover:text-accent-foreground">个人设置</span>
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/60 transition-colors duration-300">
+                      <User className="h-6 w-6 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">个人设置</span>
                   </Link>
                 </Button>
               </div>
@@ -403,20 +411,20 @@ const DashboardPage: React.FC = () => {
           </Card>
 
           {/* Recent Projects Overview */}
-          <Card className="mb-8 border border-border bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="pb-4">
+          <Card className="mb-8 border border-gray-200/60 dark:border-gray-700/50 bg-gradient-to-br from-white/80 to-gray-50/60 dark:from-gray-900/80 dark:to-gray-800/60 shadow-xl hover:shadow-2xl transition-all duration-300 backdrop-blur-sm">
+            <CardHeader className="pb-6">
               <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <CardTitle className="text-xl font-bold flex items-center gap-3 text-foreground font-inter tracking-tight">
-                    <div className="p-2 bg-primary/10 rounded-xl shadow-sm">
-                      <Clock className="h-5 w-5 text-primary" />
+                <div className="space-y-3">
+                  <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-900 dark:text-white tracking-tight">
+                    <div className="p-2.5 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg">
+                      <Clock className="h-5 w-5 text-white" />
                     </div>
                     最近项目
                   </CardTitle>
-                  <CardDescription className="text-muted-foreground font-inter leading-relaxed">您最近编辑的创作项目</CardDescription>
+                  <CardDescription className="text-gray-600 dark:text-gray-300 leading-relaxed text-base">您最近编辑的创作项目</CardDescription>
                 </div>
-                <Button asChild variant="ghost" size="sm" className="hover:bg-accent transition-colors duration-150 font-inter">
-                  <Link to="/projects" className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-700 dark:hover:text-blue-300 transition-all duration-200 rounded-xl px-4 py-2">
+                  <Link to="/projects" className="flex items-center gap-2 font-medium">
                     查看全部
                     <TrendingUp className="h-4 w-4" />
                   </Link>
@@ -455,15 +463,15 @@ const DashboardPage: React.FC = () => {
           </Card>
 
           {/* System Status Section */}
-          <Card className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-bold flex items-center gap-3 text-foreground font-inter tracking-tight">
-                <div className="p-2 bg-success/10 rounded-xl shadow-sm">
-                  <Activity className="h-5 w-5 text-success" />
+          <Card className="border border-gray-200/60 dark:border-gray-700/50 bg-gradient-to-br from-white/80 to-gray-50/60 dark:from-gray-900/80 dark:to-gray-800/60 shadow-xl hover:shadow-2xl transition-all duration-300 backdrop-blur-sm">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold flex items-center gap-3 text-gray-900 dark:text-white tracking-tight">
+                <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg">
+                  <Activity className="h-5 w-5 text-white" />
                 </div>
                 系统状态
               </CardTitle>
-              <CardDescription className="text-muted-foreground font-inter leading-relaxed">实时监控系统各项服务状态</CardDescription>
+              <CardDescription className="text-gray-600 dark:text-gray-300 leading-relaxed text-base">实时监控系统各项服务状态</CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
