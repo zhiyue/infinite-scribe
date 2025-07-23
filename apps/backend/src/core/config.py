@@ -1,9 +1,52 @@
 """统一的配置管理系统"""
 
 import os
+from pathlib import Path
+from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+from .toml_loader import load_toml_config, flatten_config
+
+
+class TomlConfigSettingsSource(PydanticBaseSettingsSource):
+    """从 TOML 配置文件加载设置的自定义源"""
+    
+    def __init__(
+        self, 
+        settings_cls: Type[BaseSettings],
+        config_path: Path = Path("config.toml")
+    ):
+        super().__init__(settings_cls)
+        self.config_path = config_path
+    
+    def _read_file(self, file_path: Path) -> Dict[str, Any]:
+        """读取并解析 TOML 文件"""
+        if not file_path.exists():
+            return {}
+        
+        try:
+            # 加载 TOML 配置并进行环境变量插值
+            config = load_toml_config(file_path)
+            # 将嵌套配置扁平化以匹配 pydantic 的期望格式
+            flattened = flatten_config(config)
+            return flattened
+        except Exception as e:
+            print(f"加载 TOML 配置失败: {e}")
+            return {}
+    
+    def get_field_value(
+        self, field: Any, field_name: str
+    ) -> Tuple[Any, str, bool]:
+        """获取字段值"""
+        file_content = self._read_file(self.config_path)
+        field_value = file_content.get(field_name)
+        return field_value, field_name, False
+    
+    def __call__(self) -> Dict[str, Any]:
+        """返回从 TOML 文件加载的所有设置"""
+        return self._read_file(self.config_path)
 
 
 class AuthSettings(BaseModel):
@@ -122,11 +165,19 @@ class DatabaseSettings(BaseModel):
 class Settings(BaseSettings):
     """应用主配置
 
+    配置优先级（从高到低）：
+    1. 环境变量
+    2. .env 文件
+    3. config.toml 文件（支持环境变量插值）
+    4. 默认值
+
     环境变量命名规则：
     - 顶层配置：直接使用变量名（如 NODE_ENV, API_PORT）
     - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST）
 
-    配置文件位置：apps/backend/.env
+    配置文件位置：
+    - TOML 配置：apps/backend/config.toml
+    - 环境变量：apps/backend/.env
     """
 
     # Service identification
@@ -180,12 +231,41 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         # 使用 backend 目录下的 .env 文件
-        env_file="../../.env",  # 相对于 apps/backend/src/core/config.py
+        env_file=".env",  # 相对于 backend 目录（运行位置）
         env_file_encoding="utf-8",
         case_sensitive=False,  # 不区分大小写
         env_nested_delimiter="__",  # 支持嵌套环境变量
         extra="ignore",  # 忽略额外的环境变量
     )
+    
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        """自定义配置源的优先级
+        
+        优先级从高到低：
+        1. init_settings: 初始化参数
+        2. env_settings: 环境变量
+        3. dotenv_settings: .env 文件
+        4. toml_settings: config.toml 文件
+        5. file_secret_settings: 密钥文件
+        """
+        # 创建 TOML 配置源
+        toml_settings = TomlConfigSettingsSource(settings_cls)
+        
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            toml_settings,
+            file_secret_settings,
+        )
 
     # 便捷的计算属性
     @property

@@ -1,0 +1,110 @@
+# Infinite Scribe Backend Configuration Example
+# 复制此文件为 config.toml 并根据您的环境进行修改
+#
+# 环境变量插值语法：
+# - ${VAR_NAME} - 使用环境变量，如果不存在则报错
+# - ${VAR_NAME:-default_value} - 使用环境变量，如果不存在则使用默认值
+
+[service]
+name = "infinite-scribe-backend"
+type = "api-gateway"
+node_env = "${NODE_ENV:-development}"
+
+[api]
+host = "${API_HOST:-0.0.0.0}"
+port = "${API_PORT:-8000}"
+frontend_url = "${FRONTEND_URL:-http://localhost:3000}"
+allowed_origins = ["*"]
+
+[auth]
+# JWT 配置 - 生产环境必须设置安全的密钥！
+jwt_secret_key = "${AUTH__JWT_SECRET_KEY:-your-very-secure-jwt-secret-key-minimum-32-chars}"
+jwt_algorithm = "HS256"
+access_token_expire_minutes = 15
+refresh_token_expire_days = 7
+
+# 邮件服务配置
+resend_api_key = "${AUTH__RESEND_API_KEY:-re_your_actual_api_key}"
+resend_domain = "${AUTH__RESEND_DOMAIN:-yourdomain.com}"
+resend_from_email = "${AUTH__RESEND_FROM_EMAIL:-noreply@yourdomain.com}"
+
+# 开发环境可以使用 Maildev
+use_maildev = false
+maildev_host = "localhost"
+maildev_port = 1025
+
+# 安全设置
+password_min_length = 8
+account_lockout_attempts = 5
+account_lockout_duration_minutes = 30
+
+# 限流设置
+rate_limit_login_per_minute = 5
+rate_limit_register_per_hour = 10
+rate_limit_password_reset_per_hour = 3
+
+# 验证设置
+email_verification_expire_hours = 24
+password_reset_expire_hours = 1
+
+# 会话管理
+session_strategy = "multi_device"  # multi_device, single_device, max_sessions
+max_sessions_per_user = 10
+
+[database]
+# PostgreSQL
+postgres_host = "${DATABASE__POSTGRES_HOST:-localhost}"
+postgres_port = "${DATABASE__POSTGRES_PORT:-5432}"
+postgres_user = "${DATABASE__POSTGRES_USER:-postgres}"
+postgres_password = "${DATABASE__POSTGRES_PASSWORD:-postgres}"
+postgres_db = "${DATABASE__POSTGRES_DB:-infinite_scribe}"
+
+# Neo4j
+neo4j_host = "${DATABASE__NEO4J_HOST:-localhost}"
+neo4j_port = "${DATABASE__NEO4J_PORT:-7687}"
+neo4j_user = "${DATABASE__NEO4J_USER:-neo4j}"
+neo4j_password = "${DATABASE__NEO4J_PASSWORD:-neo4j}"
+neo4j_uri = "${DATABASE__NEO4J_URI:-}"  # 留空则自动构建
+
+# Redis
+redis_host = "${DATABASE__REDIS_HOST:-localhost}"
+redis_port = "${DATABASE__REDIS_PORT:-6379}"
+redis_password = "${DATABASE__REDIS_PASSWORD:-}"
+
+[kafka]
+host = "${KAFKA_HOST:-localhost}"
+port = "${KAFKA_PORT:-9092}"
+auto_offset_reset = "earliest"
+group_id_prefix = "infinite-scribe"
+
+[milvus]
+host = "${MILVUS_HOST:-localhost}"
+port = "${MILVUS_PORT:-19530}"
+
+[minio]
+endpoint = "${MINIO_ENDPOINT:-localhost:9000}"
+access_key = "${MINIO_ACCESS_KEY:-minioadmin}"
+secret_key = "${MINIO_SECRET_KEY:-minioadmin}"
+
+[prefect]
+api_url = "${PREFECT_API_URL:-http://localhost:4200/api}"
+
+[ai_providers]
+# AI 服务密钥 - 根据需要填写
+openai_api_key = "${OPENAI_API_KEY:-}"
+anthropic_api_key = "${ANTHROPIC_API_KEY:-}"
+
+[litellm]
+# LiteLLM 代理配置
+api_host = "${LITELLM_API_HOST:-}"
+api_key = "${LITELLM_API_KEY:-}"
+
+[embedding]
+# 嵌入模型服务配置
+api_host = "${EMBEDDING_API_HOST:-localhost}"
+api_port = "${EMBEDDING_API_PORT:-11434}"
+api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
+
+[logging]
+level = "${LOG_LEVEL:-INFO}"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

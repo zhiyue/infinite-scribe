@@ -202,7 +202,7 @@ class UserService:
             # 提交用户更新（包括 last_login_at）- 必须在 create_session 之前
             # 因为 create_session 会自己提交事务
             await db.commit()
-            
+
             # 刷新用户对象以确保获取最新数据
             await db.refresh(user)
 
@@ -337,12 +337,18 @@ class UserService:
             # 为了安全，即使用户不存在也返回成功
             if not user:
                 logger.info(f"Resend verification requested for non-existent email: {email}")
-                return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+                return {
+                    "success": True,
+                    "message": "If the email exists and is not verified, a verification email has been sent",
+                }
 
             # 检查用户是否已经验证
             if user.email_verified_at:
                 logger.info(f"Resend verification requested for already verified user: {email}")
-                return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+                return {
+                    "success": True,
+                    "message": "If the email exists and is not verified, a verification email has been sent",
+                }
 
             # 创建新的验证令牌
             verification = EmailVerification.create_for_user(
@@ -375,7 +381,10 @@ class UserService:
                 )
 
             logger.info(f"Verification email resent to {email}")
-            return {"success": True, "message": "If the email exists and is not verified, a verification email has been sent"}
+            return {
+                "success": True,
+                "message": "If the email exists and is not verified, a verification email has been sent",
+            }
 
         except Exception as e:
             logger.error(f"Error resending verification email: {e}")
