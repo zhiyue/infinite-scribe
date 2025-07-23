@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthStore>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           // 检查是否有有效的 access token
-          const hasToken = localStorage.getItem('access_token')
+          const hasToken = localStorage.getItem('auth_access_token')
           console.log(
             '[useAuth] Rehydrated, hasToken:',
             !!hasToken,
