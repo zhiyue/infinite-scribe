@@ -183,7 +183,10 @@ describe('AuthService', () => {
 
     it('应该在禁用自动刷新时不调度刷新', () => {
       const configWithoutAutoRefresh = { ...mockConfig, enableAutoRefresh: false }
-      const dependenciesWithoutAutoRefresh = { ...mockDependencies, config: configWithoutAutoRefresh }
+      const dependenciesWithoutAutoRefresh = {
+        ...mockDependencies,
+        config: configWithoutAutoRefresh,
+      }
 
       mockTokenManager.hasValidAccessToken.mockReturnValue(true)
 
@@ -194,7 +197,7 @@ describe('AuthService', () => {
 
     it('应该处理初始化错误', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      
+
       mockHttpClient.addRequestInterceptor.mockImplementation(() => {
         throw new Error('Interceptor setup failed')
       })
@@ -205,7 +208,7 @@ describe('AuthService', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to initialize AuthService'),
-        expect.any(Error)
+        expect.any(Error),
       )
 
       consoleSpy.mockRestore()
@@ -231,7 +234,7 @@ describe('AuthService', () => {
         expect(mockAuthApiClient.login).toHaveBeenCalledWith(loginRequest)
         expect(mockTokenManager.setTokens).toHaveBeenCalledWith(
           mockLoginResponse.access_token,
-          mockLoginResponse.refresh_token
+          mockLoginResponse.refresh_token,
         )
         expect(mockTokenManager.scheduleRefresh).toHaveBeenCalled()
         expect(result.success).toBe(true)
@@ -241,7 +244,10 @@ describe('AuthService', () => {
 
       it('应该在禁用自动刷新时不调度刷新', async () => {
         const configWithoutAutoRefresh = { ...mockConfig, enableAutoRefresh: false }
-        const dependenciesWithoutAutoRefresh = { ...mockDependencies, config: configWithoutAutoRefresh }
+        const dependenciesWithoutAutoRefresh = {
+          ...mockDependencies,
+          config: configWithoutAutoRefresh,
+        }
         const serviceWithoutAutoRefresh = new AuthService(dependenciesWithoutAutoRefresh)
 
         mockAuthApiClient.login.mockResolvedValue(mockLoginResponse)
@@ -259,10 +265,12 @@ describe('AuthService', () => {
         const loginError = new Error('Invalid credentials')
         mockAuthApiClient.login.mockRejectedValue(loginError)
 
-        await expect(authService.login({
-          email: 'test@example.com',
-          password: 'wrong_password',
-        })).rejects.toThrow('Invalid credentials')
+        await expect(
+          authService.login({
+            email: 'test@example.com',
+            password: 'wrong_password',
+          }),
+        ).rejects.toThrow('Invalid credentials')
       })
     })
 
@@ -293,11 +301,13 @@ describe('AuthService', () => {
         const registerError = new Error('Email already exists')
         mockAuthApiClient.register.mockRejectedValue(registerError)
 
-        await expect(authService.register({
-          email: 'existing@example.com',
-          password: 'password123',
-          name: 'User',
-        })).rejects.toThrow('Email already exists')
+        await expect(
+          authService.register({
+            email: 'existing@example.com',
+            password: 'password123',
+            name: 'User',
+          }),
+        ).rejects.toThrow('Email already exists')
       })
     })
 
@@ -316,7 +326,7 @@ describe('AuthService', () => {
 
       it('应该在 API 调用失败时仍然清理本地状态', async () => {
         const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-        
+
         const logoutError = new Error('Logout API failed')
         mockAuthApiClient.logout.mockRejectedValue(logoutError)
 
@@ -530,13 +540,13 @@ describe('AuthService', () => {
         expect(mockAuthApiClient.refreshToken).toHaveBeenCalledWith('refresh_token')
         expect(mockTokenManager.setTokens).toHaveBeenCalledWith(
           refreshResponse.access_token,
-          refreshResponse.refresh_token
+          refreshResponse.refresh_token,
         )
       })
 
       it('应该处理刷新令牌失败', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-        
+
         const refreshError = new Error('Refresh token expired')
         mockTokenManager.getRefreshToken.mockReturnValue('refresh_token')
         mockAuthApiClient.refreshToken.mockRejectedValue(refreshError)
@@ -626,9 +636,9 @@ describe('AuthService', () => {
     describe('Response Interceptor', () => {
       it('应该直接返回成功响应', () => {
         const response = { status: 200, data: { success: true } }
-        
+
         const result = responseInterceptor.fulfilled(response)
-        
+
         expect(result).toBe(response)
       })
 
@@ -663,7 +673,7 @@ describe('AuthService', () => {
         expect(mockAuthApiClient.refreshToken).toHaveBeenCalled()
         expect(mockTokenManager.setTokens).toHaveBeenCalledWith(
           refreshResponse.access_token,
-          refreshResponse.refresh_token
+          refreshResponse.refresh_token,
         )
         expect(mockHttpClient.get).toHaveBeenCalledWith('/api/users', originalRequest)
       })

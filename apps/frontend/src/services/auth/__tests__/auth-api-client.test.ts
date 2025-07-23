@@ -66,7 +66,10 @@ describe('AuthApiClient', () => {
     it('应该正确设置 HTTP 客户端', () => {
       expect(mockHttpClient.setBaseURL).toHaveBeenCalledWith('https://api.example.com/auth')
       expect(mockHttpClient.setTimeout).toHaveBeenCalledWith(10000)
-      expect(mockHttpClient.setDefaultHeader).toHaveBeenCalledWith('Content-Type', 'application/json')
+      expect(mockHttpClient.setDefaultHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/json',
+      )
     })
 
     it('应该处理没有 setBaseURL 方法的 HTTP 客户端', () => {
@@ -139,11 +142,9 @@ describe('AuthApiClient', () => {
           password: 'password123',
         })
 
-        expect(mockHttpClient.post).toHaveBeenCalledWith(
-          '/login',
-          expect.any(Object),
-          { withCredentials: true }
-        )
+        expect(mockHttpClient.post).toHaveBeenCalledWith('/login', expect.any(Object), {
+          withCredentials: true,
+        })
       })
 
       it('应该处理无效的登录响应', async () => {
@@ -156,10 +157,12 @@ describe('AuthApiClient', () => {
           request: {},
         })
 
-        await expect(authApiClient.login({
-          email: 'test@example.com',
-          password: 'password123',
-        })).rejects.toThrow('Invalid login response')
+        await expect(
+          authApiClient.login({
+            email: 'test@example.com',
+            password: 'password123',
+          }),
+        ).rejects.toThrow('Invalid login response')
       })
 
       it('应该处理登录错误', async () => {
@@ -255,14 +258,18 @@ describe('AuthApiClient', () => {
 
         await authApiClient.logout()
 
-        expect(mockHttpClient.post).toHaveBeenCalledWith('/logout', {}, {
-          withCredentials: false,
-        })
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+          '/logout',
+          {},
+          {
+            withCredentials: false,
+          },
+        )
       })
 
       it('应该处理登出错误但不阻断流程', async () => {
         const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-        
+
         const mockError = {
           response: {
             status: 500,
@@ -304,11 +311,15 @@ describe('AuthApiClient', () => {
 
         const result = await authApiClient.refreshToken(refreshToken)
 
-        expect(mockHttpClient.post).toHaveBeenCalledWith('/refresh', {
-          refresh_token: refreshToken,
-        }, {
-          withCredentials: false,
-        })
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+          '/refresh',
+          {
+            refresh_token: refreshToken,
+          },
+          {
+            withCredentials: false,
+          },
+        )
         expect(result).toEqual(tokenResponse)
       })
 
@@ -327,9 +338,13 @@ describe('AuthApiClient', () => {
 
         await apiClientWithHttpOnly.refreshToken()
 
-        expect(mockHttpClient.post).toHaveBeenCalledWith('/refresh', {}, {
-          withCredentials: true,
-        })
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+          '/refresh',
+          {},
+          {
+            withCredentials: true,
+          },
+        )
       })
 
       it('应该处理刷新令牌错误', async () => {
@@ -530,7 +545,9 @@ describe('AuthApiClient', () => {
 
         await authApiClient.verifyEmail(token)
 
-        expect(mockHttpClient.get).toHaveBeenCalledWith(`/verify-email?token=${encodeURIComponent(token)}`)
+        expect(mockHttpClient.get).toHaveBeenCalledWith(
+          `/verify-email?token=${encodeURIComponent(token)}`,
+        )
       })
 
       it('应该正确编码验证令牌', async () => {
@@ -548,7 +565,7 @@ describe('AuthApiClient', () => {
         await authApiClient.verifyEmail(token)
 
         expect(mockHttpClient.get).toHaveBeenCalledWith(
-          `/verify-email?token=${encodeURIComponent(token)}`
+          `/verify-email?token=${encodeURIComponent(token)}`,
         )
       })
     })
@@ -987,7 +1004,10 @@ describe('AuthApiClient', () => {
         new AuthApiClient(minimalHttpClient, mockConfig)
       }).not.toThrow()
 
-      expect(minimalHttpClient.setDefaultHeader).toHaveBeenCalledWith('Content-Type', 'application/json')
+      expect(minimalHttpClient.setDefaultHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/json',
+      )
     })
 
     it('应该处理不同的配置组合', () => {

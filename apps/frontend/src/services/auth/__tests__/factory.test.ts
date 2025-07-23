@@ -114,12 +114,9 @@ describe('Factory Functions', () => {
       expect(authService).toBeDefined()
       expect(consoleSpy).toHaveBeenCalledWith(
         'AuthService created with config:',
-        expect.any(Object)
+        expect.any(Object),
       )
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'AuthService status:',
-        expect.any(Object)
-      )
+      expect(consoleSpy).toHaveBeenCalledWith('AuthService status:', expect.any(Object))
 
       consoleSpy.mockRestore()
     })
@@ -293,7 +290,7 @@ describe('Factory Functions', () => {
       const status = authService.getServiceStatus()
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Unknown environment: unknown, using development config'
+        'Unknown environment: unknown, using development config',
       )
       expect(status.config.enableAutoRefresh).toBe(true)
       expect(status.config.refreshBufferMinutes).toBe(2)
@@ -376,7 +373,7 @@ describe('Factory Functions', () => {
       const result = validateAuthServiceConfig(configWithLogicIssues)
 
       expect(result.warnings).toContain(
-        'refreshTokenKey is ignored when useHttpOnlyCookies is true'
+        'refreshTokenKey is ignored when useHttpOnlyCookies is true',
       )
     })
 
@@ -397,7 +394,7 @@ describe('Factory Functions', () => {
 
       expect(result.isValid).toBe(false)
       expect(result.errors).toContain(
-        'refreshTokenKey is required when useHttpOnlyCookies is false'
+        'refreshTokenKey is required when useHttpOnlyCookies is false',
       )
     })
 
@@ -416,9 +413,7 @@ describe('Factory Functions', () => {
 
       const result = validateAuthServiceConfig(configWithInvalidValues)
 
-      expect(result.warnings).toContain(
-        'refreshBufferMinutes should be at least 1 minute'
-      )
+      expect(result.warnings).toContain('refreshBufferMinutes should be at least 1 minute')
       expect(result.warnings).toContain('timeout should be at least 1000ms')
     })
 
@@ -687,7 +682,7 @@ describe('Factory Functions', () => {
         .build()
 
       expect(fullService).toBeDefined()
-      
+
       const status = fullService.getServiceStatus()
       expect(status.config.apiBaseUrl).toBe('https://full-config.example.com')
       expect(status.config.authApiPrefix).toBe('/v2/auth')
@@ -709,10 +704,10 @@ describe('Factory Functions', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
       const authService = createEnvironmentAuthService('invalid-environment')
-      
+
       expect(authService).toBeDefined()
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Unknown environment: invalid-environment, using development config'
+        'Unknown environment: invalid-environment, using development config',
       )
 
       consoleSpy.mockRestore()

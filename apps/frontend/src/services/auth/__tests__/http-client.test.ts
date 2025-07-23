@@ -52,7 +52,7 @@ describe('HTTP Clients', () => {
       }
 
       mockedAxios.create.mockReturnValue(mockAxiosInstance as AxiosInstance)
-      
+
       httpClient = new AxiosHttpClient()
     })
 
@@ -70,7 +70,7 @@ describe('HTTP Clients', () => {
         mockAxiosInstance.get = vi.fn().mockResolvedValue(mockResponse)
 
         const response = await httpClient.get('/api/users/1')
-        
+
         expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/users/1', undefined)
         expect(response).toEqual(mockResponse)
       })
@@ -89,7 +89,7 @@ describe('HTTP Clients', () => {
         mockAxiosInstance.post = vi.fn().mockResolvedValue(mockResponse)
 
         const response = await httpClient.post('/api/users', requestData)
-        
+
         expect(mockAxiosInstance.post).toHaveBeenCalledWith('/api/users', requestData, undefined)
         expect(response).toEqual(mockResponse)
       })
@@ -108,7 +108,7 @@ describe('HTTP Clients', () => {
         mockAxiosInstance.put = vi.fn().mockResolvedValue(mockResponse)
 
         const response = await httpClient.put('/api/users/1', updateData)
-        
+
         expect(mockAxiosInstance.put).toHaveBeenCalledWith('/api/users/1', updateData, undefined)
         expect(response).toEqual(mockResponse)
       })
@@ -126,7 +126,7 @@ describe('HTTP Clients', () => {
         mockAxiosInstance.delete = vi.fn().mockResolvedValue(mockResponse)
 
         const response = await httpClient.delete('/api/users/1')
-        
+
         expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/api/users/1', undefined)
         expect(response).toEqual(mockResponse)
       })
@@ -147,7 +147,7 @@ describe('HTTP Clients', () => {
         })
 
         await httpClient.get('/api/test', config)
-        
+
         expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/test', config)
       })
     })
@@ -155,26 +155,26 @@ describe('HTTP Clients', () => {
     describe('Headers Management', () => {
       it('应该能设置默认请求头', () => {
         httpClient.setDefaultHeader('Authorization', 'Bearer token123')
-        
+
         expect(mockAxiosInstance.defaults!.headers.common['Authorization']).toBe('Bearer token123')
       })
 
       it('应该能移除默认请求头', () => {
         httpClient.setDefaultHeader('Custom-Header', 'value')
         httpClient.removeDefaultHeader('Custom-Header')
-        
+
         expect(mockAxiosInstance.defaults!.headers.common['Custom-Header']).toBeUndefined()
       })
 
       it('应该能设置基础 URL', () => {
         httpClient.setBaseURL('https://api.example.com')
-        
+
         expect(mockAxiosInstance.defaults!.baseURL).toBe('https://api.example.com')
       })
 
       it('应该能设置超时时间', () => {
         httpClient.setTimeout(5000)
-        
+
         expect(mockAxiosInstance.defaults!.timeout).toBe(5000)
       })
     })
@@ -188,10 +188,10 @@ describe('HTTP Clients', () => {
         const onRejected = vi.fn()
 
         const id = httpClient.addRequestInterceptor(onFulfilled, onRejected)
-        
+
         expect(mockAxiosInstance.interceptors!.request.use).toHaveBeenCalledWith(
           expect.any(Function),
-          onRejected
+          onRejected,
         )
         expect(id).toBe(mockId)
       })
@@ -204,10 +204,10 @@ describe('HTTP Clients', () => {
         const onRejected = vi.fn()
 
         const id = httpClient.addResponseInterceptor(onFulfilled, onRejected)
-        
+
         expect(mockAxiosInstance.interceptors!.response.use).toHaveBeenCalledWith(
           onFulfilled,
-          onRejected
+          onRejected,
         )
         expect(id).toBe(mockId)
       })
@@ -218,7 +218,7 @@ describe('HTTP Clients', () => {
 
         const id = httpClient.addRequestInterceptor(vi.fn())
         httpClient.removeInterceptor('request', id)
-        
+
         expect(mockAxiosInstance.interceptors!.request.eject).toHaveBeenCalledWith(id)
       })
 
@@ -228,14 +228,14 @@ describe('HTTP Clients', () => {
 
         const id = httpClient.addResponseInterceptor(vi.fn())
         httpClient.removeInterceptor('response', id)
-        
+
         expect(mockAxiosInstance.interceptors!.response.eject).toHaveBeenCalledWith(id)
       })
 
       it('应该能清除所有拦截器', () => {
         // 重置之前的调用
         vi.clearAllMocks()
-        
+
         // 重新设置 mock 以返回特定 ID
         mockAxiosInstance.interceptors!.request.use = vi.fn().mockReturnValue(123)
         mockAxiosInstance.interceptors!.response.use = vi.fn().mockReturnValue(456)
@@ -244,9 +244,9 @@ describe('HTTP Clients', () => {
 
         const requestId = httpClient.addRequestInterceptor(vi.fn())
         const responseId = httpClient.addResponseInterceptor(vi.fn())
-        
+
         httpClient.clearAllInterceptors()
-        
+
         expect(mockAxiosInstance.interceptors!.request.eject).toHaveBeenCalledWith(requestId)
         expect(mockAxiosInstance.interceptors!.response.eject).toHaveBeenCalledWith(responseId)
       })
@@ -255,7 +255,7 @@ describe('HTTP Clients', () => {
     describe('Error Handling', () => {
       it('应该处理响应错误', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-        
+
         const mockError = {
           response: {
             status: 404,
@@ -273,16 +273,16 @@ describe('HTTP Clients', () => {
           expect(error).toEqual(mockError)
           expect(consoleSpy).toHaveBeenCalledWith(
             expect.stringContaining('HTTP Error 404'),
-            mockError.response.data
+            mockError.response.data,
           )
         }
-        
+
         consoleSpy.mockRestore()
       })
 
       it('应该处理网络错误', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-        
+
         const mockError = {
           request: {},
           message: 'Network Error',
@@ -296,16 +296,16 @@ describe('HTTP Clients', () => {
           expect(error).toEqual(mockError)
           expect(consoleSpy).toHaveBeenCalledWith(
             expect.stringContaining('Network Error'),
-            mockError.message
+            mockError.message,
           )
         }
-        
+
         consoleSpy.mockRestore()
       })
 
       it('应该处理请求设置错误', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-        
+
         const mockError = {
           message: 'Request setup error',
         }
@@ -318,10 +318,10 @@ describe('HTTP Clients', () => {
           expect(error).toEqual(mockError)
           expect(consoleSpy).toHaveBeenCalledWith(
             expect.stringContaining('Request Setup Error'),
-            mockError.message
+            mockError.message,
           )
         }
-        
+
         consoleSpy.mockRestore()
       })
     })
@@ -337,7 +337,7 @@ describe('HTTP Clients', () => {
         }
 
         const customClient = new AxiosHttpClient(customConfig)
-        
+
         expect(mockedAxios.create).toHaveBeenCalledWith({
           timeout: 10000,
           headers: {
@@ -349,7 +349,7 @@ describe('HTTP Clients', () => {
 
       it('应该能获取 Axios 实例', () => {
         const instance = httpClient.getAxiosInstance()
-        
+
         expect(instance).toBe(mockAxiosInstance)
       })
     })
@@ -389,7 +389,7 @@ describe('HTTP Clients', () => {
         mockFetch.mockResolvedValue(mockResponse)
 
         const response = await httpClient.get('/api/users/1')
-        
+
         expect(mockFetch).toHaveBeenCalledWith(
           '/api/users/1',
           expect.objectContaining({
@@ -397,7 +397,7 @@ describe('HTTP Clients', () => {
             headers: expect.objectContaining({
               'Content-Type': 'application/json',
             }),
-          })
+          }),
         )
         expect(response.data).toEqual(mockResponseData)
         expect(response.status).toBe(200)
@@ -418,13 +418,13 @@ describe('HTTP Clients', () => {
         mockFetch.mockResolvedValue(mockResponse)
 
         const response = await httpClient.post('/api/users', requestData)
-        
+
         expect(mockFetch).toHaveBeenCalledWith(
           '/api/users',
           expect.objectContaining({
             method: 'POST',
             body: JSON.stringify(requestData),
-          })
+          }),
         )
         expect(response.data).toEqual(mockResponseData)
       })
@@ -442,7 +442,7 @@ describe('HTTP Clients', () => {
         mockFetch.mockResolvedValue(mockResponse)
 
         const response = await httpClient.get('/api/text')
-        
+
         expect(response.data).toBe(mockResponseData)
       })
     })
@@ -456,14 +456,14 @@ describe('HTTP Clients', () => {
         }
 
         const customClient = new FetchHttpClient(config)
-        
+
         // 验证配置已应用
         expect(() => customClient).not.toThrow()
       })
 
       it('应该能设置和移除默认请求头', () => {
         httpClient.setDefaultHeader('Authorization', 'Bearer token')
-        
+
         // 由于这是私有状态，我们通过发送请求来验证
         const mockResponse = {
           ok: true,
@@ -482,9 +482,9 @@ describe('HTTP Clients', () => {
           '/test',
           expect.objectContaining({
             headers: expect.objectContaining({
-              'Authorization': 'Bearer token',
+              Authorization: 'Bearer token',
             }),
-          })
+          }),
         )
 
         httpClient.removeDefaultHeader('Authorization')
@@ -508,21 +508,19 @@ describe('HTTP Clients', () => {
 
         await clientWithBaseUrl.get('/users')
 
-        expect(mockFetch).toHaveBeenCalledWith(
-          'https://api.example.com/users',
-          expect.any(Object)
-        )
+        expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/users', expect.any(Object))
       })
     })
 
     describe('Error Handling', () => {
       it('应该处理超时错误', async () => {
-        mockFetch.mockImplementation(() => 
-          new Promise((_, reject) => {
-            const error = new Error('The user aborted a request.')
-            error.name = 'AbortError'
-            reject(error)
-          })
+        mockFetch.mockImplementation(
+          () =>
+            new Promise((_, reject) => {
+              const error = new Error('The user aborted a request.')
+              error.name = 'AbortError'
+              reject(error)
+            }),
         )
 
         try {
@@ -554,14 +552,12 @@ describe('HTTP Clients', () => {
         httpClient.removeInterceptor('request', 1)
 
         expect(consoleSpy).toHaveBeenCalledWith(
-          'Request interceptors not supported in FetchHttpClient'
+          'Request interceptors not supported in FetchHttpClient',
         )
         expect(consoleSpy).toHaveBeenCalledWith(
-          'Response interceptors not supported in FetchHttpClient'
+          'Response interceptors not supported in FetchHttpClient',
         )
-        expect(consoleSpy).toHaveBeenCalledWith(
-          'Interceptors not supported in FetchHttpClient'
-        )
+        expect(consoleSpy).toHaveBeenCalledWith('Interceptors not supported in FetchHttpClient')
 
         consoleSpy.mockRestore()
       })
@@ -581,7 +577,7 @@ describe('HTTP Clients', () => {
         httpClient.setMockResponse('GET', '/api/users/1', mockData)
 
         const response = await httpClient.get('/api/users/1')
-        
+
         expect(response.data).toEqual(mockData)
         expect(response.status).toBe(200)
       })
@@ -596,7 +592,7 @@ describe('HTTP Clients', () => {
         httpClient.setMockResponse('POST', '/api/users', mockResponse)
 
         const response = await httpClient.post('/api/users', { name: 'John' })
-        
+
         expect(response.data).toEqual(mockResponse.data)
         expect(response.status).toBe(201)
         expect(response.statusText).toBe('Created')
@@ -630,7 +626,7 @@ describe('HTTP Clients', () => {
         const startTime = Date.now()
         await httpClient.get('/api/slow')
         const endTime = Date.now()
-        
+
         expect(endTime - startTime).toBeGreaterThanOrEqual(95) // 允许一些误差
       })
 
@@ -641,7 +637,7 @@ describe('HTTP Clients', () => {
         const startTime = Date.now()
         await delayedClient.get('/api/test')
         const endTime = Date.now()
-        
+
         expect(endTime - startTime).toBeGreaterThanOrEqual(45)
       })
     })
@@ -650,7 +646,7 @@ describe('HTTP Clients', () => {
       it('应该能设置和移除默认请求头', () => {
         httpClient.setDefaultHeader('Authorization', 'Bearer token')
         httpClient.removeDefaultHeader('Authorization')
-        
+
         // Mock 客户端不会失败，这里主要测试方法存在
         expect(typeof httpClient.setDefaultHeader).toBe('function')
         expect(typeof httpClient.removeDefaultHeader).toBe('function')
@@ -661,7 +657,7 @@ describe('HTTP Clients', () => {
       it('应该能清除所有模拟响应', async () => {
         httpClient.setMockResponse('GET', '/api/test1', { data: 'test1' })
         httpClient.setMockResponse('GET', '/api/test2', { data: 'test2' })
-        
+
         httpClient.clearMockResponses()
 
         try {
@@ -676,7 +672,7 @@ describe('HTTP Clients', () => {
         httpClient.setMockResponse('POST', '/api/users', { data: { id: 1 } })
 
         const response = await httpClient.post('/api/users', requestData)
-        
+
         expect(response.request).toEqual({
           method: 'POST',
           url: '/api/users',
@@ -709,25 +705,25 @@ describe('HTTP Clients', () => {
     describe('createHttpClient', () => {
       it('应该创建 AxiosHttpClient', () => {
         const client = createHttpClient('axios')
-        
+
         expect(client).toBeInstanceOf(AxiosHttpClient)
       })
 
       it('应该创建 FetchHttpClient', () => {
         const client = createHttpClient('fetch')
-        
+
         expect(client).toBeInstanceOf(FetchHttpClient)
       })
 
       it('应该创建 MockHttpClient', () => {
         const client = createHttpClient('mock')
-        
+
         expect(client).toBeInstanceOf(MockHttpClient)
       })
 
       it('应该使用默认类型 axios', () => {
         const client = createHttpClient()
-        
+
         expect(client).toBeInstanceOf(AxiosHttpClient)
       })
 
@@ -740,7 +736,7 @@ describe('HTTP Clients', () => {
       it('应该传递配置参数', () => {
         const config = { timeout: 5000 }
         createHttpClient('axios', config)
-        
+
         expect(mockedAxios.create).toHaveBeenCalledWith({
           timeout: 10000,
           headers: {
@@ -754,7 +750,7 @@ describe('HTTP Clients', () => {
     describe('createAutoHttpClient', () => {
       it('应该创建 AxiosHttpClient', () => {
         const client = createAutoHttpClient()
-        
+
         expect(client).toBeInstanceOf(AxiosHttpClient)
       })
 
@@ -765,14 +761,14 @@ describe('HTTP Clients', () => {
         })
 
         const client = createAutoHttpClient()
-        
+
         expect(client).toBeInstanceOf(FetchHttpClient)
       })
 
       it('应该传递配置给创建的客户端', () => {
         const config = { timeout: 5000 }
         createAutoHttpClient(config)
-        
+
         expect(mockedAxios.create).toHaveBeenCalledWith({
           timeout: 10000,
           headers: {
@@ -785,10 +781,10 @@ describe('HTTP Clients', () => {
   })
 
   describe('Interface Compliance', () => {
-    const httpClientTypes: Array<{
+    const httpClientTypes: {
       name: string
       create: () => IHttpClient
-    }> = [
+    }[] = [
       {
         name: 'AxiosHttpClient',
         create: () => {
