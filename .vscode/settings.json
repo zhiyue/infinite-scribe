@@ -105,6 +105,7 @@
             "changeProcessCWD": true
         }
     ],
-    "prettier.configPath": "./apps/frontend/.prettierrc.cjs"
+    "prettier.configPath": "./apps/frontend/.prettierrc.cjs",
+    "editor.fontSize": 15
 
 }
