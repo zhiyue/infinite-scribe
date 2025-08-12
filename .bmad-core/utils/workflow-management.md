@@ -1,6 +1,6 @@
 # Workflow Management
 
-Enables BMAD orchestrator to manage and execute team workflows.
+Enables BMad orchestrator to manage and execute team workflows.
 
 ## Dynamic Workflow Loading
 

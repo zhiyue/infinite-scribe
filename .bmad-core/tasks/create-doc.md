@@ -1,71 +1,101 @@
-# Create Document from Template Task
+# Create Document from Template (YAML Driven)
 
-## Purpose
+## ⚠️ CRITICAL EXECUTION NOTICE ⚠️
 
-Generate documents from templates by EXECUTING (not just reading) embedded instructions from the perspective of the selected agent persona.
+**THIS IS AN EXECUTABLE WORKFLOW - NOT REFERENCE MATERIAL**
 
-## CRITICAL RULES
+When this task is invoked:
 
-1. **Templates are PROGRAMS** - Execute every [[LLM:]] instruction exactly as written
-2. **NEVER show markup** - Hide all [[LLM:]], {{placeholders}}, @{examples}, and template syntax
-3. **STOP and EXECUTE** - When you see "apply tasks#" or "execute tasks#", STOP and run that task immediately
-4. **WAIT for user input** - At review points and after elicitation tasks
+1. **DISABLE ALL EFFICIENCY OPTIMIZATIONS** - This workflow requires full user interaction
+2. **MANDATORY STEP-BY-STEP EXECUTION** - Each section must be processed sequentially with user feedback
+3. **ELICITATION IS REQUIRED** - When `elicit: true`, you MUST use the 1-9 format and wait for user response
+4. **NO SHORTCUTS ALLOWED** - Complete documents cannot be created without following this workflow
 
-## Execution Flow
+**VIOLATION INDICATOR:** If you create a complete document without user interaction, you have violated this workflow.
 
-### 1. Identify Template
+## Critical: Template Discovery
 
-- Load from `templates#*` or `.bmad-core/templates directory`
-- Agent-specific templates are listed in agent's dependencies
-- If agent has `templates: [prd-tmpl, architecture-tmpl]`, offer to create "PRD" and "Architecture" documents
+If a YAML Template has not been provided, list all templates from .bmad-core/templates or ask the user to provide another.
 
-### 2. Ask Interaction Mode
+## CRITICAL: Mandatory Elicitation Format
 
-> 1. **Incremental** - Section by section with reviews
-> 2. **YOLO Mode** - Complete draft then review (user can type `/yolo` anytime to switch)
+**When `elicit: true`, this is a HARD STOP requiring user interaction:**
 
-### 3. Execute Template
+**YOU MUST:**
 
-- Replace {{placeholders}} with real content
-- Execute [[LLM:]] instructions as you encounter them
-- Process <<REPEAT>> loops and ^^CONDITIONS^^
-- Use @{examples} for guidance but never output them
+1. Present section content
+2. Provide detailed rationale (explain trade-offs, assumptions, decisions made)
+3. **STOP and present numbered options 1-9:**
+   - **Option 1:** Always "Proceed to next section"
+   - **Options 2-9:** Select 8 methods from data/elicitation-methods
+   - End with: "Select 1-9 or just type your question/feedback:"
+4. **WAIT FOR USER RESPONSE** - Do not proceed until user selects option or provides feedback
 
-### 4. Key Execution Patterns
+**WORKFLOW VIOLATION:** Creating content for elicit=true sections without user interaction violates this task.
 
-**When you see:** `[[LLM: Draft X and immediately execute tasks#advanced-elicitation]]`
+**NEVER ask yes/no questions or use any other format.**
 
-- Draft the content
-- Present it to user
-- IMMEDIATELY execute the task
-- Wait for completion before continuing
+## Processing Flow
 
-**When you see:** `[[LLM: After section completion, apply tasks#Y]]`
+1. **Parse YAML template** - Load template metadata and sections
+2. **Set preferences** - Show current mode (Interactive), confirm output file
+3. **Process each section:**
+   - Skip if condition unmet
+   - Check agent permissions (owner/editors) - note if section is restricted to specific agents
+   - Draft content using section instruction
+   - Present content + detailed rationale
+   - **IF elicit: true** → MANDATORY 1-9 options format
+   - Save to file if possible
+4. **Continue until complete**
 
-- Finish the section
-- STOP and execute the task
-- Wait for user input
+## Detailed Rationale Requirements
 
-### 5. Validation & Final Presentation
+When presenting section content, ALWAYS include rationale that explains:
 
-- Run any specified checklists
-- Present clean, formatted content only
-- No truncation or summarization
-- Begin directly with content (no preamble)
-- Include any handoff prompts from template
+- Trade-offs and choices made (what was chosen over alternatives and why)
+- Key assumptions made during drafting
+- Interesting or questionable decisions that need user attention
+- Areas that might need validation
 
-## Common Mistakes to Avoid
+## Elicitation Results Flow
 
-❌ Skipping elicitation tasks
-❌ Showing template markup to users
-❌ Continuing past STOP signals
-❌ Combining multiple review points
+After user selects elicitation method (2-9):
 
-✅ Execute ALL instructions in sequence
-✅ Present only clean, formatted content
-✅ Stop at every elicitation point
-✅ Wait for user confirmation when instructed
+1. Execute method from data/elicitation-methods
+2. Present results with insights
+3. Offer options:
+   - **1. Apply changes and update section**
+   - **2. Return to elicitation menu**
+   - **3. Ask any questions or engage further with this elicitation**
 
-## Remember
+## Agent Permissions
 
-Templates contain precise instructions for a reason. Follow them exactly to ensure document quality and completeness.
+When processing sections with agent permission fields:
+
+- **owner**: Note which agent role initially creates/populates the section
+- **editors**: List agent roles allowed to modify the section
+- **readonly**: Mark sections that cannot be modified after creation
+
+**For sections with restricted access:**
+
+- Include a note in the generated document indicating the responsible agent
+- Example: "_(This section is owned by dev-agent and can only be modified by dev-agent)_"
+
+## YOLO Mode
+
+User can type `#yolo` to toggle to YOLO mode (process all sections at once).
+
+## CRITICAL REMINDERS
+
+**❌ NEVER:**
+
+- Ask yes/no questions for elicitation
+- Use any format other than 1-9 numbered options
+- Create new elicitation methods
+
+**✅ ALWAYS:**
+
+- Use exact 1-9 format when elicit: true
+- Select options 2-9 from data/elicitation-methods only
+- Provide detailed rationale explaining decisions
+- End with "Select 1-9 or just type your question/feedback:"
