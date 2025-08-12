@@ -56,3 +56,42 @@ class DomainEvent(Base):
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="事件创建时间，不可修改"
     )
+
+    @classmethod
+    def create_genesis_event(
+        cls,
+        event_type: GenesisEventType,
+        session_id: UUID,
+        payload: Dict[str, Any],
+        correlation_id: Optional[UUID] = None,
+        causation_id: Optional[UUID] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> DomainEvent:
+        """Create a genesis domain event"""
+
+        return cls(
+            event_type=event_type.value,
+            aggregate_type="GenesisSession",
+            aggregate_id=str(session_id),
+            payload=payload,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            event_metadata=metadata or {},
+        )
+
+    def is_genesis_event(self) -> bool:
+        """Check if this is a genesis-related event"""
+        try:
+            GenesisEventType(self.event_type)
+            return True
+        except ValueError:
+            return False
+
+    def get_session_id(self) -> Optional[UUID]:
+        """Get session ID from genesis events"""
+        if self.aggregate_type == "GenesisSession":
+            try:
+                return UUID(self.aggregate_id)
+            except (ValueError, TypeError):
+                return None
+        return None
