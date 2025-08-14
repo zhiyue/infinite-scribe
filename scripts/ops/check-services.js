@@ -12,9 +12,14 @@ const { Kafka } = require('kafkajs');
 const { MilvusClient } = require('@zilliz/milvus2-sdk-node');
 const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const isRemote = args.includes('--remote') || args.includes('--dev');
+
 // Configuration
 // 默认的开发服务器地址，各服务可以通过自己的 HOST 环境变量覆盖
-const DEFAULT_HOST = process.env.INFRASTRUCTURE_HOST || '192.168.2.201';
+const DEV_SERVER = process.env.DEV_SERVER || '192.168.2.201';
+const DEFAULT_HOST = isRemote ? (process.env.INFRASTRUCTURE_HOST || DEV_SERVER) : 'localhost';
 const CHECKS_TIMEOUT = 5000; // 5 seconds timeout for each check
 
 // Color codes for terminal output
@@ -308,7 +313,8 @@ async function checkHttp(url, serviceName = '') {
 // Main execution
 async function main() {
   console.log(`${colors.bold}${colors.blue}InfiniteScribe Service Health Check${colors.reset}`);
-  console.log(`${colors.blue}Default Host: ${DEFAULT_HOST}${colors.reset}`);
+  console.log(`${colors.blue}Target Host: ${DEFAULT_HOST}${colors.reset}`);
+  console.log(`${colors.blue}Mode: ${isRemote ? 'Remote' : 'Local'}${colors.reset}`);
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
 
   const results = [];
@@ -344,7 +350,11 @@ async function main() {
   // Docker compose hint
   if (healthyCount < services.length) {
     console.log(`\n${colors.yellow}Hint: To start all services, run:${colors.reset}`);
-    console.log(`ssh ${process.env.USER || 'zhiyue'}@${DEFAULT_HOST} "cd ~/workspace/mvp/infinite-scribe && docker compose up -d"`);
+    if (isRemote) {
+      console.log(`ssh ${process.env.USER || 'zhiyue'}@${DEFAULT_HOST} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose up -d"`);
+    } else {
+      console.log(`pnpm infra up`);
+    }
   }
 
   // Exit code based on health

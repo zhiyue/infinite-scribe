@@ -4,8 +4,13 @@ const http = require('http');
 const net = require('net');
 const { execSync } = require('child_process');
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const isRemote = args.includes('--remote') || args.includes('--dev');
+
 // Configuration
 const DEV_SERVER = process.env.DEV_SERVER || '192.168.2.201';
+const TARGET_HOST = isRemote ? DEV_SERVER : 'localhost';
 const CHECKS_TIMEOUT = 5000; // 5 seconds timeout for each check
 
 // Color codes for terminal output
@@ -104,7 +109,34 @@ function checkHttp(host, port, path = '/', timeout = CHECKS_TIMEOUT) {
 
 // Check Docker containers on remote server
 async function checkDockerContainers() {
-  console.log(`\n${colors.blue}Docker Container Status:${colors.reset}`);
+  if (!isRemote) {
+    console.log(`\n${colors.blue}Docker Container Status (Local):${colors.reset}`);
+    console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
+    
+    try {
+      const cmd = `docker compose -f deploy/docker-compose.yml ps --format 'table {{.Names}}\\t{{.Status}}'`;
+      const output = execSync(cmd, { encoding: 'utf8' });
+      
+      const lines = output.trim().split('\n');
+      lines.forEach((line, index) => {
+        if (index === 0) {
+          console.log(`${colors.bold}${line}${colors.reset}`);
+        } else if (line.includes('(healthy)')) {
+          console.log(`${colors.green}${line}${colors.reset}`);
+        } else if (line.includes('(unhealthy)')) {
+          console.log(`${colors.red}${line}${colors.reset}`);
+        } else {
+          console.log(line);
+        }
+      });
+    } catch (error) {
+      console.log(`${colors.red}Failed to get Docker container status${colors.reset}`);
+      console.log(`Error: ${error.message}`);
+    }
+    return;
+  }
+  
+  console.log(`\n${colors.blue}Docker Container Status (Remote):${colors.reset}`);
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
   
   try {
@@ -132,7 +164,8 @@ async function checkDockerContainers() {
 // Main execution
 async function main() {
   console.log(`${colors.bold}${colors.blue}InfiniteScribe Service Health Check${colors.reset}`);
-  console.log(`${colors.blue}Development Server: ${DEV_SERVER}${colors.reset}`);
+  console.log(`${colors.blue}Target Host: ${TARGET_HOST}${colors.reset}`);
+  console.log(`${colors.blue}Mode: ${isRemote ? 'Remote' : 'Local'}${colors.reset}`);
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
   
   const results = [];
@@ -145,9 +178,9 @@ async function main() {
     try {
       let result;
       if (service.type === 'tcp') {
-        result = await checkTcpPort(DEV_SERVER, service.port);
+        result = await checkTcpPort(TARGET_HOST, service.port);
       } else if (service.type === 'http') {
-        result = await checkHttp(DEV_SERVER, service.port, service.path);
+        result = await checkHttp(TARGET_HOST, service.port, service.path);
       }
       
       results.push({ ...service, ...result });
@@ -177,18 +210,24 @@ async function main() {
   // Service URLs
   console.log(`\n${colors.blue}Service URLs:${colors.reset}`);
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
-  console.log(`Neo4j Browser:   http://${DEV_SERVER}:7474`);
-  console.log(`MinIO Console:   http://${DEV_SERVER}:9001`);
-  console.log(`Prefect UI:      http://${DEV_SERVER}:4200`);
-  console.log(`Prefect API:     http://${DEV_SERVER}:4200/api`);
-  console.log(`Milvus Metrics:  http://${DEV_SERVER}:9091/metrics`);
+  console.log(`Neo4j Browser:   http://${TARGET_HOST}:7474`);
+  console.log(`MinIO Console:   http://${TARGET_HOST}:9001`);
+  console.log(`Prefect UI:      http://${TARGET_HOST}:4200`);
+  console.log(`Prefect API:     http://${TARGET_HOST}:4200/api`);
+  console.log(`Milvus Metrics:  http://${TARGET_HOST}:9091/metrics`);
   
   // Docker compose hint
   if (healthyCount < services.length) {
     console.log(`\n${colors.yellow}Hint: To start all services, run:${colors.reset}`);
-    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose up -d"`);
-    console.log(`\n${colors.yellow}To check logs for failed services:${colors.reset}`);
-    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose logs [service-name]"`);
+    if (isRemote) {
+      console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose up -d"`);
+      console.log(`\n${colors.yellow}To check logs for failed services:${colors.reset}`);
+      console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose logs [service-name]"`);
+    } else {
+      console.log(`pnpm infra up`);
+      console.log(`\n${colors.yellow}To check logs for failed services:${colors.reset}`);
+      console.log(`docker compose -f deploy/docker-compose.yml logs [service-name]`);
+    }
   } else {
     console.log(`\n${colors.green}All services are running! 🎉${colors.reset}`);
   }

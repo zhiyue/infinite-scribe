@@ -221,6 +221,28 @@ function handleAPI(action, options = []) {
   execCommand(command);
 }
 
+function handleCheck(type, options = []) {
+  const checkCommands = {
+    services: 'node scripts/ops/check-services-simple.js',
+    'services:full': 'node scripts/ops/check-services.js'
+  };
+  
+  // 处理远程选项
+  if (options.includes('--remote') || options.includes('--dev')) {
+    checkCommands.services = 'node scripts/ops/check-services-simple.js --remote';
+    checkCommands['services:full'] = 'node scripts/ops/check-services.js --remote';
+  }
+  
+  const command = checkCommands[type];
+  if (!command) {
+    console.error(`未知检查类型: ${type}`);
+    console.log(`可用类型: ${Object.keys(checkCommands).join(', ')}`);
+    process.exit(1);
+  }
+  
+  execCommand(`${command} ${options.filter(o => !o.startsWith('--remote') && o !== '--dev').join(' ')}`.trim());
+}
+
 // 帮助信息
 function showHelp(target = null) {
   if (target === 'backend' || target === 'frontend') {
@@ -343,6 +365,28 @@ API 工具
     return;
   }
   
+  if (target === 'check') {
+    console.log(`
+服务检查
+用法: pnpm check <type> [options]
+
+检查类型:
+  services                # 快速服务健康检查
+  services:full           # 完整服务健康检查
+
+选项:
+  --remote                # 检查远程服务器服务 (192.168.2.201)
+  --dev                   # 检查开发服务器服务 (别名 --remote)
+
+示例:
+  pnpm check services                   # 检查本地服务（默认）
+  pnpm check services --remote          # 检查远程开发服务器服务
+  pnpm check services:full              # 完整检查本地服务
+  pnpm check services:full --remote     # 完整检查远程服务器服务
+`);
+    return;
+  }
+  
   console.log(`
 统一脚本运行器 - 参数化命令系统
 
@@ -352,6 +396,7 @@ API 工具
   pnpm test <type>                      # 测试操作
   pnpm ssh <env>                        # SSH连接
   pnpm infra <action>                   # 基础设施
+  pnpm check <type>                     # 服务检查
   pnpm api <action>                     # API工具
 
 ## 完整用法:
@@ -363,6 +408,7 @@ API 工具
   test             测试操作 (单元/集成/E2E)
   ssh              SSH连接 (dev/test环境)
   infra            基础设施操作 (Docker/部署)
+  check            服务健康检查 (本地/远程)
   service          服务管理 (maildev等)
   api              API工具 (导出/测试)
 
@@ -372,6 +418,8 @@ API 工具
   pnpm test all --remote                # 远程运行所有测试
   pnpm ssh dev                          # 连接开发服务器  
   pnpm infra up                         # 启动基础设施
+  pnpm check services                   # 检查本地服务健康状态
+  pnpm check services --remote          # 检查远程服务健康状态
   pnpm maildev start                    # 启动邮件服务
   pnpm api export                       # 导出API定义
 
@@ -481,6 +529,14 @@ function main() {
         return;
       }
       handleAPI(action, options);
+      break;
+      
+    case 'check':
+      if (!action) {
+        showHelp(target);
+        return;
+      }
+      handleCheck(action, options);
       break;
       
     default:
