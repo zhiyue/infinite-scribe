@@ -1,4 +1,5 @@
 # Source Tree
+
 ```plaintext
 novel-ai-writer/
 ├── .github/                    # CI/CD 工作流 (GitHub Actions)
@@ -115,8 +116,8 @@ novel-ai-writer/
 │       ├── kafka/
 │       ├── postgresql/
 │       ├── milvus/
-│       ├── neo4j/  
-│       └── ecs_fargate/ 
+│       ├── neo4j/
+│       └── ecs_fargate/
 ├── docs/                       # 项目文档
 │   ├── project-brief.md
 │   ├── prd.md

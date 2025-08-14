@@ -7,7 +7,7 @@ info:
   version: 2.2.0
   description: |
     用于前端UI与后端工作流系统交互的、基于命令驱动和状态查询的控制API。
-    
+
     ## 核心交互模式
     1.  **发起操作:** 所有需要后台处理的用户意图，都通过向一个统一的命令端点 `POST /.../commands` 发送一个**命令**来完成。
     2.  **异步处理:** 对于耗时的操作（如AI生成），API会立即返回 `202 Accepted`，表示命令已被接收。
@@ -71,7 +71,15 @@ components:
           format: uuid
         current_stage:
           type: string
-          enum: [CONCEPT_SELECTION, STORY_CONCEPTION, WORLDVIEW, CHARACTERS, PLOT_OUTLINE, FINISHED]
+          enum:
+            [
+              CONCEPT_SELECTION,
+              STORY_CONCEPTION,
+              WORLDVIEW,
+              CHARACTERS,
+              PLOT_OUTLINE,
+              FINISHED,
+            ]
         is_pending:
           type: boolean
           description: "当前会话是否正在等待一个后台任务或命令完成"
@@ -199,49 +207,49 @@ components:
       type: object
       properties:
         chapter:
-          $ref: '#/components/schemas/Chapter'
+          $ref: "#/components/schemas/Chapter"
         reviews:
           type: array
           items:
-            $ref: '#/components/schemas/Review'
+            $ref: "#/components/schemas/Review"
 
     # --- Knowledge Base & Metrics Schemas ---
-    WorldviewNode: 
+    WorldviewNode:
       type: object
       properties:
-        id: 
-          type: string 
+        id:
+          type: string
           description: Neo4j内部节点ID
-        app_id: 
+        app_id:
           type: string
           format: uuid
           description: 对应PostgreSQL中的实体ID
-        labels: 
+        labels:
           type: array
-          items: 
-            type: string 
+          items:
+            type: string
           description: 节点的标签 (e.g., Character, Location)
-        properties: 
+        properties:
           type: object
           description: 节点的属性 (e.g., name, entry_type)
-    WorldviewRelationship: 
+    WorldviewRelationship:
       type: object
       properties:
-        id: 
+        id:
           type: string
           description: Neo4j内部关系ID
-        type: 
+        type:
           type: string
           description: 关系的类型 (e.g., KNOWS, LOCATED_IN)
-        startNodeAppId: 
+        startNodeAppId:
           type: string
           format: uuid
           description: 关系起始节点的app_id
-        endNodeAppId: 
+        endNodeAppId:
           type: string
           format: uuid
           description: 关系结束节点的app_id
-        properties: 
+        properties:
           type: object
           description: 关系的属性
     Metrics:
@@ -278,7 +286,7 @@ paths:
       summary: 健康检查
       description: 检查API服务及其依赖项是否正常运行。
       responses:
-        '200':
+        "200":
           description: 服务正常
           content:
             application/json:
@@ -295,7 +303,7 @@ paths:
       summary: 启动一个新的创世会话
       description: 开始一个新的小说项目，创建会话记录，并返回会话ID。
       responses:
-        '201':
+        "201":
           description: 会话成功创建
           content:
             application/json:
@@ -318,13 +326,13 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 创世会话的当前状态
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenesisSessionState'
-        '404':
+                $ref: "#/components/schemas/GenesisSessionState"
+        "404":
           description: 会话未找到
 
   /genesis/sessions/{session_id}/commands:
@@ -346,33 +354,33 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CommandRequest'
+              $ref: "#/components/schemas/CommandRequest"
       responses:
-        '200':
+        "200":
           description: 同步命令成功执行
-        '202':
+        "202":
           description: 异步命令已接受，正在后台处理
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CommandResponse'
-        '409':
+                $ref: "#/components/schemas/CommandResponse"
+        "409":
           description: 冲突。例如，当一个同类型的命令已在处理中时。
 
   # ================= NOVEL & CHAPTER WORKFLOWS =================
-  /novels: 
+  /novels:
     get:
       summary: 获取所有小说项目列表
       description: 返回当前用户的所有小说项目及其基本信息。
       responses:
-        '200':
+        "200":
           description: 成功获取小说列表
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Novel'
+                  $ref: "#/components/schemas/Novel"
 
   /novels/{novel_id}/commands:
     post:
@@ -390,14 +398,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CommandRequest'
+              $ref: "#/components/schemas/CommandRequest"
       responses:
-        '202':
+        "202":
           description: 异步命令已接受
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CommandResponse'
+                $ref: "#/components/schemas/CommandResponse"
 
   /chapters/{chapter_id}:
     get:
@@ -411,14 +419,14 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 成功获取章节详情
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChapterDetail'
+                $ref: "#/components/schemas/ChapterDetail"
 
-  /novels/{novel_id}/graph/worldview: 
+  /novels/{novel_id}/graph/worldview:
     get:
       summary: 获取指定小说的世界观图谱数据 (用于可视化)
       description: 从Neo4j中查询并返回特定小说的知识图谱数据。
@@ -430,7 +438,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 成功获取图谱数据
           content:
             application/json:
@@ -440,11 +448,11 @@ paths:
                   nodes:
                     type: array
                     items:
-                      $ref: '#/components/schemas/WorldviewNode'
+                      $ref: "#/components/schemas/WorldviewNode"
                   relationships:
                     type: array
                     items:
-                      $ref: '#/components/schemas/WorldviewRelationship'
+                      $ref: "#/components/schemas/WorldviewRelationship"
 
   # ================= GENERIC & UTILITY ENDPOINTS =================
   /tasks/{task_id}:
@@ -459,24 +467,24 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 任务详情
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AsyncTask'
+                $ref: "#/components/schemas/AsyncTask"
 
   /metrics:
     get:
       summary: 获取系统关键性能与成本指标
       description: 返回关于系统整体性能和成本的关键指标。
       responses:
-        '200':
+        "200":
           description: 成功获取指标
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Metrics'
+                $ref: "#/components/schemas/Metrics"
 
   /events/stream:
     get:
@@ -492,7 +500,7 @@ paths:
             format: uuid
           description: "只订阅与此上下文ID（如session_id）相关的事件"
       responses:
-        '200':
+        "200":
           description: 成功建立事件流连接。
           content:
             text/event-stream:
@@ -505,4 +513,3 @@ paths:
                   event: task.progress.updated
                   data: {"task_id": "...", "progress": 50.0, "message": "正在分析角色关系..."}
 ```
-

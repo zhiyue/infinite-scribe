@@ -19,50 +19,50 @@ sequenceDiagram
     participant CallbackSvc as PrefectCallbackService
     participant OutlinerAgent as 大纲规划师Agent
     participant DirectorAgent as 导演Agent
-    
+
     title 最终架构：基于领域事件和暂停/恢复的完整编排流程
-    
+
     %% ======================= 阶段一: 命令接收与请求事件发布 =======================
     UI->>APIGW: 1. POST /.../commands (command_type: RequestChapterGeneration)
     APIGW->>DB: 2. (IN TRANSACTION) 写入 command_inbox, domain_events, event_outbox
     APIGW-->>UI: 3. 返回 202 Accepted
-    
+
     Relay->>Kafka: 4. (轮询) 将 "Chapter.GenerationRequested" 事件发布到Kafka
-    
+
     %% ======================= 阶段二: Prefect启动并派发首个指令 =======================
     Kafka-->>+Prefect: 5. Prefect的守护Flow监听到 "Chapter.GenerationRequested"
     Prefect->>Prefect: 6. 触发 chapter_generation_flow 子流程
-    
+
     Note over Prefect: Flow的第一个Task: 通过Outbox发布"生成大纲"指令
     Prefect->>+DB: 7. (IN TRANSACTION) 创建async_task, 并将 "Chapter.OutlineGenerationRequested" 事件写入outbox
     DB-->>-Prefect: 确认写入
-    
+
     Relay->>Kafka: 8. (轮询) 将 "Chapter.OutlineGenerationRequested" 指令事件发布到Kafka
-    
+
     %% ======================= 阶段三: Prefect进入暂停状态，等待大纲完成 =======================
     Note over Prefect: Flow执行"等待"任务，为"大纲创建"的结果做准备
     Prefect->>+PrefectAPI: 9. 请求一个恢复句柄 (resume_handle)
     PrefectAPI-->>-Prefect: 返回句柄
-    
+
     Prefect->>+DB: 10. 将回调句柄持久化到 flow_resume_handles (correlation_id: command_id)
     DB-->>-Prefect: 确认
-    
+
     Prefect->>+PrefectAPI: 11. 请求将自身Task Run置为 PAUSED
     PrefectAPI-->>-Prefect: 确认暂停
     deactivate Prefect
-    
+
     %% ======================= 阶段四: 大纲规划师Agent执行并发布结果 =======================
     Kafka-->>+OutlinerAgent: 12. 大纲规划师Agent消费到指令
     OutlinerAgent->>OutlinerAgent: 13. 执行工作...
-    
+
     Note over OutlinerAgent: Agent完成工作后，通过Outbox发布领域事件结果
     OutlinerAgent->>+DB: 14. (IN TRANSACTION) 写入大纲数据, 并将 "Chapter.OutlineCreated" 事件写入outbox
     DB-->>-OutlinerAgent: 确认
     deactivate OutlinerAgent
-    
+
     %% ======================= 阶段五: 结果事件触发回调，唤醒Flow =======================
     Relay->>Kafka: 15. (轮询) 发布 "Chapter.OutlineCreated" 结果事件
-    
+
     Kafka-->>+CallbackSvc: 16. PrefectCallbackService消费到结果事件
     CallbackSvc->>CallbackSvc: 17. 解析出关联ID
     CallbackSvc->>+Redis: 18. 查询并获取回调句柄
@@ -70,19 +70,19 @@ sequenceDiagram
     CallbackSvc->>+PrefectAPI: 19. 调用 resume_task_run(handle, result=event_payload)
     PrefectAPI-->>-CallbackSvc: 20. 确认任务已恢复
     deactivate CallbackSvc
-    
+
     %% ======================= 阶段六: Flow恢复并继续编排下一步 =======================
     Note over Prefect: Prefect Worker现在可以继续执行被唤醒的Flow...
     Prefect->>+Prefect: 21. Flow从暂停点恢复，并获得了 "Chapter.OutlineCreated" 事件的payload
-    
+
     Note over Prefect: Flow根据结果，决定并派发下一个指令："场景设计"
     Prefect->>+DB: 22. (IN TRANSACTION) 创建新的async_task, 并将 "Chapter.SceneDesignRequested" 事件写入outbox
     DB-->>-Prefect: 确认写入
-    
+
     Relay->>Kafka: 23. (轮询) 发布 "Chapter.SceneDesignRequested" 指令事件
-    
+
     Kafka-->>DirectorAgent: 24. 导演Agent消费到新指令，开始工作...
-    
+
     Note right of Prefect: Flow会再次进入暂停状态，<br>等待 "Chapter.ScenesDesigned" 事件的结果，<br>如此循环，直到整个流程结束。
     deactivate Prefect
 
@@ -105,14 +105,14 @@ sequenceDiagram
     participant PG_DB as PostgreSQL
 
     APIGW->>+Prefect: (通过事件) 触发 "生成第N章" 工作流
-    
+
     Prefect->>+Kafka: 发布 Chapter.OutlineGenerationRequested 事件
     Kafka-->>OL_Agent: 消费事件
     OL_Agent->>OL_Agent: 生成大纲...
     OL_Agent->>+Kafka: 发布 Chapter.OutlineCreated 事件
-    
+
     Note right of Kafka: 导演、角色专家等Agent<br/>遵循类似模式...
-    
+
     Kafka-->>WR_Agent: 消费事件
     WR_Agent->>WR_Agent: 撰写草稿...
     WR_Agent->>+Kafka: 发布 Chapter.DraftCreated 事件
@@ -121,7 +121,7 @@ sequenceDiagram
     Kafka-->>CR_Agent: 消费事件
     CR_Agent->>CR_Agent: 进行文学评审...
     CR_Agent->>+Kafka: 发布 Chapter.CritiqueCompleted 事件
-    
+
     Kafka-->>FC_Agent: 消费事件
     FC_Agent->>FC_Agent: 进行事实核查...
     FC_Agent->>+Kafka: 发布 FactCheckCompleted 事件
@@ -162,32 +162,32 @@ sequenceDiagram
     %% ======================= 阶段二: Prefect启动工作流并派发首个指令 =======================
     Kafka-->>+Prefect: 5. Prefect的守护Flow监听到 "Chapter.GenerationRequested"
     Prefect->>Prefect: 6. 根据事件类型，触发一个具体的子流程 (e.g., chapter_generation_flow)
-    
+
     Note over Prefect: Flow的第一个Task: 通过Outbox发布"生成大纲"指令
     Prefect->>+DB: 7. (IN TRANSACTION) 创建async_task, 并将 "Chapter.OutlineGenerationRequested" 事件写入outbox
     DB-->>-Prefect: 确认写入
-    
+
     Relay->>Kafka: 8. (轮询) 发布 "Chapter.OutlineGenerationRequested" 指令事件
 
     %% ======================= 阶段三: Prefect进入暂停状态，等待结果 =======================
     Note over Prefect: 关键：Flow现在执行"等待"任务
     Prefect->>+PrefectAPI: 9. 请求一个恢复句柄 (resume_handle)
     PrefectAPI-->>-Prefect: 返回句柄
-    
+
     Prefect->>+DB: 10. 将回调句柄持久化到 flow_resume_handles (status: PENDING_PAUSE)
     DB-->>-Prefect: 确认
-    
+
     Prefect->>+Redis: 11. (可选) 缓存回调句柄
     Redis-->>-Prefect: 确认
-    
+
     Prefect->>+PrefectAPI: 12. 请求将自身Task Run置为 PAUSED
     PrefectAPI-->>-Prefect: 确认暂停 (Flow Worker已释放)
     deactivate Prefect
-    
+
     %% ======================= 阶段四: Agent执行并发布结果事件 =======================
     Kafka-->>+Agent: 13. 大纲规划师Agent消费到指令
     Agent->>Agent: 14. 执行工作...
-    
+
     Note over Agent: Agent完成工作后，通过Outbox发布领域事件结果
     Agent->>+DB: 15. (IN TRANSACTION) 写入大纲数据, 并将 "Chapter.OutlineCreated" 事件写入outbox
     DB-->>-Agent: 确认
@@ -198,10 +198,10 @@ sequenceDiagram
 
     Kafka-->>+CallbackSvc: 17. PrefectCallbackService消费到结果事件
     CallbackSvc->>CallbackSvc: 18. 从事件payload中解析出关联ID (e.g., source_command_id)
-    
+
     CallbackSvc->>+Redis: 19. 尝试从缓存获取回调句柄
     Redis-->>-CallbackSvc: 20. 命中缓存，返回句柄 (或回退到DB查询)
-    
+
     CallbackSvc->>+PrefectAPI: 21. 调用 resume_task_run(handle, result=event_payload)
     PrefectAPI->>PrefectAPI: 22. 找到暂停的任务，注入结果，状态改为RUNNING
     PrefectAPI-->>-CallbackSvc: 23. 返回成功响应

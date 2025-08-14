@@ -102,11 +102,6 @@ pnpm backup:dev              # 备份数据
 
 - **`hoppscotch-integration.sh`** - API 文档和 Hoppscotch 集合生成
 
-### 数据库 (`db/`)
-数据库管理脚本。
-
-- **`run_migrations.py`** - 执行 Alembic 迁移
-- **`verify_db_migration.py`** - 验证迁移状态
 
 ## 快速命令
 

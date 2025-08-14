@@ -69,11 +69,6 @@
     "// SSH Access": "================================",
     "ssh:dev": "ssh ${SSH_USER:-zhiyue}@192.168.2.201",
     "ssh:test": "ssh ${SSH_USER:-zhiyue}@${TEST_MACHINE_IP:-192.168.2.202}",
-    "// Environment Management": "================================",
-    "env:local": "[ -f .env.local ] && { rm -f .env; ln -s .env.local .env; echo '✅ Switched to local environment (.env -> .env.local)'; } || echo '❌ Error: .env.local not found'",
-    "env:dev": "[ -f .env.dev ] && { rm -f .env; ln -s .env.dev .env; echo '✅ Switched to dev environment (.env -> .env.dev)'; } || echo '❌ Error: .env.dev not found'",
-    "env:test": "[ -f .env.test ] && { rm -f .env; ln -s .env.test .env; echo '✅ Switched to test environment (.env -> .env.test)'; } || echo '❌ Error: .env.test not found',"
-    "env:show": "[ -L .env ] && echo \"Current: .env -> $(readlink .env)\" || echo \"No .env symlink found\"",
     "env:sync-frontend": "./scripts/dev/sync-frontend-env.sh",
     "// Original Scripts": "================================",
     "dev": "echo 'Run development scripts in individual apps'",

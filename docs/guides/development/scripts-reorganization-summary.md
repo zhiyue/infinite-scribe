@@ -35,8 +35,6 @@ scripts/
 ├── tools/           # 工具相关
 │   └── hoppscotch-integration.sh
 └── db/              # 数据库相关
-    ├── run_migrations.py
-    └── verify_db_migration.py
 ```
 
 ## 🔄 脚本分类详情
@@ -109,8 +107,6 @@ scripts/
 | `scripts/backup-dev-data.sh` | `scripts/ops/backup-dev-data.sh` | Operations |
 | `start-agents.sh` | `scripts/ops/start-agents.sh` | Operations |
 | `hoppscotch-integration.sh` | `scripts/tools/hoppscotch-integration.sh` | Tools |
-| `run_migrations.py` | `scripts/db/run_migrations.py` | Database |
-| `verify_db_migration.py` | `scripts/db/verify_db_migration.py` | Database |
 
 ## ✅ pnpm 脚本命令（保持不变）
 
