@@ -177,7 +177,7 @@ infinite-scribe/
 │   └── frontend/         # React TypeScript frontend (see apps/frontend/CLAUDE.md)
 ├── infrastructure/       # Docker configurations
 ├── docs/                # Project documentation
-└── scripts/             # Development and deployment scripts
+└── scripts/             # Development and deployment scripts (see @scripts/README.md)
 ```
 
 ## Essential Commands
