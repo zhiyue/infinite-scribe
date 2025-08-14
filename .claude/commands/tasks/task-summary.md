@@ -9,11 +9,11 @@ allowed-tools: Write, Read, Bash(cat:*, ls:*)
 
 ### 检查任务是否存在
 
-!`if [ -d "docs/development/tasks/$ARGUMENTS" ]; then echo "✓ 任务目录存在"; else echo "✗ 错误：任务目录不存在"; fi`
+!`if [ -d ".tasks/$ARGUMENTS" ]; then echo "✓ 任务目录存在"; else echo "✗ 错误：任务目录不存在"; fi`
 
 ### 当前任务状态
 
-!`if [ -f "docs/development/tasks/$ARGUMENTS/todo-list.md" ]; then echo "=== TODO 列表状态 ==="; cat "docs/development/tasks/$ARGUMENTS/todo-list.md" | grep -E "^#|^\-"; fi`
+!`if [ -f ".tasks/$ARGUMENTS/todo-list.md" ]; then echo "=== TODO 列表状态 ==="; cat ".tasks/$ARGUMENTS/todo-list.md" | grep -E "^#|^\-"; fi`
 
 ## 创建总结文档
 

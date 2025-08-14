@@ -14,13 +14,13 @@ allowed-tools: Write, Bash(mkdir:*, ls:*, tree:*)
 
 ## 当前任务列表
 
-!`ls -la docs/development/tasks/ 2>/dev/null || echo "任务目录尚未创建"`
+!`ls -la .tasks/ 2>/dev/null || echo "任务目录尚未创建"`
 
 ## 创建任务
 
 我将帮您创建以下任务文档结构：
 
-1. 在 `docs/development/tasks/$ARGUMENTS` 下创建任务目录
+1. 在 `.tasks/$ARGUMENTS` 下创建任务目录
 2. 创建 README.md - 任务概述和上下文
 3. 创建 implementation-plan.md - 详细的实现方案（包含 Mermaid 图表）
 4. 创建 todo-list.md - 任务清单和进度跟踪
