@@ -16,7 +16,6 @@ COPY pnpm-workspace.yaml ./
 
 # 复制所有package.json文件以便安装依赖
 COPY apps/frontend/package.json ./apps/frontend/
-COPY packages/*/package.json ./packages/
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile

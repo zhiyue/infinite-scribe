@@ -87,9 +87,6 @@ infinite-scribe/
 │       │   └── common/       # 共享逻辑
 │       ├── Dockerfile        # 统一Docker镜像
 │       └── pyproject.toml   # 统一Python依赖
-├── packages/                  # 共享代码包
-│   ├── eslint-config-custom/ # ESLint配置
-│   └── tsconfig-custom/      # TypeScript配置
 ├── infrastructure/           # 基础设施配置
 ├── docs/                     # 项目文档
 │   ├── architecture/         # 架构文档

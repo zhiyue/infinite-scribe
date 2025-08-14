@@ -34,10 +34,6 @@ defined in directories like `.bmad-core`, `.clinerules`, and `.claude`.
 - `apps/`: Contains the main, deployable applications.
   - `frontend/`: The user-facing web application.
   - `backend/`: The server-side application/API.
-- `packages/`: Shared libraries and configurations used across the monorepo.
-  - `common-utils/`: Shared utility functions.
-  - `shared-types/`: Shared TypeScript type definitions.
-  - `eslint-config-custom/`, `tsconfig-custom/`: Shared configurations.
 - `docs/`: Contains critical project documentation, including architecture,
   PRDs, and development practices. **This should be consulted before making any
   significant changes.**
@@ -79,8 +75,8 @@ defined in directories like `.bmad-core`, `.clinerules`, and `.claude`.
 ### Environment Management
 
 - The project uses `.env.*` files for environment variables.
-- The `scripts/dev/switch-env.sh` script can be used to switch between different
-  environments (e.g., dev, test).
+- Use `pnpm env:local`, `pnpm env:dev`, or `pnpm env:test` to switch between
+  different environments.
 
 ## 6. Testing
 

@@ -109,15 +109,6 @@ novel-ai-writer/
 │       ├── tests/              # 统一测试目录
 │       ├── pyproject.toml      # 后端统一依赖配置
 │       └── Dockerfile          # 统一Dockerfile (通过SERVICE_TYPE环境变量选择服务)
-├── packages/                   # 存放共享的代码包
-│   ├── eslint-config-custom/   # 共享ESLint配置
-│   │   └── index.js
-│   ├── tsconfig-custom/        # 共享TypeScript配置
-│   │   └── base.json
-│   └── common-utils/           # 通用工具函数 (Python和JS/TS)
-│       ├── py_utils/           # Python通用工具 (e.g., neo4j_connector.py)
-│       ├── ts_utils/           # TypeScript通用工具
-│       └── package.json
 ├── infrastructure/             # Terraform IaC 代码
 │   └── modules/
 │       ├── vpc/

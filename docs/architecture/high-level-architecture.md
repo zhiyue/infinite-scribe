@@ -20,7 +20,6 @@
 *   **Monorepo工具:** **pnpm workspaces**。
 *   **包组织:**
     *   `apps/`: 存放可独立部署的应用，如 `frontend`, `backend` (包含API Gateway和所有Agent服务)。
-    *   `packages/`: 存放共享的代码库，如 `shared-types`, `eslint-config`, `common-utils` 等。
 
 ## High Level Architecture
 
