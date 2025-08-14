@@ -89,8 +89,8 @@ pnpm deploy:dev:api
 pnpm deploy:dev:api:build        # 带构建
 
 # 部署特定服务（需要使用原始脚本）
-./scripts/deployment/deploy-to-dev.sh --service agent-worldsmith
-./scripts/deployment/deploy-to-dev.sh --service agent-plotmaster --build
+./scripts/deploy/deploy-to-dev.sh --service agent-worldsmith
+./scripts/deploy/deploy-to-dev.sh --service agent-plotmaster --build
 ```
 
 ### 查看所有可用脚本
@@ -199,10 +199,10 @@ pnpm deploy:dev:help
 
 ```bash
 # 查看帮助
-./scripts/deployment/deploy-to-dev.sh --help
+./scripts/deploy/deploy-to-dev.sh --help
 
 # 组合使用参数
-./scripts/deployment/deploy-to-dev.sh --build --api-gateway-only
+./scripts/deploy/deploy-to-dev.sh --build --api-gateway-only
 ```
 
 ## 其他相关命令

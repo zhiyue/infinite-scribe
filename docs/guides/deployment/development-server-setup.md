@@ -17,7 +17,7 @@
 pnpm env:dev
 
 # Deploy to development server
-./scripts/deployment/deploy-infrastructure.sh
+./scripts/deploy/deploy-infrastructure.sh
 
 # Or manually deploy
 pnpm infra:deploy
@@ -164,7 +164,7 @@ docker compose exec neo4j neo4j-admin database dump neo4j --to-path=/backups/
 docker compose exec redis redis-cli BGSAVE
 
 # Full volume backup
-./scripts/monitoring/backup-dev-data.sh
+./scripts/ops/backup-dev-data.sh
 ```
 
 ## Troubleshooting
@@ -308,7 +308,7 @@ pnpm logs:remote
 ## Next Steps
 
 1. Configure your local `.env.dev` file
-2. Deploy infrastructure: `./scripts/deployment/deploy-infrastructure.sh`
+2. Deploy infrastructure: `./scripts/deploy/deploy-infrastructure.sh`
 3. Verify services: `pnpm check:services`
 4. Start developing with shared infrastructure
 

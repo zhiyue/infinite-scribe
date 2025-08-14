@@ -9,23 +9,23 @@
 - [产品需求文档](./prd.md) - 详细的功能需求和规格说明
 
 ### 🛠️ 开发人员
-- [详细开发指南](./development/detailed-development-guide.md) - **重要！** 完整的技术配置和开发指南
-- [Python 开发快速入门](./development/python-dev-quickstart.md) - 后端开发入门
-- [本地开发调试指南](./development/local-development-guide.md) - 调试和问题排查
+- [详细开发指南](./guides/development/detailed-development-guide.md) - **重要！** 完整的技术配置和开发指南
+- [Python 开发快速入门](./guides/development/python-dev-quickstart.md) - 后端开发入门
+- [本地开发调试指南](./guides/development/local-development-guide.md) - 调试和问题排查
 
 ### 🏗️ 架构师
 - [项目架构](./architecture.md) - 系统整体架构设计
 - [前端规格说明](./front-end-spec.md) - 前端技术规范
-- [Docker 架构说明](./development/docker-architecture.md) - 容器化架构
+- [Docker 架构说明](./guides/development/docker-architecture.md) - 容器化架构
 
 ### 🧪 测试工程师
 - [测试最佳实践](./testing-best-practices.md) - 测试规范和最佳实践
 - [测试迁移示例](./testing-migration-example.md) - 测试重构指南
 
 ### 🚀 运维工程师
-- [部署指南](./deployment/) - 生产环境部署
-- [运维文档](./operations/) - 监控和维护
-- [环境变量配置指南](./deployment/environment-variables.md) - 环境配置详解
+- [部署指南](./guides/deployment/) - 生产环境部署
+- [运维文档](./guides/operations/) - 监控和维护
+- [环境变量配置指南](./guides/deployment/environment-variables.md) - 环境配置详解
 
 ### 📋 项目管理
 - [用户故事](./stories/) - 基于 bmad 方法论的故事驱动开发
@@ -41,20 +41,20 @@
 
 | 文档 | 描述 | 重要程度 |
 |------|------|----------|
-| [详细开发指南](./development/detailed-development-guide.md) | **主要文档** - 完整的技术配置和详细说明 | ⭐⭐⭐ |
-| [Python 开发快速入门](./development/python-dev-quickstart.md) | 后端开发环境搭建 | ⭐⭐⭐ |
-| [后端模型架构重构](./development/backend-models-restructure.md) | 模型层架构设计和 CQRS 实现 | ⭐⭐⭐ |
-| [本地开发调试指南](./development/local-development-guide.md) | 调试技巧和问题排查 | ⭐⭐ |
-| [CI/CD 和 Pre-commit 配置](./development/ci-cd-and-pre-commit.md) | 持续集成配置 | ⭐⭐ |
-| [类型检查配置指南](./development/type-checking-setup.md) | TypeScript/Python 类型检查 | ⭐ |
+| [详细开发指南](./guides/development/detailed-development-guide.md) | **主要文档** - 完整的技术配置和详细说明 | ⭐⭐⭐ |
+| [Python 开发快速入门](./guides/development/python-dev-quickstart.md) | 后端开发环境搭建 | ⭐⭐⭐ |
+| [后端模型架构重构](./guides/development/backend-models-restructure.md) | 模型层架构设计和 CQRS 实现 | ⭐⭐⭐ |
+| [本地开发调试指南](./guides/development/local-development-guide.md) | 调试技巧和问题排查 | ⭐⭐ |
+| [CI/CD 和 Pre-commit 配置](./guides/development/ci-cd-and-pre-commit.md) | 持续集成配置 | ⭐⭐ |
+| [类型检查配置指南](./guides/development/type-checking-setup.md) | TypeScript/Python 类型检查 | ⭐ |
 
 ### 部署指南 (`deployment/`)
 生产环境部署和配置相关文档。
 
 | 文档 | 描述 |
 |------|------|
-| [环境变量配置指南](./deployment/environment-variables.md) | 环境变量详细说明 |
-| [环境变量结构说明](./deployment/environment-structure.md) | 环境配置架构 |
+| [环境变量配置指南](./guides/deployment/environment-variables.md) | 环境变量详细说明 |
+| [环境变量结构说明](./guides/deployment/environment-structure.md) | 环境配置架构 |
 
 ### 架构文档 (`architecture/`)
 系统设计和架构相关文档。
@@ -74,12 +74,12 @@
 ### 新人入职
 1. 阅读 [项目简介](./project-brief.md)
 2. 查看 [用户故事](./stories/) 了解当前开发进度
-3. 跟随 [Python 开发快速入门](./development/python-dev-quickstart.md)
-4. 参考 [详细开发指南](./development/detailed-development-guide.md) 配置开发环境
+3. 跟随 [Python 开发快速入门](./guides/development/python-dev-quickstart.md)
+4. 参考 [详细开发指南](./guides/development/detailed-development-guide.md) 配置开发环境
 
 ### 遇到技术问题
-1. 首先查看 [详细开发指南](./development/detailed-development-guide.md) 的故障排除部分
-2. 参考 [本地开发调试指南](./development/local-development-guide.md)
+1. 首先查看 [详细开发指南](./guides/development/detailed-development-guide.md) 的故障排除部分
+2. 参考 [本地开发调试指南](./guides/development/local-development-guide.md)
 3. 检查相关的技术文档（Docker、类型检查等）
 
 ### 了解项目架构
@@ -88,9 +88,9 @@
 3. 参考 [前端规格说明](./front-end-spec.md)
 
 ### 配置生产环境
-1. 参考 [部署指南](./deployment/)
-2. 查看 [环境变量配置指南](./deployment/environment-variables.md)
-3. 阅读 [详细开发指南](./development/detailed-development-guide.md) 的服务配置部分
+1. 参考 [部署指南](./guides/deployment/)
+2. 查看 [环境变量配置指南](./guides/deployment/environment-variables.md)
+3. 阅读 [详细开发指南](./guides/development/detailed-development-guide.md) 的服务配置部分
 
 ## 📝 文档贡献
 
@@ -110,4 +110,4 @@
 
 ---
 
-**提示**: 如果这是您第一次阅读项目文档，建议从 [详细开发指南](./development/detailed-development-guide.md) 开始。 
+**提示**: 如果这是您第一次阅读项目文档，建议从 [详细开发指南](./guides/development/detailed-development-guide.md) 开始。 

@@ -42,7 +42,7 @@
 ## 实施步骤
 
 1. 创建根目录 `pyproject.toml`（已完成）
-2. 创建开发脚本 `scripts/development/dev.py`（已完成）
+2. 创建开发脚本 `scripts/dev/dev.py`（已完成）
 3. 更新所有文档引用（已完成）
 4. 删除服务目录下的 pyproject.toml（下一步）
 

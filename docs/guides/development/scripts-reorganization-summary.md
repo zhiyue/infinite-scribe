@@ -9,28 +9,40 @@
 ```
 scripts/
 ├── README.md
-├── development/          # 开发环境设置
+├── dev/          # 开发环境设置
 │   ├── dev.py           # 开发辅助脚本
 │   ├── install-check-deps.sh
 │   ├── setup-dev.sh
 │   ├── setup-pre-commit.sh
+│   ├── switch-env.sh
+│   ├── sync-frontend-env.sh
 │   └── verify-ruff.sh
-├── deployment/          # 部署相关
+├── deploy/          # 部署相关
+│   ├── build.sh
+│   ├── deploy-frontend.sh
+│   ├── deploy-frontend-compose.sh
 │   ├── deploy-infrastructure.sh
 │   └── deploy-to-dev.sh
-├── monitoring/          # 监控维护
+├── ops/          # 监控维护
 │   ├── backup-dev-data.sh
 │   ├── check-services-simple.js
 │   ├── check-services.js
-│   └── remote-logs.sh
-└── testing/            # 测试相关
-    ├── run-tests.sh
-    └── test-project-structure.js
+│   ├── remote-logs.sh
+│   └── start-agents.sh
+├── test/            # 测试相关
+│   ├── run-tests.sh
+│   ├── test-frontend-local.sh
+│   └── test-project-structure.js
+├── tools/           # 工具相关
+│   └── hoppscotch-integration.sh
+└── db/              # 数据库相关
+    ├── run_migrations.py
+    └── verify_db_migration.py
 ```
 
 ## 🔄 脚本分类详情
 
-### Development & Setup (`development/`)
+### Development & Setup (`dev/`)
 开发环境设置和配置相关脚本：
 - `setup-dev.sh` - 设置完整开发环境
 - `setup-pre-commit.sh` - 配置 pre-commit hooks
@@ -38,17 +50,17 @@ scripts/
 - `verify-ruff.sh` - 验证 Ruff 配置
 - `install-check-deps.sh` - 安装健康检查依赖
 
-### Testing (`testing/`)
+### Testing (`test/`)
 测试和验证相关脚本：
 - `run-tests.sh` - 综合测试运行器
 - `test-project-structure.js` - 项目结构验证
 
-### Deployment (`deployment/`)
+### Deployment (`deploy/`)
 部署相关脚本：
 - `deploy-to-dev.sh` - 部署到开发服务器
 - `deploy-infrastructure.sh` - 部署基础设施服务
 
-### Monitoring & Maintenance (`monitoring/`)
+### Operations & Maintenance (`ops/`)
 监控和维护相关脚本：
 - `check-services.js` / `check-services-simple.js` - 服务健康检查
 - `remote-logs.sh` - 查看远程日志
@@ -78,19 +90,29 @@ scripts/
 
 | 旧路径 | 新路径 | 分类 |
 |--------|--------|------|
-| `scripts/setup-dev.sh` | `scripts/development/setup-dev.sh` | Development |
-| `scripts/setup-pre-commit.sh` | `scripts/development/setup-pre-commit.sh` | Development |
-| `scripts/dev.py` | `scripts/development/dev.py` | Development |
-| `scripts/verify-ruff.sh` | `scripts/development/verify-ruff.sh` | Development |
-| `scripts/install-check-deps.sh` | `scripts/development/install-check-deps.sh` | Development |
-| `scripts/run-tests.sh` | `scripts/testing/run-tests.sh` | Testing |
-| `scripts/test-project-structure.js` | `scripts/testing/test-project-structure.js` | Testing |
-| `scripts/deploy-to-dev.sh` | `scripts/deployment/deploy-to-dev.sh` | Deployment |
-| `scripts/deploy-infrastructure.sh` | `scripts/deployment/deploy-infrastructure.sh` | Deployment |
-| `scripts/check-services.js` | `scripts/monitoring/check-services.js` | Monitoring |
-| `scripts/check-services-simple.js` | `scripts/monitoring/check-services-simple.js` | Monitoring |
-| `scripts/remote-logs.sh` | `scripts/monitoring/remote-logs.sh` | Monitoring |
-| `scripts/backup-dev-data.sh` | `scripts/monitoring/backup-dev-data.sh` | Monitoring |
+| `scripts/setup-dev.sh` | `scripts/dev/setup-dev.sh` | Development |
+| `scripts/setup-pre-commit.sh` | `scripts/dev/setup-pre-commit.sh` | Development |
+| `scripts/dev.py` | `scripts/dev/dev.py` | Development |
+| `scripts/verify-ruff.sh` | `scripts/dev/verify-ruff.sh` | Development |
+| `scripts/install-check-deps.sh` | `scripts/dev/install-check-deps.sh` | Development |
+| `switch-env.sh` | `scripts/dev/switch-env.sh` | Development |
+| `sync-frontend-env.sh` | `scripts/dev/sync-frontend-env.sh` | Development |
+| `scripts/run-tests.sh` | `scripts/test/run-tests.sh` | Testing |
+| `scripts/test-project-structure.js` | `scripts/test/test-project-structure.js` | Testing |
+| `test-frontend-local.sh` | `scripts/test/test-frontend-local.sh` | Testing |
+| `scripts/deploy-to-dev.sh` | `scripts/deploy/deploy-to-dev.sh` | Deployment |
+| `scripts/deploy-infrastructure.sh` | `scripts/deploy/deploy-infrastructure.sh` | Deployment |
+| `scripts/docker/build.sh` | `scripts/deploy/build.sh` | Deployment |
+| `deploy-frontend.sh` | `scripts/deploy/deploy-frontend.sh` | Deployment |
+| `deploy-frontend-compose.sh` | `scripts/deploy/deploy-frontend-compose.sh` | Deployment |
+| `scripts/check-services.js` | `scripts/ops/check-services.js` | Operations |
+| `scripts/check-services-simple.js` | `scripts/ops/check-services-simple.js` | Operations |
+| `scripts/remote-logs.sh` | `scripts/ops/remote-logs.sh` | Operations |
+| `scripts/backup-dev-data.sh` | `scripts/ops/backup-dev-data.sh` | Operations |
+| `start-agents.sh` | `scripts/ops/start-agents.sh` | Operations |
+| `hoppscotch-integration.sh` | `scripts/tools/hoppscotch-integration.sh` | Tools |
+| `run_migrations.py` | `scripts/db/run_migrations.py` | Database |
+| `verify_db_migration.py` | `scripts/db/verify_db_migration.py` | Database |
 
 ## ✅ pnpm 脚本命令（保持不变）
 

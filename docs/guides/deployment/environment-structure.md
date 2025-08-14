@@ -85,7 +85,7 @@ ln -s .env.test .env     # For testing
 ### Local Development
 ```bash
 # Deploy infrastructure locally using Docker Compose
-./scripts/deployment/deploy-infrastructure.sh --local
+./scripts/deploy/deploy-infrastructure.sh --local
 
 # Or use pnpm command
 pnpm infra:up
@@ -94,7 +94,7 @@ pnpm infra:up
 ### Development Server
 ```bash
 # Deploy infrastructure to dev server (default)
-./scripts/deployment/deploy-infrastructure.sh
+./scripts/deploy/deploy-infrastructure.sh
 
 # This will:
 # 1. Sync files to 192.168.2.201

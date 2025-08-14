@@ -145,7 +145,7 @@ pnpm infra:up
 
 ```bash
 # Deploy to 192.168.2.201
-./scripts/deployment/deploy-infrastructure.sh
+./scripts/deploy/deploy-infrastructure.sh
 
 # This will:
 # 1. Sync files to server

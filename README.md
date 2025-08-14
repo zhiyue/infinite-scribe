@@ -126,7 +126,7 @@ make help             # Make 命令帮助
 pnpm run              # pnpm 脚本列表
 ```
 
-详细的命令对照表请参考 [开发命令参考](./docs/development/command-reference.md)。
+详细的命令对照表请参考 [开发命令参考](./docs/guides/development/command-reference.md)。
 
 ### 安装依赖
 
@@ -193,7 +193,7 @@ pnpm env:show     # 查看当前环境
 ```
 
 > 💡 **提示**: `.env` 是一个符号链接，指向当前激活的环境配置文件。详细环境配置说
-> 明请参考 [环境变量结构说明](./docs/deployment/environment-structure.md)。
+> 明请参考 [环境变量结构说明](./docs/guides/deployment/environment-structure.md)。
 
 ### 启动开发环境
 
@@ -216,7 +216,7 @@ SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
 > 📖 **注意**: 更多Python开发环境配置和使用说明，请参考
-> [Python 开发快速入门](./docs/development/python-dev-quickstart.md)。
+> [Python 开发快速入门](./docs/guides/development/python-dev-quickstart.md)。
 
 #### 基础设施管理命令
 
@@ -238,7 +238,7 @@ make deploy-api              # 只部署 API Gateway
 make deploy-backend          # 部署所有后端服务
 make ssh-dev                 # 连接到开发服务器
 
-# 📖 完整部署命令参考：docs/deployment/DEPLOY_SIMPLE.md
+# 📖 完整部署命令参考：docs/guides/deployment/DEPLOY_SIMPLE.md
 
 # ⚡ 高级选项（需要时再用）
 make deploy-agents           # 只部署 Agent 服务
@@ -335,7 +335,7 @@ cat docs/stories/1.1.story.md
 | Prefect    | 4200      | <http://localhost:4200> | -                 |
 
 > 💡 **详细配置**: 完整的服务配置、Web UI 访问地址、故障排除等详细信息请参考
-> [详细开发指南](./docs/development/detailed-development-guide.md)。
+> [详细开发指南](./docs/guides/development/detailed-development-guide.md)。
 
 ## 🤝 贡献指南
 
@@ -365,7 +365,7 @@ cat docs/stories/1.1.story.md
 - 测试: 所有新功能需要包含相应测试
 
 > 📝 **详细规范**: 完整的代码规范说明、CI/CD 配置、测试环境配置等请参考
-> [详细开发指南](./docs/development/detailed-development-guide.md)。
+> [详细开发指南](./docs/guides/development/detailed-development-guide.md)。
 
 ## 📚 文档
 
@@ -380,10 +380,10 @@ cat docs/stories/1.1.story.md
 
 ### 开发指南
 
-- [详细开发指南](./docs/development/detailed-development-guide.md) - 完整的技术
+- [详细开发指南](./docs/guides/development/detailed-development-guide.md) - 完整的技术
   配置和详细说明
-- [开发最佳实践](./docs/development/)
-- [部署指南](./docs/deployment/)
+- [开发最佳实践](./docs/guides/development/)
+- [部署指南](./docs/guides/deployment/)
 
 ## 📄 许可证
 

@@ -65,10 +65,10 @@ infinite-scribe/
 |------|------|
 | `uv venv` | 创建虚拟环境 |
 | `uv sync --dev` | 安装所有依赖 |
-| `python scripts/development/dev.py run <service>` | 运行服务 |
-| `python scripts/development/dev.py test` | 运行测试 |
-| `python scripts/development/dev.py lint` | 代码检查 |
-| `python scripts/development/dev.py format` | 格式化代码 |
+| `python scripts/dev/dev.py run <service>` | 运行服务 |
+| `python scripts/dev/dev.py test` | 运行测试 |
+| `python scripts/dev/dev.py lint` | 代码检查 |
+| `python scripts/dev/dev.py format` | 格式化代码 |
 
 ## 📝 pyproject.toml 管理
 

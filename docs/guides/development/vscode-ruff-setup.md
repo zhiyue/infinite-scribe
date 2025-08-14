@@ -178,7 +178,7 @@ ignore = ["E501", "B008", "RUF012"]
 运行验证脚本检查 Ruff 设置：
 
 ```bash
-./scripts/development/verify-ruff.sh
+./scripts/dev/verify-ruff.sh
 ```
 
 这个脚本会：

@@ -53,7 +53,7 @@ Deploy infrastructure locally using Docker Compose:
 
 ```bash
 # Method 1: Using deployment script
-./scripts/deployment/deploy-infrastructure.sh --local
+./scripts/deploy/deploy-infrastructure.sh --local
 
 # Method 2: Using pnpm command
 pnpm infra:up
@@ -74,7 +74,7 @@ Deploy to the shared development server (192.168.2.201):
 
 ```bash
 # Deploy to dev server (default behavior)
-./scripts/deployment/deploy-infrastructure.sh
+./scripts/deploy/deploy-infrastructure.sh
 
 # This will:
 # 1. Sync project files to 192.168.2.201

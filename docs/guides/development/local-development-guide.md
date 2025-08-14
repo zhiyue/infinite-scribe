@@ -18,7 +18,7 @@ graph LR
 
 ```bash
 # 克隆项目后，运行开发环境设置
-./scripts/development/setup-dev.sh
+./scripts/dev/setup-dev.sh
 
 # 这会自动完成：
 # - 安装 uv 和 pnpm
