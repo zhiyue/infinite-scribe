@@ -337,8 +337,8 @@ pnpm --filter frontend dev
 ### 查看服务状态
 
 ```bash
-# 检查所有服务
-pnpm check:services
+# 检查所有服务（本地）
+pnpm check services
 
 # 查看 Docker 容器状态
 docker ps
