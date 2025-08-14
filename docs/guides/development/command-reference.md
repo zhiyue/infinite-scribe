@@ -2,6 +2,8 @@
 
 This document provides a quick reference for using either `make` or `pnpm` commands to perform common development tasks.
 
+> **⚠️ 重要更新**: 部署命令已简化！InfiniteScribe 现在使用统一的命令系统，将18+个部署命令简化为仅2个主要入口点：`pnpm infra`（基础设施）和 `pnpm app`（应用部署）。
+
 ## Backend Commands
 
 | Task | Make Command | pnpm Command |
@@ -52,8 +54,8 @@ This document provides a quick reference for using either `make` or `pnpm` comma
 
 | Task | Make Command | pnpm Command |
 |------|--------------|--------------|
-| SSH to dev machine | `make ssh-dev` | `pnpm run ssh:dev` |
-| SSH to test machine | `make ssh-test` | `pnpm run ssh:test` |
+| SSH to dev machine | `make ssh-dev` | `pnpm ssh:dev` |
+| SSH to test machine | `make ssh-test` | `pnpm ssh:test` |
 
 ## 基础设施管理 (Infrastructure)
 
@@ -94,37 +96,43 @@ Both Make and pnpm commands support the same environment variables:
 ### Examples:
 
 ```bash
-# Using Make
+# Testing with custom machine
 TEST_MACHINE_IP=192.168.2.100 make test-all
-SSH_USER=myuser make ssh-dev
-DEV_SERVER=192.168.2.100 make deploy
-
-# Using pnpm
 TEST_MACHINE_IP=192.168.2.100 pnpm run test:all
-SSH_USER=myuser pnpm run ssh:dev
-DEV_SERVER=192.168.2.100 pnpm run deploy:dev
+
+# SSH with custom user
+SSH_USER=myuser pnpm ssh:dev
+
+# Deploy to custom server
+DEV_SERVER=192.168.2.100 pnpm app
+DEV_SERVER=192.168.2.100 pnpm infra deploy
 ```
 
 ## Quick Start
 
 ```bash
-# Setup project (install all dependencies)
+# 1. Setup project (install all dependencies)
 make setup
 # or
-pnpm run install
+./scripts/dev/setup-dev.sh
 
-# Run development servers
-make dev  # Opens tmux with both servers
-# or run in separate terminals:
+# 2. Start infrastructure services
+pnpm infra up
+
+# 3. Run development servers (in separate terminals)
 pnpm run backend:run
 pnpm run frontend:run
 
-# Run API Gateway with different configurations
+# Alternative: Run API Gateway with different configurations
 pnpm run backend:api:simple  # Simple mode, no external service checks
 pnpm run backend:api:local   # Local mode with .env.local
 pnpm run backend:api:dev     # Dev mode connecting to 192.168.2.201
 
-# Run all tests
+# 4. Deploy to development server (when ready)
+pnpm infra deploy    # Deploy infrastructure first
+pnpm app            # Then deploy application services
+
+# 5. Run all tests
 make test-all
 # or
 pnpm run test:all
@@ -141,3 +149,6 @@ pnpm run
 2. **pnpm** commands are more explicit and integrate well with Node.js tooling
 3. Both approaches are equally valid - choose based on your preference
 4. Environment variables work the same way with both tools
+5. **新部署系统**: 使用 `pnpm infra` 和 `pnpm app` 代替旧的复杂部署命令
+6. **本地开发**: 先运行 `pnpm infra up` 启动基础设施，再启动应用服务
+7. **生产部署**: 先部署基础设施 (`pnpm infra deploy`)，再部署应用 (`pnpm app`)
