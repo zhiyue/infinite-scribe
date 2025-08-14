@@ -108,7 +108,7 @@ async function checkDockerContainers() {
   console.log(`${colors.blue}${'='.repeat(50)}${colors.reset}\n`);
   
   try {
-    const cmd = `ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe && docker compose ps --format 'table {{.Names}}\\t{{.Status}}'"`;
+    const cmd = `ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose ps --format 'table {{.Names}}\\t{{.Status}}'"`;
     const output = execSync(cmd, { encoding: 'utf8' });
     
     const lines = output.trim().split('\n');
@@ -186,9 +186,9 @@ async function main() {
   // Docker compose hint
   if (healthyCount < services.length) {
     console.log(`\n${colors.yellow}Hint: To start all services, run:${colors.reset}`);
-    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe && docker compose up -d"`);
+    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose up -d"`);
     console.log(`\n${colors.yellow}To check logs for failed services:${colors.reset}`);
-    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe && docker compose logs [service-name]"`);
+    console.log(`ssh zhiyue@${DEV_SERVER} "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose logs [service-name]"`);
   } else {
     console.log(`\n${colors.green}All services are running! 🎉${colors.reset}`);
   }
