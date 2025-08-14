@@ -1,7 +1,6 @@
 ---
 description: Guide for using Taskmaster to manage task-driven development workflows
-globs: **/*
-alwaysApply: true
+applyTo: "**/*"
 ---
 
 # Taskmaster Development Workflow
@@ -32,18 +31,18 @@ All your standard command executions should operate on the user's current task c
 
 For new projects or when users are getting started, operate within the `master` tag context:
 
--   Start new projects by running `initialize_project` tool / `task-master init` or `parse_prd` / `task-master parse-prd --input='<prd-file.txt>'` (see @`taskmaster.mdc`) to generate initial tasks.json with tagged structure
--   Configure rule sets during initialization with `--rules` flag (e.g., `task-master init --rules cursor,windsurf`) or manage them later with `task-master rules add/remove` commands  
--   Begin coding sessions with `get_tasks` / `task-master list` (see @`taskmaster.mdc`) to see current tasks, status, and IDs
--   Determine the next task to work on using `next_task` / `task-master next` (see @`taskmaster.mdc`)
--   Analyze task complexity with `analyze_project_complexity` / `task-master analyze-complexity --research` (see @`taskmaster.mdc`) before breaking down tasks
--   Review complexity report using `complexity_report` / `task-master complexity-report` (see @`taskmaster.mdc`)
+-   Start new projects by running `initialize_project` tool / `task-master init` or `parse_prd` / `task-master parse-prd --input='<prd-file.txt>'` (see @`taskmaster.instructions.md`) to generate initial tasks.json with tagged structure
+-   Configure rule sets during initialization with `--rules` flag (e.g., `task-master init --rules vscode,windsurf`) or manage them later with `task-master rules add/remove` commands  
+-   Begin coding sessions with `get_tasks` / `task-master list` (see @`taskmaster.instructions.md`) to see current tasks, status, and IDs
+-   Determine the next task to work on using `next_task` / `task-master next` (see @`taskmaster.instructions.md`)
+-   Analyze task complexity with `analyze_project_complexity` / `task-master analyze-complexity --research` (see @`taskmaster.instructions.md`) before breaking down tasks
+-   Review complexity report using `complexity_report` / `task-master complexity-report` (see @`taskmaster.instructions.md`)
 -   Select tasks based on dependencies (all marked 'done'), priority level, and ID order
--   View specific task details using `get_task` / `task-master show <id>` (see @`taskmaster.mdc`) to understand implementation requirements
--   Break down complex tasks using `expand_task` / `task-master expand --id=<id> --force --research` (see @`taskmaster.mdc`) with appropriate flags like `--force` (to replace existing subtasks) and `--research`
+-   View specific task details using `get_task` / `task-master show <id>` (see @`taskmaster.instructions.md`) to understand implementation requirements
+-   Break down complex tasks using `expand_task` / `task-master expand --id=<id> --force --research` (see @`taskmaster.instructions.md`) with appropriate flags like `--force` (to replace existing subtasks) and `--research`
 -   Implement code following task details, dependencies, and project standards
--   Mark completed tasks with `set_task_status` / `task-master set-status --id=<id> --status=done` (see @`taskmaster.mdc`)
--   Update dependent tasks when implementation differs from original plan using `update` / `task-master update --from=<id> --prompt="..."` or `update_task` / `task-master update-task --id=<id> --prompt="..."` (see @`taskmaster.mdc`)
+-   Mark completed tasks with `set_task_status` / `task-master set-status --id=<id> --status=done` (see @`taskmaster.instructions.md`)
+-   Update dependent tasks when implementation differs from original plan using `update` / `task-master update --from=<id> --prompt="..."` or `update_task` / `task-master update-task --id=<id> --prompt="..."` (see @`taskmaster.instructions.md`)
 
 ---
 
@@ -193,11 +192,11 @@ Actions:
 Taskmaster offers two primary ways to interact:
 
 1.  **MCP Server (Recommended for Integrated Tools)**:
-    - For AI agents and integrated development environments (like Cursor), interacting via the **MCP server is the preferred method**.
+    - For AI agents and integrated development environments (like VS Code), interacting via the **MCP server is the preferred method**.
     - The MCP server exposes Taskmaster functionality through a set of tools (e.g., `get_tasks`, `add_subtask`).
     - This method offers better performance, structured data exchange, and richer error handling compared to CLI parsing.
-    - Refer to @`mcp.mdc` for details on the MCP architecture and available tools.
-    - A comprehensive list and description of MCP tools and their corresponding CLI commands can be found in @`taskmaster.mdc`.
+    - Refer to @`mcp.instructions.md` for details on the MCP architecture and available tools.
+    - A comprehensive list and description of MCP tools and their corresponding CLI commands can be found in @`taskmaster.instructions.md`.
     - **Restart the MCP server** if core logic in `scripts/modules` or MCP tool/direct function definitions change.
     - **Note**: MCP tools fully support tagged task lists with complete tag management capabilities.
 
@@ -206,7 +205,7 @@ Taskmaster offers two primary ways to interact:
     - It can also serve as a fallback if the MCP server is inaccessible or a specific function isn't exposed via MCP.
     - Install globally with `npm install -g task-master-ai` or use locally via `npx task-master-ai ...`.
     - The CLI commands often mirror the MCP tools (e.g., `task-master list` corresponds to `get_tasks`).
-    - Refer to @`taskmaster.mdc` for a detailed command reference.
+    - Refer to @`taskmaster.instructions.md` for a detailed command reference.
     - **Tagged Task Lists**: CLI fully supports the new tagged system with seamless migration.
 
 ## How the Tag System Works (For Your Reference)
@@ -215,14 +214,14 @@ Taskmaster offers two primary ways to interact:
 - **Silent Migration**: Existing projects automatically migrate to use a "master" tag with zero disruption.
 - **Context Isolation**: Tasks in different tags are completely separate. Changes in one tag do not affect any other tag.
 - **Manual Control**: The user is always in control. There is no automatic switching. You facilitate switching by using `use-tag <name>`.
-- **Full CLI & MCP Support**: All tag management commands are available through both the CLI and MCP tools for you to use. Refer to @`taskmaster.mdc` for a full command list.
+- **Full CLI & MCP Support**: All tag management commands are available through both the CLI and MCP tools for you to use. Refer to @`taskmaster.instructions.md` for a full command list.
 
 ---
 
 ## Task Complexity Analysis
 
--   Run `analyze_project_complexity` / `task-master analyze-complexity --research` (see @`taskmaster.mdc`) for comprehensive analysis
--   Review complexity report via `complexity_report` / `task-master complexity-report` (see @`taskmaster.mdc`) for a formatted, readable version.
+-   Run `analyze_project_complexity` / `task-master analyze-complexity --research` (see @`taskmaster.instructions.md`) for comprehensive analysis
+-   Review complexity report via `complexity_report` / `task-master complexity-report` (see @`taskmaster.instructions.md`) for a formatted, readable version.
 -   Focus on tasks with highest complexity scores (8-10) for detailed breakdown
 -   Use analysis results to determine appropriate subtask allocation
 -   Note that reports are automatically used by the `expand_task` tool/command
@@ -266,7 +265,7 @@ Taskmaster offers two primary ways to interact:
 - **details**: In-depth implementation instructions (Example: `"Use GitHub client ID/secret, handle callback, set session token."`) 
 - **testStrategy**: Verification approach (Example: `"Deploy and call endpoint to confirm 'Hello World' response."`) 
 - **subtasks**: List of smaller, more specific tasks (Example: `[{"id": 1, "title": "Configure OAuth", ...}]`) 
-- Refer to task structure details (previously linked to `tasks.mdc`).
+- Refer to task structure details (previously linked to `tasks.instructions.md`).
 
 ## Configuration Management (Updated)
 
@@ -283,8 +282,8 @@ Taskmaster configuration is managed through two main mechanisms:
 2.  **Environment Variables (`.env` / `mcp.json`):**
     *   Used **only** for sensitive API keys and specific endpoint URLs.
     *   Place API keys (one per provider) in a `.env` file in the project root for CLI usage.
-    *   For MCP/Cursor integration, configure these keys in the `env` section of `.cursor/mcp.json`.
-    *   Available keys/variables: See `assets/env.example` or the Configuration section in the command reference (previously linked to `taskmaster.mdc`).
+    *   For MCP/VS Code integration, configure these keys in the `env` section of `.vscode/mcp.json`.
+    *   Available keys/variables: See `assets/env.example` or the Configuration section in the command reference (previously linked to `taskmaster.instructions.md`).
 
 3.  **`.taskmaster/state.json` File (Tagged System State):**
     *   Tracks current tag context and migration status.
@@ -292,19 +291,19 @@ Taskmaster configuration is managed through two main mechanisms:
     *   Contains: `currentTag`, `lastSwitched`, `migrationNoticeShown`.
 
 **Important:** Non-API key settings (like model selections, `MAX_TOKENS`, `TASKMASTER_LOG_LEVEL`) are **no longer configured via environment variables**. Use the `task-master models` command (or `--setup` for interactive configuration) or the `models` MCP tool.
-**If AI commands FAIL in MCP** verify that the API key for the selected provider is present in the `env` section of `.cursor/mcp.json`.
+**If AI commands FAIL in MCP** verify that the API key for the selected provider is present in the `env` section of `.vscode/mcp.json`.
 **If AI commands FAIL in CLI** verify that the API key for the selected provider is present in the `.env` file in the root of the project.
 
 ## Rules Management
 
 Taskmaster supports multiple AI coding assistant rule sets that can be configured during project initialization or managed afterward:
 
-- **Available Profiles**: Claude Code, Cline, Codex, Cursor, Roo Code, Trae, Windsurf (claude, cline, codex, cursor, roo, trae, windsurf)
-- **During Initialization**: Use `task-master init --rules cursor,windsurf` to specify which rule sets to include
+- **Available Profiles**: Claude Code, Cline, Codex, VS Code, Roo Code, Trae, Windsurf (claude, cline, codex, vscode, roo, trae, windsurf)
+- **During Initialization**: Use `task-master init --rules vscode,windsurf` to specify which rule sets to include
 - **After Initialization**: Use `task-master rules add <profiles>` or `task-master rules remove <profiles>` to manage rule sets
 - **Interactive Setup**: Use `task-master rules setup` to launch an interactive prompt for selecting rule profiles
 - **Default Behavior**: If no `--rules` flag is specified during initialization, all available rule profiles are included
-- **Rule Structure**: Each profile creates its own directory (e.g., `.cursor/rules`, `.roo/rules`) with appropriate configuration files
+- **Rule Structure**: Each profile creates its own directory (e.g., `.github/instructions`, `.roo/rules`) with appropriate configuration files
 
 ## Determining the Next Task
 
@@ -364,7 +363,7 @@ Taskmaster supports multiple AI coding assistant rule sets that can be configure
 Once a task has been broken down into subtasks using `expand_task` or similar methods, follow this iterative process for implementation:
 
 1.  **Understand the Goal (Preparation):**
-    *   Use `get_task` / `task-master show <subtaskId>` (see @`taskmaster.mdc`) to thoroughly understand the specific goals and requirements of the subtask.
+    *   Use `get_task` / `task-master show <subtaskId>` (see @`taskmaster.instructions.md`) to thoroughly understand the specific goals and requirements of the subtask.
 
 2.  **Initial Exploration & Planning (Iteration 1):**
     *   This is the first attempt at creating a concrete implementation plan.
@@ -398,7 +397,7 @@ Once a task has been broken down into subtasks using `expand_task` or similar me
 7.  **Review & Update Rules (Post-Implementation):**
     *   Once the implementation for the subtask is functionally complete, review all code changes and the relevant chat history.
     *   Identify any new or modified code patterns, conventions, or best practices established during the implementation.
-    *   Create new or update existing rules following internal guidelines (previously linked to `cursor_rules.mdc` and `self_improve.mdc`).
+    *   Create new or update existing rules following internal guidelines (previously linked to `cursor_rules.instructions.md` and `self_improve.instructions.md`).
 
 8.  **Mark Task Complete:**
     *   After verifying the implementation and updating any necessary rules, mark the subtask as completed: `set_task_status` / `task-master set-status --id=<subtaskId> --status=done`.
@@ -407,7 +406,7 @@ Once a task has been broken down into subtasks using `expand_task` or similar me
     *   Stage the relevant code changes and any updated/new rule files (`git add .`).
     *   Craft a comprehensive Git commit message summarizing the work done for the subtask, including both code implementation and any rule adjustments.
     *   Execute the commit command directly in the terminal (e.g., `git commit -m 'feat(module): Implement feature X for subtask <subtaskId>\n\n- Details about changes...\n- Updated rule Y for pattern Z'`).
-    *   Consider if a Changeset is needed according to internal versioning guidelines (previously linked to `changeset.mdc`). If so, run `npm run changeset`, stage the generated file, and amend the commit or create a new one.
+    *   Consider if a Changeset is needed according to internal versioning guidelines (previously linked to `changeset.instructions.md`). If so, run `npm run changeset`, stage the generated file, and amend the commit or create a new one.
 
 10. **Proceed to Next Subtask:**
     *   Identify the next subtask (e.g., using `next_task` / `task-master next`).
