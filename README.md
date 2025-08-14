@@ -222,7 +222,7 @@ pnpm env:show     # 查看当前环境
 # 1. 初始设置（只需要做一次）
 ./scripts/dev/setup-dev.sh  # 安装所有依赖
 pnpm infra up               # 启动基础设施服务（新命令！）
-pnpm check:services         # 检查服务状态
+pnpm check services         # 检查本地服务状态
 
 # 2. 日常开发（在两个终端中运行）
 pnpm backend:run            # 终端 1: 启动后端 API 网关
@@ -270,7 +270,7 @@ pnpm backup:dev             # 备份开发数据
 pnpm infra up
 
 # 检查所有服务健康状态
-pnpm check:services
+pnpm check services
 
 # 前端开发服务器
 pnpm --filter frontend dev
@@ -320,11 +320,17 @@ pnpm ssh:test                # 连接到测试服务器
 ### 服务健康检查
 
 ```bash
-# 检查所有必需服务的运行状态
-pnpm check:services
+# 检查所有必需服务的运行状态（本地）
+pnpm check services
 
-# 运行完整的服务健康检查（需要额外依赖）
-pnpm check:services:full
+# 检查开发服务器上的服务状态
+pnpm check services --remote
+
+# 运行完整的服务健康检查（本地，需要额外依赖）
+pnpm check services:full
+
+# 运行完整的服务健康检查（开发服务器）
+pnpm check services:full --remote
 ```
 
 服务检查包括：

@@ -37,7 +37,7 @@ source .venv/bin/activate
 pnpm infra up
 
 # 3. 检查服务健康状态
-pnpm check:services
+pnpm check services
 
 # 4. 新开终端，启动后端 API Gateway
 cd apps/backend

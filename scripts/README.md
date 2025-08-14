@@ -153,7 +153,8 @@ pnpm app --service api-gateway --build  # 构建并部署API网关
 **快速运维命令：**
 
 ```bash
-pnpm check:services          # 健康检查
+pnpm check services          # 健康检查 (本地)
+pnpm check services --remote # 健康检查 (开发服务器)
 pnpm logs:remote             # 查看日志
 pnpm backup:dev              # 备份数据
 ```
@@ -239,6 +240,12 @@ pnpm test coverage                   # 带覆盖率测试
 pnpm ssh dev                         # SSH到开发服务器 (192.168.2.201)
 pnpm ssh test                        # SSH到测试服务器 (192.168.2.202)
 
+# 服务检查 (参数化)
+pnpm check services                  # 快速健康检查 (本地)
+pnpm check services --remote         # 快速健康检查 (开发服务器)
+pnpm check services:full             # 完整健康检查 (本地)
+pnpm check services:full --remote    # 完整健康检查 (开发服务器)
+
 # API工具 (参数化)
 pnpm api export                      # 导出本地API定义
 pnpm api export:dev                  # 导出开发环境API定义
@@ -273,8 +280,10 @@ pnpm app --service api-gateway       # 只部署API网关
 ./scripts/dev/setup-dev.sh           # 设置开发环境
 
 # 服务监控
-pnpm check:services                  # 快速健康检查
-pnpm check:services:full             # 完整健康检查
+pnpm check services                  # 快速健康检查 (本地)
+pnpm check services:full             # 完整健康检查 (本地)
+pnpm check services --remote         # 快速健康检查 (开发服务器)
+pnpm check services:full --remote    # 完整健康检查 (开发服务器)
 pnpm logs:remote                     # 查看远程服务日志
 pnpm backup:dev                      # 备份开发环境数据
 ```
@@ -287,6 +296,7 @@ pnpm backend                         # 后端操作帮助
 pnpm frontend                        # 前端操作帮助
 pnpm test                            # 测试操作帮助
 pnpm ssh                             # SSH连接帮助
+pnpm check                           # 服务检查帮助
 pnpm api                             # API工具帮助
 ```
 
@@ -307,7 +317,7 @@ pnpm api                             # API工具帮助
 ## 故障排除
 
 - **SSH 问题**: 检查 SSH 密钥和连接性 (`pnpm ssh dev` 或 `pnpm ssh test`)
-- **服务故障**: 运行 `pnpm check:services` 并查看日志
+- **服务故障**: 运行 `pnpm check services` (本地) 或 `pnpm check services --remote` (开发服务器) 并查看日志
 - **测试失败**: 使用 `pnpm test all` Docker 容器测试
 - **环境问题**: 运行 `./scripts/dev/setup-dev.sh` 重置环境
 - **命令不存在**: 使用 `pnpm run` 查看所有可用命令，或 `pnpm <target>` 获取特定帮助

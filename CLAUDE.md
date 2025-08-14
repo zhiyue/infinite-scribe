@@ -208,6 +208,12 @@ pnpm test coverage                   # 带覆盖率测试
 pnpm ssh dev                         # SSH到开发服务器 (192.168.2.201)
 pnpm ssh test                        # SSH到测试服务器 (192.168.2.202)
 
+# 服务检查 (参数化)
+pnpm check services                  # 快速健康检查 (本地)
+pnpm check services --remote         # 快速健康检查 (开发服务器)
+pnpm check services:full             # 完整健康检查 (本地)
+pnpm check services:full --remote    # 完整健康检查 (开发服务器)
+
 # API工具 (参数化)
 pnpm api export                      # 导出本地API定义
 pnpm api export:dev                  # 导出开发环境API定义
@@ -237,6 +243,7 @@ pnpm run                             # 主帮助系统
 pnpm backend                         # 后端操作帮助
 pnpm test                            # 测试操作帮助
 pnpm ssh                             # SSH连接帮助
+pnpm check                           # 服务检查帮助
 ```
 
 ## Development Environment
@@ -247,8 +254,10 @@ pnpm ssh                             # SSH连接帮助
 # 基础设施状态
 pnpm infra up                        # 启动所有本地服务
 pnpm infra down                      # 停止所有本地服务
-pnpm check:services                  # 健康检查 (快速)
-pnpm check:services:full             # 完整健康检查
+pnpm check services                  # 健康检查 (本地, 快速)
+pnpm check services:full             # 完整健康检查 (本地)
+pnpm check services --remote         # 健康检查 (开发服务器, 快速) 
+pnpm check services:full --remote    # 完整健康检查 (开发服务器)
 ```
 
 #### Service Endpoints
@@ -313,7 +322,7 @@ pnpm check:services:full             # 完整健康检查
 
 ### Common Issues
 
-- **Service connectivity**: Run `pnpm check:services`
+- **Service connectivity**: Run `pnpm check services` (本地) 或 `pnpm check services --remote` (开发服务器)
 - **Build failures**: Try `pnpm infra down` then `pnpm infra up` to rebuild
 - **Test failures**: Use Docker containers (`pnpm test all`)
 - **Command not found**: Use `pnpm run` to see all available commands or `pnpm <target>` for specific help
