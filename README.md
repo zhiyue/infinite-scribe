@@ -137,7 +137,7 @@ pnpm run              # pnpm 脚本列表
 make setup
 
 # 或使用原脚本
-./scripts/development/setup-dev.sh
+./scripts/dev/setup-dev.sh
 ```
 
 这个脚本会自动：

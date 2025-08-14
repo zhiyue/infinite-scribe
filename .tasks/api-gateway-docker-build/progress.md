@@ -68,7 +68,7 @@
   - 实现了自动化标签生成和版本管理
   
 - ✅ **完成**：创建本地构建脚本
-  - 实现了 `scripts/docker/build.sh` 综合构建脚本
+  - 实现了 `scripts/deploy/build.sh` 综合构建脚本
   - 支持多平台构建、测试、缓存等功能
   - 提供了丰富的命令行选项和彩色输出
 
@@ -132,8 +132,8 @@
   - 通过 `VERBOSE` 环境变量开关控制，便于 CI 日志查看
   
 - ✅ **完成**：最终验证测试
-  - 详细输出模式测试：`./scripts/docker/build.sh --verbose --test` ✅
-  - 标准输出模式测试：`./scripts/docker/build.sh --no-cache` ✅
+  - 详细输出模式测试：`./scripts/deploy/build.sh --verbose --test` ✅
+  - 标准输出模式测试：`./scripts/deploy/build.sh --no-cache` ✅
   - 官方 uv 静态镜像正常工作，依赖安装成功
   - 构建输出控制功能正常，两种模式都能正常切换
   - 镜像大小保持在 1.67GB，容器启动和服务正常

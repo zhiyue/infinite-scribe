@@ -4,7 +4,7 @@ This directory contains utility scripts for managing the InfiniteScribe developm
 
 ## 📁 Directory Structure
 
-### Development & Setup (`development/`)
+### Development & Setup (`dev/`)
 Scripts for setting up and configuring the development environment.
 
 #### `setup-dev.sh`
@@ -12,7 +12,7 @@ Set up the complete development environment including Python virtual environment
 
 ```bash
 # Run development environment setup script
-./scripts/development/setup-dev.sh
+./scripts/dev/setup-dev.sh
 ```
 
 #### `setup-pre-commit.sh`
@@ -20,7 +20,7 @@ Configure pre-commit hooks for code quality checks.
 
 ```bash
 # Setup pre-commit hooks
-./scripts/development/setup-pre-commit.sh
+./scripts/dev/setup-pre-commit.sh
 ```
 
 #### `dev.py`
@@ -28,16 +28,16 @@ Development helper script for running services, tests, and code quality checks.
 
 ```bash
 # Run API Gateway
-python scripts/development/dev.py run api-gateway
+python scripts/dev/dev.py run api-gateway
 
 # Run specific agent
-python scripts/development/dev.py run worldsmith-agent
+python scripts/dev/dev.py run worldsmith-agent
 
 # Run tests with coverage
-python scripts/development/dev.py test --coverage
+python scripts/dev/dev.py test --coverage
 
 # Format code
-python scripts/development/dev.py format
+python scripts/dev/dev.py format
 ```
 
 #### `verify-ruff.sh`
@@ -45,7 +45,7 @@ Verify Ruff installation and configuration.
 
 ```bash
 # Verify Ruff setup
-./scripts/development/verify-ruff.sh
+./scripts/dev/verify-ruff.sh
 ```
 
 #### `install-check-deps.sh`
@@ -53,10 +53,10 @@ Install dependencies for full service health checks.
 
 ```bash
 # Install health check dependencies
-./scripts/development/install-check-deps.sh
+./scripts/dev/install-check-deps.sh
 ```
 
-### Testing (`testing/`)
+### Testing (`test/`)
 Scripts for running tests and validating project structure.
 
 #### `run-tests.sh`
@@ -64,16 +64,16 @@ Comprehensive test runner supporting unit tests, integration tests, and code qua
 
 ```bash
 # Run unit tests + linting (default)
-./scripts/testing/run-tests.sh
+./scripts/test/run-tests.sh
 
 # Run all tests using remote services
-./scripts/testing/run-tests.sh --all --remote
+./scripts/test/run-tests.sh --all --remote
 
 # Run integration tests with Docker
-./scripts/testing/run-tests.sh --integration --docker-host
+./scripts/test/run-tests.sh --integration --docker-host
 
 # Generate coverage report
-./scripts/testing/run-tests.sh --all --remote --coverage
+./scripts/test/run-tests.sh --all --remote --coverage
 ```
 
 #### `test-project-structure.js`
@@ -81,12 +81,12 @@ Validate the project structure meets requirements.
 
 ```bash
 # Test project structure
-node scripts/testing/test-project-structure.js
+node scripts/test/test-project-structure.js
 # Or using pnpm
 pnpm test:structure
 ```
 
-### Deployment (`deployment/`)
+### Deployment (`deploy/`)
 Scripts for deploying services to development and production environments.
 
 > 📖 **简化版部署指南**: 参考 [docs/guides/deployment/DEPLOY_SIMPLE.md](../docs/guides/deployment/DEPLOY_SIMPLE.md) 
@@ -104,11 +104,11 @@ make deploy-backend          # 部署所有后端服务
 make ssh-dev                 # 连接到开发服务器
 
 # 或使用脚本直接调用
-./scripts/deployment/deploy-to-dev.sh
+./scripts/deploy/deploy-to-dev.sh
 pnpm deploy:dev
 
 # Deploy to custom server
-DEV_SERVER=your.server.ip ./scripts/deployment/deploy-to-dev.sh
+DEV_SERVER=your.server.ip ./scripts/deploy/deploy-to-dev.sh
 ```
 
 #### `deploy-infrastructure.sh`
@@ -116,16 +116,16 @@ Deploy only the infrastructure services using Docker Compose.
 
 ```bash
 # Deploy to remote server
-./scripts/deployment/deploy-infrastructure.sh
+./scripts/deploy/deploy-infrastructure.sh
 # Or using pnpm
 pnpm infra:deploy
 
 # Deploy locally
-./scripts/deployment/deploy-infrastructure.sh --local
+./scripts/deploy/deploy-infrastructure.sh --local
 pnpm infra:deploy:local
 ```
 
-### Monitoring & Maintenance (`monitoring/`)
+### Operations & Maintenance (`ops/`)
 Scripts for monitoring service health, viewing logs, and backing up data.
 
 #### `check-services.js` / `check-services-simple.js`
@@ -133,12 +133,12 @@ Check the health status of all InfiniteScribe services.
 
 ```bash
 # Simple connectivity check (no dependencies)
-node scripts/monitoring/check-services-simple.js
+node scripts/ops/check-services-simple.js
 # Or using pnpm
 pnpm check:services
 
 # Full health check with detailed service info (requires npm packages)
-node scripts/monitoring/check-services.js
+node scripts/ops/check-services.js
 # Or using pnpm
 pnpm check:services:full
 ```
@@ -148,20 +148,20 @@ View logs from services running on the development server.
 
 ```bash
 # View all logs (last 100 lines)
-./scripts/monitoring/remote-logs.sh
+./scripts/ops/remote-logs.sh
 # Or using pnpm
 pnpm logs:remote
 
 # Follow specific service logs
-./scripts/monitoring/remote-logs.sh -f postgres
+./scripts/ops/remote-logs.sh -f postgres
 pnpm logs:remote -- -f postgres
 
 # View last 50 lines of Kafka logs
-./scripts/monitoring/remote-logs.sh -n 50 kafka
+./scripts/ops/remote-logs.sh -n 50 kafka
 pnpm logs:remote -- -n 50 kafka
 
 # Get help
-./scripts/monitoring/remote-logs.sh --help
+./scripts/ops/remote-logs.sh --help
 ```
 
 #### `backup-dev-data.sh`
@@ -169,12 +169,12 @@ Create a complete backup of all development data.
 
 ```bash
 # Create backup (saved to ./backups/)
-./scripts/monitoring/backup-dev-data.sh
+./scripts/ops/backup-dev-data.sh
 # Or using pnpm
 pnpm backup:dev
 
 # Backup with custom server
-DEV_SERVER=your.server.ip ./scripts/monitoring/backup-dev-data.sh
+DEV_SERVER=your.server.ip ./scripts/ops/backup-dev-data.sh
 ```
 
 Backs up:
@@ -231,12 +231,12 @@ Generate API documentation and Hoppscotch collections for API testing.
 
 ```bash
 # Export API docs for local backend
-./scripts/hoppscotch-integration.sh
+./scripts/tools/hoppscotch-integration.sh
 # Or using pnpm
 pnpm api:export
 
 # Export API docs for development server
-./scripts/hoppscotch-integration.sh --url http://192.168.2.201:8000
+./scripts/tools/hoppscotch-integration.sh --url http://192.168.2.201:8000
 # Or using pnpm
 pnpm api:export:dev
 
@@ -249,8 +249,24 @@ Generates:
 - Hoppscotch environment configuration
 - Import guide for API testing tools
 
-### Archived Scripts (`archived/`)
-Scripts that are no longer actively used but kept for reference. See `archived/README.md` for details.
+### Database Operations (`db/`)
+Scripts for database management and migrations.
+
+#### `run_migrations.py`
+Execute database migrations using Alembic.
+
+```bash
+# Run database migrations
+python scripts/db/run_migrations.py
+```
+
+#### `verify_db_migration.py`
+Verify database migration status and integrity.
+
+```bash
+# Verify database migration status
+python scripts/db/verify_db_migration.py
+```
 
 ## 🚀 Quick Start Commands
 
@@ -310,6 +326,6 @@ All deployment and monitoring scripts support these environment variables:
 - Use `--remote` flag for pre-deployed services or `--docker-host` for isolated testing
 
 ### Development Environment Issues
-- Run `./scripts/development/setup-dev.sh` to reset environment
-- Verify Ruff configuration with `./scripts/development/verify-ruff.sh`
+- Run `./scripts/dev/setup-dev.sh` to reset environment
+- Verify Ruff configuration with `./scripts/dev/verify-ruff.sh`
 - Check pre-commit hooks with `pre-commit run --all-files`

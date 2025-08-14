@@ -177,7 +177,7 @@ tags: |
 ```
 
 ### 4. 本地开发支持
-**综合构建脚本**：`scripts/docker/build.sh`
+**综合构建脚本**：`scripts/deploy/build.sh`
 - 支持多平台构建（--multi-arch）
 - 集成容器测试（--test）
 - 构建缓存优化

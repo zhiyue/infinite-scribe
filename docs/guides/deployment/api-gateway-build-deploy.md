@@ -155,7 +155,7 @@ Server:
 WARNING: DOCKER_INSECURE_NO_IPTABLES_RAW is set
 
 ```bash
-./scripts/deployment/deploy-to-dev.sh
+./scripts/deploy/deploy-to-dev.sh
 ```
 
 该脚本会：
@@ -360,6 +360,6 @@ Dockerfile 已经优化了构建缓存：
 
 ## 相关文档
 
-- [项目部署脚本](../../scripts/deployment/deploy-to-dev.sh)
+- [项目部署脚本](../../scripts/deploy/deploy-to-dev.sh)
 - [Docker Compose 配置](../../docker-compose.backend.yml)
 - [Dockerfile](../../apps/backend/Dockerfile)

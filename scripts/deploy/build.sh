@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Local Docker build script for Infinite Scribe API Gateway
-# Usage: ./scripts/docker/build.sh [OPTIONS]
+# Usage: ./scripts/deploy/build.sh [OPTIONS]
 
 set -e -u -o pipefail
 

@@ -33,7 +33,7 @@
 - `apps/backend/.dockerignore` - Docker 构建忽略文件
 - `.github/workflows/docker-build.yml` - GitHub Actions 工作流配置
 - `docker-compose.yml` - 本地开发环境配置
-- `scripts/docker/` - Docker 相关脚本和配置
+- `scripts/deploy/` - Docker 相关脚本和配置
 
 ## 参考资料
 

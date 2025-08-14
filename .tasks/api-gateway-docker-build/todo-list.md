@@ -50,7 +50,7 @@
 - [x] 锁定 GitHub Actions 版本防止供应链攻击（✅ 已完成）
 
 ### 5. 本地开发支持
-- [x] 创建本地构建脚本 `scripts/docker/build.sh`（✅ 已完成）
+- [x] 创建本地构建脚本 `scripts/deploy/build.sh`（✅ 已完成）
 - [ ] 更新开发环境 docker-compose 配置
 - [x] 创建本地镜像测试脚本（✅ 已完成）
 - [ ] 编写开发者使用文档
@@ -121,7 +121,7 @@
 - [x] 锁定 GitHub Actions 版本防止供应链攻击
 
 ### 🛠️ 本地开发支持
-- [x] 创建本地构建脚本 `scripts/docker/build.sh`
+- [x] 创建本地构建脚本 `scripts/deploy/build.sh`
 - [x] 实现本地镜像测试功能
 - [x] 支持多平台构建和测试
 
