@@ -7,7 +7,6 @@
 ## 查询路径映射
 
 - **开发问题** → @guides/development/detailed-development-guide.md
-- **架构设计** → @architecture.md + @prd.md
 - **部署运维** → @guides/deployment/DEPLOY_SIMPLE.md
 - **项目状态** → @stories/ + @project-brief.md
 

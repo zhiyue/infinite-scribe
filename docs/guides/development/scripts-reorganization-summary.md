@@ -14,7 +14,6 @@ scripts/
 │   ├── install-check-deps.sh
 │   ├── setup-dev.sh
 │   ├── setup-pre-commit.sh
-│   ├── switch-env.sh
 │   ├── sync-frontend-env.sh
 │   └── verify-ruff.sh
 ├── deploy/          # 部署相关
@@ -95,7 +94,6 @@ scripts/
 | `scripts/dev.py` | `scripts/dev/dev.py` | Development |
 | `scripts/verify-ruff.sh` | `scripts/dev/verify-ruff.sh` | Development |
 | `scripts/install-check-deps.sh` | `scripts/dev/install-check-deps.sh` | Development |
-| `switch-env.sh` | `scripts/dev/switch-env.sh` | Development |
 | `sync-frontend-env.sh` | `scripts/dev/sync-frontend-env.sh` | Development |
 | `scripts/run-tests.sh` | `scripts/test/run-tests.sh` | Testing |
 | `scripts/test-project-structure.js` | `scripts/test/test-project-structure.js` | Testing |

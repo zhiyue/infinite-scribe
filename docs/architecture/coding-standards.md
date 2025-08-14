@@ -28,10 +28,10 @@
 *   **3. 优先使用异步/非阻塞IO:** Python后端使用 `async/await`。
 *   **4. 结构化日志记录:** 使用项目定义的结构化日志格式，含相关ID。
 *   **5. 错误处理规范:** 遵循定义的错误处理策略。
-*   **6. 遵循Monorepo结构:** 代码放置在正确位置，共享代码在 `packages/`。
+*   **6. 遵循Monorepo结构:** 代码放置在正确位置，类型定义在各自的应用中。
 *   **7. 事件驱动通信:** Agent间通信必须通过Kafka。
 *   **8. 幂等性设计:** 事件消费者逻辑必须幂等。
-*   **9. Neo4j操作封装:** 对Neo4j的操作应通过专门的知识图谱服务或共享库进行封装 (例如在 `packages/common-utils/py_utils/neo4j_connector.py`)，避免在各个Agent中直接编写复杂的Cypher查询。所有查询必须与 `novel_id` 关联。
+*   **9. Neo4j操作封装:** 对Neo4j的操作应通过专门的知识图谱服务进行封装 (例如在 `apps/backend/src/common/services/neo4j_service.py`)，避免在各个Agent中直接编写复杂的Cypher查询。所有查询必须与 `novel_id` 关联。
 
 ## 语言特定指南
 
