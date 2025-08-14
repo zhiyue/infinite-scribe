@@ -175,39 +175,49 @@ infinite-scribe/
 ├── apps/
 │   ├── backend/          # Python FastAPI backend (see apps/backend/CLAUDE.md)
 │   └── frontend/         # React TypeScript frontend (see apps/frontend/CLAUDE.md)
-├── infrastructure/       # Docker configurations
+├── deploy/               # Docker Compose configurations and environment files
+│   ├── docker-compose.yml
+│   ├── environments/     # Environment configuration files (.env.*)
+│   └── init/            # Initialization scripts
 ├── docs/                # Project documentation
 └── scripts/             # Development and deployment scripts (see @scripts/README.md)
 ```
 
 ## Essential Commands
 
-### Quick Start
+### 🎉 新的统一命令系统
+
+**基础设施管理** (替代了 6+ 个旧命令):
 ```bash
-make setup               # Install all dependencies
-make dev                 # Start both backend and frontend
-make test-all           # Run all tests
-make deploy             # Deploy to development server
+pnpm infra up                        # 启动本地基础设施服务
+pnpm infra down                      # 停止本地基础设施服务
+pnpm infra deploy --local            # 本地部署基础设施
+pnpm infra deploy                    # 部署到开发服务器
+pnpm infra status                    # 检查服务状态
 ```
 
-### Development Commands
+**应用部署** (替代了 9+ 个旧命令):
 ```bash
-# Backend
-make backend-run        # Start API Gateway
-make backend-lint       # Lint backend code
-make backend-test-unit  # Run backend unit tests
+pnpm app                             # 部署所有应用服务
+pnpm app --build                     # 构建并部署所有应用
+pnpm app --type backend              # 只部署后端服务
+pnpm app --service api-gateway       # 只部署API网关
+```
 
-# Frontend  
-make frontend-run       # Start frontend dev server
-make frontend-test      # Run frontend tests
+### 开发命令
+```bash
+# 后端开发
+pnpm backend:run                     # 启动API网关
+pnpm backend:lint                    # 后端代码检查
+pnpm backend:test:unit               # 后端单元测试
 
-# Testing (Docker-based)
-make test-all           # All tests with containers
-make test-coverage      # Tests with coverage
+# 前端开发
+pnpm frontend:run                    # 启动前端开发服务器
+pnpm frontend:test                   # 前端测试
 
-# Deployment
-make deploy             # Standard deployment
-make deploy-build       # Rebuild and deploy
+# 测试 (Docker-based)
+pnpm test:all                        # 所有测试 (容器中)
+pnpm test:coverage                   # 带覆盖率的测试
 ```
 
 ## Development Environment
@@ -222,9 +232,10 @@ pnpm env:show          # Show current environment
 
 ### Infrastructure Services
 ```bash
-pnpm infra:up          # Start all services
-pnpm infra:down        # Stop all services
-pnpm check:services    # Health check
+pnpm infra up                    # Start all services
+pnpm infra down                  # Stop all services  
+pnpm infra status                # Service status
+pnpm check:services              # Health check
 ```
 
 #### Service Endpoints
@@ -282,8 +293,8 @@ pnpm check:services    # Health check
 ### Common Issues
 - **Service connectivity**: Run `pnpm check:services`
 - **Environment problems**: Check `pnpm env:show` and switch if needed
-- **Build failures**: Try `make clean` then rebuild
-- **Test failures**: Use Docker containers (`make test-all`)
+- **Build failures**: Try `pnpm infra down` then `pnpm infra up` to rebuild
+- **Test failures**: Use Docker containers (`pnpm test:all`)
 
 ### Getting Help
 - **Backend issues**: Check `apps/backend/CLAUDE.md` and `apps/backend/docs/`

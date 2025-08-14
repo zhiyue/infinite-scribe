@@ -55,31 +55,32 @@ This document provides a quick reference for using either `make` or `pnpm` comma
 | SSH to dev machine | `make ssh-dev` | `pnpm run ssh:dev` |
 | SSH to test machine | `make ssh-test` | `pnpm run ssh:test` |
 
-## Deployment Commands
+## 基础设施管理 (Infrastructure)
 
-### Basic Deployment
-| Task | Make Command | pnpm Command |
-|------|--------------|--------------|
-| Deploy all services | `make deploy` | `pnpm run deploy:dev` |
-| Build & deploy all | `make deploy-build` | `pnpm run deploy:dev:build` |
-| Show deployment help | `make deploy-help` | `pnpm run deploy:dev:help` |
+| Task | 新统一命令 | 说明 |
+|------|------------|------|
+| 启动本地基础设施 | `pnpm infra up` | 启动本地 Docker 服务 |
+| 停止本地基础设施 | `pnpm infra down` | 停止本地 Docker 服务 |
+| 部署基础设施到开发服务器 | `pnpm infra deploy` | 部署到 192.168.2.201 |
+| 本地部署基础设施 | `pnpm infra deploy --local` | 本地容器化部署 |
+| 查看基础设施日志 | `pnpm infra logs` | 查看服务日志 |
+| 查看实时日志 | `pnpm infra logs --follow` | 实时跟踪日志 |
+| 查看特定服务日志 | `pnpm infra logs --service postgres` | 查看指定服务 |
+| 检查基础设施状态 | `pnpm infra status` | 健康检查 |
 
-### Deploy by Type
-| Task | Make Command | pnpm Command |
-|------|--------------|--------------|
-| Deploy infrastructure | `make deploy-infra` | `pnpm run deploy:dev:infra` |
-| Deploy all backend | `make deploy-backend` | `pnpm run deploy:dev:backend` |
-| Build & deploy backend | `make deploy-backend-build` | `pnpm run deploy:dev:backend:build` |
-| Deploy all agents | `make deploy-agents` | `pnpm run deploy:dev:agents` |
-| Build & deploy agents | `make deploy-agents-build` | `pnpm run deploy:dev:agents:build` |
+## 应用部署 (Application Deployment)
 
-### Deploy Specific Services
-| Task | Make Command | pnpm Command |
-|------|--------------|--------------|
-| Deploy API Gateway only | `make deploy-api` | `pnpm run deploy:dev:api` |
-| Build & deploy API only | `make deploy-api-build` | `pnpm run deploy:dev:api:build` |
-| Deploy specific service | `SERVICE=<name> make deploy-service` | Use script directly |
-| Build & deploy specific | `SERVICE=<name> make deploy-service-build` | Use script directly |
+| Task | 新统一命令 | 说明 |
+|------|------------|------|
+| 部署所有应用服务 | `pnpm app` | 日常代码更新部署 |
+| 构建并部署所有服务 | `pnpm app --build` | 依赖更新后部署 |
+| 部署所有后端服务 | `pnpm app --type backend` | 后端整体部署 |
+| 构建并部署后端 | `pnpm app --type backend --build` | 后端依赖更新 |
+| 部署所有 Agent 服务 | `pnpm app --type agents` | Agent 批量部署 |
+| 部署 API Gateway | `pnpm app --service api-gateway` | 单独部署 API |
+| 构建并部署 API | `pnpm app --service api-gateway --build` | API 依赖更新 |
+| 部署特定 Agent | `pnpm app --service research-agent` | 部署研究代理 |
+| 显示部署帮助 | `pnpm app --help` | 查看所有选项 |
 
 ## Environment Variables
 

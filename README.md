@@ -220,31 +220,31 @@ pnpm env:show     # 查看当前环境
 
 ```bash
 # 1. 初始设置（只需要做一次）
-make setup                  # 安装所有依赖
-pnpm infra:up               # 启动基础设施服务
+./scripts/dev/setup-dev.sh  # 安装所有依赖
+pnpm infra up               # 启动基础设施服务（新命令！）
 pnpm check:services         # 检查服务状态
 
 # 2. 日常开发（在两个终端中运行）
-make backend-run            # 终端 1: 启动后端 API 网关
-make frontend-run           # 终端 2: 启动前端开发服务器
+pnpm backend:run            # 终端 1: 启动后端 API 网关
+pnpm frontend:run           # 终端 2: 启动前端开发服务器
 
 # 3. 代码质量检查（提交前）
-make lint                   # 代码格式和规范检查
-make typecheck              # 类型检查
-make backend-test-unit      # 单元测试
+pnpm lint:all               # 代码格式和规范检查
+pnpm typecheck:all          # 类型检查
+pnpm backend:test:unit      # 单元测试
 
 # 4. 完整测试（提交前建议运行）
-make test-all               # 全部测试（Docker 容器模式）
+pnpm test:all               # 全部测试（Docker 容器模式）
 
-# 5. 部署到开发服务器
-make deploy                 # 部署代码更新
-make deploy-build           # 重新构建并部署（更新依赖后）
+# 5. 部署到开发服务器（新的统一命令！）
+pnpm app                    # 部署所有应用服务
+pnpm app --build            # 重新构建并部署（更新依赖后）
 ```
 
 **快捷命令：**
-- `make help` - 查看所有可用命令
-- `make check` - 运行所有检查（代码规范 + 类型 + 单元测试）
-- `make clean` - 清理缓存和构建产物
+- `pnpm run` - 查看所有可用命令
+- `pnpm check` - 运行所有检查（代码规范 + 类型 + 单元测试）  
+- `pnpm clean` - 清理缓存和构建产物
 
 **环境管理命令：**
 ```bash
@@ -267,7 +267,7 @@ pnpm backup:dev             # 备份开发数据
 
 ```bash
 # 启动基础设施服务（数据库、消息队列等）
-pnpm infra:up
+pnpm infra up
 
 # 检查所有服务健康状态
 pnpm check:services
@@ -276,8 +276,6 @@ pnpm check:services
 pnpm --filter frontend dev
 
 # 启动API网关（在新终端）
-make backend-run
-# 或使用 pnpm
 pnpm backend:run
 
 # 直接使用 uvicorn（高级用法）
@@ -291,41 +289,32 @@ SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 > 📖 **注意**: 更多Python开发环境配置和使用说明，请参考
 > [Python 开发快速入门](./docs/guides/development/python-dev-quickstart.md)。
 
-#### 基础设施管理命令
+#### 基础设施和部署命令
 
 ```bash
 # 启动所有基础设施服务
-pnpm infra:up
+pnpm infra up
 
 # 停止所有服务
-pnpm infra:down
+pnpm infra down
 
 # 查看服务日志
-pnpm infra:logs
+pnpm infra logs
 
-# 部署到开发服务器 (192.168.2.201)
-# ⭐ 只需要记住最常用的 5 个命令：
-make deploy                  # 日常代码部署（90% 的时候用这个）
-make deploy-build            # 重新构建并部署（更新依赖后）
-make deploy-api              # 只部署 API Gateway
-make deploy-backend          # 部署所有后端服务
-make ssh-dev                 # 连接到开发服务器
+# 部署基础设施到开发服务器
+pnpm infra deploy
 
-# 📖 完整部署命令参考：docs/guides/deployment/DEPLOY_SIMPLE.md
+# ⭐ 应用部署 - 只需要记住最常用的命令：
+pnpm app                     # 日常代码部署（90% 的时候用这个）
+pnpm app --build             # 重新构建并部署（更新依赖后）
+pnpm app --type backend      # 只部署后端服务
+pnpm app --service api-gateway  # 只部署 API Gateway
 
-# ⚡ 高级选项（需要时再用）
-make deploy-agents           # 只部署 Agent 服务
-make deploy-infra            # 只部署基础设施服务
-SERVICE=agent-worldsmith make deploy-service  # 部署特定 Agent
-make deploy-help             # 显示完整帮助
-
-# 或使用 pnpm 命令
-pnpm deploy:dev              # 同步并部署所有服务
-pnpm deploy:dev:backend      # 部署所有后端服务
-pnpm deploy:dev:agents       # 只部署所有 Agent 服务
-pnpm deploy:dev:api          # 只部署 API Gateway
+# SSH 连接
 pnpm ssh:dev                 # 连接到开发服务器
 pnpm ssh:test                # 连接到测试服务器
+
+# 📖 完整部署命令参考：docs/guides/deployment/DEPLOY_SIMPLE.md
 ```
 
 ### 服务健康检查

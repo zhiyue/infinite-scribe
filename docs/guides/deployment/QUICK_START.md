@@ -1,19 +1,17 @@
 # Infrastructure Quick Start Guide
 
-> 🚀 **想要更简单的部署方式？** 查看 [DEPLOY_SIMPLE.md](./DEPLOY_SIMPLE.md) - 只需要记住 5 个命令！
+> 🚀 **想要更简单的部署方式？** 查看 [DEPLOY_SIMPLE.md](./DEPLOY_SIMPLE.md) - 只需要记住 4 个核心命令！
 
 ## First Time Setup
 
 ```bash
-# 1. Consolidate existing .env files (if upgrading)
-pnpm env:consolidate
+# 1. Set up development environment
+./scripts/dev/setup-dev.sh
 
-# 2. Create your environment files
+# 2. Create local environment file
 cp .env.example .env.local
-cp .env.example .env.dev
-cp .env.example .env.test
 
-# 3. Edit the files with your credentials
+# 3. Edit the file with your credentials
 # - Add API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY)
 # - Update passwords if needed
 ```
@@ -23,11 +21,8 @@ cp .env.example .env.test
 ### For Local Development
 
 ```bash
-# Switch to local environment
-pnpm env:local
-
 # Start infrastructure locally
-pnpm infra:up
+pnpm infra up
 
 # Verify services
 pnpm check:services
@@ -36,11 +31,11 @@ pnpm check:services
 ### For Development Server
 
 ```bash
-# Switch to dev environment
-pnpm env:dev
+# Deploy infrastructure to development server (192.168.2.201)
+pnpm infra deploy
 
-# Deploy to development server (192.168.2.201)
-pnpm infra:deploy
+# Deploy application services
+pnpm app
 
 # SSH to dev server
 pnpm ssh:dev
@@ -52,35 +47,33 @@ pnpm check:services
 ### For Testing
 
 ```bash
-# Switch to test environment
-pnpm env:test
-
 # Run tests with Docker containers
-./scripts/run-tests.sh --all --docker-host
+./scripts/test/run-tests.sh --all --docker-host
 
 # Use custom test machine
 export TEST_MACHINE_IP=192.168.2.100
-./scripts/run-tests.sh --all --docker-host
+./scripts/test/run-tests.sh --all --docker-host
 ```
 
 ## Common Commands
 
-### Environment Management
-- `pnpm env:show` - Show current environment
-- `pnpm env:local` - Switch to local
-- `pnpm env:dev` - Switch to dev server
-- `pnpm env:test` - Switch to test
+### Infrastructure Management
+- `pnpm infra up` - Start local services
+- `pnpm infra down` - Stop local services
+- `pnpm infra deploy` - Deploy to dev server
+- `pnpm infra logs` - View infrastructure logs
+- `pnpm infra status` - Check infrastructure status
 
-### Infrastructure Control
-- `pnpm infra:up` - Start services
-- `pnpm infra:down` - Stop services
-- `pnpm infra:logs` - View logs
-- `pnpm check:services` - Health check
+### Application Deployment
+- `pnpm app` - Deploy all services
+- `pnpm app --build` - Build and deploy all services
+- `pnpm app --type backend` - Deploy backend services only
+- `pnpm app --service api-gateway` - Deploy specific service
 
-### Remote Access
+### Remote Access & Monitoring
 - `pnpm ssh:dev` - SSH to dev server
 - `pnpm ssh:test` - SSH to test machine
-- `pnpm deploy:dev` - Deploy to dev
+- `pnpm check:services` - Health check
 - `pnpm logs:remote` - View remote logs
 
 ## Service URLs
@@ -123,14 +116,14 @@ lsof -i :5432  # PostgreSQL example
 
 ### Reset Everything
 ```bash
-# Stop all services
-docker compose down
+# Stop all local services
+pnpm infra down
 
 # Remove volumes (WARNING: data loss)
-docker compose down -v
+docker compose --env-file deploy/environments/.env.local down -v
 
 # Start fresh
-pnpm infra:up
+pnpm infra up
 ```
 
 ## Next Steps
