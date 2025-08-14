@@ -31,7 +31,7 @@ case $ENV_TYPE in
     local)
         if [ ! -f .env.local ]; then
             echo "❌ Error: .env.local not found. Please create the environment file first."
-            echo "See scripts/archived/one-time-migrations/consolidate-env-files.sh for reference."
+            echo "Please create the environment file from the example template."
             exit 1
         fi
         rm -f .env
@@ -41,7 +41,7 @@ case $ENV_TYPE in
     dev)
         if [ ! -f .env.dev ]; then
             echo "❌ Error: .env.dev not found. Please create the environment file first."
-            echo "See scripts/archived/one-time-migrations/consolidate-env-files.sh for reference."
+            echo "Please create the environment file from the example template."
             exit 1
         fi
         rm -f .env
@@ -51,7 +51,7 @@ case $ENV_TYPE in
     test)
         if [ ! -f .env.test ]; then
             echo "❌ Error: .env.test not found. Please create the environment file first."
-            echo "See scripts/archived/one-time-migrations/consolidate-env-files.sh for reference."
+            echo "Please create the environment file from the example template."
             exit 1
         fi
         rm -f .env

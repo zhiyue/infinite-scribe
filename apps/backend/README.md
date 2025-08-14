@@ -166,7 +166,6 @@ PROJECT_ROOT = get_project_root()  # 通过标记文件自动检测
 - **apply_db_functions.py** - 应用数据库触发器和函数
 - **verify_tables.py** - 验证所有表是否成功创建
 
-> 注意：一些数据库工具脚本已移至 `scripts/archived/database-utilities/` 目录中，如需使用请参考归档说明。
 
 ## 测试
 
@@ -211,8 +210,7 @@ uv sync --group dev
 只有第二种方式的注释会出现在数据库和 Alembic migration 中。如果需要将所有注释同步到数据库，可以参考：
 
 ```bash
-# 已归档的脚本
-scripts/archived/database-utilities/convert_comments_to_column_param.py
+# 注释转换脚本已移除
 ```
 
 然后重新生成 migration。

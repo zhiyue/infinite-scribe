@@ -82,8 +82,7 @@ uv run alembic history
 # 验证表创建
 python scripts/verify_tables.py
 
-# 查看表详细信息（已归档）
-# scripts/archived/database-utilities/show_table_info.py
+# 查看表详细信息（工具已移除）
 ```
 
 ## 2025-07-09 - 添加列注释 Migration
