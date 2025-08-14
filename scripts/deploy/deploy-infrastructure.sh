@@ -88,7 +88,7 @@ clean_infrastructure_data() {
     
     if [ "$LOCAL_DEPLOY" = true ]; then
         echo -e "${YELLOW}   - Stopping all containers locally...${NC}"
-        cd deploy && docker compose --env-file environments/.env.local down 2>/dev/null || true
+        (cd deploy && docker compose --env-file environments/.env.local down) 2>/dev/null || true
         
         echo -e "${YELLOW}   - Removing project volumes locally...${NC}"
         docker volume ls -q | grep "infinite-scribe" | xargs -r docker volume rm 2>/dev/null || true
@@ -97,7 +97,7 @@ clean_infrastructure_data() {
         docker ps -a --filter name=infinite-scribe --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
     else
         echo -e "${YELLOW}   - Stopping all containers on ${host}...${NC}"
-        ssh "${user}@${host}" "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose --env-file environments/.env.dev down" 2>/dev/null || true
+        ssh "${user}@${host}" "cd ~/workspace/mvp/infinite-scribe && (cd deploy && docker compose --env-file environments/.env.dev down)" 2>/dev/null || true
         
         echo -e "${YELLOW}   - Removing project volumes on ${host}...${NC}"
         ssh "${user}@${host}" "docker volume ls -q | grep 'infinite-scribe' | xargs -r docker volume rm" 2>/dev/null || true
@@ -130,7 +130,7 @@ if [ "$LOCAL_DEPLOY" = true ]; then
     fi
 
     # 构建 docker compose 命令
-    COMPOSE_CMD="cd deploy && docker compose --env-file environments/.env.local"
+    COMPOSE_CMD="docker compose --env-file environments/.env.local"
     if [ -n "$COMPOSE_PROFILES" ]; then
         # 将逗号分隔的 profiles 转换为多个 --profile 参数
         IFS=',' read -ra PROFILES <<< "$COMPOSE_PROFILES"
@@ -142,7 +142,7 @@ if [ "$LOCAL_DEPLOY" = true ]; then
     
     # 使用 .env.local 运行 docker-compose
     echo -e "${YELLOW}🔧 Starting services locally...${NC}"
-    $COMPOSE_CMD up -d
+    (cd deploy && $COMPOSE_CMD up -d)
 else
     # 从 .env.dev 读取基础设施主机地址
     if [ ! -f deploy/environments/.env.dev ]; then
@@ -178,7 +178,7 @@ else
         ./ "${SSH_USER}@${INFRA_HOST}:~/workspace/mvp/infinite-scribe/"
 
     # 构建远程 docker compose 命令
-    REMOTE_COMPOSE_CMD="cd deploy && docker compose --env-file environments/.env.dev"
+    REMOTE_COMPOSE_CMD="docker compose --env-file environments/.env.dev"
     if [ -n "$COMPOSE_PROFILES" ]; then
         # 将逗号分隔的 profiles 转换为多个 --profile 参数
         IFS=',' read -ra PROFILES <<< "$COMPOSE_PROFILES"
@@ -191,7 +191,7 @@ else
     # Deploy on dev server using .env.dev
     echo -e "${YELLOW}🔧 Starting services on dev server...${NC}"
     # 使用单引号防止本地扩展，让变量在远程执行
-    ssh "${SSH_USER}@${INFRA_HOST}" "cd ~/workspace/mvp/infinite-scribe && ${REMOTE_COMPOSE_CMD} up -d"
+    ssh "${SSH_USER}@${INFRA_HOST}" "cd ~/workspace/mvp/infinite-scribe && (cd deploy && ${REMOTE_COMPOSE_CMD} up -d)"
 fi
 
 echo -e "${GREEN}✅ Infrastructure deployment initiated!${NC}"
