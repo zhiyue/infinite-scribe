@@ -1,14 +1,7 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@infinite-scribe/eslint-config": [
-        "packages/eslint-config-custom"
-      ],
-      "@infinite-scribe/tsconfig": [
-        "packages/tsconfig-custom"
-      ]
-    }
+    "baseUrl": "."
   },
   "references": [
     {

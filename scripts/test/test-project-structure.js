@@ -66,31 +66,11 @@ test('apps/ directory exists', isDirectory(path.join(projectRoot, 'apps')), 'app
 test('apps/frontend/ exists', isDirectory(path.join(projectRoot, 'apps/frontend')), 'apps/frontend/');
 test('apps/api-gateway/ exists', isDirectory(path.join(projectRoot, 'apps/api-gateway')), 'apps/api-gateway/');
 
-test('packages/ directory exists', isDirectory(path.join(projectRoot, 'packages')), 'packages/');
-test('packages/eslint-config-custom/ exists', isDirectory(path.join(projectRoot, 'packages/eslint-config-custom')), 'packages/eslint-config-custom/');
-test('packages/tsconfig-custom/ exists', isDirectory(path.join(projectRoot, 'packages/tsconfig-custom')), 'packages/tsconfig-custom/');
-test('packages/shared-types/ exists', isDirectory(path.join(projectRoot, 'packages/shared-types')), 'packages/shared-types/');
-test('packages/common-utils/ exists', isDirectory(path.join(projectRoot, 'packages/common-utils')), 'packages/common-utils/');
 
 test('infrastructure/ directory exists', isDirectory(path.join(projectRoot, 'infrastructure')), 'infrastructure/');
 test('docs/ directory exists', isDirectory(path.join(projectRoot, 'docs')), 'docs/');
 test('scripts/ directory exists', isDirectory(path.join(projectRoot, 'scripts')), 'scripts/');
 
-// Test package files
-console.log('\nChecking package configurations...');
-test('packages/eslint-config-custom/index.js exists', 
-  isFile(path.join(projectRoot, 'packages/eslint-config-custom/index.js')), 
-  'packages/eslint-config-custom/index.js');
-test('packages/eslint-config-custom/package.json exists', 
-  isFile(path.join(projectRoot, 'packages/eslint-config-custom/package.json')), 
-  'packages/eslint-config-custom/package.json');
-
-test('packages/tsconfig-custom/base.json exists', 
-  isFile(path.join(projectRoot, 'packages/tsconfig-custom/base.json')), 
-  'packages/tsconfig-custom/base.json');
-test('packages/tsconfig-custom/package.json exists', 
-  isFile(path.join(projectRoot, 'packages/tsconfig-custom/package.json')), 
-  'packages/tsconfig-custom/package.json');
 
 // Validate package.json content
 console.log('\nValidating package.json configuration...');
@@ -112,7 +92,6 @@ console.log('\nValidating pnpm-workspace.yaml configuration...');
 try {
   const workspaceContent = fs.readFileSync(path.join(projectRoot, 'pnpm-workspace.yaml'), 'utf8');
   test('pnpm-workspace.yaml includes apps/*', workspaceContent.includes("- 'apps/*'"), 'pnpm-workspace.yaml apps/*');
-  test('pnpm-workspace.yaml includes packages/*', workspaceContent.includes("- 'packages/*'"), 'pnpm-workspace.yaml packages/*');
 } catch (error) {
   console.error(`${colors.red}Failed to read pnpm-workspace.yaml: ${error.message}${colors.reset}`);
 }
