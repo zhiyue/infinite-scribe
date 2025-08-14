@@ -18,31 +18,28 @@ InfiniteScribe's infrastructure can be deployed in three different environments:
 ### 1. Initial Setup
 
 ```bash
-# First time setup - consolidate existing .env files
-pnpm env:consolidate
+# First time setup - run development setup script
+./scripts/dev/setup-dev.sh
 
-# Copy and configure environment files
+# Create local development environment file
 cp .env.example .env.local   # For local development
-cp .env.example .env.dev     # For dev server
-cp .env.example .env.test    # For test environment
 
-# Edit the files with appropriate values
+# Edit the file with appropriate values
+# - Add API keys (OPENAI_API_KEY, etc.)
+# - Update passwords if needed
 ```
 
-### 2. Switch to Target Environment
+### 2. Environment Overview
+
+InfiniteScribe now uses a simplified deployment approach:
+
+- **Local Development**: Use `pnpm infra up` for local Docker services
+- **Development Server**: Use `pnpm infra deploy` to deploy to 192.168.2.201
+- **Test Environment**: Tests run on dedicated test machine (192.168.2.202)
 
 ```bash
-# For local development
-pnpm env:local
-
-# For development server
-pnpm env:dev
-
-# For test environment
-pnpm env:test
-
-# Verify current environment
-pnpm env:show
+# Check which environment files exist
+ls -la deploy/environments/
 ```
 
 ## Deployment Methods
@@ -52,14 +49,14 @@ pnpm env:show
 Deploy infrastructure locally using Docker Compose:
 
 ```bash
-# Method 1: Using deployment script
-./scripts/deploy/deploy-infrastructure.sh --local
+# Method 1: Using new unified command (Recommended)
+pnpm infra up
 
-# Method 2: Using pnpm command
-pnpm infra:up
+# Method 2: Using deployment script with local flag
+pnpm infra deploy --local
 
 # Method 3: Direct docker-compose
-docker compose --env-file .env.local up -d
+docker compose --env-file deploy/environments/.env.local up -d
 ```
 
 **Features:**
@@ -73,12 +70,12 @@ docker compose --env-file .env.local up -d
 Deploy to the shared development server (192.168.2.201):
 
 ```bash
-# Deploy to dev server (default behavior)
-./scripts/deploy/deploy-infrastructure.sh
+# Deploy infrastructure to development server (Recommended)
+pnpm infra deploy
 
 # This will:
 # 1. Sync project files to 192.168.2.201
-# 2. Use .env.dev configuration
+# 2. Use deploy/environments/.env.dev configuration
 # 3. Start services with docker-compose on remote server
 ```
 
@@ -94,18 +91,15 @@ If you prefer manual deployment:
 
 ```bash
 # 1. SSH to development server
-ssh zhiyue@192.168.2.201
+pnpm ssh:dev
 
 # 2. Navigate to project
 cd ~/workspace/mvp/infinite-scribe
 
-# 3. Ensure correct environment
-ln -sf .env.dev .env
+# 3. Start services using new structure
+docker compose --env-file deploy/environments/.env.dev up -d
 
-# 4. Start services
-docker compose up -d
-
-# 5. Verify services
+# 4. Verify services
 docker compose ps
 ```
 
@@ -133,19 +127,18 @@ docker compose ps
 ### Basic Commands
 
 ```bash
-# Start all services
+# Using new unified commands (Recommended)
+pnpm infra up                              # Start local services
+pnpm infra down                            # Stop local services  
+pnpm infra status                          # View service status
+pnpm infra logs --service [service-name]   # View specific service logs
+pnpm infra logs --follow                   # Follow all logs
+
+# Or using Docker commands directly
 docker compose up -d
-
-# Stop all services
 docker compose down
-
-# View service status
 docker compose ps
-
-# View logs
 docker compose logs -f [service-name]
-
-# Restart a service
 docker compose restart [service-name]
 ```
 

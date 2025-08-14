@@ -34,7 +34,7 @@ graph LR
 source .venv/bin/activate
 
 # 2. 启动基础设施（数据库等）
-pnpm infra:up
+pnpm infra up
 
 # 3. 检查服务健康状态
 pnpm check:services
@@ -344,6 +344,10 @@ pnpm check:services
 docker ps
 
 # 查看服务日志
+pnpm infra logs --service postgres --follow
+pnpm infra logs --service neo4j --follow
+
+# 或直接使用 Docker 命令
 docker-compose logs -f postgres
 docker-compose logs -f neo4j
 ```
@@ -379,12 +383,16 @@ kill -9 <PID>
 
 ```bash
 # 检查服务是否运行
+pnpm infra status
+# 或使用 Docker 命令
 docker-compose ps
 
 # 重启服务
 docker-compose restart postgres
 
 # 查看日志
+pnpm infra logs --service postgres
+# 或使用 Docker 命令
 docker-compose logs postgres
 ```
 

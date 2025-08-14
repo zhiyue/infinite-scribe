@@ -170,6 +170,7 @@ InfiniteScribe is an AI-powered novel writing platform built as a monorepo:
 - **Infrastructure**: Docker Compose with multi-environment support
 
 ### Monorepo Structure
+
 ```
 infinite-scribe/
 ├── apps/
@@ -185,60 +186,73 @@ infinite-scribe/
 
 ## Essential Commands
 
-### 🎉 新的统一命令系统
+### 🚀 参数化命令系统
 
-**基础设施管理** (替代了 6+ 个旧命令):
+**快速开发命令** (推荐用法):
+
 ```bash
+# 应用开发 (参数化)
+pnpm backend install                 # 安装Python依赖
+pnpm backend run                     # 启动API网关
+pnpm backend lint                    # 代码检查
+pnpm frontend run                    # 启动前端开发服务器
+pnpm frontend build                  # 构建前端
+
+# 测试 (参数化)
+pnpm test all                        # 所有测试 (本地Docker)
+pnpm test all --remote               # 远程测试 (192.168.2.202)
+pnpm test unit                       # 单元测试
+pnpm test coverage                   # 带覆盖率测试
+
+# SSH连接 (参数化)
+pnpm ssh dev                         # SSH到开发服务器 (192.168.2.201)
+pnpm ssh test                        # SSH到测试服务器 (192.168.2.202)
+
+# API工具 (参数化)
+pnpm api export                      # 导出本地API定义
+pnpm api export:dev                  # 导出开发环境API定义
+```
+
+**基础设施和应用部署** (保持原有):
+
+```bash
+# 基础设施管理
 pnpm infra up                        # 启动本地基础设施服务
 pnpm infra down                      # 停止本地基础设施服务
 pnpm infra deploy --local            # 本地部署基础设施
-pnpm infra deploy                    # 部署到开发服务器
+pnpm infra deploy                    # 部署到开发服务器 (192.168.2.201)
 pnpm infra status                    # 检查服务状态
-```
 
-**应用部署** (替代了 9+ 个旧命令):
-```bash
+# 应用部署
 pnpm app                             # 部署所有应用服务
 pnpm app --build                     # 构建并部署所有应用
 pnpm app --type backend              # 只部署后端服务
 pnpm app --service api-gateway       # 只部署API网关
 ```
 
-### 开发命令
+**获取命令帮助**:
+
 ```bash
-# 后端开发
-pnpm backend:run                     # 启动API网关
-pnpm backend:lint                    # 后端代码检查
-pnpm backend:test:unit               # 后端单元测试
-
-# 前端开发
-pnpm frontend:run                    # 启动前端开发服务器
-pnpm frontend:test                   # 前端测试
-
-# 测试 (Docker-based)
-pnpm test:all                        # 所有测试 (容器中)
-pnpm test:coverage                   # 带覆盖率的测试
+pnpm run                             # 主帮助系统
+pnpm backend                         # 后端操作帮助
+pnpm test                            # 测试操作帮助
+pnpm ssh                             # SSH连接帮助
 ```
 
 ## Development Environment
 
-### Environment Management
-```bash
-pnpm env:local          # Local development (default)
-pnpm env:dev           # Development server (192.168.2.201)
-pnpm env:test          # Test environment (192.168.2.202)
-pnpm env:show          # Show current environment
-```
-
 ### Infrastructure Services
+
 ```bash
-pnpm infra up                    # Start all services
-pnpm infra down                  # Stop all services  
-pnpm infra status                # Service status
-pnpm check:services              # Health check
+# 基础设施状态
+pnpm infra up                        # 启动所有本地服务
+pnpm infra down                      # 停止所有本地服务
+pnpm check:services                  # 健康检查 (快速)
+pnpm check:services:full             # 完整健康检查
 ```
 
 #### Service Endpoints
+
 - PostgreSQL: localhost:5432 (postgres/postgres)
 - Redis: localhost:6379
 - Neo4j: http://localhost:7474 (neo4j/password)
@@ -246,6 +260,7 @@ pnpm check:services              # Health check
 - Prefect: http://localhost:4200
 
 ### Package Management
+
 - **Backend**: `uv` (Python 3.11)
 - **Frontend**: `pnpm` (Node.js 20+)
 - **Monorepo**: pnpm workspaces
@@ -253,18 +268,21 @@ pnpm check:services              # Health check
 ## Development Workflow
 
 ### 1. Feature Development
+
 1. Check existing patterns in relevant app directory
 2. Create `IMPLEMENTATION_PLAN.md` for complex features (3-5 stages)
 3. Follow test-driven development when possible
 4. See app-specific CLAUDE.md for detailed guidance
 
 ### 2. Quality Gates
+
 - All commits must pass lint/format/typecheck
 - Include tests for new functionality
 - Follow existing code patterns
 - See `apps/*/CLAUDE.md` for specific standards
 
 ### 3. Testing Strategy
+
 - **Local**: Unit tests during development
 - **CI/CD**: Integration tests on test machine (192.168.2.202)
 - **Production**: Deploy to development server (192.168.2.201)
@@ -272,17 +290,20 @@ pnpm check:services              # Health check
 ## Common Development Tasks
 
 ### Starting New Feature
+
 1. Identify if it's backend, frontend, or full-stack
 2. Read relevant `apps/*/CLAUDE.md` for specific guidance
 3. Create implementation plan if complex
 4. Follow app-specific development patterns
 
 ### Cross-App Development
+
 - **API Changes**: Update backend first, then frontend
 - **Type Sharing**: Use consistent naming between backend schemas and frontend types
 - **Testing**: Test integration points thoroughly
 
 ### Documentation
+
 - **Backend-specific**: See `apps/backend/CLAUDE.md`
 - **Frontend-specific**: See `apps/frontend/CLAUDE.md`
 - **Architecture**: See `docs/architecture/`
@@ -291,12 +312,14 @@ pnpm check:services              # Health check
 ## Troubleshooting
 
 ### Common Issues
+
 - **Service connectivity**: Run `pnpm check:services`
-- **Environment problems**: Check `pnpm env:show` and switch if needed
 - **Build failures**: Try `pnpm infra down` then `pnpm infra up` to rebuild
-- **Test failures**: Use Docker containers (`pnpm test:all`)
+- **Test failures**: Use Docker containers (`pnpm test all`)
+- **Command not found**: Use `pnpm run` to see all available commands or `pnpm <target>` for specific help
 
 ### Getting Help
+
 - **Backend issues**: Check `apps/backend/CLAUDE.md` and `apps/backend/docs/`
 - **Frontend issues**: Check `apps/frontend/CLAUDE.md`
 - **Infrastructure**: Check `docs/guides/deployment/`

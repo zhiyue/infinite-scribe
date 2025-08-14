@@ -116,17 +116,27 @@ function handleApp(app, action, options = []) {
 function handleTest(type, options = []) {
   const testMachineIP = getEnvVar('TEST_MACHINE_IP');
   
+  // 默认使用本地 Docker 进行测试
   const testCommands = {
-    all: `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --docker-host`,
-    unit: `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --unit --docker-host`,
-    integration: `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --integration --docker-host`,
-    coverage: `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --docker-host --coverage`,
+    all: `./scripts/test/run-tests.sh --all`,
+    unit: `./scripts/test/run-tests.sh --unit`,
+    integration: `./scripts/test/run-tests.sh --integration`,
+    coverage: `./scripts/test/run-tests.sh --all --coverage`,
     lint: './scripts/test/run-tests.sh --lint'
   };
   
-  // 处理远程测试
+  // 处理远程测试选项
   if (options.includes('--remote')) {
     testCommands.all = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --remote`;
+    testCommands.unit = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --unit --remote`;
+    testCommands.integration = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --integration --remote`;
+    testCommands.coverage = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --remote --coverage`;
+  } else if (options.includes('--docker-host')) {
+    // 支持显式指定使用远程 Docker 主机
+    testCommands.all = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --docker-host`;
+    testCommands.unit = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --unit --docker-host`;
+    testCommands.integration = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --integration --docker-host`;
+    testCommands.coverage = `TEST_MACHINE_IP=${testMachineIP} ./scripts/test/run-tests.sh --all --docker-host --coverage`;
   }
   
   const command = testCommands[type];
@@ -136,7 +146,7 @@ function handleTest(type, options = []) {
     process.exit(1);
   }
   
-  execCommand(`${command} ${options.filter(o => !o.startsWith('--remote')).join(' ')}`.trim());
+  execCommand(`${command} ${options.filter(o => !o.startsWith('--remote') && o !== '--docker-host').join(' ')}`.trim());
 }
 
 function handleSSH(env, options = []) {
@@ -245,11 +255,13 @@ ${Object.keys(appConfig.commands).map(cmd => `  ${cmd.padEnd(15)} # ${getActionD
 
 选项:
   --remote                # 在远程机器上运行测试
+  --docker-host           # 使用远程 Docker 主机运行测试
 
 示例:
-  pnpm test all                         # 本地运行所有测试
-  pnpm test all --remote                # 远程运行所有测试
-  pnpm test unit                        # 运行单元测试
+  pnpm test all                         # 本地 Docker 运行所有测试（默认）
+  pnpm test all --remote                # 远程机器运行所有测试
+  pnpm test all --docker-host           # 远程 Docker 主机运行测试
+  pnpm test unit                        # 本地运行单元测试
 `);
     return;
   }

@@ -8,20 +8,21 @@ InfiniteScribe uses Docker and Docker Compose for consistent development and dep
 
 ```
 infinite-scribe/
-├── docker-compose.yml              # Infrastructure services
-├── docker-compose.backend.yml      # Application services
+├── deploy/                         # Deployment configuration
+│   ├── docker-compose.yml          # Infrastructure services
+│   ├── environments/               # Environment configs
+│   │   ├── .env.local              # Local development
+│   │   ├── .env.dev                # Dev server (192.168.2.201)
+│   │   └── .env.test               # Test environment
+│   └── init/                       # Initialization scripts
 ├── .dockerignore                   # Build context optimization
-├── .env                           # Symlink to active environment
-├── .env.local                     # Local development config
-├── .env.dev                       # Dev server config (192.168.2.201)
-├── .env.test                      # Test environment config
-├── .env.example                   # Template with all variables
 ├── apps/
 │   └── backend/
 │       └── Dockerfile             # Unified backend Dockerfile
 └── scripts/
-    └── deployment/
-        └── deploy-infrastructure.sh  # Deployment automation
+    └── deploy/
+        ├── infra.sh               # Infrastructure management
+        └── app.sh                 # Application deployment
 ```
 
 ## Architecture Layers
@@ -131,25 +132,22 @@ volumes:
 ### 1. Local Development
 
 ```bash
-# Switch to local environment
-pnpm env:local
+# Start infrastructure using new unified command (Recommended)
+pnpm infra up
 
-# Start infrastructure
-docker compose up -d
-
-# Or use pnpm command
-pnpm infra:up
+# Or start manually
+docker compose --env-file deploy/environments/.env.local up -d
 ```
 
 ### 2. Development Server Deployment
 
 ```bash
-# Deploy to 192.168.2.201
-./scripts/deploy/deploy-infrastructure.sh
+# Deploy infrastructure to 192.168.2.201 (Recommended)
+pnpm infra deploy
 
 # This will:
 # 1. Sync files to server
-# 2. Use .env.dev configuration
+# 2. Use deploy/environments/.env.dev configuration
 # 3. Start services remotely
 ```
 
@@ -157,7 +155,7 @@ pnpm infra:up
 
 ```bash
 # On target server
-docker compose --env-file .env.dev up -d
+docker compose --env-file deploy/environments/.env.dev up -d
 ```
 
 ## Build Optimization
@@ -223,7 +221,7 @@ healthcheck:
 ### Variable Resolution Order
 
 1. Shell environment variables
-2. `.env` file (symlink to active environment)
+2. Environment file (deploy/environments/.env.local or .env.dev)
 3. docker-compose.yml defaults
 
 ### Service-Specific Variables
@@ -243,9 +241,9 @@ environment:
 ## Best Practices
 
 ### 1. Environment Management
-- Use appropriate `.env.*` file for each environment
-- Never commit sensitive credentials
-- Keep `.env.example` updated
+- Use appropriate environment file from `deploy/environments/`
+- Never commit sensitive credentials  
+- Keep `.env.example` updated as template
 
 ### 2. Resource Limits
 ```yaml
@@ -283,16 +281,14 @@ logging:
 ### Debugging Commands
 
 ```bash
-# View logs
+# Using new unified commands (Recommended)
+pnpm infra logs --service [service] --follow
+pnpm infra status
+
+# Or using Docker commands directly
 docker compose logs -f [service]
-
-# Execute commands
 docker compose exec [service] [command]
-
-# Inspect service
 docker inspect [container]
-
-# Check resources
 docker stats
 ```
 
