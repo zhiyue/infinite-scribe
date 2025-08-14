@@ -288,4 +288,4 @@ pnpm check:services    # Health check
 ### Getting Help
 - **Backend issues**: Check `apps/backend/CLAUDE.md` and `apps/backend/docs/`
 - **Frontend issues**: Check `apps/frontend/CLAUDE.md`
-- **Infrastructure**: Check `docs/deployment/`
+- **Infrastructure**: Check `docs/guides/deployment/`

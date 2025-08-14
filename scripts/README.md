@@ -89,7 +89,7 @@ pnpm test:structure
 ### Deployment (`deployment/`)
 Scripts for deploying services to development and production environments.
 
-> 📖 **简化版部署指南**: 参考 [docs/deployment/DEPLOY_SIMPLE.md](../docs/deployment/DEPLOY_SIMPLE.md) 
+> 📖 **简化版部署指南**: 参考 [docs/guides/deployment/DEPLOY_SIMPLE.md](../docs/guides/deployment/DEPLOY_SIMPLE.md) 
 > 只需要记住 5 个最常用的命令！
 
 #### `deploy-to-dev.sh`

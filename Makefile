@@ -81,32 +81,32 @@ frontend-test: ## Run frontend tests
 .PHONY: test-all
 test-all: ## Run all tests with Docker containers (recommended)
 	@echo "$(GREEN)Running all tests with Docker containers on test machine $(TEST_MACHINE_IP)...$(NC)"
-	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/testing/run-tests.sh --all --docker-host
+	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/test/run-tests.sh --all --docker-host
 
 .PHONY: test-unit
 test-unit: ## Run unit tests only with Docker containers
 	@echo "$(GREEN)Running unit tests with Docker containers...$(NC)"
-	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/testing/run-tests.sh --unit --docker-host
+	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/test/run-tests.sh --unit --docker-host
 
 .PHONY: test-integration
 test-integration: ## Run integration tests only with Docker containers
 	@echo "$(GREEN)Running integration tests with Docker containers...$(NC)"
-	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/testing/run-tests.sh --integration --docker-host
+	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/test/run-tests.sh --integration --docker-host
 
 .PHONY: test-coverage
 test-coverage: ## Run all tests with coverage report
 	@echo "$(GREEN)Running tests with coverage...$(NC)"
-	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/testing/run-tests.sh --all --docker-host --coverage
+	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/test/run-tests.sh --all --docker-host --coverage
 
 .PHONY: test-lint
 test-lint: ## Run code quality checks only
 	@echo "$(GREEN)Running code quality checks...$(NC)"
-	./scripts/testing/run-tests.sh --lint
+	./scripts/test/run-tests.sh --lint
 
 .PHONY: test-all-remote
 test-all-remote: ## Run all tests with pre-deployed services (alternative)
 	@echo "$(YELLOW)Running tests with pre-deployed services on $(TEST_MACHINE_IP)...$(NC)"
-	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/testing/run-tests.sh --all --remote
+	TEST_MACHINE_IP=$(TEST_MACHINE_IP) ./scripts/test/run-tests.sh --all --remote
 
 ##@ Development Shortcuts
 
@@ -153,47 +153,47 @@ clean: ## Clean build artifacts and caches
 .PHONY: deploy
 deploy: ## Deploy to development server (default: sync and deploy all services)
 	@echo "$(GREEN)Deploying to development server...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh
+	./scripts/deploy/deploy-to-dev.sh
 
 .PHONY: deploy-build
 deploy-build: ## Build and deploy all services on development server
 	@echo "$(GREEN)Building and deploying all services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --build
+	./scripts/deploy/deploy-to-dev.sh --build
 
 .PHONY: deploy-infra
 deploy-infra: ## Deploy only infrastructure services
 	@echo "$(GREEN)Deploying infrastructure services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --type infra
+	./scripts/deploy/deploy-to-dev.sh --type infra
 
 .PHONY: deploy-backend
 deploy-backend: ## Deploy all backend services (API Gateway + Agents)
 	@echo "$(GREEN)Deploying backend services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --type backend
+	./scripts/deploy/deploy-to-dev.sh --type backend
 
 .PHONY: deploy-backend-build
 deploy-backend-build: ## Build and deploy all backend services
 	@echo "$(GREEN)Building and deploying backend services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --type backend --build
+	./scripts/deploy/deploy-to-dev.sh --type backend --build
 
 .PHONY: deploy-agents
 deploy-agents: ## Deploy all Agent services only
 	@echo "$(GREEN)Deploying Agent services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --type agents
+	./scripts/deploy/deploy-to-dev.sh --type agents
 
 .PHONY: deploy-agents-build
 deploy-agents-build: ## Build and deploy all Agent services
 	@echo "$(GREEN)Building and deploying Agent services...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --type agents --build
+	./scripts/deploy/deploy-to-dev.sh --type agents --build
 
 .PHONY: deploy-api
 deploy-api: ## Deploy only API Gateway service
 	@echo "$(GREEN)Deploying API Gateway only...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --service api-gateway
+	./scripts/deploy/deploy-to-dev.sh --service api-gateway
 
 .PHONY: deploy-api-build
 deploy-api-build: ## Build and deploy only API Gateway service
 	@echo "$(GREEN)Building and deploying API Gateway only...$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --service api-gateway --build
+	./scripts/deploy/deploy-to-dev.sh --service api-gateway --build
 
 .PHONY: deploy-service
 deploy-service: ## Deploy specific service (use SERVICE=<name> make deploy-service)
@@ -203,7 +203,7 @@ deploy-service: ## Deploy specific service (use SERVICE=<name> make deploy-servi
 		exit 1; \
 	fi
 	@echo "$(GREEN)Deploying service: $(SERVICE)$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --service $(SERVICE)
+	./scripts/deploy/deploy-to-dev.sh --service $(SERVICE)
 
 .PHONY: deploy-service-build
 deploy-service-build: ## Build and deploy specific service (use SERVICE=<name> make deploy-service-build)
@@ -213,11 +213,11 @@ deploy-service-build: ## Build and deploy specific service (use SERVICE=<name> m
 		exit 1; \
 	fi
 	@echo "$(GREEN)Building and deploying service: $(SERVICE)$(NC)"
-	./scripts/deployment/deploy-to-dev.sh --service $(SERVICE) --build
+	./scripts/deploy/deploy-to-dev.sh --service $(SERVICE) --build
 
 .PHONY: deploy-help
 deploy-help: ## Show deployment script help
-	./scripts/deployment/deploy-to-dev.sh --help
+	./scripts/deploy/deploy-to-dev.sh --help
 
 ##@ SSH Access
 

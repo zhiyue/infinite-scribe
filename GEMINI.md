@@ -79,7 +79,7 @@ defined in directories like `.bmad-core`, `.clinerules`, and `.claude`.
 ### Environment Management
 
 - The project uses `.env.*` files for environment variables.
-- The `scripts/switch-env.sh` script can be used to switch between different
+- The `scripts/dev/switch-env.sh` script can be used to switch between different
   environments (e.g., dev, test).
 
 ## 6. Testing
