@@ -372,7 +372,7 @@ cat docs/stories/1.1.story.md
 ### 核心文档
 
 - [项目架构](./docs/architecture/)
-- [产品需求文档](./docs/prd.md)
+- [产品需求文档](./docs/prd/)
 - [前端规格说明](./docs/front-end-spec.md)
 
 ### 开发指南

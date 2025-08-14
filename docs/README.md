@@ -7,7 +7,7 @@
 ### 👥 适合所有人
 
 - [项目简介](./project-brief.md) - 项目整体介绍和愿景
-- [产品需求文档](./prd.md) - 详细的功能需求和规格说明
+- [产品需求文档](./prd/) - 详细的功能需求和规格说明
 
 ### 🛠️ 开发人员
 
@@ -43,7 +43,7 @@
 
 ### 📋 核心文档 (Root Level)
 
-- **[prd.md](./prd.md)** - 产品需求文档 (PRD)
+- **[prd/](./prd/)** - 产品需求文档 (PRD)
 - **[architecture/](./architecture/)** - 高层架构概览
 - **[front-end-spec.md](./front-end-spec.md)** - 前端 UI/UX 规格文档
 - **[project-brief.md](./project-brief.md)** - 项目简报
@@ -199,7 +199,7 @@ API 相关的参考文档：
 ### 了解项目架构
 
 1. 阅读 [项目架构](./architecture/)
-2. 查看 [产品需求文档](./prd.md)
+2. 查看 [产品需求文档](./prd/)
 3. 参考 [前端规格说明](./front-end-spec.md)
 
 ### 配置生产环境

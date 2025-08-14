@@ -344,8 +344,8 @@ pnpm check:services
 ## 完整文档索引
 
 ### 架构和设计
-- [架构设计](../architecture.md)
-- [产品需求文档](../prd.md)
+- [架构设计](../architecture/)
+- [产品需求文档](../prd/)
 - [前端规范](../front-end-spec.md)
 - [API文档](../architecture/rest-api-spec.md)
 

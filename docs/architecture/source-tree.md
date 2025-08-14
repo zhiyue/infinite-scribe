@@ -120,7 +120,7 @@ novel-ai-writer/
 │       └── ecs_fargate/
 ├── docs/                       # 项目文档
 │   ├── project-brief.md
-│   ├── prd.md
+│   ├── prd/
 │   ├── front-end-spec.md
 │   └── architecture.md         # (本文档)
 ├── scripts/                    # 项目级脚本 (如: 启动所有服务, 清理, 生成类型)
