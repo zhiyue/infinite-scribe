@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Development Guidelines
 
 ## Philosophy
@@ -153,3 +157,135 @@ When multiple valid approaches exist, choose based on:
 - Update plan documentation as you go
 - Learn from existing implementations
 - Stop after 3 failed attempts and reassess
+
+# Project-Specific Information
+
+## Architecture Overview
+
+InfiniteScribe is an AI-powered novel writing platform built as a monorepo:
+
+- **Backend**: Python 3.11 + FastAPI + SQLAlchemy (see `apps/backend/CLAUDE.md`)
+- **Frontend**: React 18 + TypeScript + Vite (see `apps/frontend/CLAUDE.md`)
+- **Databases**: PostgreSQL, Redis, Neo4j, Milvus
+- **Infrastructure**: Docker Compose with multi-environment support
+
+### Monorepo Structure
+```
+infinite-scribe/
+├── apps/
+│   ├── backend/          # Python FastAPI backend (see apps/backend/CLAUDE.md)
+│   └── frontend/         # React TypeScript frontend (see apps/frontend/CLAUDE.md)
+├── infrastructure/       # Docker configurations
+├── docs/                # Project documentation
+└── scripts/             # Development and deployment scripts
+```
+
+## Essential Commands
+
+### Quick Start
+```bash
+make setup               # Install all dependencies
+make dev                 # Start both backend and frontend
+make test-all           # Run all tests
+make deploy             # Deploy to development server
+```
+
+### Development Commands
+```bash
+# Backend
+make backend-run        # Start API Gateway
+make backend-lint       # Lint backend code
+make backend-test-unit  # Run backend unit tests
+
+# Frontend  
+make frontend-run       # Start frontend dev server
+make frontend-test      # Run frontend tests
+
+# Testing (Docker-based)
+make test-all           # All tests with containers
+make test-coverage      # Tests with coverage
+
+# Deployment
+make deploy             # Standard deployment
+make deploy-build       # Rebuild and deploy
+```
+
+## Development Environment
+
+### Environment Management
+```bash
+pnpm env:local          # Local development (default)
+pnpm env:dev           # Development server (192.168.2.201)
+pnpm env:test          # Test environment (192.168.2.202)
+pnpm env:show          # Show current environment
+```
+
+### Infrastructure Services
+```bash
+pnpm infra:up          # Start all services
+pnpm infra:down        # Stop all services
+pnpm check:services    # Health check
+```
+
+#### Service Endpoints
+- PostgreSQL: localhost:5432 (postgres/postgres)
+- Redis: localhost:6379
+- Neo4j: http://localhost:7474 (neo4j/password)
+- MinIO: http://localhost:9001 (admin/password)
+- Prefect: http://localhost:4200
+
+### Package Management
+- **Backend**: `uv` (Python 3.11)
+- **Frontend**: `pnpm` (Node.js 20+)
+- **Monorepo**: pnpm workspaces
+
+## Development Workflow
+
+### 1. Feature Development
+1. Check existing patterns in relevant app directory
+2. Create `IMPLEMENTATION_PLAN.md` for complex features (3-5 stages)
+3. Follow test-driven development when possible
+4. See app-specific CLAUDE.md for detailed guidance
+
+### 2. Quality Gates
+- All commits must pass lint/format/typecheck
+- Include tests for new functionality
+- Follow existing code patterns
+- See `apps/*/CLAUDE.md` for specific standards
+
+### 3. Testing Strategy
+- **Local**: Unit tests during development
+- **CI/CD**: Integration tests on test machine (192.168.2.202)
+- **Production**: Deploy to development server (192.168.2.201)
+
+## Common Development Tasks
+
+### Starting New Feature
+1. Identify if it's backend, frontend, or full-stack
+2. Read relevant `apps/*/CLAUDE.md` for specific guidance
+3. Create implementation plan if complex
+4. Follow app-specific development patterns
+
+### Cross-App Development
+- **API Changes**: Update backend first, then frontend
+- **Type Sharing**: Use consistent naming between backend schemas and frontend types
+- **Testing**: Test integration points thoroughly
+
+### Documentation
+- **Backend-specific**: See `apps/backend/CLAUDE.md`
+- **Frontend-specific**: See `apps/frontend/CLAUDE.md`
+- **Architecture**: See `docs/architecture/`
+- **API**: See `api-docs/`
+
+## Troubleshooting
+
+### Common Issues
+- **Service connectivity**: Run `pnpm check:services`
+- **Environment problems**: Check `pnpm env:show` and switch if needed
+- **Build failures**: Try `make clean` then rebuild
+- **Test failures**: Use Docker containers (`make test-all`)
+
+### Getting Help
+- **Backend issues**: Check `apps/backend/CLAUDE.md` and `apps/backend/docs/`
+- **Frontend issues**: Check `apps/frontend/CLAUDE.md`
+- **Infrastructure**: Check `docs/deployment/`
