@@ -89,13 +89,22 @@ pnpm test:structure
 ### Deployment (`deployment/`)
 Scripts for deploying services to development and production environments.
 
+> 📖 **简化版部署指南**: 参考 [docs/deployment/DEPLOY_SIMPLE.md](../docs/deployment/DEPLOY_SIMPLE.md) 
+> 只需要记住 5 个最常用的命令！
+
 #### `deploy-to-dev.sh`
 Deploy the complete InfiniteScribe project to the development server.
 
 ```bash
-# Deploy to default server (192.168.2.201)
+# ⭐ 最常用的 5 个部署命令：
+make deploy                  # 日常代码部署（90% 的时候用这个）
+make deploy-build            # 重新构建并部署（更新依赖后）
+make deploy-api              # 只部署 API Gateway
+make deploy-backend          # 部署所有后端服务
+make ssh-dev                 # 连接到开发服务器
+
+# 或使用脚本直接调用
 ./scripts/deployment/deploy-to-dev.sh
-# Or using pnpm
 pnpm deploy:dev
 
 # Deploy to custom server
@@ -204,15 +213,44 @@ Located in `apps/backend/scripts/`:
 
 See `apps/backend/scripts/README_API_GATEWAY.md` for detailed documentation.
 
-### Utilities (`utils/`)
-Utility scripts for migrations and miscellaneous tasks.
+#### Database Utilities
+Located in `apps/backend/scripts/`:
 
-#### `migrate-env-structure.sh`
-Migrate from single `.env` file to layered environment structure.
+- **`verify_tables.py`**: Verify database table structure and constraints
+  ```bash
+  cd apps/backend && python scripts/verify_tables.py
+  ```
+
+- **`apply_db_functions.py`**: Apply database functions and triggers
+  ```bash
+  cd apps/backend && python scripts/apply_db_functions.py
+  ```
+
+### API Documentation (`hoppscotch-integration.sh`)
+Generate API documentation and Hoppscotch collections for API testing.
 
 ```bash
-./scripts/utils/migrate-env-structure.sh
+# Export API docs for local backend
+./scripts/hoppscotch-integration.sh
+# Or using pnpm
+pnpm api:export
+
+# Export API docs for development server
+./scripts/hoppscotch-integration.sh --url http://192.168.2.201:8000
+# Or using pnpm
+pnpm api:export:dev
+
+# Export and show import instructions
+pnpm api:hoppscotch
 ```
+
+Generates:
+- OpenAPI specification in JSON format
+- Hoppscotch environment configuration
+- Import guide for API testing tools
+
+### Archived Scripts (`archived/`)
+Scripts that are no longer actively used but kept for reference. See `archived/README.md` for details.
 
 ## 🚀 Quick Start Commands
 

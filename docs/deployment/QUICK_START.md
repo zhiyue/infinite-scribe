@@ -1,5 +1,7 @@
 # Infrastructure Quick Start Guide
 
+> 🚀 **想要更简单的部署方式？** 查看 [DEPLOY_SIMPLE.md](./DEPLOY_SIMPLE.md) - 只需要记住 5 个命令！
+
 ## First Time Setup
 
 ```bash

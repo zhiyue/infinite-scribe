@@ -231,20 +231,19 @@ pnpm infra:down
 pnpm infra:logs
 
 # 部署到开发服务器 (192.168.2.201)
-# 基础部署
-make deploy                  # 同步并部署所有服务（推荐）
-make deploy-build            # 构建并部署所有服务
-
-# 分层部署
-make deploy-backend          # 部署所有后端服务（API + Agents）
-make deploy-agents           # 只部署所有 Agent 服务
-make deploy-infra            # 只部署基础设施服务
-
-# 精准部署
+# ⭐ 只需要记住最常用的 5 个命令：
+make deploy                  # 日常代码部署（90% 的时候用这个）
+make deploy-build            # 重新构建并部署（更新依赖后）
 make deploy-api              # 只部署 API Gateway
-SERVICE=agent-worldsmith make deploy-service  # 部署特定 Agent
+make deploy-backend          # 部署所有后端服务
+make ssh-dev                 # 连接到开发服务器
 
-# 查看所有部署选项
+# 📖 完整部署命令参考：docs/deployment/DEPLOY_SIMPLE.md
+
+# ⚡ 高级选项（需要时再用）
+make deploy-agents           # 只部署 Agent 服务
+make deploy-infra            # 只部署基础设施服务
+SERVICE=agent-worldsmith make deploy-service  # 部署特定 Agent
 make deploy-help             # 显示完整帮助
 
 # 或使用 pnpm 命令

@@ -482,7 +482,7 @@ done
 services_json="${services_json}]"
 ```
 
-**验证**: 创建了测试脚本 `scripts/test-matrix-generation.sh` 验证所有场景
+**验证**: 创建了测试脚本 `scripts/archived/testing-utilities/test-matrix-generation.sh` 验证所有场景
 
 ## 🔄 第二轮改进 (基于专业 Review)
 

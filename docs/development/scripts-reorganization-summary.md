@@ -23,11 +23,9 @@ scripts/
 │   ├── check-services-simple.js
 │   ├── check-services.js
 │   └── remote-logs.sh
-├── testing/            # 测试相关
-│   ├── run-tests.sh
-│   └── test-project-structure.js
-└── utils/              # 工具类
-    └── migrate-env-structure.sh
+└── testing/            # 测试相关
+    ├── run-tests.sh
+    └── test-project-structure.js
 ```
 
 ## 🔄 脚本分类详情
@@ -56,9 +54,6 @@ scripts/
 - `remote-logs.sh` - 查看远程日志
 - `backup-dev-data.sh` - 备份开发数据
 
-### Utilities (`utils/`)
-工具类脚本：
-- `migrate-env-structure.sh` - 环境变量结构迁移
 
 ## 📝 更新的文件
 
@@ -96,7 +91,6 @@ scripts/
 | `scripts/check-services-simple.js` | `scripts/monitoring/check-services-simple.js` | Monitoring |
 | `scripts/remote-logs.sh` | `scripts/monitoring/remote-logs.sh` | Monitoring |
 | `scripts/backup-dev-data.sh` | `scripts/monitoring/backup-dev-data.sh` | Monitoring |
-| `scripts/migrate-env-structure.sh` | `scripts/utils/migrate-env-structure.sh` | Utils |
 
 ## ✅ pnpm 脚本命令（保持不变）
 

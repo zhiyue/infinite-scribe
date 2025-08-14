@@ -49,9 +49,6 @@ python scripts/apply_db_functions.py
 
 # 4. 验证数据库设置
 python scripts/verify_tables.py
-
-# 5. 查看表结构信息（可选）
-python scripts/show_table_info.py
 ```
 
 #### 数据库架构
@@ -168,9 +165,8 @@ PROJECT_ROOT = get_project_root()  # 通过标记文件自动检测
 
 - **apply_db_functions.py** - 应用数据库触发器和函数
 - **verify_tables.py** - 验证所有表是否成功创建
-- **show_table_info.py** - 显示指定表的列信息和索引
-- **check_migration.py** - 检查迁移是否可以正常应用
-- **convert_comments_to_column_param.py** - 将行内注释转换为 SQLAlchemy comment 参数
+
+> 注意：一些数据库工具脚本已移至 `scripts/archived/database-utilities/` 目录中，如需使用请参考归档说明。
 
 ## 测试
 
@@ -212,10 +208,11 @@ uv sync --group dev
    title = Column(String(255), nullable=False, comment="小说标题")
    ```
 
-只有第二种方式的注释会出现在数据库和 Alembic migration 中。如果需要将所有注释同步到数据库，可以运行：
+只有第二种方式的注释会出现在数据库和 Alembic migration 中。如果需要将所有注释同步到数据库，可以参考：
 
 ```bash
-python scripts/convert_comments_to_column_param.py
+# 已归档的脚本
+scripts/archived/database-utilities/convert_comments_to_column_param.py
 ```
 
 然后重新生成 migration。
