@@ -1,150 +1,150 @@
-# InfiniteScribe Scripts
+# InfiniteScribe 脚本
 
-Utility scripts organized by category for development, testing, deployment and operations.
+按类别组织的开发、测试、部署和运维实用脚本。
 
-## Directory Structure
+## 目录结构
 
-### Development (`dev/`)
-Environment setup and development tools.
+### 开发环境 (`dev/`)
+环境设置和开发工具。
 
 #### `setup-dev.sh`
-Set up the complete development environment including Python virtual environment and dependencies.
+设置完整的开发环境，包括 Python 虚拟环境和依赖。
 
 ```bash
-# Run development environment setup script
+# 运行开发环境设置脚本
 ./scripts/dev/setup-dev.sh
 ```
 
 #### `setup-pre-commit.sh`
-Configure pre-commit hooks for code quality checks.
+配置代码质量检查的 pre-commit 钩子。
 
 ```bash
-# Setup pre-commit hooks
+# 设置 pre-commit 钩子
 ./scripts/dev/setup-pre-commit.sh
 ```
 
 #### `dev.py`
-Development helper script for running services, tests, and code quality checks.
+用于运行服务、测试和代码质量检查的开发辅助脚本。
 
 ```bash
-# Run API Gateway
+# 运行 API Gateway
 python scripts/dev/dev.py run api-gateway
 
-# Run specific agent
+# 运行特定代理
 python scripts/dev/dev.py run worldsmith-agent
 
-# Run tests with coverage
+# 运行带覆盖率的测试
 python scripts/dev/dev.py test --coverage
 
-# Format code
+# 格式化代码
 python scripts/dev/dev.py format
 ```
 
 #### `verify-ruff.sh`
-Verify Ruff installation and configuration.
+验证 Ruff 安装和配置。
 
 ```bash
-# Verify Ruff setup
+# 验证 Ruff 设置
 ./scripts/dev/verify-ruff.sh
 ```
 
 #### `install-check-deps.sh`
-Install dependencies for full service health checks.
+安装完整服务健康检查的依赖。
 
 ```bash
-# Install health check dependencies
+# 安装健康检查依赖
 ./scripts/dev/install-check-deps.sh
 ```
 
-### Testing (`test/`)
-Test runners and validation scripts.
+### 测试 (`test/`)
+测试运行器和验证脚本。
 
-- **`run-tests.sh`** - Comprehensive test runner (unit/integration/lint/coverage)
-- **`test-project-structure.js`** - Project structure validation
-- **`test-frontend-local.sh`** - Frontend-specific local testing
+- **`run-tests.sh`** - 综合测试运行器（单元/集成/代码检查/覆盖率）
+- **`test-project-structure.js`** - 项目结构验证
+- **`test-frontend-local.sh`** - 前端特定本地测试
 
-### Deployment (`deploy/`)
-Deployment and build scripts.
+### 部署 (`deploy/`)
+部署和构建脚本。
 
-- **`deploy-to-dev.sh`** - Main deployment script (all services)
-- **`deploy-infrastructure.sh`** - Infrastructure-only deployment
-- **`build.sh`** - Docker build operations
-- **`deploy-frontend*.sh`** - Frontend deployment variants
+- **`deploy-to-dev.sh`** - 主部署脚本（所有服务）
+- **`deploy-infrastructure.sh`** - 仅基础设施部署
+- **`build.sh`** - Docker 构建操作
+- **`deploy-frontend*.sh`** - 前端部署变体
 
-**Quick Deploy Commands:**
+**快速部署命令：**
 ```bash
 make deploy                  # 日常代码部署
 make deploy-build            # 重新构建并部署
 make deploy-api              # 只部署 API Gateway
 ```
 
-### Operations (`ops/`)
-Monitoring, logs, and backup scripts.
+### 运维 (`ops/`)
+监控、日志和备份脚本。
 
-- **`check-services*.js`** - Service health monitoring
-- **`remote-logs.sh`** - Remote log viewing with filtering
-- **`backup-dev-data.sh`** - Development data backup
-- **`start-agents.sh`** - Agent service management
+- **`check-services*.js`** - 服务健康监控
+- **`remote-logs.sh`** - 远程日志查看和过滤
+- **`backup-dev-data.sh`** - 开发数据备份
+- **`start-agents.sh`** - 代理服务管理
 
-**Quick Ops Commands:**
+**快速运维命令：**
 ```bash
-pnpm check:services          # Health check
-pnpm logs:remote             # View logs
-pnpm backup:dev              # Backup data
+pnpm check:services          # 健康检查
+pnpm logs:remote             # 查看日志
+pnpm backup:dev              # 备份数据
 ```
 
-### App-Specific Scripts
-- **Backend scripts**: `apps/backend/scripts/` (API Gateway startup, DB utilities)
-- **Frontend scripts**: `apps/frontend/scripts/` (build and test automation)
+### 应用特定脚本
+- **后端脚本**: `apps/backend/scripts/` (API Gateway 启动、数据库工具)
+- **前端脚本**: `apps/frontend/scripts/` (构建和测试自动化)
 
-### Tools (`tools/`)
-Utility and integration scripts.
+### 工具 (`tools/`)
+实用工具和集成脚本。
 
-- **`hoppscotch-integration.sh`** - API documentation and Hoppscotch collection generation
+- **`hoppscotch-integration.sh`** - API 文档和 Hoppscotch 集合生成
 
-### Database (`db/`)
-Database management scripts.
+### 数据库 (`db/`)
+数据库管理脚本。
 
-- **`run_migrations.py`** - Execute Alembic migrations
-- **`verify_db_migration.py`** - Verify migration status
+- **`run_migrations.py`** - 执行 Alembic 迁移
+- **`verify_db_migration.py`** - 验证迁移状态
 
-## Quick Commands
+## 快速命令
 
 ```bash
-# Setup
-make setup                   # Install dependencies
-make dev                     # Start dev servers
+# 设置
+make setup                   # 安装依赖
+make dev                     # 启动开发服务器
 
-# Testing
-make test-all                # All tests
-make test-coverage           # Tests with coverage
+# 测试
+make test-all                # 所有测试
+make test-coverage           # 带覆盖率的测试
 
-# Deployment
-make deploy                  # Deploy to dev server
-make ssh-dev                 # SSH to dev server
+# 部署
+make deploy                  # 部署到开发服务器
+make ssh-dev                 # SSH 到开发服务器
 
-# Monitoring
-pnpm check:services          # Health check
-pnpm logs:remote             # View logs
-pnpm backup:dev              # Backup data
+# 监控
+pnpm check:services          # 健康检查
+pnpm logs:remote             # 查看日志
+pnpm backup:dev              # 备份数据
 ```
 
-## Environment Variables
+## 环境变量
 
-- `DEV_SERVER` - Target server IP (default: 192.168.2.201)
-- `TEST_MACHINE_IP` - Test server IP (default: 192.168.2.202)
-- `DEV_USER` - SSH user (default: zhiyue)
+- `DEV_SERVER` - 目标服务器 IP （默认: 192.168.2.201）
+- `TEST_MACHINE_IP` - 测试服务器 IP （默认: 192.168.2.202）
+- `DEV_USER` - SSH 用户 （默认: zhiyue）
 
-## Requirements
+## 要求
 
-- SSH access to dev/test servers
-- Docker and Docker Compose
-- Node.js 20+ and Python 3.11+ with uv
-- Environment files (.env.*, docker-compose.yml)
+- 对开发/测试服务器的 SSH 访问权限
+- Docker 和 Docker Compose
+- Node.js 20+ 和 Python 3.11+ （带 uv）
+- 环境文件 (.env.*, docker-compose.yml)
 
-## Troubleshooting
+## 故障排除
 
-- **SSH issues**: Check SSH keys and connectivity
-- **Service failures**: Run `pnpm check:services` and view logs
-- **Test failures**: Use `make test-all` with Docker containers
-- **Environment issues**: Run `./scripts/dev/setup-dev.sh` to reset
+- **SSH 问题**: 检查 SSH 密钥和连接性
+- **服务故障**: 运行 `pnpm check:services` 并查看日志
+- **测试失败**: 使用 `make test-all` 和 Docker 容器
+- **环境问题**: 运行 `./scripts/dev/setup-dev.sh` 重置环境
