@@ -23,34 +23,34 @@ rsync -avz --exclude='node_modules' --exclude='dist' --exclude='.git' \
   apps/frontend/ ${DEV_USER}@${DEV_HOST}:${PROJECT_DIR}/apps/frontend/
 
 # 同步必要的根目录文件
-rsync -avz docker-compose.yml ${DEV_USER}@${DEV_HOST}:${PROJECT_DIR}/
+rsync -avz deploy/docker-compose.yml ${DEV_USER}@${DEV_HOST}:${PROJECT_DIR}/deploy/
 rsync -avz package.json pnpm-lock.yaml pnpm-workspace.yaml ${DEV_USER}@${DEV_HOST}:${PROJECT_DIR}/ 2>/dev/null || true
 
 # 2. 在开发服务器上启动前端服务
 echo -e "${YELLOW}步骤 2: 在开发服务器上启动前端服务...${NC}"
 ssh ${DEV_USER}@${DEV_HOST} << 'EOF'
-cd /home/zhiyue/infinite-scribe
+cd /home/zhiyue/infinite-scribe/deploy
 
 # 确保网络存在
 docker network create infinite-scribe-network 2>/dev/null || true
 
 # 构建并启动前端服务
 echo "构建前端镜像..."
-docker-compose build frontend
+docker compose build frontend
 
 echo "启动前端服务..."
-docker-compose up -d frontend
+docker compose up -d frontend
 
 # 等待服务启动
 sleep 5
 
 # 检查服务状态
 echo "检查服务状态..."
-docker-compose ps frontend
+docker compose ps frontend
 
 # 查看前端日志
 echo "前端服务日志："
-docker-compose logs --tail=20 frontend
+docker compose logs --tail=20 frontend
 EOF
 
 echo -e "${GREEN}=== 部署完成！===${NC}"

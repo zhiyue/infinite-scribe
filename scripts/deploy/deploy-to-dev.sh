@@ -209,20 +209,20 @@ if [ "$BUILD_ON_REMOTE" = true ]; then
         if [ "$SERVICE_NAME" = "frontend" ]; then
             echo -e "${YELLOW}Frontend build not yet implemented${NC}"
         else
-            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml build $SERVICE_NAME"
+            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml build $SERVICE_NAME"
         fi
     elif [ -n "$SERVICE_TYPE" ]; then
         # Build services by type
         case $SERVICE_TYPE in
             infra)
-                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose build"
+                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose build"
                 ;;
             backend)
-                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml build"
+                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml build"
                 ;;
             agents)
                 services=$(get_services_by_type agents)
-                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml build $services"
+                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml build $services"
                 ;;
             frontend)
                 echo -e "${YELLOW}Frontend build not yet implemented${NC}"
@@ -230,7 +230,7 @@ if [ "$BUILD_ON_REMOTE" = true ]; then
         esac
     else
         # Build all services
-        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml build"
+        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml build"
     fi
     echo -e "${GREEN}✓ Images built successfully${NC}"
 fi
@@ -240,11 +240,11 @@ echo -e "\n${YELLOW}Deploying services with Docker Compose...${NC}"
 
 # Always ensure infrastructure is running first
 echo -e "${YELLOW}Checking infrastructure services...${NC}"
-INFRA_STATUS=$(ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose ps -q postgres neo4j redis kafka 2>/dev/null" | wc -l)
+INFRA_STATUS=$(ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose ps -q postgres neo4j redis kafka 2>/dev/null" | wc -l)
 
 if [ "$INFRA_STATUS" -lt 4 ]; then
     echo -e "${YELLOW}Infrastructure services not fully running. Starting them...${NC}"
-    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose up -d"
+    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose up -d"
     echo -e "${YELLOW}Waiting for infrastructure to be ready...${NC}"
     sleep 30
 fi
@@ -258,10 +258,10 @@ if [ -n "$SERVICE_NAME" ]; then
         echo -e "${YELLOW}Frontend deployment not yet implemented${NC}"
     else
         # Stop and remove the specific service
-        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml stop $SERVICE_NAME"
-        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml rm -f $SERVICE_NAME"
+        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml stop $SERVICE_NAME"
+        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml rm -f $SERVICE_NAME"
         # Start the specific service
-        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d $SERVICE_NAME"
+        ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d $SERVICE_NAME"
     fi
     
 elif [ -n "$SERVICE_TYPE" ]; then
@@ -270,24 +270,24 @@ elif [ -n "$SERVICE_TYPE" ]; then
     
     case $SERVICE_TYPE in
         infra)
-            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose down && docker compose up -d"
+            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose down && docker compose up -d"
             ;;
         backend)
             # Stop all backend services
-            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.backend.yml down"
+            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.backend.yml down"
             # Start all backend services
-            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d"
+            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d"
             ;;
         agents)
             # Get list of agent services
             services=$(get_services_by_type agents)
             # Stop agent services
             for service in $services; do
-                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.backend.yml stop $service"
-                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.backend.yml rm -f $service"
+                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.backend.yml stop $service"
+                ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.backend.yml rm -f $service"
             done
             # Start agent services
-            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d $services"
+            ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d $services"
             ;;
         frontend)
             echo -e "${YELLOW}Frontend deployment not yet implemented${NC}"
@@ -299,16 +299,16 @@ else
     echo -e "${YELLOW}Deploying all services...${NC}"
     
     # Stop all services first
-    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml down"
+    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml down"
     # Start infrastructure services
     echo -e "${YELLOW}Starting infrastructure services...${NC}"
-    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose up -d"
+    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose up -d"
     # Wait for infrastructure to be ready
     echo -e "${YELLOW}Waiting for infrastructure services to be ready...${NC}"
     sleep 30
     # Start all backend services
     echo -e "${YELLOW}Starting backend services...${NC}"
-    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d"
+    ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml up -d"
 fi
 
 # Wait for services to start
@@ -331,7 +331,7 @@ echo -e "Prefect API:     http://${DEV_SERVER}:4200/api"
 
 echo -e "\n${GREEN}Deployment complete!${NC}"
 echo -e "\nTo view logs:"
-echo -e "  Infrastructure: ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose logs -f\""
-echo -e "  API Gateway:    ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml logs -f api-gateway\""
+echo -e "  Infrastructure: ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR}/deploy && docker compose logs -f\""
+echo -e "  API Gateway:    ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml logs -f api-gateway\""
 echo -e "\nTo stop services:"
-echo -e "  ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.backend.yml down\""
+echo -e "  ssh ${DEV_USER}@${DEV_SERVER} \"cd ${PROJECT_DIR}/deploy && docker compose -f docker-compose.yml -f docker-compose.backend.yml down\""

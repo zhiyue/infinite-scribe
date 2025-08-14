@@ -28,7 +28,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./infrastructure/docker/init/postgres:/docker-entrypoint-initdb.d
+      - ./init/postgres:/docker-entrypoint-initdb.d
     networks:
       - infinite-scribe-network
     healthcheck:
@@ -179,7 +179,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     volumes:
-      - ./infrastructure/docker/init/minio:/scripts
+      - ./init/minio:/scripts
     entrypoint: /scripts/create-buckets.sh
     networks:
       - infinite-scribe-network

@@ -88,7 +88,7 @@ clean_infrastructure_data() {
     
     if [ "$LOCAL_DEPLOY" = true ]; then
         echo -e "${YELLOW}   - Stopping all containers locally...${NC}"
-        docker compose --env-file .env.local down 2>/dev/null || true
+        cd deploy && docker compose --env-file environments/.env.local down 2>/dev/null || true
         
         echo -e "${YELLOW}   - Removing project volumes locally...${NC}"
         docker volume ls -q | grep "infinite-scribe" | xargs -r docker volume rm 2>/dev/null || true
@@ -97,7 +97,7 @@ clean_infrastructure_data() {
         docker ps -a --filter name=infinite-scribe --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
     else
         echo -e "${YELLOW}   - Stopping all containers on ${host}...${NC}"
-        ssh "${user}@${host}" "cd ~/workspace/mvp/infinite-scribe && docker compose --env-file .env.dev down" 2>/dev/null || true
+        ssh "${user}@${host}" "cd ~/workspace/mvp/infinite-scribe/deploy && docker compose --env-file environments/.env.dev down" 2>/dev/null || true
         
         echo -e "${YELLOW}   - Removing project volumes on ${host}...${NC}"
         ssh "${user}@${host}" "docker volume ls -q | grep 'infinite-scribe' | xargs -r docker volume rm" 2>/dev/null || true
@@ -117,10 +117,10 @@ if [ "$LOCAL_DEPLOY" = true ]; then
     echo -e "${GREEN}📦 Deploying locally with docker-compose...${NC}"
 
     # 确保使用 .env.local 进行本地部署
-    if [ ! -f .env.local ]; then
-        echo -e "${YELLOW}⚠️  .env.local not found. Creating from .env.example...${NC}"
-        cp .env.example .env.local
-        echo -e "${RED}❗ Please update .env.local with your actual values before proceeding.${NC}"
+    if [ ! -f deploy/environments/.env.local ]; then
+        echo -e "${YELLOW}⚠️  deploy/environments/.env.local not found. Creating from .env.example...${NC}"
+        cp deploy/environments/.env.example deploy/environments/.env.local
+        echo -e "${RED}❗ Please update deploy/environments/.env.local with your actual values before proceeding.${NC}"
         exit 1
     fi
 
@@ -130,7 +130,7 @@ if [ "$LOCAL_DEPLOY" = true ]; then
     fi
 
     # 构建 docker compose 命令
-    COMPOSE_CMD="docker compose --env-file .env.local"
+    COMPOSE_CMD="cd deploy && docker compose --env-file environments/.env.local"
     if [ -n "$COMPOSE_PROFILES" ]; then
         # 将逗号分隔的 profiles 转换为多个 --profile 参数
         IFS=',' read -ra PROFILES <<< "$COMPOSE_PROFILES"
@@ -145,14 +145,14 @@ if [ "$LOCAL_DEPLOY" = true ]; then
     $COMPOSE_CMD up -d
 else
     # 从 .env.dev 读取基础设施主机地址
-    if [ ! -f .env.dev ]; then
-        echo -e "${RED}❗ .env.dev not found. This file is required for dev server deployment.${NC}"
-        echo -e "${YELLOW}💡 Run 'pnpm env:consolidate' to create it or copy from .env.example${NC}"
+    if [ ! -f deploy/environments/.env.dev ]; then
+        echo -e "${RED}❗ deploy/environments/.env.dev not found. This file is required for dev server deployment.${NC}"
+        echo -e "${YELLOW}💡 Run 'pnpm env:consolidate' to create it or copy from deploy/environments/.env.example${NC}"
         exit 1
     fi
     
     # 从 .env.dev 提取 INFRASTRUCTURE_HOST
-    INFRA_HOST=$(grep -E "^INFRASTRUCTURE_HOST=" .env.dev | cut -d'=' -f2)
+    INFRA_HOST=$(grep -E "^INFRASTRUCTURE_HOST=" deploy/environments/.env.dev | cut -d'=' -f2)
     # 如果没有找到，使用默认值
     INFRA_HOST=${INFRA_HOST:-192.168.2.201}
     
@@ -178,7 +178,7 @@ else
         ./ "${SSH_USER}@${INFRA_HOST}:~/workspace/mvp/infinite-scribe/"
 
     # 构建远程 docker compose 命令
-    REMOTE_COMPOSE_CMD="docker compose --env-file .env.dev"
+    REMOTE_COMPOSE_CMD="cd deploy && docker compose --env-file environments/.env.dev"
     if [ -n "$COMPOSE_PROFILES" ]; then
         # 将逗号分隔的 profiles 转换为多个 --profile 参数
         IFS=',' read -ra PROFILES <<< "$COMPOSE_PROFILES"

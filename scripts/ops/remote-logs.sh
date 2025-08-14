@@ -99,7 +99,7 @@ echo -e "${YELLOW}Fetching logs...${NC}"
 echo ""
 
 # SSH to server and run docker compose logs
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && ${COMPOSE_CMD}"
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && ${COMPOSE_CMD}"
 
 # If not following, show hint
 if [ "$FOLLOW" = false ]; then

@@ -41,37 +41,37 @@ ssh ${DEV_USER}@${DEV_SERVER} "mkdir -p ${PROJECT_DIR}/backups/${BACKUP_NAME}"
 
 # Backup PostgreSQL
 echo -e "\n${YELLOW}Backing up PostgreSQL databases...${NC}"
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    docker compose exec -T postgres pg_dumpall -U postgres > backups/${BACKUP_NAME}/postgres_all.sql"
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && \
+    docker compose exec -T postgres pg_dumpall -U postgres > ../backups/${BACKUP_NAME}/postgres_all.sql"
 echo -e "${GREEN}✓ PostgreSQL backup complete${NC}"
 
 # Backup Redis
 echo -e "\n${YELLOW}Backing up Redis data...${NC}"
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && \
     docker compose exec -T redis redis-cli -a \${REDIS_PASSWORD:-redis} BGSAVE && \
     sleep 3 && \
-    docker cp infinite-scribe-redis:/data/dump.rdb backups/${BACKUP_NAME}/redis.rdb"
+    docker cp infinite-scribe-redis:/data/dump.rdb ../backups/${BACKUP_NAME}/redis.rdb"
 echo -e "${GREEN}✓ Redis backup complete${NC}"
 
 # Backup Neo4j
 echo -e "\n${YELLOW}Backing up Neo4j database...${NC}"
-ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    docker compose exec -T neo4j neo4j-admin database dump --to-stdout neo4j > backups/${BACKUP_NAME}/neo4j.dump"
+ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR}/deploy && \
+    docker compose exec -T neo4j neo4j-admin database dump --to-stdout neo4j > ../backups/${BACKUP_NAME}/neo4j.dump"
 echo -e "${GREEN}✓ Neo4j backup complete${NC}"
 
 # Backup MinIO data
 echo -e "\n${YELLOW}Backing up MinIO data...${NC}"
 ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    mkdir -p backups/${BACKUP_NAME}/minio && \
+    mkdir -p ../backups/${BACKUP_NAME}/minio && \
     docker compose exec -T minio sh -c 'mc alias set myminio http://localhost:9000 \${MINIO_ROOT_USER:-minioadmin} \${MINIO_ROOT_PASSWORD:-minioadmin} && \
     mc mirror --overwrite myminio/novels /tmp/backup-novels' && \
-    docker cp infinite-scribe-minio:/tmp/backup-novels backups/${BACKUP_NAME}/minio/"
+    docker cp infinite-scribe-minio:/tmp/backup-novels ../backups/${BACKUP_NAME}/minio/"
 echo -e "${GREEN}✓ MinIO backup complete${NC}"
 
 # Backup environment files
 echo -e "\n${YELLOW}Backing up environment files...${NC}"
 ssh ${DEV_USER}@${DEV_SERVER} "cd ${PROJECT_DIR} && \
-    cp .env.* backups/${BACKUP_NAME}/ 2>/dev/null || true"
+    cp environments/.env.* ../backups/${BACKUP_NAME}/ 2>/dev/null || true"
 echo -e "${GREEN}✓ Environment files backup complete${NC}"
 
 # Create tarball on remote
