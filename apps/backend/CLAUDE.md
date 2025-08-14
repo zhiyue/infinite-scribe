@@ -373,7 +373,7 @@ config = load_toml_config("config.toml")
 
 ### Common Issues
 1. **Import errors**: Check Python path and virtual environment
-2. **Database connection**: Verify services are running (`pnpm check:services`)
+2. **Database connection**: Verify services are running (`pnpm check services`)
 3. **Migration conflicts**: Use `alembic merge` for branch conflicts
 4. **Test failures**: Ensure test database is clean between runs
 

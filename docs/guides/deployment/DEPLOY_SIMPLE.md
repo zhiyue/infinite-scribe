@@ -22,7 +22,7 @@ pnpm app
 pnpm app --build
 
 # 3. 查看服务状态
-pnpm check:services
+pnpm check services
 
 # 4. 如有问题，连接服务器排查
 pnpm ssh:dev
@@ -59,7 +59,7 @@ pnpm infra deploy            # 部署基础设施到开发服务器
 pnpm infra logs              # 查看基础设施日志
 
 # 检查服务状态
-pnpm check:services
+pnpm check services
 ```
 
 ---
@@ -103,8 +103,10 @@ pnpm infra status            # 检查基础设施服务状态
 # SSH 和监控
 pnpm ssh:dev                # 连接开发服务器
 pnpm ssh:test               # 连接测试服务器
-pnpm check:services         # 检查服务状态
-pnpm check:services:full    # 完整服务检查
+pnpm check services         # 检查服务状态 (本地)
+pnpm check services:full    # 完整服务检查 (本地)
+pnpm check services --remote # 检查开发服务器服务状态
+pnpm check services:full --remote # 完整检查开发服务器服务
 pnpm logs:remote           # 查看远程日志
 pnpm backup:dev            # 备份开发数据
 ```
@@ -124,7 +126,7 @@ pnpm backup:dev            # 备份开发数据
 ### 部署失败怎么办？
 1. 检查网络连接：`ping 192.168.2.201`
 2. 检查 SSH 连接：`pnpm ssh:dev`
-3. 查看服务状态：`pnpm check:services`
+3. 查看服务状态：`pnpm check services`
 4. 查看日志：`pnpm logs:remote`
 
 ### 服务启动失败？
@@ -136,7 +138,7 @@ pnpm backup:dev            # 备份开发数据
 ### 环境配置问题？
 1. 检查基础设施状态：`pnpm infra status`
 2. 重新部署基础设施：`pnpm infra deploy`
-3. 检查服务状态：`pnpm check:services`
+3. 检查服务状态：`pnpm check services`
 
 ---
 
