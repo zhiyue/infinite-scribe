@@ -25,6 +25,442 @@ Server-Sent Events (SSE) 是一种服务器向客户端推送实时数据的技�
 | 负载均衡友好度 | 高 | 中 |
 | 适用场景 | 实时推送、进度更新 | 实时聊天、游戏 |
 
+## 推荐的 SSE 开源库
+
+### 后端库
+
+#### 1. sse-starlette (推荐)
+- **GitHub**: https://github.com/sysid/sse-starlette
+- **特点**: 专为 Starlette/FastAPI 设计，易于集成
+- **优势**: 
+  - 原生支持 FastAPI
+  - 内置心跳机制
+  - 支持事件类型和 ID
+  - 异步生成器支持
+
+```python
+pip install sse-starlette
+```
+
+#### 2. aiohttp-sse
+- **GitHub**: https://github.com/aio-libs/aiohttp-sse
+- **特点**: 基于 aiohttp 的 SSE 实现
+- **优势**: 成熟稳定，社区支持好
+- **劣势**: 需要额外适配 FastAPI
+
+#### 3. python-sse
+- **GitHub**: https://github.com/mpetazzoni/python-sse
+- **特点**: 轻量级 SSE 库
+- **优势**: 简单易用，无依赖
+- **劣势**: 功能相对基础
+
+### 前端库
+
+#### 1. EventSource Polyfill
+- **GitHub**: https://github.com/EventSource/eventsource
+- **特点**: 增强原生 EventSource，提供更好的错误处理和重连机制
+- **安装**: `npm install eventsource`
+
+#### 2. @microsoft/fetch-event-source
+- **GitHub**: https://github.com/Azure/fetch-event-source
+- **特点**: 基于 Fetch API 的 SSE 客户端，支持 POST 请求和自定义 headers
+- **优势**: 
+  - 支持自定义 headers（解决认证问题）
+  - 支持 POST 请求
+  - TypeScript 原生支持
+
+```typescript
+npm install @microsoft/fetch-event-source
+```
+
+### 选择理由
+
+基于 InfiniteScribe 的技术栈，推荐：
+- **后端**: `sse-starlette` - FastAPI 原生支持，功能完整
+- **前端**: `@microsoft/fetch-event-source` - 支持自定义 headers，解决 JWT 认证问题
+
+## SSE 与 Prefect 集成设计
+
+### 集成架构
+
+```text
+┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
+│  Prefect Flow   │────▶│ SSE Manager  │────▶│   Client    │
+│   (Worker)      │     │  (FastAPI)   │     │  (React)    │
+└────────┬────────┘     └──────┬───────┘     └─────────────┘
+         │                     │
+         │                     │
+    ┌────▼────────┐      ┌────▼──────┐
+    │ Prefect API │      │   Redis   │
+    │  (Events)   │      │ (Pub/Sub) │
+    └─────────────┘      └───────────┘
+```
+
+### Prefect 集成实现
+
+#### 1. Prefect SSE 钩子
+
+```python
+# src/common/services/prefect_sse_hook.py
+from prefect import flow, task, get_run_logger
+from prefect.events import emit_event
+from typing import Optional, Dict, Any
+import asyncio
+
+class PrefectSSEHook:
+    """Prefect 工作流的 SSE 集成钩子"""
+    
+    def __init__(self, sse_manager):
+        self.sse_manager = sse_manager
+        
+    async def emit_task_event(
+        self,
+        user_id: str,
+        channel: str,
+        task_name: str,
+        event_type: str,
+        data: Dict[str, Any]
+    ):
+        """发送任务事件到 SSE"""
+        await self.sse_manager.publish(
+            user_id=user_id,
+            channel=channel,
+            event=f"task.{event_type}",
+            data={
+                "task_name": task_name,
+                "event_type": event_type,
+                **data
+            }
+        )
+
+# 创建装饰器
+def sse_task(channel: str, user_id: Optional[str] = None):
+    """SSE 任务装饰器"""
+    def decorator(func):
+        @task
+        async def wrapper(*args, **kwargs):
+            # 从上下文获取 user_id
+            actual_user_id = user_id or kwargs.get("user_id")
+            if not actual_user_id:
+                raise ValueError("user_id is required for SSE tasks")
+                
+            logger = get_run_logger()
+            
+            # 发送任务开始事件
+            await sse_hook.emit_task_event(
+                user_id=actual_user_id,
+                channel=channel,
+                task_name=func.__name__,
+                event_type="start",
+                data={"args": str(args), "kwargs": str(kwargs)}
+            )
+            
+            try:
+                # 执行任务
+                result = await func(*args, **kwargs)
+                
+                # 发送任务完成事件
+                await sse_hook.emit_task_event(
+                    user_id=actual_user_id,
+                    channel=channel,
+                    task_name=func.__name__,
+                    event_type="complete",
+                    data={"result": str(result)}
+                )
+                
+                return result
+                
+            except Exception as e:
+                # 发送任务失败事件
+                await sse_hook.emit_task_event(
+                    user_id=actual_user_id,
+                    channel=channel,
+                    task_name=func.__name__,
+                    event_type="error",
+                    data={"error": str(e)}
+                )
+                raise
+                
+        return wrapper
+    return decorator
+```
+
+#### 2. Prefect Flow 与 SSE 集成示例
+
+```python
+# src/workflows/novel_generation_flow.py
+from prefect import flow, task
+from prefect.task_runners import SequentialTaskRunner
+from src.common.services.prefect_sse_hook import sse_task, PrefectSSEHook
+
+@sse_task(channel="novel-generation")
+async def analyze_plot_task(plot_outline: str, user_id: str) -> Dict:
+    """分析剧情大纲"""
+    # 发送进度更新
+    await sse_hook.emit_task_event(
+        user_id=user_id,
+        channel="novel-generation",
+        task_name="analyze_plot",
+        event_type="progress",
+        data={"progress": 30, "message": "正在分析剧情结构..."}
+    )
+    
+    # 实际的分析逻辑
+    result = await plot_analyzer.analyze(plot_outline)
+    
+    await sse_hook.emit_task_event(
+        user_id=user_id,
+        channel="novel-generation",
+        task_name="analyze_plot",
+        event_type="progress",
+        data={"progress": 100, "message": "剧情分析完成"}
+    )
+    
+    return result
+
+@sse_task(channel="novel-generation")
+async def generate_chapter_task(chapter_config: Dict, user_id: str) -> str:
+    """生成章节内容"""
+    total_words = chapter_config.get("target_words", 3000)
+    generated_words = 0
+    content = ""
+    
+    # 流式生成并推送进度
+    async for chunk in chapter_generator.generate_streaming(chapter_config):
+        content += chunk
+        generated_words += len(chunk.split())
+        progress = min(100, int(generated_words / total_words * 100))
+        
+        await sse_hook.emit_task_event(
+            user_id=user_id,
+            channel="novel-generation",
+            task_name="generate_chapter",
+            event_type="progress",
+            data={
+                "progress": progress,
+                "partial_content": chunk,
+                "generated_words": generated_words
+            }
+        )
+    
+    return content
+
+@flow(
+    name="novel-generation-flow",
+    task_runner=SequentialTaskRunner()
+)
+async def novel_generation_flow(
+    novel_config: Dict,
+    user_id: str
+) -> Dict:
+    """小说生成工作流"""
+    # 发送工作流开始事件
+    await sse_hook.emit_task_event(
+        user_id=user_id,
+        channel="novel-generation",
+        task_name="novel_generation_flow",
+        event_type="start",
+        data={"config": novel_config}
+    )
+    
+    # 分析剧情
+    plot_analysis = await analyze_plot_task(
+        novel_config["plot_outline"],
+        user_id=user_id
+    )
+    
+    # 生成各章节
+    chapters = []
+    for i, chapter_config in enumerate(plot_analysis["chapters"]):
+        # 更新工作流进度
+        flow_progress = int((i + 1) / len(plot_analysis["chapters"]) * 100)
+        await sse_hook.emit_task_event(
+            user_id=user_id,
+            channel="novel-generation",
+            task_name="novel_generation_flow",
+            event_type="progress",
+            data={
+                "progress": flow_progress,
+                "current_chapter": i + 1,
+                "total_chapters": len(plot_analysis["chapters"])
+            }
+        )
+        
+        chapter_content = await generate_chapter_task(
+            chapter_config,
+            user_id=user_id
+        )
+        chapters.append(chapter_content)
+    
+    # 发送工作流完成事件
+    await sse_hook.emit_task_event(
+        user_id=user_id,
+        channel="novel-generation",
+        task_name="novel_generation_flow",
+        event_type="complete",
+        data={
+            "chapters_count": len(chapters),
+            "total_words": sum(len(ch.split()) for ch in chapters)
+        }
+    )
+    
+    return {
+        "chapters": chapters,
+        "metadata": plot_analysis
+    }
+```
+
+#### 3. Prefect 事件监听器
+
+```python
+# src/common/services/prefect_event_listener.py
+from prefect.events import Event
+from prefect import get_client
+from typing import AsyncGenerator
+import asyncio
+
+class PrefectEventListener:
+    """监听 Prefect 事件并转发到 SSE"""
+    
+    def __init__(self, sse_manager):
+        self.sse_manager = sse_manager
+        self.running = False
+        
+    async def start(self):
+        """启动事件监听器"""
+        self.running = True
+        asyncio.create_task(self._listen_events())
+        
+    async def stop(self):
+        """停止事件监听器"""
+        self.running = False
+        
+    async def _listen_events(self):
+        """监听 Prefect 事件流"""
+        async with get_client() as client:
+            while self.running:
+                try:
+                    # 订阅所有流程运行事件
+                    async for event in client.subscribe_to_events(
+                        filter={
+                            "event_type": ["prefect.flow-run.*", "prefect.task-run.*"]
+                        }
+                    ):
+                        await self._process_event(event)
+                except Exception as e:
+                    logger.error(f"Error in Prefect event listener: {e}")
+                    await asyncio.sleep(5)  # 重试延迟
+                    
+    async def _process_event(self, event: Event):
+        """处理 Prefect 事件"""
+        # 从事件标签中提取用户信息
+        user_id = event.tags.get("user_id")
+        channel = event.tags.get("sse_channel", "prefect-events")
+        
+        if user_id:
+            # 转换事件类型
+            event_type = event.event_type.replace("prefect.", "")
+            
+            # 发布到 SSE
+            await self.sse_manager.publish(
+                user_id=user_id,
+                channel=channel,
+                event=event_type,
+                data={
+                    "id": event.id,
+                    "occurred": event.occurred.isoformat(),
+                    "resource": event.resource.dict(),
+                    "related": [r.dict() for r in event.related],
+                    "payload": event.payload
+                }
+            )
+```
+
+### 前端集成示例
+
+```typescript
+// src/components/WorkflowMonitor.tsx
+import React, { useState, useEffect } from 'react';
+import { useSSE } from '@/hooks/useSSE';
+
+interface TaskProgress {
+  taskName: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  message?: string;
+}
+
+export function WorkflowMonitor({ workflowId }: { workflowId: string }) {
+  const [tasks, setTasks] = useState<Record<string, TaskProgress>>({});
+  const [overallProgress, setOverallProgress] = useState(0);
+  
+  const { connectionState } = useSSE(`workflow-${workflowId}`, {
+    onMessage: (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // 处理不同类型的事件
+        if (event.type === 'task.start') {
+          setTasks(prev => ({
+            ...prev,
+            [data.task_name]: {
+              taskName: data.task_name,
+              status: 'running',
+              progress: 0
+            }
+          }));
+        } else if (event.type === 'task.progress') {
+          setTasks(prev => ({
+            ...prev,
+            [data.task_name]: {
+              ...prev[data.task_name],
+              progress: data.progress,
+              message: data.message
+            }
+          }));
+        } else if (event.type === 'task.complete') {
+          setTasks(prev => ({
+            ...prev,
+            [data.task_name]: {
+              ...prev[data.task_name],
+              status: 'completed',
+              progress: 100
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to parse workflow event:', error);
+      }
+    }
+  });
+  
+  return (
+    <div className="workflow-monitor">
+      <h3>工作流进度监控</h3>
+      <div className="connection-status">
+        连接状态: {connectionState}
+      </div>
+      
+      <div className="overall-progress">
+        <label>总体进度</label>
+        <progress value={overallProgress} max={100} />
+      </div>
+      
+      <div className="task-list">
+        {Object.values(tasks).map(task => (
+          <div key={task.taskName} className="task-progress">
+            <h4>{task.taskName}</h4>
+            <progress value={task.progress} max={100} />
+            {task.message && <p>{task.message}</p>}
+            <span className={`status ${task.status}`}>{task.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
 ## 架构设计
 
 ### 整体架构
@@ -169,29 +605,39 @@ class SSEManager:
 
 ```python
 # src/api/routes/v1/sse.py
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, HTTPException, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sse_starlette.sse import EventSourceResponse
 from src.api.deps import get_current_user
 from src.common.services.sse_service import sse_manager
 from src.models.user import User
-from src.common.security import verify_token
+from typing import Optional
 
 router = APIRouter()
+security = HTTPBearer()
 
 @router.get("/stream/{channel}")
 async def sse_stream(
     request: Request,
     channel: str,
-    token: str = Query(..., description="JWT token for authentication"),
-    current_user: User = Depends(lambda token=token: verify_token(token))
+    current_user: User = Depends(get_current_user)  # 支持 Bearer token
 ):
-    """SSE 事件流端点"""
+    """
+    SSE 事件流端点
+    
+    支持通过 Authorization header 传递 Bearer token
+    使用 @microsoft/fetch-event-source 可以发送自定义 headers
+    """
     return EventSourceResponse(
         sse_manager.subscribe(
             user_id=str(current_user.id),
             channel=channel,
             request=request
-        )
+        ),
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',  # 禁用 Nginx 缓冲
+        }
     )
 ```
 
@@ -252,108 +698,152 @@ class BaseAgent:
 
 ### 2. 前端实现 (React)
 
-#### 2.1 SSE Hook
+#### 2.1 SSE Hook (使用 @microsoft/fetch-event-source)
 
 ```typescript
 // src/hooks/useSSE.ts
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { 
+  fetchEventSource,
+  EventStreamContentType,
+  FetchEventSourceInit 
+} from '@microsoft/fetch-event-source';
 
 interface SSEOptions {
   onMessage?: (event: MessageEvent) => void;
-  onError?: (event: Event) => void;
-  onOpen?: (event: Event) => void;
+  onError?: (error: Error) => void;
+  onOpen?: () => void;
   onProgress?: (data: any) => void;
   onComplete?: (data: any) => void;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
 }
 
+type ConnectionState = 'connecting' | 'connected' | 'disconnected';
+
 export function useSSE(channel: string, options: SSEOptions = {}) {
   const { token } = useAuth();
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [lastError, setLastError] = useState<Error | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<number | null>(null);
   
   const {
     onMessage,
     onError,
     onOpen,
+    onProgress,
+    onComplete,
     reconnectInterval = 5000,
     maxReconnectAttempts = 5
   } = options;
   
-  const connect = useCallback(() => {
-    if (eventSourceRef.current?.readyState === EventSource.OPEN) {
-      return;
+  const connect = useCallback(async () => {
+    // 清理之前的连接
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
     
     setConnectionState('connecting');
+    abortControllerRef.current = new AbortController();
     
-    const url = `${import.meta.env.VITE_API_URL}/api/v1/sse/stream/${channel}?token=${encodeURIComponent(token)}`;
-    const eventSource = new EventSource(url, {
-      withCredentials: true
-    });
+    const url = `${import.meta.env.VITE_API_URL}/api/v1/sse/stream/${channel}`;
     
-    // 先注册事件监听器
-    eventSource.addEventListener('progress', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        // 处理进度更新
-        options.onProgress?.(data);
-      } catch (error) {
-        console.error('Failed to parse SSE progress event data:', error);
-      }
-    });
-    
-    eventSource.addEventListener('complete', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        // 处理完成事件
-        options.onComplete?.(data);
-      } catch (error) {
-        console.error('Failed to parse SSE complete event data:', error);
-      }
-    });
-    
-    // 然后设置标准事件处理器
-    eventSource.onopen = (event) => {
-      setConnectionState('connected');
-      reconnectAttemptsRef.current = 0;
-      setLastError(null);
-      onOpen?.(event);
-    };
-    
-    eventSource.onmessage = (event) => {
-      onMessage?.(event);
-    };
-    
-    eventSource.onerror = (event) => {
-      setConnectionState('disconnected');
-      setLastError(new Error('SSE connection error'));
-      onError?.(event);
-      
-      // 指数退避重连逻辑
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        reconnectAttemptsRef.current++;
-        const reconnectDelay = Math.min(
-          reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1),
-          30000 // 最大延迟30秒
-        );
-        setTimeout(connect, reconnectDelay);
-      }
-    };
-    
-    eventSourceRef.current = eventSource;
-  }, [channel, token, onMessage, onError, onOpen, reconnectInterval, maxReconnectAttempts]);
+    try {
+      await fetchEventSource(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': EventStreamContentType,
+        },
+        signal: abortControllerRef.current.signal,
+        
+        onopen: async (response) => {
+          if (response.ok && response.headers.get('content-type') === EventStreamContentType) {
+            setConnectionState('connected');
+            reconnectAttemptsRef.current = 0;
+            setLastError(null);
+            onOpen?.();
+          } else {
+            throw new Error(`Unexpected response: ${response.status}`);
+          }
+        },
+        
+        onmessage: (ev) => {
+          try {
+            // 处理不同类型的事件
+            if (ev.event === 'progress') {
+              const data = JSON.parse(ev.data);
+              onProgress?.(data);
+            } else if (ev.event === 'complete') {
+              const data = JSON.parse(ev.data);
+              onComplete?.(data);
+            } else if (ev.event === 'error') {
+              const data = JSON.parse(ev.data);
+              onError?.(new Error(data.error || 'Unknown error'));
+            } else {
+              // 通用消息处理
+              onMessage?.(ev);
+            }
+          } catch (error) {
+            console.error('Failed to parse SSE event:', error);
+            onError?.(error as Error);
+          }
+        },
+        
+        onerror: (error) => {
+          setConnectionState('disconnected');
+          setLastError(error);
+          onError?.(error);
+          
+          // 指数退避重连
+          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+            reconnectAttemptsRef.current++;
+            const delay = Math.min(
+              reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1),
+              30000 // 最大延迟30秒
+            );
+            
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+            }
+            
+            reconnectTimeoutRef.current = window.setTimeout(() => {
+              connect();
+            }, delay);
+            
+            // 返回新的 Promise 以防止自动重连
+            throw error;
+          }
+        },
+        
+        // 自定义获取函数以支持更多控制
+        fetch: (input, init) => {
+          return fetch(input, {
+            ...init,
+            credentials: 'include', // 支持 cookies
+          });
+        },
+      });
+    } catch (error) {
+      // 错误已在 onerror 中处理
+      console.error('SSE connection failed:', error);
+    }
+  }, [channel, token, onMessage, onError, onOpen, onProgress, onComplete, reconnectInterval, maxReconnectAttempts]);
   
   const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-      setConnectionState('disconnected');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setConnectionState('disconnected');
+    reconnectAttemptsRef.current = 0;
   }, []);
   
   useEffect(() => {
@@ -458,7 +948,7 @@ export function NovelGenerator() {
 
 ### 4. 任务进度追踪
 
-```
+```text
 长时间任务 → 定期进度更新 → 完成通知
 ```
 
@@ -467,6 +957,27 @@ export function NovelGenerator() {
 - `task.progress`: 进度更新
 - `task.completed`: 任务完成
 - `task.failed`: 任务失败
+
+### 5. Prefect 工作流实时监控 (新增)
+
+```text
+Prefect Flow 执行 → 实时事件推送 → 前端进度展示
+```
+
+主要事件：
+- `flow-run.pending`: 工作流等待中
+- `flow-run.running`: 工作流运行中
+- `task-run.pending`: 任务等待中
+- `task-run.running`: 任务执行中
+- `task-run.completed`: 任务完成
+- `task-run.failed`: 任务失败
+- `flow-run.completed`: 工作流完成
+- `flow-run.failed`: 工作流失败
+
+特点：
+- **细粒度进度追踪**: 在任务内部推送详细进度
+- **实时状态同步**: Prefect 事件自动转发到 SSE
+- **用户级隔离**: 基于 user_id 的事件过滤
 
 ## 实施计划
 
@@ -485,14 +996,22 @@ export function NovelGenerator() {
 3. 实现进度追踪机制
 4. 集成测试
 
-### 第三阶段：应用场景实现（2-3周）
+### 第三阶段：Prefect 集成（1-2周）
+
+1. 实现 Prefect SSE 钩子
+2. 创建任务装饰器
+3. 部署 Prefect 事件监听器
+4. 测试工作流实时推送
+
+### 第四阶段：应用场景实现（2-3周）
 
 1. 实现小说生成实时反馈
 2. 添加世界构建协作功能
 3. 集成 AI 助手对话流
 4. 完善任务进度追踪
+5. 集成 Prefect 工作流监控
 
-### 第四阶段：优化和监控（1周）
+### 第五阶段：优化和监控（1周）
 
 1. 性能优化
 2. 添加监控指标
@@ -509,7 +1028,7 @@ export function NovelGenerator() {
 
 ### 2. 安全性
 
-- **认证**：JWT Token 认证
+- **认证**：JWT Token 认证（通过查询参数传递）
 - **授权**：基于用户权限的频道访问控制
 - **速率限制**：防止滥用
 
@@ -525,6 +1044,40 @@ export function NovelGenerator() {
 - 消息吞吐量
 - 连接持续时间
 - 错误率和重连率
+
+### 5. 为什么选择 Redis 而不是 Kafka
+
+#### 当前阶段选择 Redis 的原因：
+
+**需求匹配度**：
+- **短暂消息**：SSE 推送的是实时状态更新，不需要持久化
+- **低延迟要求**：Redis 内存操作提供毫秒级延迟
+- **简单扇出**：一对多的发布订阅模式完美匹配 SSE 需求
+- **轻量运维**：避免 Kafka 的复杂部署和运维成本
+
+**技术优势**：
+| 特性 | Redis Pub/Sub | Kafka |
+|-----|--------------|-------|
+| 延迟 | 1-2ms | 10-100ms |
+| 持久化 | 无（不需要） | 有（过度设计） |
+| 运维复杂度 | 低 | 高（需要 ZooKeeper/KRaft） |
+| 资源占用 | 低 | 高（磁盘、内存） |
+| 适用规模 | 中小型（数万连接） | 大型（百万级） |
+
+**务实考虑**：
+- InfiniteScribe 已经使用 Redis 作为缓存层
+- 当前用户规模不需要 Kafka 级别的吞吐量
+- SSE 消息不需要重放功能
+- 保持架构简单，避免过度工程化
+
+**未来升级路径**：
+如果未来需要：
+- 消息持久化和重放
+- 超大规模扇出（百万级）
+- 复杂的消费者组管理
+- 事件溯源能力
+
+可以通过抽象发布接口，平滑迁移到 Kafka 或 Redis Streams。
 
 ## 测试策略
 
@@ -565,6 +1118,92 @@ async def test_multi_client_broadcast():
 - 内存使用测试
 - 重连压力测试
 
+## 部署配置建议
+
+### Nginx 配置
+
+```nginx
+# 针对 SSE 的 Nginx 配置优化
+location /api/v1/sse/ {
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    
+    # SSE 必需的头部
+    proxy_set_header Connection '';
+    proxy_set_header Cache-Control 'no-cache';
+    proxy_set_header X-Accel-Buffering 'no';
+    
+    # 禁用缓冲
+    proxy_buffering off;
+    proxy_cache off;
+    
+    # 超时设置
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+    
+    # 保持连接
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+### Docker Compose 配置
+
+```yaml
+# docker-compose.yml 添加
+services:
+  api-gateway:
+    environment:
+      # SSE 相关配置
+      - SSE_HEARTBEAT_INTERVAL=30
+      - SSE_MAX_CONNECTIONS_PER_USER=5
+      - SSE_CONNECTION_TIMEOUT=86400
+      
+  redis:
+    # 确保 Redis 配置支持 Pub/Sub
+    command: redis-server --notify-keyspace-events AKE
+```
+
+### 环境变量配置
+
+```bash
+# .env 文件
+# SSE 配置
+SSE_HEARTBEAT_INTERVAL=30  # 心跳间隔（秒）
+SSE_MAX_CONNECTIONS_PER_USER=5  # 每用户最大连接数
+SSE_CONNECTION_TIMEOUT=86400  # 连接超时（秒）
+SSE_REDIS_CHANNEL_PREFIX=sse  # Redis 频道前缀
+
+# Prefect 集成配置
+PREFECT_SSE_ENABLED=true
+PREFECT_SSE_USER_TAG=user_id  # Prefect 事件中的用户标签
+PREFECT_SSE_CHANNEL_TAG=sse_channel  # Prefect 事件中的频道标签
+```
+
 ## 总结
 
-SSE 为 InfiniteScribe 提供了一个轻量级、可靠的实时通信方案，特别适合 AI 生成内容的流式传输场景。通过合理的架构设计和实现，可以为用户提供流畅的实时体验，同时保持系统的可扩展性和可维护性。
+本方案为 InfiniteScribe 提供了一个完整的 SSE 实时通信解决方案：
+
+### 关键特性
+1. **开源库选型**：
+   - 后端使用 `sse-starlette`，与 FastAPI 无缝集成
+   - 前端使用 `@microsoft/fetch-event-source`，支持自定义 headers 和更好的错误处理
+
+2. **Prefect 深度集成**：
+   - 自定义任务装饰器实现细粒度进度推送
+   - 事件监听器自动转发 Prefect 事件到 SSE
+   - 工作流级别的实时监控
+
+3. **技术决策**：
+   - 选择 Redis 而非 Kafka，保持架构简单高效
+   - 支持水平扩展和高可用部署
+   - 完善的错误处理和重连机制
+
+### 实施价值
+- **用户体验提升**：实时反馈让 AI 生成过程透明可见
+- **开发效率**：统一的实时通信框架，简化开发
+- **运维友好**：基于现有基础设施，降低部署复杂度
+
+通过这个方案，InfiniteScribe 将具备强大的实时通信能力，为 AI 驱动的小说创作提供流畅的交互体验。
