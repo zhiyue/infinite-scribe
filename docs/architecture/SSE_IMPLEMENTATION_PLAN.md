@@ -1,4 +1,4 @@
-# Server-Sent Events (SSE) 实现方案
+# 服务器推送事件 (SSE) 实现方案
 
 ## 概述
 
@@ -93,13 +93,17 @@ class SSEManager:
         async for message in pubsub.listen():
             if message["type"] == "pmessage":
                 channel = message["channel"].decode()
-                data = json.loads(message["data"])
+                try:
+                    data = json.loads(message["data"])
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to decode JSON from SSE message on channel {channel}")
+                    continue
                 await self._broadcast_to_channel(channel, data)
                 
     async def _broadcast_to_channel(self, channel: str, data: dict):
         """向特定频道的所有连接广播消息"""
-        if channel in self.active_connections:
-            for queue in self.active_connections[channel]:
+        if queues := self.active_connections.get(channel):
+            for queue in queues.copy():
                 await queue.put(data)
                 
     async def subscribe(self, user_id: str, channel: str, request: Request) -> AsyncGenerator:
@@ -165,11 +169,12 @@ class SSEManager:
 
 ```python
 # src/api/routes/v1/sse.py
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from sse_starlette.sse import EventSourceResponse
 from src.api.deps import get_current_user
 from src.common.services.sse_service import sse_manager
 from src.models.user import User
+from src.common.security import verify_token
 
 router = APIRouter()
 
@@ -177,7 +182,8 @@ router = APIRouter()
 async def sse_stream(
     request: Request,
     channel: str,
-    current_user: User = Depends(get_current_user)
+    token: str = Query(..., description="JWT token for authentication"),
+    current_user: User = Depends(lambda token=token: verify_token(token))
 ):
     """SSE 事件流端点"""
     return EventSourceResponse(
@@ -257,6 +263,8 @@ interface SSEOptions {
   onMessage?: (event: MessageEvent) => void;
   onError?: (event: Event) => void;
   onOpen?: (event: Event) => void;
+  onProgress?: (data: any) => void;
+  onComplete?: (data: any) => void;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
 }
@@ -283,14 +291,33 @@ export function useSSE(channel: string, options: SSEOptions = {}) {
     
     setConnectionState('connecting');
     
-    const url = `${import.meta.env.VITE_API_URL}/api/v1/sse/stream/${channel}`;
+    const url = `${import.meta.env.VITE_API_URL}/api/v1/sse/stream/${channel}?token=${encodeURIComponent(token)}`;
     const eventSource = new EventSource(url, {
-      withCredentials: true,
-      headers: {
-        'Authorization': `Bearer ${token}`
+      withCredentials: true
+    });
+    
+    // 先注册事件监听器
+    eventSource.addEventListener('progress', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        // 处理进度更新
+        options.onProgress?.(data);
+      } catch (error) {
+        console.error('Failed to parse SSE progress event data:', error);
       }
     });
     
+    eventSource.addEventListener('complete', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        // 处理完成事件
+        options.onComplete?.(data);
+      } catch (error) {
+        console.error('Failed to parse SSE complete event data:', error);
+      }
+    });
+    
+    // 然后设置标准事件处理器
     eventSource.onopen = (event) => {
       setConnectionState('connected');
       reconnectAttemptsRef.current = 0;
@@ -307,23 +334,16 @@ export function useSSE(channel: string, options: SSEOptions = {}) {
       setLastError(new Error('SSE connection error'));
       onError?.(event);
       
-      // 自动重连逻辑
+      // 指数退避重连逻辑
       if (reconnectAttemptsRef.current < maxReconnectAttempts) {
         reconnectAttemptsRef.current++;
-        setTimeout(connect, reconnectInterval);
+        const reconnectDelay = Math.min(
+          reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1),
+          30000 // 最大延迟30秒
+        );
+        setTimeout(connect, reconnectDelay);
       }
     };
-    
-    // 监听特定事件
-    eventSource.addEventListener('progress', (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      // 处理进度更新
-    });
-    
-    eventSource.addEventListener('complete', (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      // 处理完成事件
-    });
     
     eventSourceRef.current = eventSource;
   }, [channel, token, onMessage, onError, onOpen, reconnectInterval, maxReconnectAttempts]);
@@ -367,23 +387,25 @@ export function NovelGenerator() {
   const [generatedContent, setGeneratedContent] = useState<string>('');
   
   const { connectionState } = useSSE('novel-generation', {
+    onProgress: (data) => {
+      setGenerationProgress(data.progress);
+      if (data.partial_content) {
+        setGeneratedContent(prev => prev + data.partial_content);
+      }
+    },
+    onComplete: (data) => {
+      setGenerationProgress(100);
+      setGeneratedContent(data.result.content);
+    },
     onMessage: (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (event.type) {
-        case 'progress':
-          setGenerationProgress(data.progress);
-          if (data.partial_content) {
-            setGeneratedContent(prev => prev + data.partial_content);
-          }
-          break;
-        case 'complete':
-          setGenerationProgress(100);
-          setGeneratedContent(data.result.content);
-          break;
-        case 'error':
+      // 处理通用消息事件
+      try {
+        const data = JSON.parse(event.data);
+        if (data.error) {
           console.error('Generation error:', data.error);
-          break;
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
       }
     }
   });
