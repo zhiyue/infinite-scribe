@@ -33,15 +33,12 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1-dev
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          model: 'claude-opus-4-20250514'
-
-          # Direct prompt for automated review (no @claude mention needed)
-          direct_prompt: |
+          # prompt for automated review (no @claude mention needed)
+          prompt: |
             Please review this pull request and provide feedback on:
             - Code quality and best practices
             - Potential bugs or issues
@@ -58,6 +55,10 @@ jobs:
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           use_sticky_comment: true
+
+          # Optional: Configure Claude's behavior with CLI arguments
+          claude_args: |
+            --model claude-opus-4-1-20250805
 
           # Optional: Customize review based on file types
           # direct_prompt: |
