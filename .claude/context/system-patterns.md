@@ -1,7 +1,7 @@
 ---
 created: 2025-08-28T12:10:36Z
-last_updated: 2025-08-28T12:10:36Z
-version: 1.0
+last_updated: 2025-08-28T12:24:28Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -9,23 +9,174 @@ author: Claude Code PM System
 
 ## Core Architectural Patterns
 
-### Clean Architecture Principles
-- **Dependency Inversion**: High-level modules independent of low-level details
-- **Interface Segregation**: Client-specific interfaces rather than monolithic ones  
-- **Single Responsibility**: Each component has one reason to change
-- **Composition over Inheritance**: Dependency injection for flexibility
+### Event-Driven Microservices Architecture
+InfiniteScribe follows a sophisticated event-driven microservices architecture designed for AI-powered novel generation:
 
-### Repository Pattern
-- **Data Access Layer**: Abstract database operations behind repositories
-- **Service Layer**: Business logic separated from data persistence
-- **Domain Models**: Core entities independent of database schema
-- **Unit of Work**: Transaction management and consistency
+- **Central Event Bus**: Apache Kafka serves as the backbone for all inter-service communication
+- **Service Decoupling**: Services communicate exclusively through events, avoiding direct calls
+- **Service Types**: API Gateway, Message Relay, Prefect Orchestrator, Callback Service, AI Agents
+- **Async Processing**: All AI generation and business logic operates asynchronously
+- **System Resilience**: Event-driven design provides high fault tolerance and scalability
 
-### Strategy Pattern for AI Agents
-- **Agent Interfaces**: Common contract for all AI agent types
-- **Pluggable Implementations**: Multiple AI providers (OpenAI, Anthropic)
-- **Agent Coordination**: Orchestration layer for multi-agent workflows
-- **Context Management**: Shared context passing between agents
+### Core Implementation Patterns
+
+#### CQRS (Command Query Responsibility Segregation)
+```python
+# Command Side - Write Operations
+class CommandHandler:
+    async def handle_generate_chapter_command(self, command: GenerateChapterCommand):
+        # Write to command_inbox with idempotency
+        # Publish events to event_outbox
+        # Update state snapshots
+        pass
+
+# Query Side - Read Operations  
+class QueryHandler:
+    async def get_novel_state(self, novel_id: str) -> NovelState:
+        # Read from optimized state snapshots
+        # No business logic, just data retrieval
+        pass
+```
+
+#### Event Sourcing
+```python
+# domain_events table as single source of truth
+class DomainEvent:
+    id: UUID
+    aggregate_id: UUID  # novel_id, chapter_id, etc.
+    event_type: str     # "Chapter.OutlineCreated", "Novel.StatusChanged"
+    event_data: Dict    # All state change information
+    occurred_at: DateTime
+    version: int        # For optimistic concurrency
+```
+
+#### Transactional Outbox Pattern
+```python
+# Ensures atomic writes and reliable message publishing
+@transaction
+async def create_chapter_outline(self, command: CreateOutlineCommand):
+    # 1. Write domain event
+    await self.event_store.append_event(domain_event)
+    # 2. Write to outbox (same transaction)
+    await self.outbox.add_message(kafka_message)
+    # 3. Message Relay publishes from outbox to Kafka
+```
+
+#### Command Inbox Pattern
+```python
+# Provides idempotent command processing
+class CommandInbox:
+    async def process_command(self, command_id: str, command: Command):
+        # Check if already processed (idempotency)
+        if await self.is_processed(command_id):
+            return await self.get_result(command_id)
+        
+        # Process command atomically
+        result = await self.handle_command(command)
+        await self.mark_processed(command_id, result)
+        return result
+```
+
+### Pause and Resume Workflow Pattern
+```python
+# Prefect workflows can pause and resume based on external events
+@flow
+async def chapter_generation_workflow():
+    # Execute initial tasks
+    outline = await create_outline_task()
+    
+    # Register callback and pause
+    callback_handle = await register_callback("Chapter.Drafted")
+    await self.pause_until_event("Chapter.Drafted", callback_handle)
+    
+    # Resume when AI agent completes work
+    draft = await get_callback_result()
+    # Continue workflow...
+```
+
+## Multi-Agent Coordination Patterns
+
+### Specialized Agent Architecture
+InfiniteScribe employs a sophisticated multi-agent system with 10 specialized AI agents:
+
+```python
+class AgentRegistry:
+    AGENTS = {
+        'worldsmith': WorldsmithAgent,      # Genesis world creation
+        'plotmaster': PlotMasterAgent,      # High-level plot strategy
+        'outliner': OutlinerAgent,          # Chapter-level planning
+        'director': DirectorAgent,          # Scene structure and pacing
+        'character_expert': CharacterExpertAgent,  # Character development
+        'worldbuilder': WorldBuilderAgent,  # World expansion
+        'writer': WriterAgent,              # Content generation
+        'critic': CriticAgent,              # Quality assessment
+        'fact_checker': FactCheckerAgent,   # Consistency validation
+        'rewriter': RewriterAgent           # Content revision
+    }
+```
+
+### Agent Communication Pattern
+```python
+# Agents communicate via Kafka events, not direct calls
+class AgentCoordinator:
+    async def execute_chapter_workflow(self, chapter_context: ChapterContext):
+        # Outliner creates chapter outline
+        await self.publish_event("OutlineGeneration.Requested", chapter_context)
+        
+        # Director breaks down into scenes (triggered by OutlineGeneration.Completed)
+        # CharacterExpert plans dialogues (triggered by Scene.StructureCreated)  
+        # Writer generates content (triggered by Character.InteractionsPlanned)
+        # Critic evaluates quality (triggered by Chapter.Drafted)
+        # FactChecker validates consistency (triggered by Chapter.Reviewed)
+```
+
+### Knowledge Persistence Pattern
+```python
+class KnowledgeManager:
+    # Multi-database knowledge persistence
+    async def store_agent_output(self, agent_type: str, output: AgentOutput):
+        # PostgreSQL for structured metadata
+        await self.postgres.store_metadata(output.metadata)
+        
+        # Neo4j for relationships (character connections, plot threads)
+        await self.neo4j.store_relationships(output.relationships)
+        
+        # Milvus for vector embeddings (context retrieval)
+        await self.milvus.store_embeddings(output.content_embeddings)
+        
+        # MinIO for large content (chapter drafts, worldbuilding docs)
+        await self.minio.store_content(output.content_files)
+```
+
+### Agent Workflow Orchestration
+```python
+# Prefect orchestrates complex multi-agent workflows
+@flow
+async def novel_generation_flow(novel_context: NovelContext):
+    # Strategic level (runs periodically)
+    plot_guidance = await plotmaster_task(novel_context)
+    
+    # Tactical level (per chapter)
+    for chapter_num in range(novel_context.target_chapters):
+        # Planning phase
+        outline = await outliner_task(plot_guidance, chapter_num)
+        scenes = await director_task(outline)
+        
+        # Creation phase  
+        character_work = await character_expert_task(scenes)
+        world_expansion = await worldbuilder_task(scenes)
+        
+        # Generation phase
+        draft = await writer_task(scenes, character_work, world_expansion)
+        
+        # Review phase
+        quality_review = await critic_task(draft)
+        consistency_check = await fact_checker_task(draft)
+        
+        # Revision if needed
+        if not quality_review.approved or not consistency_check.approved:
+            draft = await rewriter_task(draft, quality_review, consistency_check)
+```
 
 ## Frontend Architectural Patterns
 
@@ -37,25 +188,35 @@ author: Claude Code PM System
 
 ### State Management Pattern
 ```typescript
-// Context + Reducer Pattern
+// Zustand-based global state management
 interface AppState {
   user: User | null;
-  novel: Novel | null;
-  agents: AgentState[];
+  currentNovel: Novel | null;
+  agentStates: Record<string, AgentState>;
+  workflowStatus: WorkflowStatus;
 }
 
-// Actions for state changes
-type AppAction = 
-  | { type: 'SET_USER'; payload: User }
-  | { type: 'UPDATE_NOVEL'; payload: Partial<Novel> }
-  | { type: 'AGENT_STATUS_CHANGE'; payload: AgentUpdate };
+// Zustand store with actions
+const useAppStore = create<AppState & AppActions>((set, get) => ({
+  user: null,
+  currentNovel: null,
+  agentStates: {},
+  workflowStatus: 'idle',
+  
+  // Actions
+  setUser: (user: User) => set({ user }),
+  updateNovel: (updates: Partial<Novel>) => 
+    set(state => ({ currentNovel: { ...state.currentNovel, ...updates } })),
+  updateAgentState: (agentId: string, state: AgentState) =>
+    set(state => ({ agentStates: { ...state.agentStates, [agentId]: state } }))
+}));
 ```
 
 ### Data Flow Patterns
-- **One-way Data Flow**: Props down, events up
-- **Async State Management**: Loading, error, and success states
-- **Optimistic Updates**: Immediate UI updates with rollback capability
-- **Real-time Updates**: WebSocket integration for collaborative features
+- **TanStack Query**: Server state management with intelligent caching and background updates
+- **SSE Integration**: Real-time workflow status updates from backend via Server-Sent Events
+- **Optimistic Updates**: Immediate UI updates with automatic rollback on errors
+- **Event-Driven UI**: Frontend reacts to backend events pushed via SSE stream
 
 ## Backend Architectural Patterns
 
@@ -237,3 +398,12 @@ class Settings:
 - **Batch Processing**: Grouped operations for efficiency
 - **Connection Pooling**: Reuse database connections
 - **Async Processing**: Non-blocking I/O operations
+
+## Update History
+- 2025-08-28: Major update based on comprehensive architecture documentation
+  - Added event-driven microservices architecture patterns
+  - Added core implementation patterns (CQRS, Event Sourcing, Transactional Outbox, Command Inbox)
+  - Added Pause and Resume workflow pattern for Prefect orchestration
+  - Added comprehensive multi-agent coordination patterns with 10 specialized agents
+  - Updated frontend patterns to reflect Zustand and TanStack Query usage
+  - Added SSE integration and event-driven UI patterns

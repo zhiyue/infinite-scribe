@@ -1,7 +1,7 @@
 ---
 created: 2025-08-28T12:10:36Z
-last_updated: 2025-08-28T12:10:36Z
-version: 1.0
+last_updated: 2025-08-28T12:24:28Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -9,7 +9,7 @@ author: Claude Code PM System
 
 ## Product Overview
 
-**InfiniteScribe** is an AI-powered novel writing platform that leverages multi-agent collaboration to assist authors in creating high-quality, coherent long-form fiction. The platform combines human creativity with AI assistance to streamline the novel writing process while maintaining narrative consistency and quality.
+**InfiniteScribe** is an AI-powered novel writing platform that leverages sophisticated multi-agent collaboration to enable fully automated novel generation. The platform uses an event-driven architecture with 10 specialized AI agents working together through a Kafka-based messaging system, orchestrated by Prefect workflows, to create publication-quality long-form fiction with minimal human intervention.
 
 ## Target Users & Personas
 
@@ -45,57 +45,123 @@ author: Claude Code PM System
 
 ## Core Functionality
 
-### Multi-Agent Writing System
+### Sophisticated Multi-Agent System
 
-**World Building Agent**
-- Creates consistent fictional universes with detailed settings
-- Maintains continuity across chapters and scenes
-- Generates location descriptions, cultural details, historical backgrounds
-- Tracks world-building elements to prevent inconsistencies
+InfiniteScribe employs 10 specialized AI agents, each with distinct roles in the automated novel generation pipeline:
 
-**Character Development Agent**
-- Designs complex, multi-dimensional characters with clear motivations
-- Maintains character voice consistency throughout the narrative
-- Tracks character arcs and development over time
-- Generates dialogue that reflects character personalities
+#### Strategic Planning Layer
 
-**Plot Structuring Agent**
-- Develops coherent plot outlines following established narrative structures
-- Manages pacing and tension throughout the story
-- Identifies and resolves plot holes before they become issues  
-- Suggests subplot integration and narrative improvements
+**Worldsmith Agent**
+- **Role**: Genesis-phase world creation and initial setting establishment
+- **Functionality**: Interactive dialogue with human supervisors to establish foundational world elements
+- **Integration**: Populates Neo4j knowledge graph with world relationships and hierarchies
 
-**Writing Style Agent**
-- Maintains consistent writing voice and tone
-- Adapts to different genres and target audiences
-- Provides stylistic suggestions and improvements
-- Ensures prose quality and readability
+**PlotMaster Agent** 
+- **Role**: High-level strategic plot guidance and narrative arc management
+- **Functionality**: Periodically reviews story direction and issues high-level plot directives
+- **Integration**: Influences chapter-level planning through strategic event publication
+
+#### Tactical Planning Layer
+
+**Outliner Agent**
+- **Role**: Chapter-level outline generation and scene structure planning
+- **Functionality**: Translates strategic directives into specific chapter outlines and scene sequences
+- **Integration**: Consumes PlotMaster guidance, produces structured chapter plans
+
+**Director Agent**
+- **Role**: Scene choreography, pacing control, and narrative perspective management
+- **Functionality**: Breaks chapter outlines into specific scene structures with timing and viewpoint
+- **Integration**: Bridges high-level outlines with detailed scene execution
+
+#### Execution Layer
+
+**Character Expert Agent**
+- **Role**: Character development, dialogue creation, and interpersonal dynamics
+- **Functionality**: Manages character consistency, creates authentic dialogue, plans character interactions
+- **Integration**: Accesses Neo4j character relationship data for consistency validation
+
+**World Builder Agent**
+- **Role**: Dynamic world expansion and setting detail generation
+- **Functionality**: Extends world elements as needed, maintains geographic and cultural consistency
+- **Integration**: Updates Neo4j knowledge graph with new world elements
+
+**Writer Agent**
+- **Role**: Prose generation and narrative text creation
+- **Functionality**: Converts structured plans into final readable text with appropriate style and voice
+- **Integration**: Synthesizes inputs from Director, Character Expert, and World Builder agents
+
+#### Quality Assurance Layer
+
+**Critic Agent**
+- **Role**: Content quality evaluation and literary assessment
+- **Functionality**: Reviews generated content for engagement, pacing, and overall quality
+- **Integration**: Provides feedback that can trigger revision workflows
+
+**Fact Checker Agent**
+- **Role**: Narrative consistency validation and continuity checking
+- **Functionality**: Validates content against established world rules, character traits, and plot elements
+- **Integration**: Queries Neo4j and Milvus databases to verify consistency
+
+**Rewriter Agent**
+- **Role**: Content revision and improvement implementation
+- **Functionality**: Modifies content based on Critic and Fact Checker feedback
+- **Integration**: Produces revised content that addresses identified issues
+
+### Event-Driven Novel Generation Workflow
+
+**Genesis Flow**
+- Human supervisor initiates world creation through Worldsmith Agent
+- Interactive dialogue establishes core world elements, themes, and characters
+- Knowledge graph populated with foundational relationships and hierarchies
+- Genesis session completes with comprehensive world foundation
+
+**Automated Chapter Generation**
+- PlotMaster Agent issues strategic narrative directives
+- Outliner Agent creates chapter-specific outlines based on strategic guidance
+- Director Agent structures scenes with pacing and perspective control
+- Character Expert and World Builder Agents enhance scenes with detailed interactions and settings
+- Writer Agent synthesizes all inputs into cohesive prose
+- Critic Agent evaluates quality and engagement
+- Fact Checker Agent validates consistency against knowledge base
+- Rewriter Agent revises content based on quality feedback if needed
+
+**Workflow Orchestration**
+- Prefect orchestrates complex multi-step workflows with pause/resume capability
+- Kafka event bus enables asynchronous agent communication
+- Redis caching optimizes callback handling and workflow state management
+- PostgreSQL event sourcing provides complete audit trail and reliability
 
 ### Core User Features
 
-**Novel Project Management**
-- Create and organize multiple novel projects
-- Chapter-by-chapter progress tracking
-- Version history and backup management
-- Collaborative workspace for co-authors
+**Supervisory Novel Generation**
+- Launch automated novel generation from high-level prompts
+- Monitor real-time progress through agent workflow dashboards
+- Intervene at key decision points when required
+- Track completion metrics and quality assessments
 
-**AI-Assisted Writing Interface**
-- Real-time writing assistance with context awareness
-- Intelligent suggestions for plot advancement
-- Character behavior consistency checking
-- Style and tone optimization
+**Workflow Monitoring Interface**
+- Real-time visualization of active agent workflows
+- SSE-based status updates for all generation processes
+- Agent performance metrics and token usage tracking
+- Comprehensive generation history and audit trails
 
-**Content Quality Control**
-- Automated consistency checking across chapters
-- Plot hole detection and resolution suggestions
-- Character development tracking and analysis
-- Genre-appropriate content validation
+**Knowledge Base Management**  
+- Browse and edit generated world elements and character profiles
+- Visualize narrative relationships through Neo4j graph interface
+- Search and retrieve story elements through semantic vector search
+- Maintain consistency rules and validation criteria
 
-**Export & Publishing Integration**
-- Multiple format exports (PDF, ePub, DOCX)
-- Direct integration with publishing platforms
-- Professional manuscript formatting
-- Beta reader collaboration tools
+**Quality Assurance Dashboard**
+- Review automated quality assessments from Critic Agent
+- Examine consistency validation reports from Fact Checker Agent
+- Approve or request revision of generated content
+- Track quality metrics and improvement trends
+
+**Publication Pipeline**
+- Export completed novels in multiple professional formats
+- Integration with major self-publishing platforms
+- Professional manuscript formatting with industry standards
+- Version control and backup management for all content
 
 ## User Experience Goals
 
@@ -184,7 +250,16 @@ author: Claude Code PM System
 - **Genre Specialization**: AI agents trained for specific fiction genres
 
 ### User Experience Innovation
-- **Collaborative Intelligence**: AI as writing partner, not replacement
-- **Adaptive Learning**: System improves based on individual user preferences
-- **Seamless Integration**: Works with existing writing tools and workflows
-- **Professional Output**: Publication-ready manuscripts with minimal additional editing
+- **Supervisory Control**: Human oversight with intelligent automation
+- **Event-Driven Updates**: Real-time progress monitoring through SSE streams
+- **Multi-Database Intelligence**: Sophisticated knowledge persistence across Neo4j, Milvus, and PostgreSQL
+- **Professional Automation**: End-to-end novel generation with publication-quality output
+
+## Update History
+- 2025-08-28: Major update based on comprehensive architecture documentation
+  - Updated product overview to reflect fully automated novel generation capability
+  - Expanded multi-agent system from 4 to 10 specialized agents with detailed roles
+  - Added comprehensive event-driven novel generation workflow description
+  - Updated user features to emphasize supervisory control rather than assistive writing
+  - Added workflow orchestration details with Prefect, Kafka, and database integration
+  - Refined competitive advantages to reflect advanced architectural capabilities
