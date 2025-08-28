@@ -13,6 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Learning from existing code** - Study and plan before implementing
 - **Pragmatic over dogmatic** - Adapt to project reality
 - **Clear intent over clever code** - Be boring and obvious
+- Follow SOLID principles and prefer composition over inheritance
+- Use dependency injection for testability
+- Apply repository pattern for data access and strategy pattern for algorithms
 
 ### Simplicity Means
 
@@ -44,6 +47,11 @@ Break complex work into 3-5 stages. Document in `IMPLEMENTATION_PLAN.md`:
 3. **Implement** - Minimal code to pass (green)
 4. **Refactor** - Clean up with tests passing
 5. **Commit** - With clear message linking to plan
+
+- Search codebase first when uncertain
+- Write tests for core functionality using TDD approach
+- Update documentation when modifying code
+- Make atomic commits for each completed feature stage and push
 
 ### 3. When Stuck (After 3 Attempts)
 
@@ -89,6 +97,11 @@ Break complex work into 3-5 stages. Document in `IMPLEMENTATION_PLAN.md`:
   - Run formatters/linters
   - Self-review changes
   - Ensure commit message explains "why"
+
+- Use descriptive names and avoid abbreviations or magic numbers
+- Keep functions under 20 lines and maintain concise files
+- Handle all error scenarios with meaningful messages
+- Comment "why" not "what"
 
 ### Error Handling
 
@@ -256,7 +269,7 @@ pnpm infra up                        # 启动所有本地服务
 pnpm infra down                      # 停止所有本地服务
 pnpm check services                  # 健康检查 (本地, 快速)
 pnpm check services:full             # 完整健康检查 (本地)
-pnpm check services --remote         # 健康检查 (开发服务器, 快速) 
+pnpm check services --remote         # 健康检查 (开发服务器, 快速)
 pnpm check services:full --remote    # 完整健康检查 (开发服务器)
 ```
 
