@@ -101,7 +101,7 @@ class TestSSEServiceIntegration:
     ):
         """Test successful SSE connection with valid token."""
         # Mock successful token verification
-        mock_verify_token.return_value = "test-user-123"
+        mock_verify_token.return_value = "123"
 
         # Mock connection manager response
         from fastapi.responses import StreamingResponse

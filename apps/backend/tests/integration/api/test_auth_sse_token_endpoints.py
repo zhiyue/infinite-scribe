@@ -13,7 +13,37 @@ from tests.unit.test_mocks import mock_email_service, mock_redis
 
 
 @pytest.fixture
-async def client_with_mocks(postgres_test_session):
+async def test_user(postgres_test_session):
+    """Create a test user for authentication tests."""
+    from src.models.user import User
+    from src.common.utils.datetime_utils import utc_now
+    from sqlalchemy import select
+
+    # Check if user already exists
+    result = await postgres_test_session.execute(select(User).where(User.id == 123))
+    existing_user = result.scalar_one_or_none()
+
+    if existing_user:
+        yield existing_user
+    else:
+        test_user = User(
+            id=123,
+            username="testuser",
+            email="testuser@example.com",
+            password_hash="$2b$12$test_hash",
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+
+        postgres_test_session.add(test_user)
+        await postgres_test_session.commit()
+        await postgres_test_session.refresh(test_user)
+
+        yield test_user
+
+
+@pytest.fixture
+async def client_with_mocks(postgres_test_session, test_user):
     """Create async test client with mocked dependencies using PostgreSQL."""
 
     def override_get_db():
@@ -40,7 +70,7 @@ def valid_access_token():
     """Create a valid access token for testing."""
     from src.common.services.jwt_service import jwt_service
 
-    user_id = "test-user-123"
+    user_id = "123"  # Use string representation of integer ID
     access_token, _, _ = jwt_service.create_access_token(user_id)
     return access_token
 
@@ -251,7 +281,9 @@ class TestSSETokenSecurity:
     """Security-focused tests for SSE token functionality."""
 
     @pytest.mark.asyncio
-    async def test_sse_token_different_secret_fails_verification(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_sse_token_different_secret_fails_verification(
+        self, client_with_mocks: AsyncClient, valid_access_token: str
+    ):
         """Test that SSE tokens signed with different secrets fail verification."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
@@ -321,7 +353,9 @@ class TestSSETokenSecurity:
         decoded_payload = json.loads(base64.urlsafe_b64decode(payload + "=="))
         decoded_payload["user_id"] = "tampered-user-id"
 
-        tampered_payload = base64.urlsafe_b64encode(json.dumps(decoded_payload, default=str).encode()).decode().rstrip("=")
+        tampered_payload = (
+            base64.urlsafe_b64encode(json.dumps(decoded_payload, default=str).encode()).decode().rstrip("=")
+        )
         tampered_token = f"{header}.{tampered_payload}.{signature}"
 
         # Act & Assert - Verification should fail

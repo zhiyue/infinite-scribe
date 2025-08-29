@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Configuration constants
+SSE_SERVICE_VERSION = "1.0.0"
+HEALTH_CHECK_TIMEOUT = 5.0
+
 
 class ConnectionStatistics(BaseModel):
     """SSE connection statistics model."""
@@ -132,35 +136,75 @@ async def sse_health(
     Returns:
         dict: Health status and connection statistics
     """
+    import asyncio
+    
     try:
-        # Get connection statistics
-        connection_stats = await sse_connection_manager.get_connection_count()
-
-        # Check Redis connectivity
-        redis_healthy = True
+        # Get connection statistics with timeout protection
         try:
-            # Simple Redis ping to check connectivity
-            if redis_sse_service._pubsub_client:
-                await redis_sse_service._pubsub_client.ping()
+            connection_stats = await asyncio.wait_for(
+                sse_connection_manager.get_connection_count(),
+                timeout=HEALTH_CHECK_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Connection statistics query timed out")
+            # Provide safe defaults if stats query times out
+            connection_stats = {
+                "active_connections": -1,  # -1 indicates unavailable
+                "redis_connection_counters": -1
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get connection statistics: {e}")
+            connection_stats = {
+                "active_connections": -1,
+                "redis_connection_counters": -1
+            }
+
+        # Check Redis connectivity with timeout and proper encapsulation handling
+        redis_healthy = False
+        try:
+            # Check if Redis service has a client initialized
+            if hasattr(redis_sse_service, '_pubsub_client') and redis_sse_service._pubsub_client:
+                # Use timeout for Redis ping operation
+                await asyncio.wait_for(
+                    redis_sse_service._pubsub_client.ping(),
+                    timeout=HEALTH_CHECK_TIMEOUT
+                )
+                redis_healthy = True
+            else:
+                logger.warning("Redis client not initialized")
+                redis_healthy = False
+        except asyncio.TimeoutError:
+            logger.warning("Redis health check timed out")
+            redis_healthy = False
         except Exception as e:
             logger.warning(f"Redis health check failed: {e}")
             redis_healthy = False
 
+        # Determine overall service status
+        overall_status = "healthy" if redis_healthy else "degraded"
+        if connection_stats.get("active_connections", -1) == -1:
+            overall_status = "unhealthy"  # Can't get basic stats
+
         health_data = SSEHealthResponse(
-            status="healthy" if redis_healthy else "degraded",
+            status=overall_status,
             redis_status="healthy" if redis_healthy else "unhealthy",
             connection_statistics=ConnectionStatistics(**connection_stats),
             service="sse",
-            version="1.0.0",
+            version=SSE_SERVICE_VERSION,
         )
 
-        # Return 503 if Redis is unhealthy
-        if not redis_healthy:
+        # Return 503 if service is unhealthy or degraded
+        if overall_status in ["unhealthy", "degraded"]:
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_data.model_dump())
 
         return health_data
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        error_response = SSEHealthErrorResponse(status="unhealthy", error=str(e), service="sse", version="1.0.0")
+        error_response = SSEHealthErrorResponse(
+            status="unhealthy",
+            error=str(e),
+            service="sse",
+            version=SSE_SERVICE_VERSION
+        )
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_response.model_dump())

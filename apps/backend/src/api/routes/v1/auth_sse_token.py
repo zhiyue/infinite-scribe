@@ -1,6 +1,7 @@
 """SSE token authentication endpoints."""
 
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -56,6 +57,7 @@ async def create_sse_token(
         "token_type": "sse",
         "exp": expires_at,
         "iat": now,
+        "jti": secrets.token_urlsafe(16),  # Add random JWT ID to ensure uniqueness
     }
 
     # Encode SSE token using the same secret as JWT
