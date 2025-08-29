@@ -4,7 +4,7 @@
 
 ### Redis SSE服务基础设施
 
-- [ ] 1. 扩展Redis服务支持SSE Pub/Sub和Streams
+- [x] 1. 扩展Redis服务支持SSE Pub/Sub和Streams
   - 在`apps/backend/src/common/services/redis_service.py`基础上创建`RedisSSEService`
   - 实现`publish_event()`方法：先XADD到Stream获取ID，再发布指针到Pub/Sub
   - 实现`subscribe_user_events()`：订阅Pub/Sub获取指针，从Stream读取完整数据

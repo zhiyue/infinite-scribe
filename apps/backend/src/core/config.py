@@ -137,6 +137,12 @@ class DatabaseSettings(BaseModel):
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
     redis_password: str = Field(default="")
+    
+    # Redis SSE Settings
+    redis_sse_stream_maxlen: int = Field(
+        default=1000,
+        description="Maximum length for Redis SSE event streams (XADD maxlen parameter)"
+    )
 
     @property
     def postgres_url(self) -> str:
