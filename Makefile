@@ -47,7 +47,7 @@ backend-format: ## Format backend code
 .PHONY: backend-typecheck
 backend-typecheck: ## Type check backend code
 	@echo "$(GREEN)Type checking backend code...$(NC)"
-	uv run mypy apps/backend/src/ --ignore-missing-imports
+	cd apps/backend && uv run mypy src/ --ignore-missing-imports
 
 .PHONY: backend-test-unit
 backend-test-unit: ## Run backend unit tests only (local)

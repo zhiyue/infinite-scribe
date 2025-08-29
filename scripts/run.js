@@ -27,7 +27,7 @@ const CONFIG = {
         run: 'uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000',
         lint: 'uv run ruff check src/',
         format: 'uv run ruff format src/',
-        typecheck: 'uv run mypy apps/backend/src/ --ignore-missing-imports',
+        typecheck: 'uv run mypy src/ --ignore-missing-imports',
         test: 'uv run pytest tests/unit/ -v',
         'api:simple': './scripts/run-api-gateway-simple.sh',
         'api:local': './scripts/run-api-gateway-local.sh',
