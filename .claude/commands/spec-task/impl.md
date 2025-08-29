@@ -208,7 +208,6 @@ argument-hint: <feature-name> <task-numbers>
 4. 最终质量验证（强制要求）：
    - 使用 code-simplifier 代理：检查并简化代码复杂度
    - 使用 code-review-expert 代理：审查代码质量和规范
-   - 使用 test-runner 代理：运行完整测试套件
    - 结果：所有代理验证通过，任务标记为完成
 ```
 
@@ -229,7 +228,7 @@ argument-hint: <feature-name> <task-numbers>
 
 ## 最终质量验证流程（强制要求）
 
-每个任务完成后，必须按顺序使用以下三个专门代理进行质量验证：
+每个任务完成后，必须按顺序使用以下两个专门代理进行质量验证：
 
 ### 1. 代码简化验证 (code-simplifier)
 
