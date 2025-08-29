@@ -129,7 +129,7 @@ class RedisSSEService:
 
     async def publish_event(self, user_id: str, event: SSEMessage) -> str:
         """Publish event to user channel via Streams + Pub/Sub architecture."""
-        client = self._get_pubsub_client()
+        client: Redis = self._get_pubsub_client()
 
         stream_key = f"events:user:{user_id}"
         channel = f"sse:user:{user_id}"
@@ -153,7 +153,7 @@ class RedisSSEService:
 
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
         """Subscribe to real-time user events using pointer-based architecture."""
-        client = self._get_pubsub_client()
+        client: Redis = self._get_pubsub_client()
 
         channel = f"sse:user:{user_id}"
         pubsub = client.pubsub()
