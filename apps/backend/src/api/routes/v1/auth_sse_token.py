@@ -100,7 +100,7 @@ def verify_sse_token(sse_token: str) -> str:
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-        return user_id
+        return str(user_id)
 
     except ExpiredSignatureError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SSE token has expired") from e

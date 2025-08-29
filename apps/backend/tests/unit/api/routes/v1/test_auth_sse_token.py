@@ -23,7 +23,7 @@ class TestCreateSSEToken:
         mock_settings.auth.jwt_algorithm = "HS256"
 
         mock_user = Mock(spec=User)
-        mock_user.id = "test-user-123"
+        mock_user.id = 123
 
         # Act
         response = await create_sse_token(mock_user)
@@ -50,7 +50,7 @@ class TestCreateSSEToken:
         mock_settings.auth.jwt_algorithm = "HS256"
 
         mock_user = Mock(spec=User)
-        mock_user.id = "test-user-456"
+        mock_user.id = 456
 
         # Act
         response = await create_sse_token(mock_user)
@@ -63,7 +63,7 @@ class TestCreateSSEToken:
         )
 
         # Assert
-        assert decoded_payload["user_id"] == "test-user-456"
+        assert decoded_payload["user_id"] == 456
         assert decoded_payload["token_type"] == "sse"
         assert "exp" in decoded_payload
         assert "iat" in decoded_payload
@@ -82,7 +82,7 @@ class TestVerifySSEToken:
 
         # Create a valid SSE token
         payload = {
-            "user_id": "test-user-123",
+            "user_id": 123,
             "token_type": "sse",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
@@ -93,7 +93,7 @@ class TestVerifySSEToken:
         user_id = verify_sse_token(token)
 
         # Assert
-        assert user_id == "test-user-123"
+        assert user_id == "123"
 
     @patch("src.api.routes.v1.auth_sse_token.settings")
     def test_verify_sse_token_invalid_token_type(self, mock_settings):
@@ -104,7 +104,7 @@ class TestVerifySSEToken:
 
         # Create a token with wrong type
         payload = {
-            "user_id": "test-user-123",
+            "user_id": 123,
             "token_type": "access",  # Wrong type
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
@@ -149,7 +149,7 @@ class TestVerifySSEToken:
 
         # Create an expired token
         payload = {
-            "user_id": "test-user-123",
+            "user_id": 123,
             "token_type": "sse",
             "exp": datetime.now(UTC) - timedelta(seconds=1),  # Expired
             "iat": datetime.now(UTC) - timedelta(seconds=61),
@@ -173,7 +173,7 @@ class TestVerifySSEToken:
 
         # Create a token with wrong secret
         payload = {
-            "user_id": "test-user-123",
+            "user_id": 123,
             "token_type": "sse",
             "exp": datetime.now(UTC) + timedelta(seconds=60),
             "iat": datetime.now(UTC),
@@ -203,6 +203,22 @@ class TestVerifySSEToken:
 
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
         assert exc_info.value.detail == "Invalid token"
+
+    def test_verify_sse_token_empty_token(self):
+        """Test SSE token verification handles empty/None tokens."""
+        # Act & Assert - Test empty string
+        with pytest.raises(HTTPException) as exc_info:
+            verify_sse_token("")
+
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+        assert exc_info.value.detail == "Token is required"
+
+        # Act & Assert - Test whitespace only
+        with pytest.raises(HTTPException) as exc_info:
+            verify_sse_token("   ")
+
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+        assert exc_info.value.detail == "Token is required"
 
 
 class TestSSETokenModels:

@@ -32,7 +32,7 @@
   - 编写SSE端点的集成测试
   - _需求：1.1-1.7_
 
-- [ ] 2.1 实现SSE认证Token服务
+- [x] 2.1 实现SSE认证Token服务
   - 在`apps/backend/src/api/v1/auth.py`中添加`POST /api/v1/auth/sse-token`端点
   - 实现短期SSE专用Token生成（60秒TTL，从JWT派生）
   - 添加Token验证和用户ID解析逻辑
