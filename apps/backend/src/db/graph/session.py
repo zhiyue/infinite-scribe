@@ -80,7 +80,7 @@ async def execute_query(
         # Wrap the dynamic Cypher string in a `Query` object to satisfy
         # the updated Neo4j type stubs that expect either a `LiteralString`
         # or a `neo4j.Query` instance.
-        cypher_query = Query(cast(LiteralString, query), parameters or {})
+        cypher_query = Query(query, parameters or {})
         result = await session.run(cypher_query)
         return await result.data()
 

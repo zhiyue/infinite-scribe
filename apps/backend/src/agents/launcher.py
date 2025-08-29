@@ -34,7 +34,8 @@ class AgentLauncher:
 
                 # 查找 Agent 类(约定类名为 AgentNameAgent)
                 agent_class_name = f"{agent_name.capitalize()}Agent"
-                agent_class: type[BaseAgent] = getattr(module, agent_class_name, None)
+                # Dynamic import: allow unknown constructor signature for concrete agents
+                agent_class: type[Any] | None = getattr(module, agent_class_name, None)
 
                 if agent_class:
                     # 创建 agent 实例

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from src.db.sql.base import Base
-from src.schemas.genesis_events import GenesisEventType
+from src.schemas.enums import GenesisEventType
 
 
 class DomainEvent(Base):

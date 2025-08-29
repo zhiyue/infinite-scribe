@@ -85,8 +85,8 @@ class UserService:
 
             # Create email verification token
             verification = EmailVerification.create_for_user(
-                user_id=cast(int, user.id),
-                email=cast(str, user.email),
+                user_id=user.id,
+                email=user.email,
                 purpose=VerificationPurpose.EMAIL_VERIFY,
                 expires_in_hours=settings.auth.email_verification_expire_hours,
             )
@@ -100,14 +100,14 @@ class UserService:
                 # 使用异步任务发送邮件
                 await email_tasks.send_verification_email_async(
                     background_tasks,
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     verification_url,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
                 await self.email_service.send_verification_email(
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     verification_url,
                 )
@@ -164,7 +164,7 @@ class UserService:
                 return {"success": False, "error": "Please verify your email before logging in"}
 
             # Verify password
-            if not self.password_service.verify_password(password, cast(str, user.password_hash)):
+            if not self.password_service.verify_password(password, user.password_hash):
                 # Increment failed login attempts
                 user.failed_login_attempts = getattr(user, "failed_login_attempts", 0) + 1
                 remaining_attempts = settings.auth.account_lockout_attempts - user.failed_login_attempts
@@ -296,13 +296,13 @@ class UserService:
                 # 使用异步任务发送邮件
                 await email_tasks.send_welcome_email_async(
                     background_tasks,
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
                 await self.email_service.send_welcome_email(
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                 )
 
@@ -352,8 +352,8 @@ class UserService:
 
             # 创建新的验证令牌
             verification = EmailVerification.create_for_user(
-                user_id=cast(int, user.id),
-                email=cast(str, user.email),
+                user_id=user.id,
+                email=user.email,
                 purpose=VerificationPurpose.EMAIL_VERIFY,
                 expires_in_hours=settings.auth.email_verification_expire_hours,
             )
@@ -368,14 +368,14 @@ class UserService:
                 # 使用异步任务发送邮件
                 await email_tasks.send_verification_email_async(
                     background_tasks,
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     verification_url,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
                 await self.email_service.send_verification_email(
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     verification_url,
                 )
@@ -421,8 +421,8 @@ class UserService:
 
             # Create password reset token
             verification = EmailVerification.create_for_user(
-                user_id=cast(int, user.id),
-                email=cast(str, user.email),
+                user_id=user.id,
+                email=user.email,
                 purpose=VerificationPurpose.PASSWORD_RESET,
                 expires_in_hours=settings.auth.password_reset_expire_hours,
             )
@@ -436,14 +436,14 @@ class UserService:
                 # 使用异步任务发送邮件
                 await email_tasks.send_password_reset_email_async(
                     background_tasks,
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     reset_url,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
                 await self.email_service.send_password_reset_email(
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                     reset_url,
                 )
@@ -543,11 +543,11 @@ class UserService:
                 return {"success": False, "error": "User not found"}
 
             # Verify current password
-            if not self.password_service.verify_password(current_password, cast(str, user.password_hash)):
+            if not self.password_service.verify_password(current_password, user.password_hash):
                 return {"success": False, "error": "Current password is incorrect"}
 
             # Check if new password is the same as current
-            if self.password_service.verify_password(new_password, cast(str, user.password_hash)):
+            if self.password_service.verify_password(new_password, user.password_hash):
                 return {"success": False, "error": "New password must be different from current password"}
 
             # Validate new password strength
@@ -568,9 +568,7 @@ class UserService:
                 session.revoke("Password changed")
                 # Blacklist access tokens
                 if session.jti and session.access_token_expires_at:
-                    self.jwt_service.blacklist_token(
-                        cast(str, session.jti), cast(datetime, session.access_token_expires_at)
-                    )
+                    self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
 
             await db.commit()
 
@@ -579,13 +577,13 @@ class UserService:
                 # 使用异步任务发送邮件
                 await email_tasks.send_password_changed_email_async(
                     background_tasks,
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
                 await self.email_service.send_password_changed_email(
-                    cast(str, user.email),
+                    user.email,
                     user.full_name,
                 )
 
@@ -619,9 +617,7 @@ class UserService:
                 await session_service.revoke_session(db, session, "New login - single device policy")
                 # 黑名单旧的访问令牌
                 if session.jti and session.access_token_expires_at:
-                    self.jwt_service.blacklist_token(
-                        cast(str, session.jti), cast(datetime, session.access_token_expires_at)
-                    )
+                    self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
 
         elif strategy == "max_sessions":
             # 限制最大会话数：检查活跃会话数量
@@ -640,9 +636,7 @@ class UserService:
                     await session_service.revoke_session(db, session, f"Max sessions exceeded ({max_sessions})")
                     # 黑名单旧的访问令牌
                     if session.jti and session.access_token_expires_at:
-                        self.jwt_service.blacklist_token(
-                            cast(str, session.jti), cast(datetime, session.access_token_expires_at)
-                        )
+                        self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
 
         # multi_device 策略不需要做任何处理，允许所有会话共存
 
@@ -662,9 +656,7 @@ class UserService:
 
             if session:
                 # Blacklist token
-                self.jwt_service.blacklist_token(
-                    cast(str, session.jti), cast(datetime, session.access_token_expires_at)
-                )
+                self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
 
                 # Revoke session and invalidate cache
                 await session_service.revoke_session(db, session, "User logout")

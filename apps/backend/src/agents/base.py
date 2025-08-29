@@ -72,7 +72,12 @@ class BaseAgent(ABC):
     async def _consume_messages(self):
         """消费 Kafka 消息的主循环"""
         try:
-            async for msg in self.consumer:
+            consumer = self.consumer
+            if consumer is None:
+                logger.error(f"{self.name} 消费者未初始化")
+                return
+
+            async for msg in consumer:
                 if not self.is_running:
                     break
 
@@ -89,7 +94,7 @@ class BaseAgent(ABC):
                     result: dict[str, Any] | None = await self.process_message(msg.value)
 
                     # 如果有返回结果,发送到对应主题
-                    if result and self.producer:
+                    if result:
                         await self._send_result(result)
 
                 except Exception as e:
@@ -107,7 +112,11 @@ class BaseAgent(ABC):
 
         if topic:
             try:
-                await self.producer.send_and_wait(topic, result)
+                producer = self.producer
+                if producer is None:
+                    logger.error(f"{self.name} 生产者未初始化,无法发送消息到 {topic}")
+                    return
+                await producer.send_and_wait(topic, result)
                 logger.debug(f"{self.name} 发送结果到主题: {topic}")
             except KafkaError as e:
                 logger.error(f"{self.name} 发送结果失败: {e}")

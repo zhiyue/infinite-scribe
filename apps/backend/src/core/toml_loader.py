@@ -98,7 +98,7 @@ def flatten_config(config: dict[str, Any], parent_key: str = "") -> dict[str, An
     变为：
     {'database__postgres_host': 'localhost'}
     """
-    items = []
+    items: list[tuple[str, Any]] = []
     for k, v in config.items():
         new_key = f"{parent_key}__{k}" if parent_key else k
         if isinstance(v, dict):
