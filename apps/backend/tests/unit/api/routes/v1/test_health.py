@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from src.api.main import app
 
 
@@ -23,7 +23,7 @@ async def test_health_check_success():
         mock_redis.return_value = True
         mock_embedding.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_200_OK
@@ -52,7 +52,7 @@ async def test_health_check_postgres_failure():
         mock_redis.return_value = True
         mock_embedding.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -78,7 +78,7 @@ async def test_health_check_neo4j_failure():
         mock_redis.return_value = True
         mock_embedding.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -104,7 +104,7 @@ async def test_health_check_all_services_failure():
         mock_redis.return_value = False
         mock_embedding.return_value = False
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -131,7 +131,7 @@ async def test_health_check_exception_handling():
         mock_redis.return_value = True
         mock_embedding.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -153,7 +153,7 @@ async def test_readiness_check_success():
         mock_pg_schema.return_value = True
         mock_neo4j_constraints.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/ready")
 
         assert response.status_code == status.HTTP_200_OK
@@ -170,7 +170,7 @@ async def test_readiness_check_connection_failure():
         mock_pg_conn.return_value = False
         mock_neo4j_conn.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/ready")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -193,7 +193,7 @@ async def test_readiness_check_schema_failure():
         mock_pg_schema.return_value = False
         mock_neo4j_constraints.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/ready")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -213,7 +213,7 @@ async def test_readiness_check_exception():
         mock_pg_conn.side_effect = Exception("Database error")
         mock_neo4j_conn.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/ready")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE

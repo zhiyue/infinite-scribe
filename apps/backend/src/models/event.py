@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, DateTime, Index, Integer, Text
@@ -65,9 +65,9 @@ class DomainEvent(Base):
         event_type: GenesisEventType,
         session_id: UUID,
         payload: dict[str, Any],
-        correlation_id: Optional[UUID] = None,
-        causation_id: Optional[UUID] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> DomainEvent:
         """Create a genesis domain event"""
 
@@ -89,7 +89,7 @@ class DomainEvent(Base):
         except ValueError:
             return False
 
-    def get_session_id(self) -> Optional[UUID]:
+    def get_session_id(self) -> UUID | None:
         """Get session ID from genesis events"""
         if self.aggregate_type == "GenesisSession":
             try:

@@ -3,7 +3,7 @@ Genesis workflow domain event models and utilities
 """
 
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -95,18 +95,18 @@ class NovelCreatedFromGenesisPayload(GenesisEventPayload):
 
 
 # Union type for all genesis event payloads
-GenesisEventPayloadUnion = Union[
-    GenesisSessionStartedPayload,
-    StageEnteredPayload,
-    StageCompletedPayload,
-    ConceptSelectedPayload,
-    InspirationGeneratedPayload,
-    FeedbackProvidedPayload,
-    AIGenerationStartedPayload,
-    AIGenerationCompletedPayload,
-    NovelCreatedFromGenesisPayload,
-    GenesisEventPayload,  # Generic payload for other events
-]
+GenesisEventPayloadUnion = (
+    GenesisSessionStartedPayload
+    | StageEnteredPayload
+    | StageCompletedPayload
+    | ConceptSelectedPayload
+    | InspirationGeneratedPayload
+    | FeedbackProvidedPayload
+    | AIGenerationStartedPayload
+    | AIGenerationCompletedPayload
+    | NovelCreatedFromGenesisPayload
+    | GenesisEventPayload  # Generic payload for other events
+)
 
 
 class GenesisEventCreate(BaseSchema):

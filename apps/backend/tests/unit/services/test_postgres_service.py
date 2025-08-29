@@ -313,9 +313,12 @@ class TestPostgreSQLService:
 
     @pytest.mark.asyncio
     @patch.object(PostgreSQLService, "acquire")
-    async def test_execute_without_parameters(self, mock_acquire, service):
+    @patch.object(PostgreSQLService, "connect")
+    async def test_execute_without_parameters(self, mock_connect, mock_acquire, service):
         """Test execute without parameters."""
-        # Setup
+        # Setup - simulate already connected state
+        service._pool = MagicMock()  # Mock pool to avoid connect() call
+        
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
 
@@ -335,12 +338,16 @@ class TestPostgreSQLService:
         # Verify
         mock_conn.fetch.assert_called_once_with("SELECT id, name FROM users")
         assert len(result) == 1
+        mock_connect.assert_not_called()  # Should not call connect since pool exists
 
     @pytest.mark.asyncio
     @patch.object(PostgreSQLService, "acquire")
-    async def test_execute_with_parameters(self, mock_acquire, service):
+    @patch.object(PostgreSQLService, "connect")
+    async def test_execute_with_parameters(self, mock_connect, mock_acquire, service):
         """Test execute with parameters."""
-        # Setup
+        # Setup - simulate already connected state
+        service._pool = MagicMock()  # Mock pool to avoid connect() call
+        
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
 
@@ -357,12 +364,16 @@ class TestPostgreSQLService:
         # Verify
         mock_conn.fetch.assert_called_once_with("SELECT * FROM users WHERE id = $1 AND name = $2", 1, "test")
         assert len(result) == 1
+        mock_connect.assert_not_called()  # Should not call connect since pool exists
 
     @pytest.mark.asyncio
     @patch.object(PostgreSQLService, "acquire")
-    async def test_execute_with_list_parameters(self, mock_acquire, service):
+    @patch.object(PostgreSQLService, "connect")
+    async def test_execute_with_list_parameters(self, mock_connect, mock_acquire, service):
         """Test execute with list parameters."""
-        # Setup
+        # Setup - simulate already connected state
+        service._pool = MagicMock()  # Mock pool to avoid connect() call
+        
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
         mock_conn.fetch.return_value = []
@@ -375,12 +386,16 @@ class TestPostgreSQLService:
         # Verify
         mock_conn.fetch.assert_called_once_with("SELECT * FROM users WHERE id = $1 AND name = $2", 1, "test")
         assert result == []
+        mock_connect.assert_not_called()  # Should not call connect since pool exists
 
     @pytest.mark.asyncio
     @patch.object(PostgreSQLService, "acquire")
-    async def test_execute_empty_result(self, mock_acquire, service):
+    @patch.object(PostgreSQLService, "connect")
+    async def test_execute_empty_result(self, mock_connect, mock_acquire, service):
         """Test execute with empty result."""
-        # Setup
+        # Setup - simulate already connected state
+        service._pool = MagicMock()  # Mock pool to avoid connect() call
+        
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
         mock_conn.fetch.return_value = []
@@ -389,7 +404,9 @@ class TestPostgreSQLService:
         result = await service.execute("SELECT * FROM users WHERE id = -1")
 
         # Verify
+        mock_conn.fetch.assert_called_once_with("SELECT * FROM users WHERE id = -1")
         assert result == []
+        mock_connect.assert_not_called()  # Should not call connect since pool exists
 
     def test_module_instance_available(self):
         """Test that the module-level instance is available."""

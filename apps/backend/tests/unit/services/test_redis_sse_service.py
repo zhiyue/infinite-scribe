@@ -273,20 +273,15 @@ class TestRedisSSEService:
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
-        # Mock XREAD response with corrupted data
-        stream_entries = [
+        # Mock XRANGE response with corrupted data (since since_id="-" uses xrange)
+        stream_items = [
+            ("1693507200000-0", {"event": "task.progress-updated", "data": "invalid-json"}),
             (
-                "events:user:user-123",
-                [
-                    ("1693507200000-0", {"event": "task.progress-updated", "data": "invalid-json"}),
-                    (
-                        "1693507300000-0",
-                        {"event": "task.progress-updated", "data": json.dumps({"task_id": "test-123", "progress": 50})},
-                    ),
-                ],
-            )
+                "1693507300000-0",
+                {"event": "task.progress-updated", "data": json.dumps({"task_id": "test-123", "progress": 50})},
+            ),
         ]
-        mock_redis_client.xread.return_value = stream_entries
+        mock_redis_client.xrange.return_value = stream_items
 
         # Act
         events = await redis_sse_service.get_recent_events("user-123", "-")
@@ -406,5 +401,95 @@ class TestRedisSSEService:
         mock_redis_client.xrange.assert_called_once_with(stream_key, stream_id, stream_id, count=1)
 
         # Verify cleanup still occurs
+        mock_pubsub.unsubscribe.assert_called_once()
+        mock_pubsub.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_publish_and_subscribe_minimal_interaction(
+        self, redis_sse_service, mock_redis_acquire, sample_sse_message
+    ):
+        """Minimal end-to-end: publish then receive via subscribe."""
+        # Arrange
+        user_id = "user-xyz"
+        stream_id = "1700000000000-0"
+
+        # Async queue to simulate Pub/Sub pointer delivery
+        import asyncio
+
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        # Mock Pub/Sub client and its pubsub() listener
+        mock_pubsub_client = AsyncMock()
+        redis_sse_service._pubsub_client = mock_pubsub_client
+
+        subscribed = asyncio.Event()
+
+        mock_pubsub = MagicMock()
+        mock_pubsub.subscribe = AsyncMock(side_effect=lambda channel: subscribed.set())
+        mock_pubsub.unsubscribe = AsyncMock()
+        mock_pubsub.close = AsyncMock()
+        mock_pubsub_client.pubsub = MagicMock(return_value=mock_pubsub)
+
+        async def listen_gen():
+            # Initial subscribe event ignored by service
+            yield {"type": "subscribe"}
+            # Wait until a pointer is published, then forward it
+            msg = await queue.get()
+            yield msg
+
+        mock_pubsub.listen.return_value = listen_gen()
+
+        async def mock_publish(channel: str, data: str):
+            await queue.put({"type": "message", "data": data})
+            return 1
+
+        mock_pubsub_client.publish.side_effect = mock_publish
+
+        # Mock Redis stream client used by RedisService.acquire()
+        mock_redis_client = AsyncMock()
+        redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
+
+        # xadd returns a predictable stream id
+        mock_redis_client.xadd.return_value = stream_id
+
+        # XRANGE returns the event stored at that id
+        mock_redis_client.xrange.return_value = [
+            (
+                stream_id,
+                {
+                    "event": sample_sse_message.event,
+                    "data": json.dumps(sample_sse_message.data),
+                },
+            )
+        ]
+
+        # Act: start subscriber task first
+        async def get_one_event():
+            async for ev in redis_sse_service.subscribe_user_events(user_id):
+                return ev
+            return None
+
+        sub_task = asyncio.create_task(get_one_event())
+
+        # Ensure subscription set up before publishing
+        await asyncio.wait_for(subscribed.wait(), timeout=1.0)
+
+        # Publish one event
+        pub_stream_id = await redis_sse_service.publish_event(user_id, sample_sse_message)
+
+        # Await receipt
+        received = await asyncio.wait_for(sub_task, timeout=2.0)
+
+        # Assert
+        assert pub_stream_id == stream_id
+        assert received is not None
+        assert received.event == sample_sse_message.event
+        assert received.data == sample_sse_message.data
+        assert received.id == stream_id
+
+        # Allow time for async generator cleanup to complete
+        await asyncio.sleep(0.01)
+
+        # Cleanup assertions
         mock_pubsub.unsubscribe.assert_called_once()
         mock_pubsub.close.assert_called_once()

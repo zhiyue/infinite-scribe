@@ -474,7 +474,7 @@ class TestUserService:
             background_tasks,
             user_data["email"],
             mock_user.full_name,
-            f"{user_service.frontend_url}/auth/verify-email?token=test_token",
+            f"{user_service.frontend_url}/verify-email?token=test_token",
         )
 
     @pytest.mark.asyncio
@@ -510,7 +510,7 @@ class TestUserService:
             background_tasks,
             sample_user.email,
             sample_user.full_name,
-            f"{user_service.frontend_url}/auth/reset-password?token=reset_token",
+            f"{user_service.frontend_url}/reset-password?token=reset_token",
         )
 
     @pytest.mark.asyncio
@@ -611,5 +611,5 @@ class TestUserService:
         # Assert - should use sync email sending
         assert result["success"] is True
         mock_email_service.send_verification_email.assert_called_once_with(
-            user_data["email"], mock_user.full_name, f"{user_service.frontend_url}/auth/verify-email?token=test_token"
+            user_data["email"], mock_user.full_name, f"{user_service.frontend_url}/verify-email?token=test_token"
         )

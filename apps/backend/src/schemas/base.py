@@ -66,6 +66,6 @@ class BaseDBModel(BaseModel):
             name != "updated_at"
             and name != "_BaseDBModel__pydantic_extra__"  # 避免内部属性
             and hasattr(self, "updated_at")
-            and "updated_at" in self.model_fields
+            and "updated_at" in self.__class__.model_fields
         ):
             super().__setattr__("updated_at", datetime.now(tz=UTC))

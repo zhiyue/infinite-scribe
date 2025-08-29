@@ -158,8 +158,10 @@ class BaseAgent(ABC):
 
     async def on_start(self):
         """启动时的钩子方法,子类可以重写"""
-        pass
+        # Provide a non-empty default implementation to satisfy linting rules
+        logger.debug(f"{self.name} on_start hook invoked (default no-op)")
 
     async def on_stop(self):
         """停止时的钩子方法,子类可以重写"""
-        pass
+        # Provide a non-empty default implementation to satisfy linting rules
+        logger.debug(f"{self.name} on_stop hook invoked (default no-op)")

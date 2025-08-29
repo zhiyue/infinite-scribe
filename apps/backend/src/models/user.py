@@ -105,7 +105,6 @@ class User(BaseModel):
             "created_at": self.created_at.isoformat() if self.created_at is not None else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
             "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
-            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,  # 默认包含 last_login_at
         }
 
         if include_sensitive:
@@ -114,6 +113,7 @@ class User(BaseModel):
                     "failed_login_attempts": self.failed_login_attempts,
                     "is_locked": self.is_locked,
                     "locked_until": self.locked_until.isoformat() if self.locked_until else None,
+                    "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
                     "last_login_ip": self.last_login_ip,
                     "password_changed_at": self.password_changed_at.isoformat() if self.password_changed_at else None,
                 }

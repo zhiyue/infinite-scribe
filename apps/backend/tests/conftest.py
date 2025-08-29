@@ -54,9 +54,15 @@ async def create_async_context_mock(return_value):
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator:
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+def event_loop():
+    """Create an instance of the default event loop for the test session.
+    
+    This fixture is needed for session-scoped async fixtures like test_engine and postgres_test_engine.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 

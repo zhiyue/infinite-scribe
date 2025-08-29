@@ -7,7 +7,7 @@ SQLAlchemy 基础定义
 from typing import Any
 
 from sqlalchemy import MetaData
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 # 定义命名约定，用于自动生成约束名称
 naming_convention = {

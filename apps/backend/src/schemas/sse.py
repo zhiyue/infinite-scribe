@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EventScope(str, Enum):
@@ -77,8 +77,9 @@ class SSEMessage(BaseModel):
 
         return "\n".join(lines)
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)}
+    model_config = ConfigDict(
+        json_encoders={datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)}
+    )
 
 
 # ============================================================================

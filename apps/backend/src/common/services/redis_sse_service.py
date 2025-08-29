@@ -25,6 +25,8 @@ import logging
 from collections.abc import AsyncIterator
 
 import redis.asyncio as redis
+from redis.asyncio import Redis
+from redis.asyncio.client import PubSub
 
 from src.common.services.redis_service import RedisService
 from src.core.config import settings
@@ -72,7 +74,7 @@ class RedisSSEService:
     def __init__(self, redis_service: RedisService):
         """Initialize Redis SSE service with existing RedisService."""
         self.redis_service = redis_service
-        self._pubsub_client: redis.Redis | None = None
+        self._pubsub_client: Redis | None = None
 
     async def init_pubsub_client(self) -> None:
         """Initialize dedicated Redis client for Pub/Sub operations."""
@@ -96,6 +98,12 @@ class RedisSSEService:
         if not self._pubsub_client:
             raise RuntimeError("Pub/Sub client not initialized")
 
+    def _get_pubsub_client(self) -> Redis:
+        """Return initialized Pub/Sub client or raise if missing."""
+        if self._pubsub_client is None:
+            raise RuntimeError("Pub/Sub client not initialized")
+        return self._pubsub_client
+
     def _build_sse_message(self, event_type: str, data: str, stream_id: str) -> SSEMessage:
         """Build SSEMessage from stream data."""
         return SSEMessage(
@@ -107,7 +115,7 @@ class RedisSSEService:
             version="1.0",
         )
 
-    async def _safe_cleanup(self, pubsub: redis.client.PubSub, channel: str, user_id: str) -> None:
+    async def _safe_cleanup(self, pubsub: PubSub, channel: str, user_id: str) -> None:
         """Safely cleanup pubsub resources with timeout protection."""
         try:
             await asyncio.wait_for(pubsub.unsubscribe(channel), timeout=CLEANUP_TIMEOUT)
@@ -121,7 +129,7 @@ class RedisSSEService:
 
     async def publish_event(self, user_id: str, event: SSEMessage) -> str:
         """Publish event to user channel via Streams + Pub/Sub architecture."""
-        self._ensure_pubsub_client()
+        client = self._get_pubsub_client()
 
         stream_key = f"events:user:{user_id}"
         channel = f"sse:user:{user_id}"
@@ -139,16 +147,16 @@ class RedisSSEService:
         event.id = stream_id
 
         # Publish pointer for real-time notification
-        await self._pubsub_client.publish(channel, json.dumps({"stream_key": stream_key, "stream_id": stream_id}))
+        await client.publish(channel, json.dumps({"stream_key": stream_key, "stream_id": stream_id}))
 
         return stream_id
 
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
         """Subscribe to real-time user events using pointer-based architecture."""
-        self._ensure_pubsub_client()
+        client = self._get_pubsub_client()
 
         channel = f"sse:user:{user_id}"
-        pubsub = self._pubsub_client.pubsub()
+        pubsub = client.pubsub()
         await pubsub.subscribe(channel)
 
         try:
@@ -196,8 +204,6 @@ class RedisSSEService:
 
     async def get_recent_events(self, user_id: str, since_id: str = "-") -> list[SSEMessage]:
         """Retrieve historical events from Redis Streams for catch-up scenarios."""
-        self._ensure_pubsub_client()
-
         stream_key = f"events:user:{user_id}"
 
         async with self.redis_service.acquire() as redis_client:
