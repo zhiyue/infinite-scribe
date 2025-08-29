@@ -18,8 +18,7 @@ Architecture:
 import asyncio
 import json
 import logging
-import time
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
@@ -66,11 +65,96 @@ class SSEConnectionManager:
         # Returns EventSourceResponse with built-in ping and error handling
     """
 
+    # Configuration constants
+    MAX_CONNECTIONS_PER_USER = 2
+    CONNECTION_EXPIRY_SECONDS = 300
+    PING_INTERVAL_SECONDS = 15
+    SEND_TIMEOUT_SECONDS = 30
+    RECENT_EVENTS_LIMIT = 10
+    STALE_CONNECTION_THRESHOLD_SECONDS = 300
+
     def __init__(self, redis_sse_service: RedisSSEService):
         """Initialize SSE Connection Manager."""
         self.redis_sse = redis_sse_service
         self.connections: dict[str, SSEConnectionState] = {}
-        self.ping_interval = 15  # Built-in ping every 15 seconds
+        self.ping_interval = self.PING_INTERVAL_SECONDS
+
+    def _get_connection_key(self, user_id: str) -> str:
+        """Get Redis key for user connection counter."""
+        return f"user:{user_id}:sse_conns"
+
+    async def _safe_decr_counter(self, user_id: str) -> None:
+        """Safely decrement Redis counter with negative protection."""
+        if not self.redis_sse._pubsub_client:
+            return
+
+        conn_key = self._get_connection_key(user_id)
+        val = await self.redis_sse._pubsub_client.decr(conn_key)
+        if val < 0:
+            await self.redis_sse._pubsub_client.set(conn_key, 0)
+
+    async def _check_connection_limit(self, user_id: str) -> None:
+        """Check and enforce user connection limits."""
+        if not self.redis_sse._pubsub_client:
+            raise RuntimeError("Redis Pub/Sub client not initialized")
+
+        conn_key = self._get_connection_key(user_id)
+        current_conns = await self.redis_sse._pubsub_client.incr(conn_key)
+        await self.redis_sse._pubsub_client.expire(conn_key, self.CONNECTION_EXPIRY_SECONDS)
+
+        if current_conns > self.MAX_CONNECTIONS_PER_USER:
+            await self._safe_decr_counter(user_id)
+            raise HTTPException(status_code=429, detail="Too many concurrent SSE connections")
+
+    async def _create_event_generator(self, request: Request, user_id: str, connection_id: str):
+        """Create async generator for SSE events with history replay and real-time streaming."""
+        try:
+            # Push missed/historical events first (for reconnection)
+            async for event in self._send_historical_events(request, user_id):
+                yield event
+
+            # Stream real-time events with client disconnection detection
+            async for event in self._stream_realtime_events(request, user_id):
+                yield event
+
+        except asyncio.CancelledError:
+            logger.info(f"SSE stream cancelled for user {user_id}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in event generator for user {user_id}: {e}")
+            # Send error event to client
+            yield ServerSentEvent(data=json.dumps({"error": "Stream error occurred", "reconnect": True}), event="error")
+        finally:
+            # Cleanup connection state
+            await self._cleanup_connection(connection_id, user_id)
+
+    async def _send_historical_events(self, request: Request, user_id: str):
+        """Send historical events to newly connected client."""
+        try:
+            recent_events = await self.redis_sse.get_recent_events(user_id, since_id="-")
+            for event in recent_events[-self.RECENT_EVENTS_LIMIT :]:
+                if await request.is_disconnected():
+                    logger.info(f"Client disconnected during history replay for user {user_id}")
+                    return
+
+                yield ServerSentEvent(data=json.dumps(event.data, ensure_ascii=False), event=event.event, id=event.id)
+        except Exception as e:
+            logger.error(f"Error pushing missed events for user {user_id}: {e}")
+
+    async def _stream_realtime_events(self, request: Request, user_id: str):
+        """Stream real-time events to client with disconnection detection."""
+        async for sse_message in self.redis_sse.subscribe_user_events(user_id):
+            # Check for client disconnection (sse-starlette feature)
+            if await request.is_disconnected():
+                logger.info(f"Client disconnected for user {user_id}, stopping event stream")
+                break
+
+            # Use ServerSentEvent for structured events
+            yield ServerSentEvent(
+                data=json.dumps(sse_message.data, ensure_ascii=False),
+                event=sse_message.event,
+                id=sse_message.id,
+            )
 
     async def add_connection(self, request: Request, user_id: str) -> EventSourceResponse:
         """
@@ -94,82 +178,23 @@ class SSEConnectionManager:
             HTTPException: If user exceeds concurrency limits (429)
             RuntimeError: If Redis client is not initialized
         """
-        if not self.redis_sse._pubsub_client:
-            raise RuntimeError("Redis Pub/Sub client not initialized")
-
-        # 1) Enforce concurrency limits using Redis counters
-        conn_key = f"user:{user_id}:sse_conns"
-        current_conns = await self.redis_sse._pubsub_client.incr(conn_key)
-        await self.redis_sse._pubsub_client.expire(conn_key, 300)
-
-        if current_conns > 2:
-            # Rollback counter and reject connection
-            val = await self.redis_sse._pubsub_client.decr(conn_key)
-            if val < 0:
-                await self.redis_sse._pubsub_client.set(conn_key, 0)
-            raise HTTPException(status_code=429, detail="Too many concurrent SSE connections")
+        # 1) Enforce concurrency limits
+        await self._check_connection_limit(user_id)
 
         # 2) Create connection state
         connection_id = str(uuid4())
         connection_state = SSEConnectionState(
             connection_id=connection_id,
             user_id=user_id,
-            connected_at=datetime.utcnow(),
+            connected_at=datetime.now(UTC),
         )
         self.connections[connection_id] = connection_state
 
-        # 3) Create async generator with enhanced sse-starlette features
-        async def event_generator():
-            """Production-ready async generator with client disconnection detection."""
-            try:
-                # Push missed/historical events first (for reconnection)
-                try:
-                    recent_events = await self.redis_sse.get_recent_events(user_id, since_id="-")
-                    for event in recent_events[-10:]:  # Last 10 events
-                        if await request.is_disconnected():
-                            logger.info(f"Client disconnected during history replay for user {user_id}")
-                            return
-
-                        yield ServerSentEvent(
-                            data=json.dumps(event.data, ensure_ascii=False), event=event.event, id=event.id
-                        )
-                except Exception as e:
-                    logger.error(f"Error pushing missed events for user {user_id}: {e}")
-
-                # Stream real-time events with client disconnection detection
-                try:
-                    async for sse_message in self.redis_sse.subscribe_user_events(user_id):
-                        # Check for client disconnection (sse-starlette feature)
-                        if await request.is_disconnected():
-                            logger.info(f"Client disconnected for user {user_id}, stopping event stream")
-                            break
-
-                        # Use ServerSentEvent for structured events
-                        yield ServerSentEvent(
-                            data=json.dumps(sse_message.data, ensure_ascii=False),
-                            event=sse_message.event,
-                            id=sse_message.id,
-                        )
-
-                except asyncio.CancelledError:
-                    logger.info(f"SSE stream cancelled for user {user_id}")
-                    raise
-                except Exception as e:
-                    logger.error(f"Error in real-time event subscription for user {user_id}: {e}")
-                    # Send error event to client
-                    yield ServerSentEvent(
-                        data=json.dumps({"error": "Stream error occurred", "reconnect": True}), event="error"
-                    )
-
-            finally:
-                # Cleanup connection state
-                await self._cleanup_connection(connection_id, user_id)
-
-        # 4) Create EventSourceResponse with built-in ping and error handling
+        # 3) Create EventSourceResponse with built-in ping and error handling
         return EventSourceResponse(
-            event_generator(),
-            ping=self.ping_interval,  # Built-in ping every 15 seconds
-            send_timeout=30,  # Timeout hanging sends after 30 seconds
+            self._create_event_generator(request, user_id, connection_id),
+            ping=self.ping_interval,
+            send_timeout=self.SEND_TIMEOUT_SECONDS,
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
 
@@ -189,14 +214,8 @@ class SSEConnectionManager:
         # Clean up memory connection record
         self.connections.pop(connection_id, None)
 
-        if self.redis_sse._pubsub_client:
-            # Decrement Redis connection counter (with negative protection)
-            conn_key = f"user:{user_id}:sse_conns"
-            val = await self.redis_sse._pubsub_client.decr(conn_key)
-            if val < 0:
-                await self.redis_sse._pubsub_client.set(conn_key, 0)
-
-            # Note: sse-starlette handles heartbeat/ping internally, no manual cleanup needed
+        # Decrement Redis connection counter (with negative protection)
+        await self._safe_decr_counter(user_id)
 
         logger.debug(f"Cleaned up SSE connection {connection_id} for user {user_id}")
 
@@ -212,14 +231,16 @@ class SSEConnectionManager:
             int: Number of stale connections cleaned up
         """
         stale_count = 0
-        cutoff_time = datetime.utcnow().timestamp() - 300  # 5 minutes ago
+        cutoff_time = datetime.now(UTC).timestamp() - self.STALE_CONNECTION_THRESHOLD_SECONDS
 
-        # Clean up memory connections that are very old (fallback cleanup)
-        stale_connection_ids = []
-        for connection_id, connection_state in self.connections.items():
-            if connection_state.connected_at.timestamp() < cutoff_time:
-                stale_connection_ids.append(connection_id)
+        # Identify stale connections
+        stale_connection_ids = [
+            connection_id
+            for connection_id, connection_state in self.connections.items()
+            if connection_state.connected_at.timestamp() < cutoff_time
+        ]
 
+        # Clean up stale connections
         for connection_id in stale_connection_ids:
             connection_state = self.connections.get(connection_id)
             if connection_state:
@@ -244,17 +265,23 @@ class SSEConnectionManager:
                 - redis_connection_counters: Sum of all Redis connection counters
         """
         active_conns = len(self.connections)
-
-        total_redis_conns = 0
-        if self.redis_sse._pubsub_client:
-            # Sum all user connection counters
-            pattern = "user:*:sse_conns"
-            async for key in self.redis_sse._pubsub_client.scan_iter(match=pattern):
-                try:
-                    count = await self.redis_sse._pubsub_client.get(key)
-                    if count:
-                        total_redis_conns += int(count)
-                except (ValueError, TypeError):
-                    continue
+        total_redis_conns = await self._get_total_redis_connections()
 
         return {"active_connections": active_conns, "redis_connection_counters": total_redis_conns}
+
+    async def _get_total_redis_connections(self) -> int:
+        """Get total connection count from all Redis counters."""
+        if not self.redis_sse._pubsub_client:
+            return 0
+
+        total_redis_conns = 0
+        pattern = "user:*:sse_conns"
+        async for key in self.redis_sse._pubsub_client.scan_iter(match=pattern):
+            try:
+                count = await self.redis_sse._pubsub_client.get(key)
+                if count:
+                    total_redis_conns += int(count)
+            except (ValueError, TypeError):
+                continue
+
+        return total_redis_conns

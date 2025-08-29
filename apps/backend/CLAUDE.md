@@ -5,6 +5,7 @@ This file provides guidance for Claude Code when working with the backend codeba
 ## Backend Architecture
 
 ### Technology Stack
+
 - **Framework**: FastAPI with Python 3.11
 - **Database ORM**: SQLAlchemy 2.0 with typed relationships
 - **Package Manager**: `uv` for dependency management
@@ -12,13 +13,16 @@ This file provides guidance for Claude Code when working with the backend codeba
 - **Testing**: pytest with testcontainers for integration tests
 
 ### Service Architecture
+
 InfiniteScribe backend uses a unified service architecture with:
+
 - **API Gateway** (`src/api/`): FastAPI application with authentication and routing
 - **Agent Services** (`src/agents/`): AI agents for different novel writing tasks
 - **Shared Services** (`src/common/services/`): Business logic and external integrations
 - **Database Layer** (`src/db/`): Multi-database connection management
 
 ### Directory Structure
+
 ```
 apps/backend/src/
 ├── api/                    # FastAPI API Gateway
@@ -59,7 +63,7 @@ apps/backend/src/
 │   └── utils/            # Shared utilities
 ├── db/                   # Database Infrastructure
 │   ├── sql/              # PostgreSQL connections
-│   ├── graph/            # Neo4j connections  
+│   ├── graph/            # Neo4j connections
 │   └── vector/           # Vector database (future)
 ├── middleware/           # FastAPI middleware
 └── core/                 # Core configuration
@@ -70,6 +74,7 @@ apps/backend/src/
 ## Development Commands
 
 ### Local Development
+
 ```bash
 # Start API Gateway
 uv run uvicorn src.api.main:app --reload --port 8000
@@ -82,6 +87,7 @@ uv run python -m src.agents.main --agent-type worldsmith
 ```
 
 ### Code Quality
+
 ```bash
 # Lint and format code
 uv run ruff check src/              # Check for issues
@@ -96,6 +102,7 @@ make backend-lint && make backend-format && make backend-typecheck
 ```
 
 ### Testing
+
 ```bash
 # Unit tests only (fast)
 uv run pytest tests/unit/ -v
@@ -114,6 +121,7 @@ uv run pytest tests/unit/services/test_user_service.py -v
 ```
 
 ### Database Management
+
 ```bash
 # Create new migration
 alembic revision --autogenerate -m "description of changes"
@@ -134,6 +142,7 @@ alembic downgrade base && alembic upgrade head
 ## Code Patterns & Conventions
 
 ### 1. Service Layer Pattern
+
 Business logic lives in `common/services/`. Services are dependency-injected into API routes.
 
 ```python
@@ -142,7 +151,7 @@ class UserService:
     def __init__(self, postgres: PostgresService, redis: RedisService):
         self.postgres = postgres
         self.redis = redis
-    
+
     async def create_user(self, user_data: UserCreate) -> User:
         # Business logic here
         pass
@@ -157,6 +166,7 @@ async def create_user(
 ```
 
 ### 2. CQRS Schema Pattern
+
 Separate schemas for Create, Read, and Update operations:
 
 ```python
@@ -166,7 +176,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
-# schemas/user/read.py  
+# schemas/user/read.py
 class UserRead(BaseModel):
     id: int
     username: str
@@ -180,20 +190,22 @@ class UserUpdate(BaseModel):
 ```
 
 ### 3. Database Models
+
 Use SQLAlchemy 2.0 style with typed relationships:
 
 ```python
 class User(BaseModel):
     __tablename__ = "users"
-    
+
     username: Mapped[str] = mapped_column(String(50), unique=True)
     email: Mapped[str] = mapped_column(String(255), unique=True)
-    
+
     # Typed relationships
     sessions: Mapped[list[Session]] = relationship(back_populates="user")
 ```
 
 ### 4. Error Handling
+
 Use FastAPI's HTTPException with consistent error responses:
 
 ```python
@@ -212,6 +224,7 @@ class UserService:
 ```
 
 ### 5. Authentication Pattern
+
 JWT tokens with Redis session management:
 
 ```python
@@ -227,20 +240,21 @@ async def authenticate_user(self, token: str) -> User:
 ```
 
 ### 6. Datetime Handling
+
 Always use timezone-aware datetime objects to avoid deprecation warnings:
 
 ```python
-from datetime import datetime, timezone
+from datetime import datetime, timezone,UTC
 
 # Good: Timezone-aware UTC datetime
 def get_current_utc_time() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 # Good: In database models
 class User(BaseModel):
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC)
     )
 
 # Bad: Deprecated datetime.utcnow()
@@ -250,10 +264,10 @@ class User(BaseModel):
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(hours=1)
-    
+        expire = datetime.now(UTC) + timedelta(hours=1)
+
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 ```
@@ -261,6 +275,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 ## Agent Development
 
 ### Base Agent Pattern
+
 All agents inherit from `BaseAgent`:
 
 ```python
@@ -269,13 +284,14 @@ from src.agents.base import BaseAgent
 class WorldsmithAgent(BaseAgent):
     def __init__(self):
         super().__init__(agent_type="worldsmith")
-    
+
     async def process_request(self, request: WorldBuildingRequest) -> WorldBuildingResponse:
         # Agent-specific logic
         pass
 ```
 
 ### Agent Service Structure
+
 ```
 agents/worldsmith/
 ├── __init__.py
@@ -286,6 +302,7 @@ agents/worldsmith/
 ```
 
 ### Running Agents
+
 ```bash
 # Development mode
 SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
@@ -297,6 +314,7 @@ python -m src.agents.main --agent-type worldsmith --port 8001
 ## Testing Strategy
 
 ### 1. Unit Tests
+
 Test individual functions and classes in isolation:
 
 ```python
@@ -306,15 +324,16 @@ async def test_create_user():
     # Mock dependencies
     mock_postgres = Mock()
     mock_redis = Mock()
-    
+
     user_service = UserService(mock_postgres, mock_redis)
-    
+
     # Test business logic
     result = await user_service.create_user(user_data)
     assert result.username == user_data.username
 ```
 
 ### 2. Integration Tests
+
 Test with real database connections using testcontainers:
 
 ```python
@@ -323,13 +342,14 @@ Test with real database connections using testcontainers:
 async def test_create_user_endpoint(test_client, test_db):
     response = test_client.post("/api/v1/users", json=user_data)
     assert response.status_code == 201
-    
+
     # Verify in database
     user = await test_db.get_user_by_email(user_data["email"])
     assert user is not None
 ```
 
 ### 3. Test Configuration
+
 Use `conftest.py` for shared test fixtures:
 
 ```python
@@ -344,6 +364,7 @@ async def test_db():
 ## Configuration Management
 
 ### Settings Pattern
+
 Use Pydantic settings with environment variables:
 
 ```python
@@ -352,7 +373,7 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     jwt_secret_key: str
-    
+
     class Config:
         env_file = ".env"
 
@@ -360,6 +381,7 @@ settings = Settings()
 ```
 
 ### TOML Configuration
+
 For complex configurations, use TOML files:
 
 ```python
@@ -370,6 +392,7 @@ config = load_toml_config("config.toml")
 ## Common Development Tasks
 
 ### Adding New API Endpoint
+
 1. Create route in `src/api/routes/v1/`
 2. Define schemas in `src/schemas/`
 3. Implement business logic in `src/common/services/`
@@ -377,6 +400,7 @@ config = load_toml_config("config.toml")
 5. Update API documentation
 
 ### Adding New Database Model
+
 1. Create model in `src/models/`
 2. Create migration: `alembic revision --autogenerate -m "add model"`
 3. Apply migration: `alembic upgrade head`
@@ -385,6 +409,7 @@ config = load_toml_config("config.toml")
 6. Write tests
 
 ### Adding New Agent
+
 1. Create agent directory in `src/agents/`
 2. Implement agent class inheriting from `BaseAgent`
 3. Create `main.py` for service entry point
@@ -394,6 +419,7 @@ config = load_toml_config("config.toml")
 7. Update agent launcher
 
 ### Database Migration Workflow
+
 1. Make model changes
 2. Generate migration: `alembic revision --autogenerate`
 3. Review generated migration file
@@ -404,12 +430,14 @@ config = load_toml_config("config.toml")
 ## Debugging & Troubleshooting
 
 ### Common Issues
+
 1. **Import errors**: Check Python path and virtual environment
 2. **Database connection**: Verify services are running (`pnpm check services`)
 3. **Migration conflicts**: Use `alembic merge` for branch conflicts
 4. **Test failures**: Ensure test database is clean between runs
 
 ### Logging
+
 ```python
 import logging
 logger = logging.getLogger(__name__)
@@ -420,6 +448,7 @@ logger.error(f"Failed to create user: {error}")
 ```
 
 ### Performance Monitoring
+
 - Use FastAPI's built-in request timing
 - Monitor database query performance
 - Track agent response times
@@ -428,18 +457,21 @@ logger.error(f"Failed to create user: {error}")
 ## Security Considerations
 
 ### Authentication & Authorization
+
 - JWT tokens with short expiration
 - Redis session storage for token management
 - Rate limiting on authentication endpoints
 - Input validation using Pydantic
 
 ### Database Security
+
 - Use parameterized queries (SQLAlchemy handles this)
 - No sensitive data in logs
 - Encrypt sensitive fields if needed
 - Regular security updates
 
 ### API Security
+
 - CORS configuration in `src/api/main.py`
 - Input sanitization through Pydantic
 - No secrets in code (use environment variables)
