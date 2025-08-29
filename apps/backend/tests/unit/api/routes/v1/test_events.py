@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
 from src.api.main import app
 from src.api.routes.v1.events import ConnectionStatistics, SSEHealthErrorResponse, SSEHealthResponse
 from src.common.services.redis_sse_service import RedisSSEService
@@ -64,10 +63,9 @@ class TestSSEHealthEndpoint:
         """Test health endpoint returns healthy state when all services are working."""
         # Arrange
         mock_connection_manager = Mock(spec=SSEConnectionManager)
-        mock_connection_manager.get_connection_count = AsyncMock(return_value={
-            "active_connections": 5,
-            "redis_connection_counters": 3
-        })
+        mock_connection_manager.get_connection_count = AsyncMock(
+            return_value={"active_connections": 5, "redis_connection_counters": 3}
+        )
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
@@ -96,10 +94,9 @@ class TestSSEHealthEndpoint:
         """Test health endpoint returns degraded state when Redis is unhealthy."""
         # Arrange
         mock_connection_manager = Mock(spec=SSEConnectionManager)
-        mock_connection_manager.get_connection_count = AsyncMock(return_value={
-            "active_connections": 2,
-            "redis_connection_counters": 0
-        })
+        mock_connection_manager.get_connection_count = AsyncMock(
+            return_value={"active_connections": 2, "redis_connection_counters": 0}
+        )
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
@@ -127,10 +124,9 @@ class TestSSEHealthEndpoint:
         """Test health endpoint handles missing Redis pubsub client gracefully."""
         # Arrange
         mock_connection_manager = Mock(spec=SSEConnectionManager)
-        mock_connection_manager.get_connection_count = AsyncMock(return_value={
-            "active_connections": 0,
-            "redis_connection_counters": 0
-        })
+        mock_connection_manager.get_connection_count = AsyncMock(
+            return_value={"active_connections": 0, "redis_connection_counters": 0}
+        )
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
@@ -172,11 +168,10 @@ class TestSSEHealthEndpoint:
     @patch("src.api.routes.v1.events.get_redis_sse_service")
     async def test_health_endpoint_timeout_scenarios(self, mock_get_redis_sse, mock_get_connection_manager, client):
         """Test health endpoint handles timeout scenarios gracefully."""
-        import asyncio
-        
+
         # Arrange - connection stats timeout
         mock_connection_manager = Mock(spec=SSEConnectionManager)
-        mock_connection_manager.get_connection_count = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_connection_manager.get_connection_count = AsyncMock(side_effect=TimeoutError())
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
@@ -200,19 +195,17 @@ class TestSSEHealthEndpoint:
     @patch("src.api.routes.v1.events.get_redis_sse_service")
     async def test_health_endpoint_redis_timeout(self, mock_get_redis_sse, mock_get_connection_manager, client):
         """Test health endpoint handles Redis ping timeout gracefully."""
-        import asyncio
-        
+
         # Arrange
         mock_connection_manager = Mock(spec=SSEConnectionManager)
-        mock_connection_manager.get_connection_count = AsyncMock(return_value={
-            "active_connections": 3,
-            "redis_connection_counters": 2
-        })
+        mock_connection_manager.get_connection_count = AsyncMock(
+            return_value={"active_connections": 3, "redis_connection_counters": 2}
+        )
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
         mock_pubsub_client = AsyncMock()
-        mock_pubsub_client.ping = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_pubsub_client.ping = AsyncMock(side_effect=TimeoutError())
         mock_redis_sse_service._pubsub_client = mock_pubsub_client
         mock_get_redis_sse.return_value = mock_redis_sse_service
 
@@ -264,7 +257,7 @@ class TestSSEHealthModels:
             redis_status="healthy",
             connection_statistics=connection_stats,
             service="sse",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Assert
@@ -278,10 +271,7 @@ class TestSSEHealthModels:
         """Test SSEHealthErrorResponse model validation."""
         # Act
         error_response = SSEHealthErrorResponse(
-            status="unhealthy",
-            error="Redis connection failed",
-            service="sse",
-            version="1.0.0"
+            status="unhealthy", error="Redis connection failed", service="sse", version="1.0.0"
         )
 
         # Assert

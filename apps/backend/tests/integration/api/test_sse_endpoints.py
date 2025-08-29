@@ -95,7 +95,7 @@ class TestSSEServiceIntegration:
 
     @pytest.mark.asyncio
     @patch("src.services.sse_connection_manager.SSEConnectionManager.add_connection")
-    @patch("src.api.routes.v1.auth_sse_token.verify_sse_token")
+    @patch("src.api.routes.v1.events.verify_sse_token")
     async def test_stream_connection_with_valid_token(
         self, mock_verify_token, mock_add_connection, postgres_async_client
     ):
@@ -116,15 +116,19 @@ class TestSSEServiceIntegration:
         mock_add_connection.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.api.routes.v1.auth_sse_token.get_current_user")
-    async def test_token_creation_with_valid_jwt(self, mock_get_current_user, postgres_async_client, mock_user):
+    async def test_token_creation_with_valid_jwt(self, postgres_async_client, mock_user):
         """Test successful SSE token creation with valid JWT."""
-        # Mock authenticated user
-        mock_get_current_user.return_value = mock_user
+        # 使用依赖覆盖替代函数 patch，确保 FastAPI 路由依赖被替换
+        from src.api.main import app
+        from src.api.routes.v1.auth_sse_token import get_current_user as dep_get_current_user
 
-        response = await postgres_async_client.post(
-            "/api/v1/auth/sse-token", headers={"Authorization": "Bearer valid_jwt_token"}
-        )
+        app.dependency_overrides[dep_get_current_user] = lambda: mock_user
+        try:
+            response = await postgres_async_client.post(
+                "/api/v1/auth/sse-token", headers={"Authorization": "Bearer valid_jwt_token"}
+            )
+        finally:
+            app.dependency_overrides.pop(dep_get_current_user, None)
 
         # Should create token successfully
         assert response.status_code == 200
@@ -154,7 +158,7 @@ class TestSSEErrorHandling:
         """Stream endpoint should handle empty token parameter."""
         response = await postgres_async_client.get("/api/v1/events/stream?sse_token=")
         assert response.status_code == 401
-        assert "Authentication required" in response.json()["detail"]
+        assert "Token is required" in response.json()["detail"]
 
     @pytest.mark.asyncio
     @patch("src.common.services.redis_sse_service.RedisSSEService.init_pubsub_client")

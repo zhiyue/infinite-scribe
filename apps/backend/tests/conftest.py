@@ -297,17 +297,28 @@ async def async_client(test_session):
 @pytest.fixture
 async def postgres_async_client(postgres_test_session):
     """Create async test client with PostgreSQL for integration tests."""
+    from unittest.mock import AsyncMock, patch
+
+    from tests.unit.test_mocks import mock_email_service, mock_redis
 
     def override_get_db():
         return postgres_test_session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
+    with (
+        patch("src.common.services.jwt_service.jwt_service._redis_client", mock_redis),
+        patch("src.common.services.email_tasks.email_tasks._send_email_with_retry", new=AsyncMock(return_value=True)),
+        patch("src.common.services.email_service.EmailService") as mock_email_cls,
+    ):
+        mock_email_cls.return_value = mock_email_service
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            yield ac
 
     # Cleanup
     app.dependency_overrides.clear()
+    mock_redis.clear()
+    mock_email_service.clear()
 
 
 @pytest.fixture(autouse=True)
