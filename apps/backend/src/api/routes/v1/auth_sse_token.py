@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from jose import jwt
+from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError
 from pydantic import BaseModel
 
 from src.core.config import settings
@@ -56,8 +57,8 @@ async def create_sse_token(
         HTTPException: 401 if user is not authenticated
     """
     try:
-        # Token expires in 60 seconds (short-lived for security)
-        expires_delta = timedelta(seconds=60)
+        # Token expires based on configuration (short-lived for security)
+        expires_delta = timedelta(seconds=settings.auth.sse_token_expire_seconds)
         expires_at = datetime.now(UTC) + expires_delta
 
         # Create SSE token payload
@@ -82,8 +83,7 @@ async def create_sse_token(
     except Exception as e:
         logger.error(f"Failed to create SSE token for user {current_user.id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create SSE token"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create SSE token"
         ) from e
 
 
@@ -115,14 +115,8 @@ async def verify_sse_token(sse_token: str) -> str:
 
         return user_id
 
-    except jwt.ExpiredSignatureError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="SSE token has expired"
-        ) from e
-    except jwt.JWTError as e:
+    except ExpiredSignatureError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SSE token has expired") from e
+    except JWTError as e:
         logger.warning(f"Invalid SSE token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        ) from e
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from e

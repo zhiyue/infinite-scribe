@@ -60,6 +60,7 @@ dev = [
     "rich~=13.9.2",
     "watchdog~=6.0.0",
     "pre-commit~=4.0.1",
+    "types-python-jose>=3.5.0.20250531",
 ]
 
 [build-system]

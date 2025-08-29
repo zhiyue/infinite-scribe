@@ -1237,6 +1237,7 @@ dev = [
     { name = "rich" },
     { name = "ruff" },
     { name = "testcontainers" },
+    { name = "types-python-jose" },
     { name = "types-pyyaml" },
     { name = "types-redis" },
     { name = "watchdog" },
@@ -1288,6 +1289,7 @@ dev = [
     { name = "rich", specifier = "~=13.9.2" },
     { name = "ruff", specifier = "~=0.7.2" },
     { name = "testcontainers", specifier = "~=4.8.0" },
+    { name = "types-python-jose", specifier = ">=3.5.0.20250531" },
     { name = "types-pyyaml", specifier = "~=6.0.12" },
     { name = "types-redis", specifier = "~=4.6.0" },
     { name = "watchdog", specifier = "~=6.0.0" },
@@ -3414,6 +3416,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-pyasn1"
+version = "0.6.0.20250516"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/9b/5c6e6690da87e9fec317925d4a9500a8d61c2e2c1ec39de46736f76a29e8/types_pyasn1-0.6.0.20250516.tar.gz", hash = "sha256:1a9b35a4f033cd70c384a5043a3407b2cc07afc95900732b66e0d38426c7541d", size = 17153, upload-time = "2025-05-16T03:07:23.961Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/56/0d10029d4d943226f044cec3f3d1f9ad54acb4884ee0b78e5d7b66c07d9d/types_pyasn1-0.6.0.20250516-py3-none-any.whl", hash = "sha256:b9925e4e22e09eed758b93b6f2a7881b89d842c2373dd11c09b173567d170142", size = 24093, upload-time = "2025-05-16T03:07:22.759Z" },
+]
+
+[[package]]
 name = "types-pyopenssl"
 version = "24.1.0.20240722"
 source = { registry = "https://pypi.org/simple" }
@@ -3424,6 +3435,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/93/29/47a346550fd2020dac9a7a6d033ea03fccb92fa47c726056618cc889745e/types-pyOpenSSL-24.1.0.20240722.tar.gz", hash = "sha256:47913b4678a01d879f503a12044468221ed8576263c1540dcb0484ca21b08c39", size = 8458, upload-time = "2024-07-22T02:32:22.558Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/98/05/c868a850b6fbb79c26f5f299b768ee0adc1f9816d3461dcf4287916f655b/types_pyOpenSSL-24.1.0.20240722-py3-none-any.whl", hash = "sha256:6a7a5d2ec042537934cfb4c9d4deb0e16c4c6250b09358df1f083682fe6fda54", size = 7499, upload-time = "2024-07-22T02:32:21.232Z" },
+]
+
+[[package]]
+name = "types-python-jose"
+version = "3.5.0.20250531"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/c8/09095e22b8e5eb3992f47722a3e1b31098b55c5e8325f4b21c5f1bdcb06b/types_python_jose-3.5.0.20250531.tar.gz", hash = "sha256:dbac2bc99fbb8124068696617f8709acfe4a43d79c6df3e59800006d46d621fe", size = 11891, upload-time = "2025-05-31T03:04:29.017Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/33/9d8c351a44e68896a53003e00fb01e1158b9e5b68cf3b75c1e4b51eb5263/types_python_jose-3.5.0.20250531-py3-none-any.whl", hash = "sha256:1609ee4d40a8a2ef5f62fcda99ec977b2ae773dfee9355cfb7e5002afa063c55", size = 14725, upload-time = "2025-05-31T03:04:27.802Z" },
 ]
 
 [[package]]

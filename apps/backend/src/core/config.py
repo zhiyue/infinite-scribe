@@ -60,6 +60,7 @@ class AuthSettings(BaseModel):
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=15)
     refresh_token_expire_days: int = Field(default=7)
+    sse_token_expire_seconds: int = Field(default=60, description="SSE token expiration in seconds")
 
     # Email Service
     resend_api_key: str = Field(default="test_api_key")

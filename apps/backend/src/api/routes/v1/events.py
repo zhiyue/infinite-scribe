@@ -1,10 +1,12 @@
 """SSE (Server-Sent Events) API endpoints."""
 
+import asyncio
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from src.api.routes.v1.auth_sse_token import verify_sse_token
 from src.common.services.redis_service import redis_service
@@ -15,25 +17,64 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+class ConnectionStatistics(BaseModel):
+    """SSE connection statistics model."""
+
+    active_connections: int
+    redis_connection_counters: int
+
+
+class SSEHealthResponse(BaseModel):
+    """SSE health check response model."""
+
+    status: str
+    redis_status: str
+    connection_statistics: ConnectionStatistics
+    service: str
+    version: str
+
+
+class SSEHealthErrorResponse(BaseModel):
+    """SSE health check error response model."""
+
+    status: str
+    error: str
+    service: str
+    version: str
+
+
 # Global SSE services - will be initialized on first use
 _redis_sse_service: RedisSSEService | None = None
 _sse_connection_manager: SSEConnectionManager | None = None
+
+# Locks for thread-safe initialization
+_redis_sse_service_lock = asyncio.Lock()
+_sse_connection_manager_lock = asyncio.Lock()
 
 
 async def get_redis_sse_service() -> RedisSSEService:
     """Get Redis SSE service with dependency injection."""
     global _redis_sse_service
     if _redis_sse_service is None:
-        _redis_sse_service = RedisSSEService(redis_service)
-        await _redis_sse_service.init_pubsub_client()
+        async with _redis_sse_service_lock:
+            # Double-check pattern to prevent race conditions
+            if _redis_sse_service is None:
+                _redis_sse_service = RedisSSEService(redis_service)
+                await _redis_sse_service.init_pubsub_client()
     return _redis_sse_service
 
 
-async def get_sse_connection_manager(redis_sse_service: RedisSSEService = Depends(get_redis_sse_service)) -> SSEConnectionManager:
+async def get_sse_connection_manager(
+    redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
+) -> SSEConnectionManager:
     """Get SSE connection manager with dependency injection."""
     global _sse_connection_manager
     if _sse_connection_manager is None:
-        _sse_connection_manager = SSEConnectionManager(redis_sse_service)
+        async with _sse_connection_manager_lock:
+            # Double-check pattern to prevent race conditions
+            if _sse_connection_manager is None:
+                _sse_connection_manager = SSEConnectionManager(redis_sse_service)
     return _sse_connection_manager
 
 
@@ -60,13 +101,6 @@ async def sse_stream(
     Raises:
         HTTPException: 401 if authentication fails, 429 if connection limit exceeded
     """
-    # Verify SSE token and extract user ID
-    if not sse_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required - SSE token missing"
-        )
-
     # Verify the token and get user ID
     user_id = await verify_sse_token(sse_token)
 
@@ -80,12 +114,11 @@ async def sse_stream(
     except Exception as e:
         logger.error(f"Error establishing SSE connection for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to establish SSE connection"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to establish SSE connection"
         ) from e
 
 
-@router.get("/health")
+@router.get("/health", response_model=SSEHealthResponse)
 async def sse_health(
     sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
     redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
@@ -113,32 +146,21 @@ async def sse_health(
             logger.warning(f"Redis health check failed: {e}")
             redis_healthy = False
 
-        health_data = {
-            "status": "healthy" if redis_healthy else "degraded",
-            "redis_status": "healthy" if redis_healthy else "unhealthy",
-            "connection_statistics": connection_stats,
-            "service": "sse",
-            "version": "1.0.0"
-        }
+        health_data = SSEHealthResponse(
+            status="healthy" if redis_healthy else "degraded",
+            redis_status="healthy" if redis_healthy else "unhealthy",
+            connection_statistics=ConnectionStatistics(**connection_stats),
+            service="sse",
+            version="1.0.0",
+        )
 
         # Return 503 if Redis is unhealthy
         if not redis_healthy:
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content=health_data
-            )
+            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_data.model_dump())
 
         return health_data
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "service": "sse",
-                "version": "1.0.0"
-            }
-        )
-
+        error_response = SSEHealthErrorResponse(status="unhealthy", error=str(e), service="sse", version="1.0.0")
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_response.model_dump())

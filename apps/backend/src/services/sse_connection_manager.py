@@ -109,10 +109,12 @@ class SSEConnectionManager:
             raise HTTPException(
                 status_code=429,
                 detail="Too many concurrent SSE connections",
-                headers={"Retry-After": str(self.RETRY_AFTER_SECONDS)}
+                headers={"Retry-After": str(self.RETRY_AFTER_SECONDS)},
             )
 
-    async def _create_event_generator(self, request: Request, user_id: str, connection_id: str) -> AsyncGenerator[ServerSentEvent, None]:
+    async def _create_event_generator(
+        self, request: Request, user_id: str, connection_id: str
+    ) -> AsyncGenerator[ServerSentEvent, None]:
         """Create async generator for SSE events with history replay and real-time streaming."""
         try:
             # Get connection state to extract last_event_id
@@ -138,7 +140,9 @@ class SSEConnectionManager:
             # Cleanup connection state
             await self._cleanup_connection(connection_id, user_id)
 
-    async def _send_historical_events(self, request: Request, user_id: str, since_id: str = "-") -> AsyncGenerator[ServerSentEvent, None]:
+    async def _send_historical_events(
+        self, request: Request, user_id: str, since_id: str = "-"
+    ) -> AsyncGenerator[ServerSentEvent, None]:
         """Send historical events to newly connected client."""
         try:
             recent_events = await self.redis_sse.get_recent_events(user_id, since_id=since_id)

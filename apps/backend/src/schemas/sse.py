@@ -227,6 +227,7 @@ def create_sse_message(
     scope: EventScope,
     event_id: str | None = None,
     retry: int | None = None,
+    version: str = "1.0",
 ) -> SSEMessage:
     """
     创建 SSE 消息的辅助函数
@@ -241,7 +242,7 @@ def create_sse_message(
     Returns:
         SSEMessage 实例
     """
-    return SSEMessage(event=event_type, data=data, scope=scope, id=event_id, retry=retry)
+    return SSEMessage(event=event_type, data=data, scope=scope, id=event_id, retry=retry, version=version)
 
 
 # 导出所有事件类型
