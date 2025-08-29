@@ -19,6 +19,7 @@ Key Benefits:
 - Separation of concerns between real-time notifications and data storage
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -30,6 +31,11 @@ from src.core.config import settings
 from src.schemas.sse import EventScope, SSEMessage
 
 logger = logging.getLogger(__name__)
+
+# Constants
+SSE_TIMEOUT = 30.0
+CLEANUP_TIMEOUT = 2.0
+MAX_EVENTS_QUERY = 100
 
 
 class RedisSSEService:
@@ -69,25 +75,14 @@ class RedisSSEService:
         self._pubsub_client: redis.Redis | None = None
 
     async def init_pubsub_client(self) -> None:
-        """
-        Initialize a dedicated Redis client for Pub/Sub operations.
-
-        A separate client is required because:
-        1. Pub/Sub connections are stateful and block other Redis operations
-        2. Stream operations (XADD, XREAD) need a different connection pool
-        3. Avoids conflicts with other Redis services (e.g., RateLimitService)
-
-        The dedicated client is configured with optimized timeouts for real-time use.
-
-        Raises:
-            redis.ConnectionError: If unable to connect to Redis server
-        """
+        """Initialize dedicated Redis client for Pub/Sub operations."""
         self._pubsub_client = redis.from_url(
             settings.database.redis_url,
             decode_responses=True,
             health_check_interval=30,
-            socket_connect_timeout=5,
-            socket_timeout=5,
+            socket_connect_timeout=10,
+            socket_timeout=30,
+            retry_on_timeout=True,
         )
 
     async def close(self) -> None:
@@ -96,30 +91,42 @@ class RedisSSEService:
             await self._pubsub_client.close()
             self._pubsub_client = None
 
-    async def publish_event(self, user_id: str, event: SSEMessage) -> str:
-        """
-        Publish event to user channel.
-
-        First XADD to Stream to get ID, then publish pointer to Pub/Sub for ID consistency.
-
-        Args:
-            user_id: Target user ID
-            event: SSE message to publish
-
-        Returns:
-            Stream ID of the published event
-
-        Note:
-            This method modifies the input event by setting event.id to the generated stream_id
-            for Last-Event-ID consistency. The original SSEMessage object will be mutated.
-        """
+    def _ensure_pubsub_client(self) -> None:
+        """Ensure Pub/Sub client is initialized."""
         if not self._pubsub_client:
             raise RuntimeError("Pub/Sub client not initialized")
 
-        stream_key = f"events:user:{user_id}"  # Streams storage
-        channel = f"sse:user:{user_id}"  # Pub/Sub channel (separate key namespace)
+    def _build_sse_message(self, event_type: str, data: str, stream_id: str) -> SSEMessage:
+        """Build SSEMessage from stream data."""
+        return SSEMessage(
+            event=event_type,
+            data=json.loads(data),
+            id=stream_id,
+            retry=None,
+            scope=EventScope.USER,
+            version="1.0",
+        )
 
-        # 1) First XADD to Stream using RedisService
+    async def _safe_cleanup(self, pubsub: redis.client.PubSub, channel: str, user_id: str) -> None:
+        """Safely cleanup pubsub resources with timeout protection."""
+        try:
+            await asyncio.wait_for(pubsub.unsubscribe(channel), timeout=CLEANUP_TIMEOUT)
+        except (TimeoutError, Exception) as e:
+            logger.debug(f"Timeout/error during unsubscribe for user {user_id}: {e}")
+
+        try:
+            await asyncio.wait_for(pubsub.close(), timeout=CLEANUP_TIMEOUT)
+        except (TimeoutError, Exception) as e:
+            logger.debug(f"Timeout/error during pubsub close for user {user_id}: {e}")
+
+    async def publish_event(self, user_id: str, event: SSEMessage) -> str:
+        """Publish event to user channel via Streams + Pub/Sub architecture."""
+        self._ensure_pubsub_client()
+
+        stream_key = f"events:user:{user_id}"
+        channel = f"sse:user:{user_id}"
+
+        # Add to stream for persistence
         async with self.redis_service.acquire() as redis_client:
             stream_id = await redis_client.xadd(
                 stream_key,
@@ -128,146 +135,85 @@ class RedisSSEService:
                 approximate=True,
             )
 
-        # 2) Set SSE id to stream_id for Last-Event-ID consistency
+        # Set event ID for consistency
         event.id = stream_id
 
-        # 3) Publish pointer message pointing to the Stream entry
+        # Publish pointer for real-time notification
         await self._pubsub_client.publish(channel, json.dumps({"stream_key": stream_key, "stream_id": stream_id}))
 
         return stream_id
 
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
-        """
-        Subscribe to real-time user events using pointer-based architecture.
-
-        This method:
-        1. Subscribes to the user's Pub/Sub channel (sse:user:{user_id})
-        2. Receives pointer messages containing stream_key + stream_id
-        3. Fetches complete event data from Redis Streams using XRANGE
-        4. Yields reconstructed SSEMessage objects
-
-        The pointer-based approach ensures:
-        - Real-time notification via Pub/Sub (low latency)
-        - Complete event data from Streams (reliable, persistent)
-        - Consistent event IDs for Last-Event-ID reconnection support
-
-        Args:
-            user_id: User ID to subscribe to events for
-
-        Yields:
-            SSEMessage: Complete SSE messages with event data and metadata
-
-        Raises:
-            RuntimeError: If Pub/Sub client is not initialized
-
-        Note:
-            - Invalid pointer messages are logged and skipped gracefully
-            - Resources are automatically cleaned up when iteration ends
-            - Supports infinite streaming until client disconnection
-        """
-        if not self._pubsub_client:
-            raise RuntimeError("Pub/Sub client not initialized")
+        """Subscribe to real-time user events using pointer-based architecture."""
+        self._ensure_pubsub_client()
 
         channel = f"sse:user:{user_id}"
         pubsub = self._pubsub_client.pubsub()
         await pubsub.subscribe(channel)
 
         try:
-            async for message in pubsub.listen():
-                if message["type"] != "message":
-                    continue
-
-                # Parse pointer message
+            listener = pubsub.listen()
+            while True:
                 try:
-                    pointer = json.loads(message["data"])
-                    stream_key = pointer["stream_key"]
-                    stream_id = pointer["stream_id"]
-
-                    # XRANGE to get the exact entry by ID using RedisService
-                    async with self.redis_service.acquire() as redis_client:
-                        items = await redis_client.xrange(stream_key, stream_id, stream_id, count=1)
-                    if not items:
+                    message = await asyncio.wait_for(listener.__anext__(), timeout=SSE_TIMEOUT)
+                    if message["type"] != "message":
                         continue
 
-                    (actual_stream_id, fields) = items[0]
+                    event = await self._process_pointer_message(message, user_id)
+                    if event:
+                        yield event
 
-                    # Reconstruct SSE message as unified model (formatted by upper layer as SSE)
-                    sse_event = SSEMessage(
-                        event=fields["event"],
-                        data=json.loads(fields["data"]),
-                        id=actual_stream_id,
-                        retry=None,
-                        scope=EventScope.USER,
-                        version="1.0",
-                    )
-                    yield sse_event
+                except TimeoutError:
+                    continue  # Allow cancellation check
+                except StopAsyncIteration:
+                    break
 
-                except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"Invalid pointer message in channel {channel} for user {user_id}: {e}")
-                    continue
+        except asyncio.CancelledError:
+            logger.debug(f"Subscription cancelled for user {user_id}")
+            raise
         finally:
-            # Cleanup resources
-            try:
-                await pubsub.unsubscribe(channel)
-            finally:
-                await pubsub.close()
+            await self._safe_cleanup(pubsub, channel, user_id)
+
+    async def _process_pointer_message(self, message: dict, user_id: str) -> SSEMessage | None:
+        """Process a pointer message and return the SSE event."""
+        try:
+            pointer = json.loads(message["data"])
+            stream_key = pointer["stream_key"]
+            stream_id = pointer["stream_id"]
+
+            async with self.redis_service.acquire() as redis_client:
+                items = await redis_client.xrange(stream_key, stream_id, stream_id, count=1)
+
+            if not items:
+                return None
+
+            stream_id, fields = items[0]
+            return self._build_sse_message(fields["event"], fields["data"], stream_id)
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Invalid pointer message for user {user_id}: {e}")
+            return None
 
     async def get_recent_events(self, user_id: str, since_id: str = "-") -> list[SSEMessage]:
-        """
-        Retrieve historical events from Redis Streams for catch-up scenarios.
-
-        This method directly queries Redis Streams to fetch past events, typically used:
-        - During SSE reconnection to get missed events (Last-Event-ID support)
-        - For initial page load to show recent activity
-        - For debugging and event replay scenarios
-
-        Unlike `subscribe_user_events()`, this is a one-time query, not a real-time stream.
-
-        Args:
-            user_id: User ID to get events for
-            since_id: Starting event ID to fetch from. Special values:
-                     "-": Get all available events (oldest first)
-                     "0": Get from beginning of stream
-                     "{timestamp}-{seq}": Get events after this specific ID
-
-        Returns:
-            List[SSEMessage]: Historical events ordered chronologically (oldest first).
-                             Empty list if no events found or stream doesn't exist.
-
-        Raises:
-            RuntimeError: If Pub/Sub client is not initialized
-
-        Note:
-            - Limited to 100 events per call to prevent memory issues
-            - Corrupted events in streams are silently skipped and logged
-            - Event IDs are preserved for Last-Event-ID compatibility
-        """
-        if not self._pubsub_client:
-            raise RuntimeError("Pub/Sub client not initialized")
+        """Retrieve historical events from Redis Streams for catch-up scenarios."""
+        self._ensure_pubsub_client()
 
         stream_key = f"events:user:{user_id}"
-        async with self.redis_service.acquire() as redis_client:
-            entries = await redis_client.xread({stream_key: since_id}, count=100)
 
-        if not entries:
-            return []
+        async with self.redis_service.acquire() as redis_client:
+            if since_id in ("-", None):
+                items = await redis_client.xrange(stream_key, "-", "+", count=MAX_EVENTS_QUERY)
+            else:
+                entries = await redis_client.xread({stream_key: since_id}, count=MAX_EVENTS_QUERY)
+                if not entries:
+                    return []
+                (_key, items) = entries[0]
 
         events = []
-        (_key, items) = entries[0]
-
         for stream_id, fields in items:
             try:
-                sse_event = SSEMessage(
-                    event=fields["event"],
-                    data=json.loads(fields["data"]),
-                    id=stream_id,
-                    retry=None,
-                    scope=EventScope.USER,
-                    version="1.0",
-                )
-                events.append(sse_event)
+                events.append(self._build_sse_message(fields["event"], fields["data"], stream_id))
             except (json.JSONDecodeError, KeyError):
-                # Skip corrupted entries
-                continue
+                continue  # Skip corrupted entries
 
         return events

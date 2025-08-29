@@ -5,9 +5,13 @@ from datetime import datetime
 
 import httpx
 import pytest
-from sqlalchemy import select
 from src.common.utils.datetime_utils import utc_now
-from src.models.user import User
+
+from tests.integration.api.auth_test_helpers import (
+    create_and_verify_test_user_with_registration,
+    get_user_by_email,
+    perform_login
+)
 
 
 class TestAuthLastLogin:
@@ -18,36 +22,18 @@ class TestAuthLastLogin:
         self, postgres_async_client: httpx.AsyncClient, postgres_test_session
     ):
         """测试成功登录时 last_login_at 在数据库中被更新。"""
-        # 注册新用户
-        register_data = {
-            "email": "lastlogin@example.com",
-            "username": "lastloginuser",
-            "password": "SecurePass123!",
-            "first_name": "Last",
-            "last_name": "Login",
-        }
-
-        response = await postgres_async_client.post("/api/v1/auth/register", json=register_data)
-        assert response.status_code == 201
-
-        # 验证邮箱（从数据库获取 token）
-        from src.models.email_verification import EmailVerification, VerificationPurpose
-
-        result = await postgres_test_session.execute(
-            select(EmailVerification).where(
-                EmailVerification.email == register_data["email"],
-                EmailVerification.purpose == VerificationPurpose.EMAIL_VERIFY,
-            )
+        # 创建并验证测试用户
+        register_data = await create_and_verify_test_user_with_registration(
+            postgres_async_client, postgres_test_session,
+            username="lastloginuser",
+            email="lastlogin@example.com",
+            password="SecurePass123!",
+            first_name="Last",
+            last_name="Login",
         )
-        verification = result.scalar_one()
-
-        # 验证邮箱
-        response = await postgres_async_client.get(f"/api/v1/auth/verify-email?token={verification.token}")
-        assert response.status_code == 200
 
         # 检查用户初始状态
-        result = await postgres_test_session.execute(select(User).where(User.email == register_data["email"]))
-        user = result.scalar_one()
+        user = await get_user_by_email(postgres_test_session, register_data["email"])
         assert user.last_login_at is None
         assert user.last_login_ip is None
 
@@ -58,15 +44,12 @@ class TestAuthLastLogin:
         await asyncio.sleep(0.1)
 
         # 执行登录
-        login_data = {
-            "email": register_data["email"],
-            "password": register_data["password"],
-        }
-        response = await postgres_async_client.post("/api/v1/auth/login", json=login_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        assert "refresh_token" in data
+        status_code, response_data = await perform_login(
+            postgres_async_client, register_data["email"], register_data["password"]
+        )
+        assert status_code == 200
+        assert "access_token" in response_data
+        assert "refresh_token" in response_data
 
         # 从数据库重新获取用户信息
         await postgres_test_session.refresh(user)
@@ -86,8 +69,10 @@ class TestAuthLastLogin:
         await asyncio.sleep(0.1)
 
         # 第二次登录
-        response = await postgres_async_client.post("/api/v1/auth/login", json=login_data)
-        assert response.status_code == 200
+        status_code, response_data = await perform_login(
+            postgres_async_client, register_data["email"], register_data["password"]
+        )
+        assert status_code == 200
 
         # 再次从数据库获取用户信息
         await postgres_test_session.refresh(user)
@@ -103,43 +88,24 @@ class TestAuthLastLogin:
         self, postgres_async_client: httpx.AsyncClient, postgres_test_session
     ):
         """测试登录失败时不更新 last_login_at。"""
-        # 注册并验证用户
-        register_data = {
-            "email": "failedlogin@example.com",
-            "username": "failedloginuser",
-            "password": "SecurePass123!",
-            "first_name": "Failed",
-            "last_name": "Login",
-        }
-
-        response = await postgres_async_client.post("/api/v1/auth/register", json=register_data)
-        assert response.status_code == 201
-
-        # 验证邮箱
-        from src.models.email_verification import EmailVerification, VerificationPurpose
-
-        result = await postgres_test_session.execute(
-            select(EmailVerification).where(
-                EmailVerification.email == register_data["email"],
-                EmailVerification.purpose == VerificationPurpose.EMAIL_VERIFY,
-            )
+        # 创建并验证测试用户
+        register_data = await create_and_verify_test_user_with_registration(
+            postgres_async_client, postgres_test_session,
+            username="failedloginuser",
+            email="failedlogin@example.com",
+            password="SecurePass123!",
+            first_name="Failed",
+            last_name="Login",
         )
-        verification = result.scalar_one()
-
-        response = await postgres_async_client.get(f"/api/v1/auth/verify-email?token={verification.token}")
-        assert response.status_code == 200
 
         # 成功登录一次以设置 last_login_at
-        login_data = {
-            "email": register_data["email"],
-            "password": register_data["password"],
-        }
-        response = await postgres_async_client.post("/api/v1/auth/login", json=login_data)
-        assert response.status_code == 200
+        status_code, response_data = await perform_login(
+            postgres_async_client, register_data["email"], register_data["password"]
+        )
+        assert status_code == 200
 
         # 获取用户当前的 last_login_at
-        result = await postgres_test_session.execute(select(User).where(User.email == register_data["email"]))
-        user = result.scalar_one()
+        user = await get_user_by_email(postgres_test_session, register_data["email"])
         original_last_login_at = user.last_login_at
         assert original_last_login_at is not None
 
@@ -147,12 +113,10 @@ class TestAuthLastLogin:
         await asyncio.sleep(0.1)
 
         # 使用错误密码尝试登录
-        wrong_login_data = {
-            "email": register_data["email"],
-            "password": "WrongPassword123!",
-        }
-        response = await postgres_async_client.post("/api/v1/auth/login", json=wrong_login_data)
-        assert response.status_code == 401
+        status_code, response_data = await perform_login(
+            postgres_async_client, register_data["email"], "WrongPassword123!"
+        )
+        assert status_code == 401
 
         # 刷新用户信息
         await postgres_test_session.refresh(user)
@@ -181,19 +145,16 @@ class TestAuthLastLogin:
         assert response.status_code == 201
 
         # 检查用户初始状态
-        result = await postgres_test_session.execute(select(User).where(User.email == register_data["email"]))
-        user = result.scalar_one()
+        user = await get_user_by_email(postgres_test_session, register_data["email"])
         assert user.last_login_at is None
         assert not user.is_verified
 
         # 尝试登录
-        login_data = {
-            "email": register_data["email"],
-            "password": register_data["password"],
-        }
-        response = await postgres_async_client.post("/api/v1/auth/login", json=login_data)
-        assert response.status_code == 403
-        error_detail = response.json()["detail"]
+        status_code, response_data = await perform_login(
+            postgres_async_client, register_data["email"], register_data["password"]
+        )
+        assert status_code == 403
+        error_detail = response_data["detail"]
         # detail 可能是字符串或字典
         error_text = str(error_detail).lower() if isinstance(error_detail, dict) else error_detail.lower()
         assert "verify" in error_text

@@ -1,5 +1,6 @@
 """Integration test specific fixtures."""
 
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,8 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # 使用 PostgreSQL 的集成测试专用 fixtures
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """注册自定义 markers，避免 UnknownMark 警告。"""
+    config.addinivalue_line("markers", "redis_container: use Testcontainers Redis for this test")
+
+
 @pytest.fixture
-async def db_session(postgres_test_session) -> AsyncSession:
+async def db_session(postgres_test_session) -> AsyncGenerator[AsyncSession, None]:
     """提供 PostgreSQL 数据库会话用于集成测试，并在每个测试后清理数据。"""
     # 在测试开始前清理数据库
     await postgres_test_session.execute(
@@ -30,7 +36,7 @@ async def db_session(postgres_test_session) -> AsyncSession:
 
 
 @pytest.fixture
-async def client(postgres_async_client) -> AsyncClient:
+async def client(postgres_async_client) -> AsyncGenerator[AsyncClient, None]:
     """提供使用 PostgreSQL 的异步客户端用于集成测试。"""
     # 直接使用已经配置好的 postgres_async_client
     yield postgres_async_client
@@ -105,7 +111,7 @@ class _AsyncMemoryRedis:
 
 
 @pytest.fixture(autouse=True)
-def _mock_redis_services():
+def _mock_redis_services(request: pytest.FixtureRequest):
     """同时 mock 同步与异步 Redis 客户端：
     - jwt_service 使用同步 redis 客户端（黑名单） -> 使用 tests 提供的 mock_redis
     - redis_service 使用异步 redis 客户端（会话缓存） -> 使用内存实现 _AsyncMemoryRedis
@@ -119,6 +125,11 @@ def _mock_redis_services():
     )
 
     from tests.unit.test_mocks import mock_redis
+
+    # 如果当前用例标记为使用 Testcontainers Redis，则跳过内存 mock
+    if request.node.get_closest_marker("redis_container"):
+        yield
+        return
 
     # 覆盖 jwt_service 的同步 Redis 客户端
     jwt_service._redis_client = mock_redis  # type: ignore[attr-defined]
@@ -187,7 +198,10 @@ class _PubSubClientStub:
 
 
 @pytest.fixture(autouse=True)
-def _stub_redis_sse_pubsub():
+def _stub_redis_sse_pubsub(request: pytest.FixtureRequest):
+    if request.node.get_closest_marker("redis_container"):
+        yield
+        return
     from src.common.services.redis_sse_service import RedisSSEService
 
     original_init = RedisSSEService.init_pubsub_client
@@ -200,3 +214,61 @@ def _stub_redis_sse_pubsub():
         yield
     finally:
         RedisSSEService.init_pubsub_client = original_init  # type: ignore[assignment]
+
+
+# 提供可选的 Testcontainers Redis 容器
+@pytest.fixture(scope="session")
+def redis_container() -> Generator[tuple[str, int, str], None, None]:
+    try:
+        from testcontainers.redis import RedisContainer  # type: ignore
+    except Exception as e:  # pragma: no cover
+        pytest.skip(f"testcontainers not available for Redis: {e}")
+
+    with RedisContainer("redis:7-alpine") as container:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(6379))
+        password = ""
+        yield host, port, password
+
+
+@pytest.fixture
+async def use_redis_container(redis_container) -> AsyncGenerator[None, None]:
+    """让当前测试使用 Testcontainers Redis。
+
+    使用：
+      - 标记测试：@pytest.mark.redis_container
+      - 添加参数：use_redis_container（无需使用返回值）
+    """
+    host, port, password = redis_container
+    import redis.asyncio as aioredis
+    from redis import Redis
+    from src.common.services.jwt_service import jwt_service
+    from src.common.services.redis_service import redis_service as async_redis_service
+    from src.core.config import settings
+
+    # 更新 settings
+    settings.database.redis_host = host
+    settings.database.redis_port = port
+    settings.database.redis_password = password
+
+    # 重新初始化同步 Redis（JWT 黑名单）
+    jwt_service._redis_pool = None  # type: ignore[attr-defined]
+    jwt_service._redis_client = Redis(host=host, port=port, decode_responses=True)  # type: ignore[call-arg]
+
+    # 重新初始化异步 Redis（会话缓存）
+    async_redis_service._client = aioredis.from_url(  # type: ignore[attr-defined]
+        settings.database.redis_url,
+        decode_responses=True,
+        health_check_interval=30,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )
+
+    yield
+
+    # 清理异步客户端
+    try:
+        if async_redis_service._client:  # type: ignore[attr-defined]
+            await async_redis_service._client.close()  # type: ignore[union-attr]
+    except Exception:
+        pass

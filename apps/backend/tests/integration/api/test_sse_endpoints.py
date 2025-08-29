@@ -89,6 +89,30 @@ class TestSSEHealthIntegration:
         assert response.status_code == 503
         assert response.headers["content-type"].startswith("application/json")
 
+    # 真实 Redis 语义：使用 Testcontainers Redis，期望服务健康（200）
+    @pytest.mark.redis_container
+    @pytest.mark.asyncio
+    async def test_health_endpoint_structure_with_redis(self, postgres_async_client, use_redis_container):
+        """Health endpoint should report healthy with real Redis available."""
+        response = await postgres_async_client.get("/api/v1/events/health")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["service"] == "sse"
+        assert data["status"] == "healthy"
+        assert data["redis_status"] == "healthy"
+        assert "connection_statistics" in data
+        assert isinstance(data["connection_statistics"].get("active_connections"), int)
+        assert isinstance(data["connection_statistics"].get("redis_connection_counters"), int)
+
+    @pytest.mark.redis_container
+    @pytest.mark.asyncio
+    async def test_health_endpoint_no_auth_with_redis(self, postgres_async_client, use_redis_container):
+        """Health endpoint should be accessible and healthy with real Redis without auth."""
+        response = await postgres_async_client.get("/api/v1/events/health")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+
 
 class TestSSEServiceIntegration:
     """Test SSE service integration scenarios."""

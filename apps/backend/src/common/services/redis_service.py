@@ -1,5 +1,6 @@
 """Redis service implementation for caching and session management."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
@@ -66,10 +67,14 @@ class RedisService:
         return bool(await self._client.exists(key))
 
     @asynccontextmanager
-    async def acquire(self):
+    async def acquire(self) -> AsyncGenerator[redis.Redis, None]:
         """Context manager for Redis operations."""
         if not self._client:
             await self.connect()
+
+        if not self._client:
+            raise RuntimeError("Failed to connect to Redis")
+
         try:
             yield self._client
         finally:

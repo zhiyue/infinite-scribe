@@ -158,6 +158,7 @@ markers = [
     "slow: Slow tests",
     "requires_docker: Tests that require Docker containers",
     "requires_remote: Tests that require remote database connections",
+    "redis_container: Tests that require Redis container integration",
 ]
 
 # Mypy configuration

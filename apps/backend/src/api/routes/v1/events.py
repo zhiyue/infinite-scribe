@@ -39,46 +39,27 @@ class SSEHealthResponse(BaseModel):
     version: str
 
 
-class SSEHealthErrorResponse(BaseModel):
-    """SSE health check error response model."""
-
-    status: str
-    error: str
-    service: str
-    version: str
-
-
-# Global SSE services - will be initialized on first use
+# Service instances - simple singleton pattern
 _redis_sse_service: RedisSSEService | None = None
 _sse_connection_manager: SSEConnectionManager | None = None
 
-# Locks for thread-safe initialization
-_redis_sse_service_lock = asyncio.Lock()
-_sse_connection_manager_lock = asyncio.Lock()
-
 
 async def get_redis_sse_service() -> RedisSSEService:
-    """Get Redis SSE service with dependency injection."""
+    """Get or create Redis SSE service instance."""
     global _redis_sse_service
     if _redis_sse_service is None:
-        async with _redis_sse_service_lock:
-            # Double-check pattern to prevent race conditions
-            if _redis_sse_service is None:
-                _redis_sse_service = RedisSSEService(redis_service)
-                await _redis_sse_service.init_pubsub_client()
+        _redis_sse_service = RedisSSEService(redis_service)
+        await _redis_sse_service.init_pubsub_client()
     return _redis_sse_service
 
 
 async def get_sse_connection_manager(
     redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
 ) -> SSEConnectionManager:
-    """Get SSE connection manager with dependency injection."""
+    """Get or create SSE connection manager instance."""
     global _sse_connection_manager
     if _sse_connection_manager is None:
-        async with _sse_connection_manager_lock:
-            # Double-check pattern to prevent race conditions
-            if _sse_connection_manager is None:
-                _sse_connection_manager = SSEConnectionManager(redis_sse_service)
+        _sse_connection_manager = SSEConnectionManager(redis_sse_service)
     return _sse_connection_manager
 
 
@@ -88,32 +69,12 @@ async def sse_stream(
     sse_token: Annotated[str, Query(description="SSE authentication token")],
     sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
 ):
-    """
-    SSE streaming endpoint for real-time events.
-
-    Establishes a Server-Sent Events connection for real-time event streaming.
-    Supports Last-Event-ID header for reconnection and event history replay.
-
-    Args:
-        request: FastAPI request object for client disconnection detection
-        sse_token: Short-term authentication token for SSE connection
-        sse_connection_manager: SSE connection manager service
-
-    Returns:
-        EventSourceResponse: Server-Sent Events response stream
-
-    Raises:
-        HTTPException: 401 if authentication fails, 429 if connection limit exceeded
-    """
-    # Verify the token and get user ID
+    """SSE streaming endpoint for real-time events."""
     user_id = verify_sse_token(sse_token)
 
     try:
-        # Use the existing SSE connection manager
         return await sse_connection_manager.add_connection(request, user_id)
-
     except HTTPException:
-        # Re-raise HTTP exceptions (like 429 for rate limiting)
         raise
     except Exception as e:
         logger.error(f"Error establishing SSE connection for user {user_id}: {e}")
@@ -124,92 +85,20 @@ async def sse_stream(
 
 @router.get("/health", response_model=SSEHealthResponse)
 async def sse_health():
-    """
-    SSE service health check endpoint.
-
-    Returns connection statistics and service health information.
-    No authentication required for monitoring purposes.
-
-    Returns:
-        dict: Health status and connection statistics
-    """
-    import asyncio
-    
+    """SSE service health check endpoint."""
     try:
-        # Try to get services, handle initialization errors
-        sse_connection_manager = None
-        redis_sse_service = None
-        
-        try:
-            sse_connection_manager = await get_sse_connection_manager()
-        except Exception as e:
-            logger.warning(f"Failed to initialize SSE connection manager: {e}")
-            
-        try:
-            redis_sse_service = await get_redis_sse_service()
-        except Exception as e:
-            logger.warning(f"Failed to initialize Redis SSE service: {e}")
-            # If Redis service initialization fails, return error response immediately
-            error_response = SSEHealthErrorResponse(
-                status="unhealthy",
-                error=f"Redis service initialization failed: {str(e)}",
-                service="sse",
-                version=SSE_SERVICE_VERSION
-            )
-            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_response.model_dump())
+        # Initialize services
+        redis_sse_service = await get_redis_sse_service()
+        sse_connection_manager = await get_sse_connection_manager(redis_sse_service)
 
-        # Get connection statistics with timeout protection
-        try:
-            if sse_connection_manager:
-                connection_stats = await asyncio.wait_for(
-                    sse_connection_manager.get_connection_count(),
-                    timeout=HEALTH_CHECK_TIMEOUT
-                )
-            else:
-                raise Exception("SSE connection manager not available")
-        except asyncio.TimeoutError:
-            logger.warning("Connection statistics query timed out")
-            # Provide safe defaults if stats query times out
-            connection_stats = {
-                "active_connections": -1,  # -1 indicates unavailable
-                "redis_connection_counters": -1
-            }
-        except Exception as e:
-            logger.warning(f"Failed to get connection statistics: {e}")
-            connection_stats = {
-                "active_connections": -1,
-                "redis_connection_counters": -1
-            }
+        # Get connection statistics
+        connection_stats = await _get_connection_stats(sse_connection_manager)
 
-        # Check Redis connectivity with timeout and proper encapsulation handling
-        redis_healthy = False
-        try:
-            if redis_sse_service:
-                # Check if Redis service has a client initialized
-                if hasattr(redis_sse_service, '_pubsub_client') and redis_sse_service._pubsub_client:
-                    # Use timeout for Redis ping operation
-                    await asyncio.wait_for(
-                        redis_sse_service._pubsub_client.ping(),
-                        timeout=HEALTH_CHECK_TIMEOUT
-                    )
-                    redis_healthy = True
-                else:
-                    logger.warning("Redis client not initialized")
-                    redis_healthy = False
-            else:
-                logger.warning("Redis SSE service not available")
-                redis_healthy = False
-        except asyncio.TimeoutError:
-            logger.warning("Redis health check timed out")
-            redis_healthy = False
-        except Exception as e:
-            logger.warning(f"Redis health check failed: {e}")
-            redis_healthy = False
+        # Check Redis health
+        redis_healthy = await _check_redis_health(redis_sse_service)
 
-        # Determine overall service status
-        overall_status = "healthy" if redis_healthy else "degraded"
-        if connection_stats.get("active_connections", -1) == -1:
-            overall_status = "unhealthy"  # Can't get basic stats
+        # Determine overall status
+        overall_status = _determine_overall_status(redis_healthy, connection_stats)
 
         health_data = SSEHealthResponse(
             status=overall_status,
@@ -219,7 +108,7 @@ async def sse_health():
             version=SSE_SERVICE_VERSION,
         )
 
-        # Return 503 if service is unhealthy or degraded
+        # Return appropriate status code
         if overall_status in ["unhealthy", "degraded"]:
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_data.model_dump())
 
@@ -227,10 +116,44 @@ async def sse_health():
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        error_response = SSEHealthErrorResponse(
-            status="unhealthy",
-            error=str(e),
-            service="sse",
-            version=SSE_SERVICE_VERSION
+        error_data = {
+            "status": "unhealthy",
+            "error": str(e),
+            "service": "sse",
+            "version": SSE_SERVICE_VERSION
+        }
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_data)
+
+
+async def _get_connection_stats(sse_connection_manager: SSEConnectionManager) -> dict:
+    """Get connection statistics with timeout protection."""
+    try:
+        return await asyncio.wait_for(
+            sse_connection_manager.get_connection_count(),
+            timeout=HEALTH_CHECK_TIMEOUT
         )
-        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_response.model_dump())
+    except (TimeoutError, Exception) as e:
+        logger.warning(f"Failed to get connection statistics: {e}")
+        return {"active_connections": -1, "redis_connection_counters": -1}
+
+
+async def _check_redis_health(redis_sse_service: RedisSSEService) -> bool:
+    """Check Redis connectivity with timeout protection."""
+    try:
+        if hasattr(redis_sse_service, '_pubsub_client') and redis_sse_service._pubsub_client:
+            await asyncio.wait_for(
+                redis_sse_service._pubsub_client.ping(),
+                timeout=HEALTH_CHECK_TIMEOUT
+            )
+            return True
+        return False
+    except (TimeoutError, Exception) as e:
+        logger.warning(f"Redis health check failed: {e}")
+        return False
+
+
+def _determine_overall_status(redis_healthy: bool, connection_stats: dict) -> str:
+    """Determine overall service status based on components."""
+    if connection_stats.get("active_connections", -1) == -1:
+        return "unhealthy"  # Can't get basic stats
+    return "healthy" if redis_healthy else "degraded"

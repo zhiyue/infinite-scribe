@@ -63,7 +63,670 @@ Read file: undefined
 
 ---
 
-<think><details><summary>Thought Process</summary>确实！pyproject.toml 中没有 fastapi-sse 依赖，但是代码中使用了它。这就是问题的</details></think>
+<think><details><summary>Thought Process</summary>确实！pyproject.toml 中没有 fastapi-sse 依赖，但是代码中使用了它。这就是问题的根源。
+
+
+## Investigating dependency issue  
+- Found that pyproject.toml lacks fastapi-sse, but it's used in the code, causing the issue.</details></think>
+
+---
+
+```bash
+cd /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend && uv add fastapi-sse
+```
+
+```
+❯ cd /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend && uv add fastapi-sse
+Resolved 196 packages in 1m 33s
+      Built infinite-scribe-backend @ file:///home/zhiyue/workspace/mvp/infinite-scribe/apps/backend
+Prepared 2 packages in 175ms
+Uninstalled 1 package in 0.29ms
+Installed 2 packages in 0.84ms
+ ~ infinite-scribe-backend==0.1.0 (from file:///home/zhiyue/workspace/mvp/infinite-scribe/apps/backend)
+ + sse-starlette==2.1.3
+
+infinite-scribe/apps/backend on  main [$!?] is 📦 v0.1.0 via 🐍 v3.13.4 took 1m26s 
+❯
+```
+
+---
+
+<think><details><summary>Thought Process</summary>很好！现在 fastapi-sse 已经被添加到依赖中了。让我验证一下 pyproject.toml 是否已经更新：</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>完美！现在 fastapi-sse 已经被添加到依赖中了。但是还有一个问题，就是现在有两个 SSE 相关的包：
+
+## Reviewing Dependencies
+
+- Found that `fastapi-sse>=1.1.1` was recently added to the dependencies.</details></think>
+
+---
+
+```bash
+cd /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend && uv run mypy src/services/sse_connection_manager.py
+```
+
+```
+<ribe/apps/backend && uv run mypy src/services/sse_connection_manager.py
+src/services/sse_connection_manager.py:114: error: Missing named argument "last_event_id" for "SSEConnectionS
+tate"  [call-arg]
+src/services/sse_connection_manager.py:227: error: Incompatible types in assignment (expression has type "SSE
+ConnectionState | None", variable has type "SSEConnectionState")  [assignment]
+Found 2 errors in 1 file (checked 1 source file)
+
+infinite-scribe/apps/backend on  main [$!?] is 📦 v0.1.0 via 🐍 v3.13.4 took 3s 
+❯
+```
+
+---
+
+<think><details><summary>Thought Process</summary>很好！现在 mypy 不再报告关于 fastapi-sse 的类型注解问题了，这意味着第一个问题已经解决。
+</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我看到问题了。在第114-118行，`SSEConnectionState` 的构造函数只提供了 `connection_id`、`user_id` 和 `connected_at`，但是根据第33-42行的定义，`SSEConnectionState` 还有其他必需字段，特别是 `last_heartbeat`。
+</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我发现了问题！`SSEConnectionState` 模型中没有 `last_heartbeat` 字段，但是在代码第118行（现在应该是第129行左右）设置了 `last_heartbeat=datetime.utcnow()`。
+</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>奇怪，我记得在之前的文件中看到了 `last_heartbeat` 字段。让我重新读取整个 `SSEConnectionState` 类定义：</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>现在我明白了！当前的 `SSEConnectionState` 模型中确实没有 `last_heartbeat` 字段，但是代码中试图设置它。这就是类型错误的原因。
+</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>看起来测试文件中也引用了 `last_heartbeat`。这意味着原来的设计确实包含这个字段，但是在当前的模型定义中被移除了。
+</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>现在我明白了！测试期望 `SSEConnectionState` 有 `last_heartbeat` 字段，但当前的模型定义中缺少这个字段。我需要修复这个问题。
+</details></think>
+
+---
+
+<details><summary>Edit file: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/services/sse_connection_manager.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -38,4 +38,5 @@
+      user_id: str = Field(..., description="User ID associated with connection")
+      connected_at: datetime = Field(..., description="Connection timestamp")
++     last_heartbeat: datetime = Field(..., description="Last heartbeat timestamp")
+      last_event_id: str | None = Field(None, description="Last processed event ID for reconnection")
+      channel_subscriptions: list[str] = Field(default_factory=list, description="Subscribed channels")
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>现在我需要更新 `SSEConnectionState` 的构造函数调用，确保包含 `last_heartbeat` 字段：</details></think>
+
+---
+
+<details><summary>Edit file: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/services/sse_connection_manager.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -117,4 +117,5 @@
+              user_id=user_id,
+              connected_at=datetime.utcnow(),
++             last_heartbeat=datetime.utcnow(),
+          )
+          self.connections[connection_id] = connection_state
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>现在我需要修复第二个错误。让我查看第227行附近的代码，找到类型不兼容的问题：</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我找到了问题！在第226行，`self.connections.get(connection_id)` 返回的是 `SSEConnectionState | None`，但是第227行的 `if connection_state:` 检查会让 mypy 推断在 if 块内部 `connection_state` 仍然是 `SSEConnectionState | None`。
+</details></think>
+
+---
+
+<details><summary>Edit file: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/services/sse_connection_manager.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -225,5 +225,5 @@
+          for connection_id in stale_connection_ids:
+              connection_state = self.connections.get(connection_id)
+-             if connection_state:
++             if connection_state is not None:
+                  await self._cleanup_connection(connection_id, connection_state.user_id)
+                  stale_count += 1
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>现在让我再次运行 mypy 检查，看看是否还有其他类型错误：</details></think>
+
+---
+
+```bash
+cd /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend && uv run mypy src/services/sse_connection_manager.py
+```
+
+```
+<ribe/apps/backend && uv run mypy src/services/sse_connection_manager.py
+      Built infinite-scribe-backend @ file:///home/zhiyue/workspace/mvp/infinite-scribe/apps/backend
+Uninstalled 1 package in 0.71ms
+Installed 1 package in 1ms
+```
+
+---
+
+<think><details><summary>Thought Process</summary>太好了！现在 mypy 检查通过了，没有任何错误。这意味着我们成功解决了原始问题。
+
+
+## Reviewing Progress  
+- Mypy checks passed with no errors, confirming the issue is resolved.</details></think>
+
+---
+
+```bash
+cd /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend && uv run pytest tests/unit/services/test_sse_connection_manager.py -v
+```
+
+```
+< && uv run pytest tests/unit/services/test_sse_connection_manager.py -v
+============================================ test session starts ============================================
+platform linux -- Python 3.11.13, pytest-8.3.5, pluggy-1.6.0 -- /home/zhiyue/workspace/mvp/infinite-scribe/ap
+ps/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend
+configfile: pyproject.toml
+plugins: mock-3.14.1, asyncio-0.24.0, cov-6.0.0, anyio-3.7.1
+asyncio: mode=Mode.AUTO, default_loop_scope=function
+collected 10 items                                                                                          
+
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_add_connection_creates_str
+eaming_response FAILED [ 10%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_add_connection_enforces_co
+ncurrency_limit FAILED [ 20%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_connection_state_tracking 
+FAILED [ 30%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_heartbeat_generation FAILE
+D [ 40%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_cleanup_connection_removes
+_resources FAILED [ 50%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_cleanup_stale_connections 
+FAILED [ 60%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_get_connection_count PASSE
+D [ 70%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_queue_aggregation_design F
+AILED [ 80%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_redis_counter_negative_pro
+tection PASSED [ 90%]
+tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_connection_manager_initial
+ization FAILED [100%]
+
+================================================= FAILURES ==================================================
+__________________ TestSSEConnectionManager.test_add_connection_creates_streaming_response __________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f6a88d0>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f3020d0>
+sample_user_id = '7b33f4a7-f3f8-4cb4-8953-98b57543b2ef', mock_redis_client = <AsyncMock id='139837946274768'>
+
+    async def test_add_connection_creates_streaming_response(
+        self, sse_connection_manager, sample_user_id, mock_redis_client
+    ):
+        """Test that add_connection returns StreamingResponse."""
+        # Mock Redis operations
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+    
+>       response = await sse_connection_manager.add_connection(sample_user_id)
+E       TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+
+tests/unit/services/test_sse_connection_manager.py:97: TypeError
+__________________ TestSSEConnectionManager.test_add_connection_enforces_concurrency_limit __________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f3bd5d0>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f058310>
+sample_user_id = '78ae54b9-77a2-42da-abcd-c3129c12b961', mock_redis_client = <AsyncMock id='139837944725584'>
+
+    async def test_add_connection_enforces_concurrency_limit(
+        self, sse_connection_manager, sample_user_id, mock_redis_client
+    ):
+        """Test that max 2 connections per user is enforced."""
+        # Mock Redis to return 3 connections (over limit)
+        mock_redis_client.incr.return_value = 3
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+    
+        with pytest.raises(HTTPException) as exc_info:
+>           await sse_connection_manager.add_connection(sample_user_id)
+E           TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id
+'
+
+tests/unit/services/test_sse_connection_manager.py:113: TypeError
+__________________________ TestSSEConnectionManager.test_connection_state_tracking __________________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f3bf4d0>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f059cd0>
+sample_user_id = '1a2c0967-7332-489d-b8ce-8a0210d037b0', mock_redis_client = <AsyncMock id='139837944860176'>
+
+    async def test_connection_state_tracking(self, sse_connection_manager, sample_user_id, mock_redis_client)
+:
+        """Test that connections are properly tracked in memory."""
+        initial_count = len(sse_connection_manager.connections)
+    
+        # Mock Redis operations with proper return values
+        mock_redis_client.incr.return_value = 1
+        mock_redis_client.expire.return_value = True
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+    
+        # Mock Redis SSE service methods
+        sse_connection_manager.redis_sse.get_recent_events = AsyncMock(return_value=[])
+        sse_connection_manager.redis_sse.subscribe_user_events = AsyncMock()
+    
+        # Add connection
+>       response = await sse_connection_manager.add_connection(sample_user_id)
+E       TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+
+tests/unit/services/test_sse_connection_manager.py:134: TypeError
+____________________________ TestSSEConnectionManager.test_heartbeat_generation _____________________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f3be090>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f0621d0>
+sample_user_id = 'c5f8bb35-6274-4fea-aad0-e3717befc1e0', mock_redis_client = <AsyncMock id='139837944760592'>
+
+    async def test_heartbeat_generation(self, sse_connection_manager, sample_user_id, mock_redis_client):
+        """Test that heartbeat messages are generated every 30 seconds."""
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+        sse_connection_manager.heartbeat_interval = 0.1  # Speed up for testing
+    
+        # Mock streaming response generation
+>       response = await sse_connection_manager.add_connection(sample_user_id)
+E       TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+
+tests/unit/services/test_sse_connection_manager.py:157: TypeError
+____________________ TestSSEConnectionManager.test_cleanup_connection_removes_resources _____________________
+
+self = <AsyncMock name='mock.delete' id='139837948908112'>, args = ('sse_conn:test-conn-123:heartbeat',)
+kwargs = {}, expected = "delete('sse_conn:test-conn-123:heartbeat')", actual = 'not called.'
+error_message = "expected call not found.\nExpected: delete('sse_conn:test-conn-123:heartbeat')\n  Actual: no
+t called."
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+>           raise AssertionError(error_message)
+E           AssertionError: expected call not found.
+E           Expected: delete('sse_conn:test-conn-123:heartbeat')
+E             Actual: not called.
+
+/home/zhiyue/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/unittest/mock.py:930: Ass
+ertionError
+
+During handling of the above exception, another exception occurred:
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f3bdcd0>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f254f90>
+sample_user_id = '3e7265dc-0de2-42d2-9223-681f6b22eae4', mock_redis_client = <AsyncMock id='139837946822544'>
+
+    async def test_cleanup_connection_removes_resources(
+        self, sse_connection_manager, sample_user_id, mock_redis_client
+    ):
+        """Test that connection cleanup removes all resources."""
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+        connection_id = "test-conn-123"
+    
+        # Add connection to memory first
+        sse_connection_manager.connections[connection_id] = SSEConnectionState(
+            connection_id=connection_id,
+            user_id=sample_user_id,
+            connected_at=datetime.utcnow(),
+            last_heartbeat=datetime.utcnow(),
+        )
+    
+        # Call cleanup
+        await sse_connection_manager._cleanup_connection(connection_id, sample_user_id)
+    
+        # Verify memory cleanup
+        assert connection_id not in sse_connection_manager.connections
+    
+        # Verify Redis counter decremented
+        mock_redis_client.decr.assert_called_once_with(f"user:{sample_user_id}:sse_conns")
+    
+        # Verify heartbeat key deleted
+        expected_heartbeat_key = f"sse_conn:{connection_id}:heartbeat"
+>       mock_redis_client.delete.assert_called_with(expected_heartbeat_key)
+E       AssertionError: expected call not found.
+E       Expected: delete('sse_conn:test-conn-123:heartbeat')
+E         Actual: not called.
+
+tests/unit/services/test_sse_connection_manager.py:188: AssertionError
+__________________________ TestSSEConnectionManager.test_cleanup_stale_connections __________________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f3bf7d0>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f360750>
+mock_redis_client = <AsyncMock id='139837944858256'>
+
+    async def test_cleanup_stale_connections(self, sse_connection_manager, mock_redis_client):
+        """Test zombie connection garbage collection."""
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+    
+        # Mock scan_iter to return some stale heartbeat keys
+        stale_keys = ["sse_conn:conn1:heartbeat", "sse_conn:conn2:heartbeat"]
+    
+        async def mock_scan_iter(match=None):
+            for key in stale_keys:
+                yield key
+    
+        mock_redis_client.scan_iter = mock_scan_iter
+    
+        # Mock get to return old timestamps (90+ seconds ago)
+        old_timestamp = int(time.time()) - 120  # 2 minutes ago
+        mock_redis_client.get.return_value = str(old_timestamp)
+    
+        # Run cleanup
+        stale_count = await sse_connection_manager.cleanup_stale_connections()
+    
+>       assert stale_count == 2
+E       assert 0 == 2
+
+tests/unit/services/test_sse_connection_manager.py:210: AssertionError
+__________________________ TestSSEConnectionManager.test_queue_aggregation_design ___________________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f6a8f50>
+sse_connection_manager = <src.services.sse_connection_manager.SSEConnectionManager object at 0x7f2e8f099450>
+sample_user_id = '598c72c2-5bde-422c-9384-9df5cd3ee234', mock_redis_client = <AsyncMock id='139837944992720'>
+mock_redis_sse_subscribe = <function TestSSEConnectionManager.mock_redis_sse_subscribe.<locals>.async_generat
+or at 0x7f2e8f040e00>
+
+    async def test_queue_aggregation_design(
+        self, sse_connection_manager, sample_user_id, mock_redis_client, mock_redis_sse_subscribe
+    ):
+        """Test that heartbeat + real-time events + history events are properly aggregated in queue."""
+        sse_connection_manager.redis_sse._pubsub_client = mock_redis_client
+        sse_connection_manager.heartbeat_interval = 0.05  # Very fast for testing
+    
+        # Mock the Redis SSE service subscription
+        sse_connection_manager.redis_sse.subscribe_user_events = mock_redis_sse_subscribe
+    
+        # Mock get_recent_events to return some historical events
+        sse_connection_manager.redis_sse.get_recent_events = AsyncMock(
+            return_value=[
+                SSEMessage(
+                    event="task.progress-started",
+                    data={"task_id": "historical-task"},
+                    id="hist-1",
+                    scope=EventScope.USER,
+                )
+            ]
+        )
+    
+>       response = await sse_connection_manager.add_connection(sample_user_id)
+E       TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+
+tests/unit/services/test_sse_connection_manager.py:263: TypeError
+______________________ TestSSEConnectionManager.test_connection_manager_initialization ______________________
+
+self = <test_sse_connection_manager.TestSSEConnectionManager object at 0x7f2e8f1d0bd0>
+redis_sse_service = <src.common.services.redis_sse_service.RedisSSEService object at 0x7f2e8f05bf50>
+
+    async def test_connection_manager_initialization(self, redis_sse_service):
+        """Test that SSEConnectionManager initializes correctly."""
+        manager = SSEConnectionManager(redis_sse_service)
+    
+        assert manager.redis_sse == redis_sse_service
+        assert manager.connections == {}
+>       assert manager.heartbeat_interval == 30
+E       AttributeError: 'SSEConnectionManager' object has no attribute 'heartbeat_interval'
+
+tests/unit/services/test_sse_connection_manager.py:285: AttributeError
+========================================== short test summary info ==========================================
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_add_connection_crea
+tes_streaming_response - TypeError: SSEConnectionManager.add_connection() missing 1 required positional argum
+ent: 'user_id'
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_add_connection_enfo
+rces_concurrency_limit - TypeError: SSEConnectionManager.add_connection() missing 1 required positional argum
+ent: 'user_id'
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_connection_state_tr
+acking - TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_heartbeat_generatio
+n - TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_cleanup_connection_
+removes_resources - AssertionError: expected call not found.
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_cleanup_stale_conne
+ctions - assert 0 == 2
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_queue_aggregation_d
+esign - TypeError: SSEConnectionManager.add_connection() missing 1 required positional argument: 'user_id'
+FAILED tests/unit/services/test_sse_connection_manager.py::TestSSEConnectionManager::test_connection_manager_
+initialization - AttributeError: 'SSEConnectionManager' object has no attribute 'heartbeat_interval'
+======================================== 8 failed, 2 passed in 0.22s ========================================
+```
+
+---
+
+<think><details><summary>Thought Process</summary>看起来测试失败了，有几个问题：
+</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我看到问题了！测试期望 `add_connection(sample_user_id)` 只接受一个参数（user_id），但是我的实现需要更多的参数。让我查看一下当前的 `add_connection` 方法签名：</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>现在我明白了！当前的实现需要 `request: Request` 参数，但是测试只传递了 `user_id`。看起来代码和测试之间不一致。
+</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我看到问题了！当前的实现使用了 `EventSourceResponse` 而不是 `StreamingResponse`，并且需要 `Request` 参数。但是测试期望的是旧的 API。
+</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>现在我明白了整个情况：
+
+
+## Examining implementation details  
+- The current setup uses `sse-starlette`'s `EventSourceResponse`, which requires a `Request` parameter.  
+- Tests are expecting the older implementation that relied on `fastapi-sse`'s `Streaming`.</details></think>
+
+---
+
+## Todo List
+
+- [x] 修复 fastapi-sse 类型注解问题 - 已完成
+- [x] 修复 SSEConnectionState 模型缺失字段
+- [-] 修复代码与测试之间的API不一致问题
+- [ ] 修复缺失的 heartbeat_interval 属性
+- [ ] 更新测试以匹配当前实现或反之
+
+---
+
+<think><details><summary>Thought Process</summary>现在我需要决定如何解决API不一致的问题。有两种方法：
+
+
+## Evaluating API Consistency Solutions  
+- Found two main approaches: keep the current implementation and update tests, or explore other changes.</details></think>
+
+---
+
+<details><summary>Edit file: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/services/sse_connection_manager.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -25,5 +25,5 @@
+  from fastapi import HTTPException, Request
+  from pydantic import BaseModel, Field
+- from sse_starlette import EventSourceResponse, ServerSentEvent
++ from sse_starlette import ServerSentEvent
+  
+  from src.common.services.redis_sse_service import RedisSSEService
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>现在我需要将方法签名改回只接受 `user_id` 参数，并使用 `fastapi_sse.sse_response` 而不是 `EventSourceResponse`：</details></think>
+
+---
+
+<details><summary>Edit file: /home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/services/sse_connection_manager.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -74,5 +74,5 @@
+          self.ping_interval = 15  # Built-in ping every 15 seconds
+  
+-     async def add_connection(self, request: Request, user_id: str) -> EventSourceResponse:
++     async def add_connection(self, user_id: str) -> StreamingResponse:
+          """
+          Add new SSE connection with production-ready features and concurrency limits.
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>现在我需要更新方法的实现，使用 fastapi-sse 而不是 sse-starlette，并且确保 heartbeat_interval 属性存在。让我先查看一下当前的实现需要如何修改：</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>我需要查看完整的返回语句，看看当前使用的是什么：</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>让我查看这个返回语句的完整上下文：</details></think>
+
+---
+
+Read file: undefined
+
+---
+
+<think><details><summary>Thought Process</summary>现在我明白了！当前的实现使用了 `EventSourceResponse`，但是我需要将其改为使用 `fastapi_sse.sse_response`。另外，我还需要确保 `heartbeat_interval` 属性存在。
+</details></think>
+
+---
+
+Cancelled
+
+---
+
+_**User**_
+
+如何我希望在集成测试中使用 test_containers 的redis来mock呢?
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>用户想要在集成测试中使用 testcontainers 的 Redis 来进行 mock。让我先看看当前的测试结构，了解现有的测试设置，然后提供使用 testcontainers Redis 的解决方案。
+</details></think>
+
+---
+
+<details>
+            <summary>Listed directory undefined • **0** results</summary>
+        
+No results found
+</details>
 
 ---
 
