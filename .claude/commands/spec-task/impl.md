@@ -81,7 +81,6 @@ argument-hint: <feature-name> <task-numbers>
    - **强制质量检验**：使用专门的代理进行最终验证
      - 使用 **code-simplifier** 代理检查代码复杂度并简化重构
      - 使用 **code-review-expert** 代理进行代码质量审查
-     - 使用 **test-runner** 代理运行完整测试套件并验证结果
    - 在 .tasks/<功能名称>/tasks.md 中将复选框从 `- [ ]` 更新为 `- [x]`
    - 确保现有测试没有回归
 
@@ -122,7 +121,6 @@ argument-hint: <feature-name> <task-numbers>
 - 所有测试通过
 - 代码通过质量审查（通过 code-review-expert 代理验证）
 - 代码复杂度符合标准（通过 code-simplifier 代理验证和优化）
-- 通过 test-runner 代理验证
 - 没有回归
 
 ---
@@ -278,26 +276,6 @@ argument-hint: <feature-name> <task-numbers>
 - 性能表现良好
 - 具备良好的可维护性
 
-### 3. 测试运行验证 (test-runner)
-
-**用途**：运行完整测试套件并分析结果
-
-**执行时机**：代码质量审查完成后
-
-**验证内容**：
-
-- 运行所有相关单元测试
-- 运行集成测试（如适用）
-- 检查测试覆盖率
-- 验证测试结果和错误信息
-- 确保无测试回归
-
-**通过标准**：
-
-- 所有测试通过
-- 测试覆盖率达到要求（单元测试 > 80%）
-- 无测试回归
-- 测试输出清晰易懂
 
 ### 代理验证执行流程
 
@@ -305,8 +283,7 @@ argument-hint: <feature-name> <task-numbers>
 任务实施完成 →
 1. 使用 code-simplifier 代理简化优化代码 →
 2. 使用 code-review-expert 代理审查代码质量 →
-3. 使用 test-runner 代理验证测试结果 →
-4. 所有验证通过后，标记任务为完成 [x]
+3. 所有验证通过后，标记任务为完成 [x]
 ```
 
 ### 验证失败处理
@@ -316,12 +293,11 @@ argument-hint: <feature-name> <task-numbers>
 - **不要标记任务为完成**
 - 根据代理反馈修复问题
 - 重新运行失败的代理验证
-- 确保所有三个代理都通过后才能完成任务
+- 确保所有两个代理都通过后才能完成任务
 
 ### 质量门控标准
 
-只有当所有三个代理验证都通过时，任务才能被标记为完成：
+只有当所有两个代理验证都通过时，任务才能被标记为完成：
 
 - ✅ code-simplifier: 代码简洁性通过
 - ✅ code-review-expert: 代码质量通过
-- ✅ test-runner: 测试验证通过
