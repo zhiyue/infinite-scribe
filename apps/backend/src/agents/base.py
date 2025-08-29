@@ -3,7 +3,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.errors import KafkaError
@@ -91,7 +91,9 @@ class BaseAgent(ABC):
                     )
 
                     # 处理消息
-                    result: dict[str, Any] | None = await self.process_message(msg.value)
+                    message_value = cast(dict[str, Any] | None, getattr(msg, "value", None))
+                    safe_message = message_value if isinstance(message_value, dict) else {}
+                    result: dict[str, Any] | None = await self.process_message(safe_message)
 
                     # 如果有返回结果,发送到对应主题
                     if result:

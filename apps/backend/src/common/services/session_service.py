@@ -21,6 +21,11 @@ class SessionService:
         """Initialize session service."""
         self.cache_prefix = "session"
         self.cache_ttl = 3600  # 1 hour cache TTL
+        # Flag used by specific code paths to request full ORM objects with relationships
+        self._need_full_object: bool = False
+
+    # Type hint for the attribute to help with type checking
+    _need_full_object: bool
 
     def _get_cache_key(
         self, session_id: int | None = None, jti: str | None = None, refresh_token: str | None = None

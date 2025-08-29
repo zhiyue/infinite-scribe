@@ -101,8 +101,6 @@ class EmailVerification(BaseModel):
     @property
     def is_expired(self) -> bool:
         """Check if the token is expired."""
-        if self.expires_at is None:
-            return True
         return utc_now() > self.expires_at
 
     @property
@@ -129,7 +127,7 @@ class EmailVerification(BaseModel):
             "is_valid": self.is_valid,
             "is_expired": self.is_expired,
             "is_used": self.is_used,
-            "expires_at": self.expires_at.isoformat() if self.expires_at is not None else None,
+            "expires_at": self.expires_at.isoformat(),
             "used_at": self.used_at.isoformat() if self.used_at is not None else None,
-            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
+            "created_at": self.created_at.isoformat(),
         }

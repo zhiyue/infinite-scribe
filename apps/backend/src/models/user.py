@@ -102,8 +102,8 @@ class User(BaseModel):
             "is_active": self.is_active,
             "is_verified": self.is_verified,
             "is_superuser": self.is_superuser,
-            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
             "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
         }
 

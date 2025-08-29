@@ -28,7 +28,7 @@ class NovelResponse(BaseSchema):
     @model_validator(mode="after")
     def validate_completed_chapters(self):
         """验证已完成章节数不能超过目标章节数"""
-        if self.target_chapters is not None and self.completed_chapters > self.target_chapters:
+        if self.completed_chapters > self.target_chapters:
             raise ValueError("已完成章节数不能超过目标章节数")
         return self
 

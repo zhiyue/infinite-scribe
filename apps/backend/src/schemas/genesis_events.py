@@ -145,9 +145,7 @@ class EventSerializationUtils:
     @staticmethod
     def serialize_payload(payload: GenesisEventPayloadUnion) -> dict[str, Any]:
         """Serialize event payload to dictionary"""
-        if isinstance(payload, BaseModel):
-            return payload.model_dump(exclude_unset=True)
-        return payload if isinstance(payload, dict) else {}
+        return payload.model_dump(exclude_unset=True)
 
     @staticmethod
     def deserialize_payload(event_type: GenesisEventType, payload_data: dict[str, Any]) -> GenesisEventPayloadUnion:

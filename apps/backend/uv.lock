@@ -1230,6 +1230,7 @@ dev = [
     { name = "ipdb" },
     { name = "mypy" },
     { name = "pre-commit" },
+    { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1282,6 +1283,7 @@ dev = [
     { name = "ipdb", specifier = "~=0.13.13" },
     { name = "mypy", specifier = "~=1.13.0" },
     { name = "pre-commit", specifier = "~=4.0.1" },
+    { name = "pyright", specifier = ">=1.1.404" },
     { name = "pytest", specifier = "~=8.3.3" },
     { name = "pytest-asyncio", specifier = "~=0.24.0" },
     { name = "pytest-cov", specifier = "~=6.0.0" },
@@ -2566,6 +2568,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8b/e6/8606b0dc479e4e6f2a2052c035d09d1911903b6c51f99c623268a4181cc8/pymilvus-2.4.15.tar.gz", hash = "sha256:b21878e5df74dca91b3f3cf0b0597fa6b6aed7bf5cde9a1b10641994faa353bf", size = 1232886, upload-time = "2025-02-24T03:02:04.469Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/92/1d/00ff2f10c8fa0a7ac61a9e1121383fb0b8ebd9e0da97842bc1edc8773cda/pymilvus-2.4.15-py3-none-any.whl", hash = "sha256:0601591ce0498315e19e9ac3f4fdd3051102ca87b6ddff5b33849f522288cff7", size = 212278, upload-time = "2025-02-24T03:02:02.499Z" },
+]
+
+[[package]]
+name = "pyright"
+version = "1.1.404"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nodeenv" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e2/6e/026be64c43af681d5632722acd100b06d3d39f383ec382ff50a71a6d5bce/pyright-1.1.404.tar.gz", hash = "sha256:455e881a558ca6be9ecca0b30ce08aa78343ecc031d37a198ffa9a7a1abeb63e", size = 4065679, upload-time = "2025-08-20T18:46:14.029Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/30/89aa7f7d7a875bbb9a577d4b1dc5a3e404e3d2ae2657354808e905e358e0/pyright-1.1.404-py3-none-any.whl", hash = "sha256:c7b7ff1fdb7219c643079e4c3e7d4125f0dafcc19d253b47e898d130ea426419", size = 5902951, upload-time = "2025-08-20T18:46:12.096Z" },
 ]
 
 [[package]]
