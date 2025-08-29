@@ -1,6 +1,6 @@
 """Integration tests for authentication endpoints."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -20,6 +20,7 @@ async def client_with_mocks(postgres_test_session):
 
     with (
         patch("src.common.services.jwt_service.jwt_service._redis_client", mock_redis),
+        patch("src.common.services.email_tasks.email_tasks._send_email_with_retry", new=AsyncMock(return_value=True)),
         patch("src.common.services.email_service.EmailService") as mock_email_cls,
     ):
         mock_email_cls.return_value = mock_email_service
