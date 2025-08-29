@@ -140,14 +140,16 @@ async def _get_connection_stats(sse_connection_manager: SSEConnectionManager) ->
 async def _check_redis_health(redis_sse_service: RedisSSEService) -> bool:
     """Check Redis connectivity with timeout protection."""
     try:
-        if hasattr(redis_sse_service, '_pubsub_client') and redis_sse_service._pubsub_client:
-            await asyncio.wait_for(
-                redis_sse_service._pubsub_client.ping(),
-                timeout=HEALTH_CHECK_TIMEOUT
-            )
-            return True
-        return False
-    except (TimeoutError, Exception) as e:
+        if not hasattr(redis_sse_service, '_pubsub_client') or not redis_sse_service._pubsub_client:
+            return False
+        
+        # Test actual connectivity with ping
+        await asyncio.wait_for(
+            redis_sse_service._pubsub_client.ping(),
+            timeout=HEALTH_CHECK_TIMEOUT
+        )
+        return True
+    except (TimeoutError, ConnectionError, OSError, Exception) as e:
         logger.warning(f"Redis health check failed: {e}")
         return False
 

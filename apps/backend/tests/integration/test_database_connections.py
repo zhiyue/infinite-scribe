@@ -142,20 +142,21 @@ async def test_redis_connection_success(redis_service):
 @pytest.mark.integration
 async def test_redis_connection_failure():
     """Test Redis connection failure handling."""
-    # Mock settings with invalid Redis URL
-    with patch("src.common.services.redis_service.settings") as mock_settings:
-        mock_settings.database = MagicMock()
-        mock_settings.database.redis_url = "redis://invalid-host:6379"
+    service = RedisService()
 
-        service = RedisService()
+    # Manually set an invalid Redis client
+    import redis.asyncio as redis
 
-        # Test that connection fails gracefully
-        with suppress(Exception):
-            await service.connect()
+    service._client = redis.from_url(
+        "redis://invalid-host-that-does-not-exist:6379",
+        decode_responses=True,
+        socket_connect_timeout=1,  # Short timeout to fail quickly
+        socket_timeout=1,
+    )
 
-        # Test health check returns False
-        is_healthy = await service.check_connection()
-        assert is_healthy is False
+    # Test health check returns False
+    is_healthy = await service.check_connection()
+    assert is_healthy is False
 
 
 @pytest.mark.asyncio

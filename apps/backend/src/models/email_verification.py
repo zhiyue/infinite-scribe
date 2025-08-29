@@ -42,7 +42,7 @@ class EmailVerification(BaseModel):
     email: Mapped[str] = mapped_column(String(255), nullable=False)  # Store email in case user changes it
 
     # Token lifecycle
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Request metadata
@@ -101,6 +101,8 @@ class EmailVerification(BaseModel):
     @property
     def is_expired(self) -> bool:
         """Check if the token is expired."""
+        if self.expires_at is None:
+            return True
         return utc_now() > self.expires_at
 
     @property
@@ -127,7 +129,7 @@ class EmailVerification(BaseModel):
             "is_valid": self.is_valid,
             "is_expired": self.is_expired,
             "is_used": self.is_used,
-            "expires_at": self.expires_at.isoformat(),
+            "expires_at": self.expires_at.isoformat() if self.expires_at is not None else None,
             "used_at": self.used_at.isoformat() if self.used_at is not None else None,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
         }

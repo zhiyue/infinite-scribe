@@ -33,8 +33,12 @@ class TestEndpointExistence:
         response = client.post("/api/v1/auth/sse-token")
         assert response.status_code == 401
 
-    def test_health_endpoint_accessible(self, client):
+    @patch("src.api.routes.v1.events.get_redis_sse_service")
+    def test_health_endpoint_accessible(self, mock_get_redis_sse, client):
         """Health endpoint should be accessible but return 503 without Redis."""
+        # Mock Redis service initialization to fail
+        mock_get_redis_sse.side_effect = Exception("Redis unavailable")
+
         response = client.get("/api/v1/events/health")
         assert response.status_code == 503
 
@@ -223,8 +227,12 @@ class TestSSEHealthEndpoint:
 class TestResponseFormats:
     """Test that endpoints return expected response formats."""
 
-    def test_health_returns_json_with_status(self, client):
+    @patch("src.api.routes.v1.events.get_redis_sse_service")
+    def test_health_returns_json_with_status(self, mock_get_redis_sse, client):
         """Health endpoint should return JSON with service status."""
+        # Mock Redis service initialization to fail
+        mock_get_redis_sse.side_effect = Exception("Redis unavailable")
+
         response = client.get("/api/v1/events/health")
         assert response.status_code == 503
 
@@ -271,12 +279,7 @@ class TestSSEHealthModels:
         """Test health endpoint error response format (simplified to plain dict)."""
         # This test verifies that error responses are plain dictionaries
         # instead of complex model classes, which is the simplified approach
-        error_data = {
-            "status": "unhealthy",
-            "error": "Redis connection failed",
-            "service": "sse",
-            "version": "1.0.0"
-        }
+        error_data = {"status": "unhealthy", "error": "Redis connection failed", "service": "sse", "version": "1.0.0"}
 
         # Assert
         assert error_data["status"] == "unhealthy"
