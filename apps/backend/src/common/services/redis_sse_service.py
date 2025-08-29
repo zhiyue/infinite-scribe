@@ -3,10 +3,10 @@ Redis SSE service implementation for Server-Sent Events.
 
 This service implements a hybrid architecture combining Redis Pub/Sub and Streams:
 
-1. **Event Publishing**: Events are first added to Redis Streams for persistence, 
+1. **Event Publishing**: Events are first added to Redis Streams for persistence,
    then a pointer is published via Pub/Sub for real-time notification.
 
-2. **Event Subscription**: Clients subscribe to Pub/Sub channels to receive 
+2. **Event Subscription**: Clients subscribe to Pub/Sub channels to receive
    event pointers, then fetch complete event data from Streams.
 
 3. **Event History**: Historical events can be retrieved directly from Streams
@@ -14,7 +14,7 @@ This service implements a hybrid architecture combining Redis Pub/Sub and Stream
 
 Key Benefits:
 - Real-time delivery via Pub/Sub
-- Event persistence and history via Streams  
+- Event persistence and history via Streams
 - Consistent event IDs for Last-Event-ID support
 - Separation of concerns between real-time notifications and data storage
 """
@@ -35,30 +35,30 @@ logger = logging.getLogger(__name__)
 class RedisSSEService:
     """
     Service for Redis-based Server-Sent Events using hybrid Pub/Sub + Streams architecture.
-    
+
     This service manages SSE event distribution using two Redis data structures:
-    
+
     - **Redis Streams**: Persistent event storage with automatic IDs and history retention
     - **Redis Pub/Sub**: Real-time event notification system for connected clients
-    
+
     Architecture Pattern:
-    1. Events are stored in Streams (durable, with IDs) 
+    1. Events are stored in Streams (durable, with IDs)
     2. Pointers to Stream entries are published via Pub/Sub (ephemeral, real-time)
     3. Subscribers receive pointers and fetch full events from Streams
-    
+
     This ensures both real-time delivery and reliable event history for reconnections.
-    
+
     Usage:
         service = RedisSSEService(redis_service)
         await service.init_pubsub_client()
-        
+
         # Publishing
         stream_id = await service.publish_event(user_id, event)
-        
-        # Real-time subscription  
+
+        # Real-time subscription
         async for event in service.subscribe_user_events(user_id):
             process_event(event)
-            
+
         # Historical events
         past_events = await service.get_recent_events(user_id, since_id)
     """
@@ -71,14 +71,14 @@ class RedisSSEService:
     async def init_pubsub_client(self) -> None:
         """
         Initialize a dedicated Redis client for Pub/Sub operations.
-        
+
         A separate client is required because:
         1. Pub/Sub connections are stateful and block other Redis operations
         2. Stream operations (XADD, XREAD) need a different connection pool
         3. Avoids conflicts with other Redis services (e.g., RateLimitService)
-        
+
         The dedicated client is configured with optimized timeouts for real-time use.
-        
+
         Raises:
             redis.ConnectionError: If unable to connect to Redis server
         """
@@ -139,16 +139,16 @@ class RedisSSEService:
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
         """
         Subscribe to real-time user events using pointer-based architecture.
-        
+
         This method:
         1. Subscribes to the user's Pub/Sub channel (sse:user:{user_id})
         2. Receives pointer messages containing stream_key + stream_id
         3. Fetches complete event data from Redis Streams using XRANGE
         4. Yields reconstructed SSEMessage objects
-        
+
         The pointer-based approach ensures:
         - Real-time notification via Pub/Sub (low latency)
-        - Complete event data from Streams (reliable, persistent)  
+        - Complete event data from Streams (reliable, persistent)
         - Consistent event IDs for Last-Event-ID reconnection support
 
         Args:
@@ -156,10 +156,10 @@ class RedisSSEService:
 
         Yields:
             SSEMessage: Complete SSE messages with event data and metadata
-            
+
         Raises:
             RuntimeError: If Pub/Sub client is not initialized
-            
+
         Note:
             - Invalid pointer messages are logged and skipped gracefully
             - Resources are automatically cleaned up when iteration ends
@@ -215,12 +215,12 @@ class RedisSSEService:
     async def get_recent_events(self, user_id: str, since_id: str = "-") -> list[SSEMessage]:
         """
         Retrieve historical events from Redis Streams for catch-up scenarios.
-        
+
         This method directly queries Redis Streams to fetch past events, typically used:
         - During SSE reconnection to get missed events (Last-Event-ID support)
-        - For initial page load to show recent activity  
+        - For initial page load to show recent activity
         - For debugging and event replay scenarios
-        
+
         Unlike `subscribe_user_events()`, this is a one-time query, not a real-time stream.
 
         Args:
@@ -233,10 +233,10 @@ class RedisSSEService:
         Returns:
             List[SSEMessage]: Historical events ordered chronologically (oldest first).
                              Empty list if no events found or stream doesn't exist.
-            
+
         Raises:
             RuntimeError: If Pub/Sub client is not initialized
-            
+
         Note:
             - Limited to 100 events per call to prevent memory issues
             - Corrupted events in streams are silently skipped and logged

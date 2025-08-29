@@ -26,16 +26,6 @@ class SSETokenResponse(BaseModel):
     token_type: str = "sse"
 
 
-class SSETokenPayload(BaseModel):
-    """SSE token payload for JWT encoding."""
-
-    user_id: str
-    session_id: str
-    token_type: str = "sse"
-    exp: datetime
-    iat: datetime
-
-
 @router.post("/sse-token", response_model=SSETokenResponse)
 async def create_sse_token(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -56,38 +46,29 @@ async def create_sse_token(
     Raises:
         HTTPException: 401 if user is not authenticated
     """
-    try:
-        # Token expires based on configuration (short-lived for security)
-        expires_delta = timedelta(seconds=settings.auth.sse_token_expire_seconds)
-        expires_at = datetime.now(UTC) + expires_delta
+    # Use single timestamp for consistency
+    now = datetime.now(UTC)
+    expires_at = now + timedelta(seconds=settings.auth.sse_token_expire_seconds)
 
-        # Create SSE token payload
-        sse_payload = SSETokenPayload(
-            user_id=str(current_user.id),
-            session_id="sse_session",  # TODO: Get actual session ID if needed
-            exp=expires_at,
-            iat=datetime.now(UTC),
-        )
+    # Create SSE token payload as simple dict
+    payload = {
+        "user_id": current_user.id,  # Keep as integer, consistent with JWT service
+        "token_type": "sse",
+        "exp": expires_at,
+        "iat": now,
+    }
 
-        # Encode SSE token using the same secret as JWT
-        sse_token = jwt.encode(
-            sse_payload.model_dump(),
-            settings.auth.jwt_secret_key,
-            algorithm=settings.auth.jwt_algorithm,
-        )
+    # Encode SSE token using the same secret as JWT
+    sse_token = jwt.encode(
+        payload,
+        settings.auth.jwt_secret_key,
+        algorithm=settings.auth.jwt_algorithm,
+    )
 
-        logger.info(f"Generated SSE token for user {current_user.id}")
-
-        return SSETokenResponse(sse_token=sse_token, expires_at=expires_at)
-
-    except Exception as e:
-        logger.error(f"Failed to create SSE token for user {current_user.id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create SSE token"
-        ) from e
+    return SSETokenResponse(sse_token=sse_token, expires_at=expires_at)
 
 
-async def verify_sse_token(sse_token: str) -> str:
+def verify_sse_token(sse_token: str) -> str:
     """
     Verify SSE token and extract user ID.
 
@@ -100,15 +81,21 @@ async def verify_sse_token(sse_token: str) -> str:
     Raises:
         HTTPException: 401 if token is invalid or expired
     """
+    # Input validation
+    if not sse_token or not sse_token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is required"
+        )
+
     try:
         # Decode the SSE token
         payload = jwt.decode(sse_token, settings.auth.jwt_secret_key, algorithms=[settings.auth.jwt_algorithm])
 
-        # Verify it's an SSE token
+        # Verify it's an SSE token and extract user ID
         if payload.get("token_type") != "sse":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
 
-        # Extract user ID
         user_id = payload.get("user_id")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
