@@ -12,7 +12,7 @@
   - 编写Redis SSE服务的单元测试和集成测试
   - _需求：2.1-2.4, 2.7_
 
-- [ ] 1.1 实现SSE连接管理器
+- [x] 1.1 实现SSE连接管理器
   - 创建`apps/backend/src/services/sse_connection_manager.py`
   - 实现基于`fastapi-sse.EventSourceResponse`的连接管理
   - 实现队列聚合设计：心跳+实时事件+历史事件的异步队列

@@ -38,6 +38,7 @@ dependencies = [
     "alembic>=1.16.2",
     "sqlalchemy[mypy]>=2.0.41",
     "psycopg2-binary>=2.9.10",
+    "sse-starlette>=2.1.3",
 ]
 
 [dependency-groups]

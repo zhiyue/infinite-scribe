@@ -797,6 +797,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fastapi-sse"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/9c/ca9e6813ccad11f2687742c1f261b72cf6851407921055451180d6f0ee74/fastapi_sse-1.1.1.tar.gz", hash = "sha256:d9da5a49cd5a84f0d976f7d593b1e08d6c16012881a1145a7b01e49527e6e355", size = 5151, upload-time = "2024-10-04T06:55:36.166Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/93/e8aa8d58ae72cab25881e248264c23ceea7ef91f9b45bcafd50a0641ed6e/fastapi_sse-1.1.1-py3-none-any.whl", hash = "sha256:b006a33001f076fccf67957e65b0975c31b91c77cc6c13ee161a9b6c5412d330", size = 4074, upload-time = "2024-10-04T06:55:34.436Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.18.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1199,6 +1211,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "bcrypt" },
     { name = "fastapi" },
+    { name = "fastapi-sse" },
     { name = "httpx" },
     { name = "langfuse" },
     { name = "litellm" },
@@ -1249,6 +1262,7 @@ requires-dist = [
     { name = "asyncpg", specifier = "~=0.30.0" },
     { name = "bcrypt", specifier = ">=4.0.0,<5.0.0" },
     { name = "fastapi", specifier = "~=0.115.13" },
+    { name = "fastapi-sse", specifier = ">=1.1.1" },
     { name = "httpx", specifier = "~=0.27.0" },
     { name = "langfuse", specifier = "~=2.25.0" },
     { name = "litellm", specifier = "~=1.52.0" },
