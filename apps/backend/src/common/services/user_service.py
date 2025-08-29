@@ -171,14 +171,13 @@ class UserService:
 
                 # Lock account if too many attempts
                 if user.failed_login_attempts >= settings.auth.account_lockout_attempts:
-                    user.locked_until = utc_now() + timedelta(minutes=settings.auth.account_lockout_duration_minutes)
+                    locked_until = utc_now() + timedelta(minutes=settings.auth.account_lockout_duration_minutes)
+                    user.locked_until = locked_until
                     await db.commit()
-                    # At this point, locked_until is guaranteed to be set (not None)
-                    assert user.locked_until is not None  # Help type checker understand
                     return {
                         "success": False,
                         "error": f"Account is locked due to too many failed login attempts. Please try again after {settings.auth.account_lockout_duration_minutes} minutes.",
-                        "locked_until": user.locked_until.isoformat(),
+                        "locked_until": locked_until.isoformat(),
                     }
 
                 await db.commit()

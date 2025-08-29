@@ -9,6 +9,7 @@
     "apps/backend/src"
   ],
   // "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.diagnosticMode": "openFilesOnly",
   "python.analysis.indexing": true,
   "python.analysis.inlayHints.functionReturnTypes": true,
   "python.analysis.inlayHints.variableTypes": true,
@@ -16,7 +17,8 @@
   "cursorpyright.analysis.extraPaths": [
     "apps/backend/src"
   ],
-  "cursorpyright.analysis.diagnosticMode": "workspace",
+  "cursorpyright.analysis.typeCheckingMode": "basic",
+  "cursorpyright.analysis.diagnosticMode": "openFilesOnly",
   "cursor.general.gitGraphIndexing": "enabled",
   "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
   "cursorpyright.analysis.inlayHints.variableTypes": true,
@@ -114,6 +116,5 @@
   "chat.mcp.discovery.enabled": true,
   "github.copilot.chat.agent.autoFix": true,
   "chat.tools.autoApprove": false,
-  "mypy-type-checker.enabled": false,
-  "python.analysis.diagnosticMode": "openFilesOnly"
+  "mypy-type-checker.enabled": false
 }
