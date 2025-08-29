@@ -207,28 +207,35 @@ class TestAuthRegisterEndpoints:
     async def test_resend_verification_email_success(self):
         """Test resend verification email endpoint."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         request = ResendVerificationRequest(email="test@example.com")
 
-        result = await resend_verification_email(request, mock_db)
+        with patch("src.api.routes.v1.auth_register.user_service") as mock_user_service:
+            mock_user_service.resend_verification_email = AsyncMock()
 
-        assert isinstance(result, MessageResponse)
-        assert result.success is True
-        assert "verification email has been sent" in result.message
+            result = await resend_verification_email(request, mock_background_tasks, mock_db)
+
+            assert isinstance(result, MessageResponse)
+            assert result.success is True
+            assert "verification email has been sent" in result.message
+            mock_user_service.resend_verification_email.assert_called_once_with(
+                mock_db, request.email, mock_background_tasks
+            )
 
     @pytest.mark.asyncio
     async def test_resend_verification_email_exception(self):
         """Test resend verification email when exception occurs."""
         mock_db = AsyncMock()
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         request = ResendVerificationRequest(email="test@example.com")
 
-        # Simulate an exception during the simplified logic
-        # Since the current implementation doesn't actually call any service that could fail,
-        # we need to patch something that could throw an exception
-        with patch("src.api.routes.v1.auth_register.MessageResponse") as mock_response:
-            mock_response.side_effect = Exception("Unexpected error")
+        with patch("src.api.routes.v1.auth_register.user_service") as mock_user_service:
+            mock_user_service.resend_verification_email = AsyncMock(
+                side_effect=Exception("Email service error")
+            )
 
             with pytest.raises(HTTPException) as exc_info:
-                await resend_verification_email(request, mock_db)
+                await resend_verification_email(request, mock_background_tasks, mock_db)
 
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             assert exc_info.value.detail == "An error occurred while sending verification email"

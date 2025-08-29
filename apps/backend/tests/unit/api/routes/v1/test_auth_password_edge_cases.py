@@ -488,11 +488,12 @@ class TestErrorHandlingEdgeCases:
         mock_db = AsyncMock()
         request = ResetPasswordRequest(token="valid_token", new_password="NewPassword123!")
 
+        # 移除 KeyboardInterrupt 和 SystemExit，它们会被 pytest 特殊处理
         unexpected_exceptions = [
-            KeyboardInterrupt("User interrupted"),
-            SystemExit("System exit"),
             RecursionError("Maximum recursion depth exceeded"),
             ImportError("Module not found"),
+            OSError("Operating system error"),
+            MemoryError("Out of memory"),
         ]
 
         for exception in unexpected_exceptions:
