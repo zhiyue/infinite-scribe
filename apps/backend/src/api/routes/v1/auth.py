@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import auth_login, auth_password, auth_profile, auth_register
+from . import auth_login, auth_password, auth_profile, auth_register, auth_sse_token
 
 router = APIRouter()
 
@@ -11,3 +11,4 @@ router.include_router(auth_register.router, tags=["auth"])
 router.include_router(auth_login.router, tags=["auth"])
 router.include_router(auth_password.router, tags=["auth"])
 router.include_router(auth_profile.router, tags=["auth"])
+router.include_router(auth_sse_token.router, tags=["auth"])

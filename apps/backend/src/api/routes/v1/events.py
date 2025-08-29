@@ -1,0 +1,144 @@
+"""SSE (Server-Sent Events) API endpoints."""
+
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
+
+from src.api.routes.v1.auth_sse_token import verify_sse_token
+from src.common.services.redis_service import redis_service
+from src.common.services.redis_sse_service import RedisSSEService
+from src.services.sse_connection_manager import SSEConnectionManager
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Global SSE services - will be initialized on first use
+_redis_sse_service: RedisSSEService | None = None
+_sse_connection_manager: SSEConnectionManager | None = None
+
+
+async def get_redis_sse_service() -> RedisSSEService:
+    """Get Redis SSE service with dependency injection."""
+    global _redis_sse_service
+    if _redis_sse_service is None:
+        _redis_sse_service = RedisSSEService(redis_service)
+        await _redis_sse_service.init_pubsub_client()
+    return _redis_sse_service
+
+
+async def get_sse_connection_manager(redis_sse_service: RedisSSEService = Depends(get_redis_sse_service)) -> SSEConnectionManager:
+    """Get SSE connection manager with dependency injection."""
+    global _sse_connection_manager
+    if _sse_connection_manager is None:
+        _sse_connection_manager = SSEConnectionManager(redis_sse_service)
+    return _sse_connection_manager
+
+
+@router.get("/stream")
+async def sse_stream(
+    request: Request,
+    sse_token: Annotated[str, Query(description="SSE authentication token")],
+    sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
+):
+    """
+    SSE streaming endpoint for real-time events.
+
+    Establishes a Server-Sent Events connection for real-time event streaming.
+    Supports Last-Event-ID header for reconnection and event history replay.
+
+    Args:
+        request: FastAPI request object for client disconnection detection
+        sse_token: Short-term authentication token for SSE connection
+        sse_connection_manager: SSE connection manager service
+
+    Returns:
+        EventSourceResponse: Server-Sent Events response stream
+
+    Raises:
+        HTTPException: 401 if authentication fails, 429 if connection limit exceeded
+    """
+    # Verify SSE token and extract user ID
+    if not sse_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required - SSE token missing"
+        )
+
+    # Verify the token and get user ID
+    user_id = await verify_sse_token(sse_token)
+
+    try:
+        # Use the existing SSE connection manager
+        return await sse_connection_manager.add_connection(request, user_id)
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 429 for rate limiting)
+        raise
+    except Exception as e:
+        logger.error(f"Error establishing SSE connection for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to establish SSE connection"
+        ) from e
+
+
+@router.get("/health")
+async def sse_health(
+    sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
+    redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
+):
+    """
+    SSE service health check endpoint.
+
+    Returns connection statistics and service health information.
+    No authentication required for monitoring purposes.
+
+    Returns:
+        dict: Health status and connection statistics
+    """
+    try:
+        # Get connection statistics
+        connection_stats = await sse_connection_manager.get_connection_count()
+
+        # Check Redis connectivity
+        redis_healthy = True
+        try:
+            # Simple Redis ping to check connectivity
+            if redis_sse_service._pubsub_client:
+                await redis_sse_service._pubsub_client.ping()
+        except Exception as e:
+            logger.warning(f"Redis health check failed: {e}")
+            redis_healthy = False
+
+        health_data = {
+            "status": "healthy" if redis_healthy else "degraded",
+            "redis_status": "healthy" if redis_healthy else "unhealthy",
+            "connection_statistics": connection_stats,
+            "service": "sse",
+            "version": "1.0.0"
+        }
+
+        # Return 503 if Redis is unhealthy
+        if not redis_healthy:
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content=health_data
+            )
+
+        return health_data
+
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "service": "sse",
+                "version": "1.0.0"
+            }
+        )
+

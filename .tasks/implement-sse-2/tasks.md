@@ -23,7 +23,7 @@
 
 ### SSE API端点实现
 
-- [ ] 2. 实现SSE流式端点
+- [x] 2. 实现SSE流式端点
   - 创建`apps/backend/src/api/v1/events.py`路由模块
   - 实现`GET /api/v1/events/stream?sse_token=...`端点
   - 集成SSE连接管理器，支持Last-Event-ID重连
