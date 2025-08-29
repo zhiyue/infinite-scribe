@@ -3,13 +3,12 @@
 import json
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
-from src.common.services.redis_sse_service import RedisSSEService
 from src.common.services.redis_service import RedisService
+from src.common.services.redis_sse_service import RedisSSEService
 from src.core.config import settings
-from src.schemas.sse import SSEMessage, EventScope
+from src.schemas.sse import EventScope, SSEMessage
 
 
 class TestRedisSSEService:
@@ -95,7 +94,7 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
@@ -141,7 +140,7 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
@@ -187,7 +186,7 @@ class TestRedisSSEService:
         assert event.data == {"task_id": "test-123", "progress": 75}
         assert event.id == stream_id
         assert event.scope == EventScope.USER
-        
+
         # Verify XRANGE was called on RedisService client with correct parameters for exact ID lookup
         stream_key = f"events:user:{user_id}"
         mock_redis_client.xrange.assert_called_once_with(stream_key, stream_id, stream_id, count=1)
@@ -198,7 +197,7 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
@@ -252,10 +251,10 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
-        
+
         mock_redis_client.xread.return_value = []
 
         # Act
@@ -270,7 +269,7 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
@@ -364,7 +363,7 @@ class TestRedisSSEService:
         # Arrange
         mock_pubsub_client = AsyncMock()
         redis_sse_service._pubsub_client = mock_pubsub_client
-        
+
         mock_redis_client = AsyncMock()
         redis_sse_service.redis_service.acquire = mock_redis_acquire(mock_redis_client)
 
@@ -401,11 +400,11 @@ class TestRedisSSEService:
 
         # Assert - Should handle gracefully and yield no events
         assert len(events) == 0
-        
+
         # Verify XRANGE was called to attempt fetch
         stream_key = f"events:user:{user_id}"
         mock_redis_client.xrange.assert_called_once_with(stream_key, stream_id, stream_id, count=1)
-        
+
         # Verify cleanup still occurs
         mock_pubsub.unsubscribe.assert_called_once()
         mock_pubsub.close.assert_called_once()

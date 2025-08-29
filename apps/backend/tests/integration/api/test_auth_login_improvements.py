@@ -192,7 +192,7 @@ async def test_token_refresh_with_session_update(client: AsyncClient, db_session
     # 旧的 access token 应该已经被黑名单化，所以验证会失败
     with pytest.raises(Exception):  # JWTError 或其他异常
         jwt_service.verify_token(old_access_token, "access")
-    
+
     # 或者我们可以从旧令牌中提取 JTI（不验证）来检查黑名单
     from jose import jwt as jose_jwt
     old_payload = jose_jwt.decode(old_access_token, "", options={"verify_signature": False})

@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from src.core.toml_loader import _interpolate_env_vars, flatten_config, load_toml_config
 
 
@@ -36,7 +35,7 @@ class TestInterpolateEnvVars:
             # 变量不存在，使用默认值
             assert _interpolate_env_vars("${VAR:-default}") == "default"
             assert _interpolate_env_vars("${VAR:-}") == ""
-            
+
         with patch.dict(os.environ, {"VAR": "actual"}):
             # 变量存在，使用实际值
             assert _interpolate_env_vars("${VAR:-default}") == "actual"
@@ -48,17 +47,17 @@ class TestInterpolateEnvVars:
         assert _interpolate_env_vars("${VAR:-false}") is False
         assert _interpolate_env_vars("${VAR:-True}") is True
         assert _interpolate_env_vars("${VAR:-FALSE}") is False
-        
+
         # 整数
         assert _interpolate_env_vars("${VAR:-123}") == 123
         assert _interpolate_env_vars("${VAR:-0}") == 0
         assert _interpolate_env_vars("${VAR:--456}") == -456
-        
+
         # 浮点数
         assert _interpolate_env_vars("${VAR:-3.14}") == 3.14
         assert _interpolate_env_vars("${VAR:-0.0}") == 0.0
         assert _interpolate_env_vars("${VAR:--2.5}") == -2.5
-        
+
         # 字符串（不能转换的值）
         assert _interpolate_env_vars("${VAR:-hello}") == "hello"
         assert _interpolate_env_vars("${VAR:-123abc}") == "123abc"
@@ -81,7 +80,7 @@ class TestInterpolateEnvVars:
                 }
             }
         }
-        
+
         with patch.dict(os.environ, {"DB_PASS": "secret"}):
             result = _interpolate_env_vars(config)
             assert result["database"]["host"] == "localhost"
@@ -92,7 +91,7 @@ class TestInterpolateEnvVars:
     def test_list_interpolation(self):
         """测试列表中的插值"""
         config = ["${VAR1:-item1}", "${VAR2:-item2}", "static"]
-        
+
         with patch.dict(os.environ, {"VAR1": "custom1"}):
             result = _interpolate_env_vars(config)
             assert result == ["custom1", "item2", "static"]
@@ -108,7 +107,7 @@ class TestInterpolateEnvVars:
                 "value": "${NESTED:-nested_default}"
             }
         }
-        
+
         result = _interpolate_env_vars(config)
         assert result["string"] == "hello"
         assert result["number"] == 42
@@ -121,7 +120,7 @@ class TestInterpolateEnvVars:
         with patch.dict(os.environ, {"USER": "alice", "DOMAIN": "example.com"}):
             result = _interpolate_env_vars("${USER}@${DOMAIN}")
             assert result == "alice@example.com"
-            
+
             # 部分替换不进行类型转换
             result = _interpolate_env_vars("port:${PORT:-8080}")
             assert result == "port:8080"  # 保持字符串类型
@@ -146,7 +145,7 @@ class TestFlattenConfig:
                 "timeout": 30
             }
         }
-        
+
         expected = {
             "database__host": "localhost",
             "database__port": 5432,
@@ -165,7 +164,7 @@ class TestFlattenConfig:
                 }
             }
         }
-        
+
         expected = {"level1__level2__level3__value": "deep"}
         assert flatten_config(config) == expected
 
@@ -180,7 +179,7 @@ class TestFlattenConfig:
                 "key": "value"
             }
         }
-        
+
         expected = {
             "string": "text",
             "number": 123,
@@ -209,11 +208,11 @@ port = 8080
 [database]
 url = "postgresql://localhost/db"
 """
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
             f.write(toml_content)
             f.flush()
-            
+
             try:
                 config = load_toml_config(f.name)
                 assert config["server"]["host"] == "localhost"
@@ -233,11 +232,11 @@ debug = "${DEBUG:-false}"
 host = "${DB_HOST:-localhost}"
 port = "${DB_PORT:-5432}"
 """
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
             f.write(toml_content)
             f.flush()
-            
+
             try:
                 with patch.dict(os.environ, {"DEBUG": "true", "DB_HOST": "prod.db.com"}):
                     config = load_toml_config(f.name)
@@ -279,11 +278,11 @@ enabled = "${DB_ENABLED:-true}"
   ip = "10.0.0.2"
   dc = "eqdc10"
 """
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
             f.write(toml_content)
             f.flush()
-            
+
             try:
                 with patch.dict(os.environ, {"DB_SERVER": "192.168.1.1", "DB_ENABLED": "false"}):
                     config = load_toml_config(f.name)
@@ -298,16 +297,16 @@ enabled = "${DB_ENABLED:-true}"
     def test_path_types(self):
         """测试不同类型的路径参数"""
         toml_content = '[test]\nkey = "value"'
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
             f.write(toml_content)
             f.flush()
-            
+
             try:
                 # 字符串路径
                 config1 = load_toml_config(f.name)
                 assert config1["test"]["key"] == "value"
-                
+
                 # Path 对象
                 config2 = load_toml_config(Path(f.name))
                 assert config2["test"]["key"] == "value"

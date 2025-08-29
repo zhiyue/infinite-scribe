@@ -230,7 +230,7 @@ class TestAuthRefresh:
         """Test successful token refresh."""
         # This test needs proper login flow to create session
         # For now, we'll test with invalid token to ensure endpoint works
-        
+
         # Arrange - Create a refresh token using JWT service directly
         from src.common.services.jwt_service import jwt_service
 
@@ -261,7 +261,7 @@ class TestAuthRefresh:
         data = response.json()
         assert "detail" in data
         assert "invalid" in data["detail"].lower()
-    
+
     @pytest.mark.asyncio
     async def test_refresh_empty_request_body(self, client_with_mocks):
         """Test refresh with empty request body."""
@@ -274,7 +274,7 @@ class TestAuthRefresh:
         assert "detail" in data
         # Verify it's a validation error about missing refresh_token
         assert any("refresh_token" in str(error).lower() for error in data["detail"])
-    
+
     @pytest.mark.asyncio
     async def test_refresh_missing_refresh_token_field(self, client_with_mocks):
         """Test refresh with request body missing refresh_token field."""
@@ -290,7 +290,7 @@ class TestAuthRefresh:
         assert "detail" in data
         # Verify it's a validation error about missing refresh_token
         assert any("refresh_token" in str(error).lower() for error in data["detail"])
-    
+
     @pytest.mark.asyncio
     async def test_refresh_null_refresh_token(self, client_with_mocks):
         """Test refresh with null refresh_token."""
@@ -304,7 +304,7 @@ class TestAuthRefresh:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-    
+
     @pytest.mark.asyncio
     async def test_refresh_with_old_access_token_header(self, client_with_mocks):
         """Test refresh endpoint properly extracts old access token from header."""
@@ -314,7 +314,7 @@ class TestAuthRefresh:
         user_id = "123"
         old_access_token, _, _ = jwt_service.create_access_token(user_id)
         refresh_token, _ = jwt_service.create_refresh_token(user_id)
-        
+
         # Act - Send refresh request with old access token in header
         headers = {"Authorization": f"Bearer {old_access_token}"}
         data = {"refresh_token": refresh_token}

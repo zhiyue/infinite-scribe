@@ -15,7 +15,7 @@ class TestAuditEventType:
         """Test that all expected event types exist."""
         expected_types = [
             "login_success",
-            "login_failure", 
+            "login_failure",
             "logout",
             "register",
             "password_change",
@@ -29,7 +29,7 @@ class TestAuditEventType:
             "token_refresh",
             "profile_update",
         ]
-        
+
         for event_type in expected_types:
             assert hasattr(AuditEventType, event_type.upper())
 
@@ -63,11 +63,11 @@ class TestAuditService:
     def test_init(self, mock_logger):
         """Test audit service initialization."""
         with patch("logging.FileHandler") as mock_handler, \
-             patch("logging.Formatter") as mock_formatter:
-            
+             patch("logging.Formatter"):
+
             mock_logger.handlers = []
-            service = AuditService()
-            
+            AuditService()
+
             mock_logger.setLevel.assert_called_once_with(logging.INFO)
             mock_handler.assert_called_once_with("logs/audit.log")
 
@@ -75,9 +75,9 @@ class TestAuditService:
         """Test initialization when logger already has handlers."""
         with patch("logging.FileHandler") as mock_handler:
             mock_logger.handlers = [MagicMock()]  # Simulate existing handler
-            
-            service = AuditService()
-            
+
+            AuditService()
+
             # Should not create new handler
             mock_handler.assert_not_called()
 
@@ -85,7 +85,7 @@ class TestAuditService:
     def test_log_event_basic(self, mock_utc_now, audit_service_instance):
         """Test basic log_event functionality."""
         mock_utc_now.return_value.isoformat.return_value = "2024-01-01T00:00:00Z"
-        
+
         audit_service_instance.log_event(
             AuditEventType.LOGIN_SUCCESS,
             user_id="user123",
@@ -93,7 +93,7 @@ class TestAuditService:
             ip_address="192.168.1.1",
             user_agent="TestAgent"
         )
-        
+
         expected_data = {
             "timestamp": "2024-01-01T00:00:00Z",
             "event_type": "login_success",
@@ -105,16 +105,16 @@ class TestAuditService:
             "error_message": None,
             "additional_data": {},
         }
-        
+
         audit_service_instance.logger.info.assert_called_once_with(json.dumps(expected_data))
 
     @patch("src.common.services.audit_service.utc_now")
     def test_log_event_with_additional_data(self, mock_utc_now, audit_service_instance):
         """Test log_event with additional data."""
         mock_utc_now.return_value.isoformat.return_value = "2024-01-01T00:00:00Z"
-        
+
         additional_data = {"failed_attempts": 3, "reason": "invalid_password"}
-        
+
         audit_service_instance.log_event(
             AuditEventType.LOGIN_FAILURE,
             email="test@example.com",
@@ -122,7 +122,7 @@ class TestAuditService:
             error_message="Authentication failed",
             additional_data=additional_data
         )
-        
+
         expected_data = {
             "timestamp": "2024-01-01T00:00:00Z",
             "event_type": "login_failure",
@@ -134,7 +134,7 @@ class TestAuditService:
             "error_message": "Authentication failed",
             "additional_data": additional_data,
         }
-        
+
         audit_service_instance.logger.info.assert_called_once_with(json.dumps(expected_data))
 
     def test_log_login_success(self, audit_service_instance):
@@ -146,7 +146,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.LOGIN_SUCCESS,
                 user_id="user123",
@@ -164,7 +164,7 @@ class TestAuditService:
                 user_agent="TestAgent",
                 reason="Invalid password"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.LOGIN_FAILURE,
                 email="test@example.com",
@@ -183,7 +183,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.LOGOUT,
                 user_id="user123",
@@ -201,7 +201,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.REGISTER,
                 user_id="user123",
@@ -219,7 +219,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.PASSWORD_CHANGE,
                 user_id="user123",
@@ -236,7 +236,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.PASSWORD_RESET_REQUEST,
                 email="test@example.com",
@@ -253,7 +253,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.PASSWORD_RESET_SUCCESS,
                 user_id="user123",
@@ -271,7 +271,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 failed_attempts=5
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.ACCOUNT_LOCKED,
                 user_id="user123",
@@ -288,7 +288,7 @@ class TestAuditService:
                 email="test@example.com",
                 unlock_reason="manual"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.ACCOUNT_UNLOCKED,
                 user_id="user123",
@@ -303,7 +303,7 @@ class TestAuditService:
                 user_id="user123",
                 email="test@example.com"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.ACCOUNT_UNLOCKED,
                 user_id="user123",
@@ -319,7 +319,7 @@ class TestAuditService:
                 endpoint="/api/login",
                 user_id="user123"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.RATE_LIMIT_EXCEEDED,
                 user_id="user123",
@@ -337,7 +337,7 @@ class TestAuditService:
                 user_agent="TestAgent",
                 reason="Invalid token"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.UNAUTHORIZED_ACCESS,
                 ip_address="192.168.1.1",
@@ -355,7 +355,7 @@ class TestAuditService:
                 ip_address="192.168.1.1",
                 user_agent="TestAgent"
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.TOKEN_REFRESH,
                 user_id="user123",
@@ -367,7 +367,7 @@ class TestAuditService:
         """Test log_profile_update method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             fields_changed = ["first_name", "email"]
-            
+
             audit_service_instance.log_profile_update(
                 user_id="user123",
                 email="test@example.com",
@@ -375,7 +375,7 @@ class TestAuditService:
                 user_agent="TestAgent",
                 fields_changed=fields_changed
             )
-            
+
             mock_log_event.assert_called_once_with(
                 AuditEventType.PROFILE_UPDATE,
                 user_id="user123",

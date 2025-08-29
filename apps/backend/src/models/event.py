@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, DateTime, Index, Integer, Text
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from src.db.sql.base import Base
+from src.schemas.genesis_events import GenesisEventType
 
 
 class DomainEvent(Base):
@@ -62,10 +64,10 @@ class DomainEvent(Base):
         cls,
         event_type: GenesisEventType,
         session_id: UUID,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         correlation_id: Optional[UUID] = None,
         causation_id: Optional[UUID] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> DomainEvent:
         """Create a genesis domain event"""
 

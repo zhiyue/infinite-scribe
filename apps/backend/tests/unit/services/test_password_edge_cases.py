@@ -1,6 +1,5 @@
 """边角案例测试 - 密码重置功能的全面测试覆盖."""
 
-import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -8,7 +7,6 @@ import pytest
 from fastapi import BackgroundTasks
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.common.services.user_service import UserService
 from src.models.email_verification import VerificationPurpose
 
@@ -469,13 +467,13 @@ class TestEmailServiceEdgeCases:
         with patch("src.common.services.user_service.email_service") as mock_email_service:
             # 模拟SMTP连接超时
             mock_email_service.send_password_changed_email = AsyncMock(
-                side_effect=asyncio.TimeoutError("SMTP connection timeout")
+                side_effect=TimeoutError("SMTP connection timeout")
             )
 
             # 即使邮件发送失败，也应该优雅处理
             try:
                 await mock_email_service.send_password_changed_email("test@example.com", "Test User")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # 预期的异常
 
             mock_email_service.send_password_changed_email.assert_called_once()

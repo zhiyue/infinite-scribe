@@ -81,7 +81,6 @@ class TestAuthLastLogin:
 
         # 记录第一次登录时间
         first_login_at = user.last_login_at
-        first_login_ip = user.last_login_ip
 
         # 等待一小段时间
         await asyncio.sleep(0.1)
@@ -196,10 +195,7 @@ class TestAuthLastLogin:
         assert response.status_code == 403
         error_detail = response.json()["detail"]
         # detail 可能是字符串或字典
-        if isinstance(error_detail, dict):
-            error_text = str(error_detail).lower()
-        else:
-            error_text = error_detail.lower()
+        error_text = str(error_detail).lower() if isinstance(error_detail, dict) else error_detail.lower()
         assert "verify" in error_text
 
         # 刷新用户信息

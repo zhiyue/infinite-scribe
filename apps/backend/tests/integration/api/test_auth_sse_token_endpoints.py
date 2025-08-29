@@ -1,13 +1,11 @@
 """Integration tests for SSE token authentication endpoints."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Dict, Any
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
 from jose import jwt
-
 from src.api.main import app
 from src.core.config import settings
 from src.database import get_db
@@ -41,7 +39,7 @@ async def client_with_mocks(postgres_test_session):
 def valid_access_token():
     """Create a valid access token for testing."""
     from src.common.services.jwt_service import jwt_service
-    
+
     user_id = "test-user-123"
     access_token, _, _ = jwt_service.create_access_token(user_id)
     return access_token

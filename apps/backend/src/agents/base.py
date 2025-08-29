@@ -158,6 +158,8 @@ class BaseAgent(ABC):
 
     async def on_start(self):
         """启动时的钩子方法,子类可以重写"""
+        pass
 
     async def on_stop(self):
         """停止时的钩子方法,子类可以重写"""
+        pass

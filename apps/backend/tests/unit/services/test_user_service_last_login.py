@@ -100,7 +100,7 @@ class TestUserServiceLastLogin:
 
         # 验证第一次 commit 是在 create_session 之前
         commit_calls = self.mock_db.commit.call_args_list
-        create_session_call = mock_session_service.create_session.call_args_list[0]
+        mock_session_service.create_session.call_args_list[0]
 
         # 确保至少有一次 commit 在 create_session 之前被调用
         assert len(commit_calls) > 0, "数据库 commit 应该被调用"

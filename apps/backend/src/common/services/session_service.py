@@ -259,7 +259,7 @@ class SessionService:
         from src.common.utils.datetime_utils import utc_now
 
         # 使用 setattr 来避免 mypy 列类型错误
-        setattr(session, "last_accessed_at", utc_now())
+        session.last_accessed_at = utc_now()
         await db.commit()
 
         # Refresh cache

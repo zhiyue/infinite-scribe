@@ -145,9 +145,9 @@ async def resend_verification_email(
     """
     try:
         # 调用用户服务的重发验证邮件方法
-        result = await user_service.resend_verification_email(
-            db, 
-            request.email, 
+        await user_service.resend_verification_email(
+            db,
+            request.email,
             background_tasks
         )
 

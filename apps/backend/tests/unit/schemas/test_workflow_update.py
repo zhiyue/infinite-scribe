@@ -1,6 +1,5 @@
 """Unit tests for workflow update schemas."""
 
-from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -21,7 +20,7 @@ class TestCommandInboxUpdate:
     def test_valid_update_single_field(self):
         """Test valid update with single field."""
         update = CommandInboxUpdate(status=CommandStatus.PROCESSING)
-        
+
         assert update.status == CommandStatus.PROCESSING
         assert update.error_message is None
         assert update.retry_count is None
@@ -33,7 +32,7 @@ class TestCommandInboxUpdate:
             error_message="Success",
             retry_count=3
         )
-        
+
         assert update.status == CommandStatus.COMPLETED
         assert update.error_message == "Success"
         assert update.retry_count == 3
@@ -42,7 +41,7 @@ class TestCommandInboxUpdate:
         """Test invalid update with no fields provided."""
         with pytest.raises(ValidationError) as exc_info:
             CommandInboxUpdate()
-        
+
         assert "至少需要提供一个字段进行更新" in str(exc_info.value)
 
     def test_valid_retry_count_zero(self):
@@ -62,7 +61,7 @@ class TestAsyncTaskUpdate:
     def test_valid_update_status_only(self):
         """Test valid update with status only."""
         update = AsyncTaskUpdate(status=TaskStatus.RUNNING)
-        
+
         assert update.status == TaskStatus.RUNNING
         assert update.progress is None
 
@@ -71,7 +70,7 @@ class TestAsyncTaskUpdate:
         now = utc_now()
         result_data = {"key": "value"}
         error_data = {"error": "details"}
-        
+
         update = AsyncTaskUpdate(
             status=TaskStatus.COMPLETED,
             progress=Decimal("75.50"),
@@ -82,7 +81,7 @@ class TestAsyncTaskUpdate:
             started_at=now,
             completed_at=now
         )
-        
+
         assert update.status == TaskStatus.COMPLETED
         assert update.progress == Decimal("75.50")
         assert update.result_data == result_data
@@ -96,7 +95,7 @@ class TestAsyncTaskUpdate:
         """Test invalid update with no fields provided."""
         with pytest.raises(ValidationError) as exc_info:
             AsyncTaskUpdate()
-        
+
         assert "至少需要提供一个字段进行更新" in str(exc_info.value)
 
     def test_valid_progress_boundary_values(self):
@@ -104,7 +103,7 @@ class TestAsyncTaskUpdate:
         # Test with 0.00
         update1 = AsyncTaskUpdate(progress=Decimal("0.00"))
         assert update1.progress == Decimal("0.00")
-        
+
         # Test with 100.00
         update2 = AsyncTaskUpdate(progress=Decimal("100.00"))
         assert update2.progress == Decimal("100.00")
@@ -116,21 +115,21 @@ class TestEventOutboxUpdate:
     def test_valid_update_status_only(self):
         """Test valid update with status only."""
         update = EventOutboxUpdate(status=OutboxStatus.SENT)
-        
+
         assert update.status == OutboxStatus.SENT
         assert update.retry_count is None
 
     def test_valid_update_all_fields(self):
         """Test valid update with all fields."""
         sent_time = utc_now()
-        
+
         update = EventOutboxUpdate(
             status=OutboxStatus.PENDING,
             retry_count=3,
             last_error="Connection timeout",
             sent_at=sent_time
         )
-        
+
         assert update.status == OutboxStatus.PENDING
         assert update.retry_count == 3
         assert update.last_error == "Connection timeout"
@@ -140,7 +139,7 @@ class TestEventOutboxUpdate:
         """Test invalid update with no fields provided."""
         with pytest.raises(ValidationError) as exc_info:
             EventOutboxUpdate()
-        
+
         assert "至少需要提供一个字段进行更新" in str(exc_info.value)
 
     def test_invalid_retry_count_negative(self):
@@ -155,7 +154,7 @@ class TestFlowResumeHandleUpdate:
     def test_valid_update_status_only(self):
         """Test valid update with status only."""
         update = FlowResumeHandleUpdate(status=HandleStatus.PAUSED)
-        
+
         assert update.status == HandleStatus.PAUSED
         assert update.resume_payload is None
 
@@ -163,13 +162,13 @@ class TestFlowResumeHandleUpdate:
         """Test valid update with all fields."""
         resumed_time = utc_now()
         payload = {"data": {"step": 1, "context": "test"}}
-        
+
         update = FlowResumeHandleUpdate(
             status=HandleStatus.EXPIRED,
             resume_payload=payload,
             resumed_at=resumed_time
         )
-        
+
         assert update.status == HandleStatus.EXPIRED
         assert update.resume_payload == payload
         assert update.resumed_at == resumed_time
@@ -178,7 +177,7 @@ class TestFlowResumeHandleUpdate:
         """Test invalid update with no fields provided."""
         with pytest.raises(ValidationError) as exc_info:
             FlowResumeHandleUpdate()
-        
+
         assert "至少需要提供一个字段进行更新" in str(exc_info.value)
 
     def test_valid_empty_resume_payload(self):
@@ -196,6 +195,6 @@ class TestFlowResumeHandleUpdate:
             },
             "metadata": ["tag1", "tag2"]
         }
-        
+
         update = FlowResumeHandleUpdate(resume_payload=complex_payload)
         assert update.resume_payload == complex_payload

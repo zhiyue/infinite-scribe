@@ -2,30 +2,30 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Tuple, Type
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from .toml_loader import load_toml_config, flatten_config
+from .toml_loader import flatten_config, load_toml_config
 
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
     """从 TOML 配置文件加载设置的自定义源"""
-    
+
     def __init__(
-        self, 
-        settings_cls: Type[BaseSettings],
+        self,
+        settings_cls: type[BaseSettings],
         config_path: Path = Path("config.toml")
     ):
         super().__init__(settings_cls)
         self.config_path = config_path
-    
-    def _read_file(self, file_path: Path) -> Dict[str, Any]:
+
+    def _read_file(self, file_path: Path) -> dict[str, Any]:
         """读取并解析 TOML 文件"""
         if not file_path.exists():
             return {}
-        
+
         try:
             # 加载 TOML 配置并进行环境变量插值
             config = load_toml_config(file_path)
@@ -35,16 +35,16 @@ class TomlConfigSettingsSource(PydanticBaseSettingsSource):
         except Exception as e:
             print(f"加载 TOML 配置失败: {e}")
             return {}
-    
+
     def get_field_value(
         self, field: Any, field_name: str
-    ) -> Tuple[Any, str, bool]:
+    ) -> tuple[Any, str, bool]:
         """获取字段值"""
         file_content = self._read_file(self.config_path)
         field_value = file_content.get(field_name)
         return field_value, field_name, False
-    
-    def __call__(self) -> Dict[str, Any]:
+
+    def __call__(self) -> dict[str, Any]:
         """返回从 TOML 文件加载的所有设置"""
         return self._read_file(self.config_path)
 
@@ -138,7 +138,7 @@ class DatabaseSettings(BaseModel):
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
     redis_password: str = Field(default="")
-    
+
     # Redis SSE Settings
     redis_sse_stream_maxlen: int = Field(
         default=1000,
@@ -244,18 +244,18 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",  # 支持嵌套环境变量
         extra="ignore",  # 忽略额外的环境变量
     )
-    
+
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[BaseSettings],
+        settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源的优先级
-        
+
         优先级从高到低：
         1. init_settings: 初始化参数
         2. env_settings: 环境变量
@@ -265,7 +265,7 @@ class Settings(BaseSettings):
         """
         # 创建 TOML 配置源
         toml_settings = TomlConfigSettingsSource(settings_cls)
-        
+
         return (
             init_settings,
             env_settings,

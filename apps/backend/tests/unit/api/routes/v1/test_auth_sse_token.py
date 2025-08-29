@@ -1,14 +1,11 @@
 """Unit tests for SSE token authentication endpoints."""
 
-import json
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException, status
 from jose import jwt
-from jose.exceptions import ExpiredSignatureError
-
 from src.api.routes.v1.auth_sse_token import SSETokenResponse, create_sse_token, verify_sse_token
 from src.models.user import User
 

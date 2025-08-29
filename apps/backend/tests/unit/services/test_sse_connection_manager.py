@@ -252,7 +252,7 @@ class TestSSEConnectionManager:
         mock_request.headers = {"last-event-id": "event-123"}
 
         # Add connection
-        response = await sse_manager.add_connection(mock_request, sample_user_id)
+        await sse_manager.add_connection(mock_request, sample_user_id)
 
         # Verify connection state includes last_event_id
         connection_states = list(sse_manager.connections.values())
@@ -280,7 +280,7 @@ class TestSSEConnectionManager:
         # Ensure no Last-Event-ID header
         mock_request.headers = {}
 
-        response = await sse_manager.add_connection(mock_request, sample_user_id)
+        await sse_manager.add_connection(mock_request, sample_user_id)
 
         # Verify connection state has None for last_event_id
         connection_states = list(sse_manager.connections.values())
@@ -292,13 +292,13 @@ class TestSSEConnectionManager:
         # Mock Redis to return over the limit
         over_limit_count = sse_manager.MAX_CONNECTIONS_PER_USER + 1
         sse_manager.redis_sse._pubsub_client.incr.return_value = over_limit_count
-        
+
         with pytest.raises(HTTPException) as exc_info:
             await sse_manager.add_connection(mock_request, sample_user_id)
-        
+
         assert exc_info.value.status_code == 429
         assert "Too many concurrent SSE connections" in str(exc_info.value.detail)
-        
+
         # Verify Retry-After header is present
         assert "Retry-After" in exc_info.value.headers
         assert exc_info.value.headers["Retry-After"] == str(sse_manager.RETRY_AFTER_SECONDS)

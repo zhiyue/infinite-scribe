@@ -1,13 +1,10 @@
 """API层边角案例测试 - 密码相关端点的全面测试覆盖."""
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException, status
-from fastapi.testclient import TestClient
-
 from src.api.routes.v1.auth_password import (
     change_password,
     forgot_password,
@@ -56,7 +53,7 @@ class TestForgotPasswordEdgeCases:
         for email in questionable_emails:
             try:
                 request = ForgotPasswordRequest(email=email)
-                
+
                 with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
                     # 为了安全考虑，仍然返回成功响应
                     mock_user_service.request_password_reset = AsyncMock(
@@ -85,7 +82,7 @@ class TestForgotPasswordEdgeCases:
             )
 
             # 连续5次请求
-            for i in range(5):
+            for _i in range(5):
                 result = await forgot_password(request, mock_background_tasks, mock_db)
                 assert result.success is True
 
@@ -403,7 +400,7 @@ class TestValidatePasswordStrengthEdgeCases:
 
         with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
             # 模拟服务超时
-            mock_password_service.validate_password_strength.side_effect = asyncio.TimeoutError(
+            mock_password_service.validate_password_strength.side_effect = TimeoutError(
                 "Service timeout"
             )
 
@@ -438,7 +435,6 @@ class TestValidatePasswordStrengthEdgeCases:
     @pytest.mark.asyncio
     async def test_validate_password_strength_concurrent_requests(self):
         """测试并发请求的处理."""
-        import asyncio
 
         password = "TestPassword123!"
 
