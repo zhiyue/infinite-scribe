@@ -18,6 +18,7 @@ Architecture:
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -72,6 +73,7 @@ class SSEConnectionManager:
     SEND_TIMEOUT_SECONDS = 30
     RECENT_EVENTS_LIMIT = 10
     STALE_CONNECTION_THRESHOLD_SECONDS = 300
+    RETRY_AFTER_SECONDS = 30
 
     def __init__(self, redis_sse_service: RedisSSEService):
         """Initialize SSE Connection Manager."""
@@ -104,13 +106,21 @@ class SSEConnectionManager:
 
         if current_conns > self.MAX_CONNECTIONS_PER_USER:
             await self._safe_decr_counter(user_id)
-            raise HTTPException(status_code=429, detail="Too many concurrent SSE connections")
+            raise HTTPException(
+                status_code=429,
+                detail="Too many concurrent SSE connections",
+                headers={"Retry-After": str(self.RETRY_AFTER_SECONDS)}
+            )
 
-    async def _create_event_generator(self, request: Request, user_id: str, connection_id: str):
+    async def _create_event_generator(self, request: Request, user_id: str, connection_id: str) -> AsyncGenerator[ServerSentEvent, None]:
         """Create async generator for SSE events with history replay and real-time streaming."""
         try:
+            # Get connection state to extract last_event_id
+            connection_state = self.connections.get(connection_id)
+            since_id = connection_state.last_event_id if connection_state and connection_state.last_event_id else "-"
+
             # Push missed/historical events first (for reconnection)
-            async for event in self._send_historical_events(request, user_id):
+            async for event in self._send_historical_events(request, user_id, since_id=since_id):
                 yield event
 
             # Stream real-time events with client disconnection detection
@@ -128,10 +138,10 @@ class SSEConnectionManager:
             # Cleanup connection state
             await self._cleanup_connection(connection_id, user_id)
 
-    async def _send_historical_events(self, request: Request, user_id: str):
+    async def _send_historical_events(self, request: Request, user_id: str, since_id: str = "-") -> AsyncGenerator[ServerSentEvent, None]:
         """Send historical events to newly connected client."""
         try:
-            recent_events = await self.redis_sse.get_recent_events(user_id, since_id="-")
+            recent_events = await self.redis_sse.get_recent_events(user_id, since_id=since_id)
             for event in recent_events[-self.RECENT_EVENTS_LIMIT :]:
                 if await request.is_disconnected():
                     logger.info(f"Client disconnected during history replay for user {user_id}")
@@ -141,7 +151,7 @@ class SSEConnectionManager:
         except Exception as e:
             logger.error(f"Error pushing missed events for user {user_id}: {e}")
 
-    async def _stream_realtime_events(self, request: Request, user_id: str):
+    async def _stream_realtime_events(self, request: Request, user_id: str) -> AsyncGenerator[ServerSentEvent, None]:
         """Stream real-time events to client with disconnection detection."""
         async for sse_message in self.redis_sse.subscribe_user_events(user_id):
             # Check for client disconnection (sse-starlette feature)
@@ -162,13 +172,12 @@ class SSEConnectionManager:
 
         This method implements the enhanced SSE design:
         1. Enforces user concurrency limits (max 2 connections via Redis)
-        2. Creates connection state tracking
-        3. Sets up async generator with real-time + history events
-        4. Uses sse-starlette's built-in ping/heartbeat and client disconnection detection
-        5. Returns EventSourceResponse with built-in timeout and error handling
+        2. Reads Last-Event-ID from headers for reconnection support
+        3. Creates connection state tracking with reconnection context
+        4. Returns EventSourceResponse with built-in ping/heartbeat and error handling
 
         Args:
-            request: FastAPI Request object for client disconnection detection
+            request: FastAPI Request object for client disconnection detection and headers
             user_id: User ID for the connection
 
         Returns:
@@ -181,16 +190,21 @@ class SSEConnectionManager:
         # 1) Enforce concurrency limits
         await self._check_connection_limit(user_id)
 
-        # 2) Create connection state
+        # 2) Read Last-Event-ID from headers for reconnection support
+        # Note: Standard header name is "Last-Event-ID" but Starlette headers are case-insensitive
+        last_event_id = request.headers.get("last-event-id")
+
+        # 3) Create connection state
         connection_id = str(uuid4())
         connection_state = SSEConnectionState(
             connection_id=connection_id,
             user_id=user_id,
             connected_at=datetime.now(UTC),
+            last_event_id=last_event_id,
         )
         self.connections[connection_id] = connection_state
 
-        # 3) Create EventSourceResponse with built-in ping and error handling
+        # 4) Create EventSourceResponse with built-in ping and error handling
         return EventSourceResponse(
             self._create_event_generator(request, user_id, connection_id),
             ping=self.ping_interval,

@@ -66,25 +66,18 @@ class TestSSEConnectionManager:
         """Create mock FastAPI Request object."""
         request = AsyncMock(spec=Request)
         request.is_disconnected.return_value = False
+        request.headers = {}
         return request
 
     @pytest.fixture
     def sample_sse_messages(self):
         """Create reusable SSE messages for testing."""
         return [
-            SSEMessage(
-                event="task.progress-updated", data={"progress": 25},
-                id="msg-1", scope=EventScope.USER
-            ),
-            SSEMessage(
-                event="task.progress-updated", data={"progress": 50},
-                id="msg-2", scope=EventScope.USER
-            ),
+            SSEMessage(event="task.progress-updated", data={"progress": 25}, id="msg-1", scope=EventScope.USER),
+            SSEMessage(event="task.progress-updated", data={"progress": 50}, id="msg-2", scope=EventScope.USER),
         ]
 
-    async def test_add_connection_creates_event_source_response(
-        self, sse_manager, sample_user_id, mock_request
-    ):
+    async def test_add_connection_creates_event_source_response(self, sse_manager, sample_user_id, mock_request):
         """Test that add_connection returns EventSourceResponse."""
         response = await sse_manager.add_connection(mock_request, sample_user_id)
 
@@ -96,9 +89,7 @@ class TestSSEConnectionManager:
             expected_key, sse_manager.CONNECTION_EXPIRY_SECONDS
         )
 
-    async def test_add_connection_enforces_concurrency_limit(
-        self, sse_manager, sample_user_id, mock_request
-    ):
+    async def test_add_connection_enforces_concurrency_limit(self, sse_manager, sample_user_id, mock_request):
         """Test that max connections per user limit is enforced using constants."""
         # Mock Redis to return over the limit
         over_limit_count = sse_manager.MAX_CONNECTIONS_PER_USER + 1
@@ -238,16 +229,76 @@ class TestSSEConnectionManager:
         assert manager.STALE_CONNECTION_THRESHOLD_SECONDS == 300
 
         # Verify all public methods exist
-        required_methods = [
-            "add_connection", "cleanup_stale_connections", "get_connection_count"
-        ]
+        required_methods = ["add_connection", "cleanup_stale_connections", "get_connection_count"]
         for method_name in required_methods:
             assert hasattr(manager, method_name)
 
         # Verify helper methods exist (private but testable)
         helper_methods = [
-            "_get_connection_key", "_safe_decr_counter", "_check_connection_limit",
-            "_cleanup_connection", "_get_total_redis_connections"
+            "_get_connection_key",
+            "_safe_decr_counter",
+            "_check_connection_limit",
+            "_cleanup_connection",
+            "_get_total_redis_connections",
         ]
         for method_name in helper_methods:
             assert hasattr(manager, method_name)
+
+    async def test_last_event_id_support_from_headers(self, sse_manager, sample_user_id):
+        """Test that Last-Event-ID is read from request headers for reconnection."""
+        # Create mock request with Last-Event-ID header
+        mock_request = AsyncMock(spec=Request)
+        mock_request.is_disconnected.return_value = False
+        mock_request.headers = {"last-event-id": "event-123"}
+
+        # Add connection
+        response = await sse_manager.add_connection(mock_request, sample_user_id)
+
+        # Verify connection state includes last_event_id
+        connection_states = list(sse_manager.connections.values())
+        new_connection = connection_states[-1]
+        assert new_connection.last_event_id == "event-123"
+
+    async def test_historical_events_with_since_id(self, sse_manager, sample_user_id, sample_sse_messages):
+        """Test that historical events are filtered by since_id parameter."""
+        mock_request = AsyncMock(spec=Request)
+        mock_request.is_disconnected.return_value = False
+
+        # Mock recent events to return sample messages
+        sse_manager.redis_sse.get_recent_events.return_value = sample_sse_messages
+
+        # Call _send_historical_events with specific since_id
+        events = []
+        async for event in sse_manager._send_historical_events(mock_request, sample_user_id, since_id="event-0"):
+            events.append(event)
+
+        # Verify get_recent_events was called with since_id
+        sse_manager.redis_sse.get_recent_events.assert_called_once_with(sample_user_id, since_id="event-0")
+
+    async def test_add_connection_without_last_event_id_header(self, sse_manager, sample_user_id, mock_request):
+        """Test that connection works without Last-Event-ID header (new connection)."""
+        # Ensure no Last-Event-ID header
+        mock_request.headers = {}
+
+        response = await sse_manager.add_connection(mock_request, sample_user_id)
+
+        # Verify connection state has None for last_event_id
+        connection_states = list(sse_manager.connections.values())
+        new_connection = connection_states[-1]
+        assert new_connection.last_event_id is None
+
+    async def test_http_429_includes_retry_after_header(self, sse_manager, sample_user_id, mock_request):
+        """Test that HTTP 429 response includes Retry-After header for client recovery."""
+        # Mock Redis to return over the limit
+        over_limit_count = sse_manager.MAX_CONNECTIONS_PER_USER + 1
+        sse_manager.redis_sse._pubsub_client.incr.return_value = over_limit_count
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await sse_manager.add_connection(mock_request, sample_user_id)
+        
+        assert exc_info.value.status_code == 429
+        assert "Too many concurrent SSE connections" in str(exc_info.value.detail)
+        
+        # Verify Retry-After header is present
+        assert "Retry-After" in exc_info.value.headers
+        assert exc_info.value.headers["Retry-After"] == str(sse_manager.RETRY_AFTER_SECONDS)
