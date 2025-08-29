@@ -15,7 +15,8 @@ async def mock_user():
     from src.models.user import User
 
     user = User()
-    user.id = "test-user-123"
+    # id 在模型中是 int（Mapped[int]），测试中使用整数以满足类型检查
+    user.id = 123
     user.email = "test@example.com"
     return user
 
