@@ -226,6 +226,38 @@ async def authenticate_user(self, token: str) -> User:
     # Return user or raise authentication error
 ```
 
+### 6. Datetime Handling
+Always use timezone-aware datetime objects to avoid deprecation warnings:
+
+```python
+from datetime import datetime, timezone
+
+# Good: Timezone-aware UTC datetime
+def get_current_utc_time() -> datetime:
+    return datetime.now(timezone.utc)
+
+# Good: In database models
+class User(BaseModel):
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+# Bad: Deprecated datetime.utcnow()
+# created_at = datetime.utcnow()  # Don't use this
+
+# Good: For JWT token expiration
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+```
+
 ## Agent Development
 
 ### Base Agent Pattern
