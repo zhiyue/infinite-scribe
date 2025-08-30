@@ -194,42 +194,49 @@ adr_candidates:
 
 ---
 
-### 5. `/spec-task:adr-review <feature-name>`
+### 5. `/spec-task:adr-review <feature-name> [adr-id]`
 
-**Purpose**: Review ADR drafts and make architectural decisions
+**Purpose**: Deep review of ADR with research and best practices collection
 
 **What it does**:
-- Analyzes all proposed ADR drafts
-- Evaluates options with project context
-- Presents structured comparison matrix
-- Facilitates interactive decision making
-- Updates ADR status based on decisions
-- Creates spike tasks for experiments if needed
+- Performs deep research on technology options
+- Searches for best practices and case studies
+- Consults specialized Agents for expert opinions
+- Updates ADR document with research findings
+- Presents data-driven recommendations
+- Facilitates interactive decision making with evidence
 
-**Decision Process**:
-1. **Present Analysis**: Show options comparison with pros/cons
-2. **Get User Input**: Accept, modify, experiment, defer, or reject
-3. **Update Status**: 
-   - Proposed → Accepted (confirmed)
-   - Proposed → Experimenting (needs validation)
-   - Proposed → Deferred (postponed)
-   - Proposed → Rejected (declined)
-4. **Document Decision**: Record rationale and decision makers
+**Research Process**:
+1. **Deep Research**: 
+   - Web search for best practices and comparisons
+   - Case study analysis (success/failure stories)
+   - Performance benchmarks collection
+   - Community consensus gathering
+2. **Expert Consultation**:
+   - tech-lead-reviewer for architecture impact
+   - security-reviewer for security implications
+   - code-analyzer for performance analysis
+3. **Document Enhancement**:
+   - Add research findings to ADR
+   - Include real-world evidence
+   - Update decision matrix with data
 
 **Decision Options**:
 - `accept`: Approve recommended option
 - `modify`: Adjust the proposal
 - `experiment`: Create spike task for validation
+- `research`: Request more specific research
 - `defer`: Postpone decision
 - `reject`: Decline all options
 
-**Quality Factors Evaluated**:
-- Architecture consistency
-- Implementation complexity
-- Team familiarity
-- Long-term maintainability
-- Performance impact
-- Cost estimation
+**Usage Examples**:
+```bash
+# Review specific ADR
+/spec-task:adr-review my-feature ADR-20250830-cache-strategy
+
+# Review all proposed ADRs
+/spec-task:adr-review my-feature
+```
 
 **Output**:
 - Decision summary report
