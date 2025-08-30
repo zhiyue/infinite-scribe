@@ -6,28 +6,32 @@ argument-hint: <feature-name>
 
 # 需求生成
 
-为功能生成全面的需求：**$ARGUMENTS**
+为功能生成系统需求：**$ARGUMENTS**
 
 ## 上下文验证
 
 ### 现有规范上下文
 
 - 当前规范目录：!`ls -la .tasks/$ARGUMENTS/`
+- **产品需求文档**：@.tasks/$ARGUMENTS/prd.md
 - 当前需求：@.tasks/$ARGUMENTS/requirements.md
 - 规范元数据：@.tasks/$ARGUMENTS/spec.json
 
-## 任务：生成初始需求
+## 任务：基于 PRD 生成系统需求
 
-基于功能想法生成一组初始需求（使用 EARS 格式），然后与用户迭代优化，直到需求完整准确。
+基于已批准的 PRD 用户故事，生成一组系统需求（使用 EARS 格式）。每个用户故事都应派生出相应的功能需求（FR）和非功能需求（NFR）。
 
-在这个阶段不要专注于代码探索。相反，专注于编写需求，这些需求稍后将转化为设计。
+**重要**：首先验证 PRD 已经生成并批准。如果 PRD 尚未生成，提示用户先运行 `/spec-task:prd {feature-name}`。
+
+在这个阶段不要专注于代码探索。相反，专注于从 PRD 推导出可验证的系统需求。
 
 ### 需求生成指南
 
-1. **专注核心功能**：从用户想法中的基本功能开始
+1. **基于 PRD 推导**：每个 Story 至少派生一个 FR，关键质量目标派生 NFR
 2. **使用 EARS 格式**：所有验收标准必须使用正确的 EARS 语法
-3. **避免连续提问**：先生成初始版本，然后根据用户反馈进行迭代
-4. **保持可管理性**：创建一个可以通过用户审查扩展的坚实基础
+3. **建立追踪性**：明确标注每个 FR/NFR 源自哪个 Story ID
+4. **定义可测阈值**：NFR 必须包含具体的度量指标和阈值
+5. **保持工程视角**：从 PRD 的业务需求转换为可验证的技术需求
 
 ### 1. EARS 格式需求
 
@@ -60,7 +64,8 @@ argument-hint: <feature-name>
 
 ### Requirement 1: [主要功能区域]
 
-**User Story:** As a [角色], I want [功能], so that [收益]
+**源自 Story:** STORY-XXX
+**需求 ID:** FR-001
 
 #### Acceptance Criteria
 
@@ -73,7 +78,8 @@ argument-hint: <feature-name>
 
 ### Requirement 2: [下一个主要功能区域]
 
-**User Story:** As a [角色], I want [功能], so that [收益]
+**源自 Story:** STORY-XXX
+**需求 ID:** FR-002
 
 1. WHEN [事件] THEN [系统] SHALL [响应]
 2. WHEN [事件] AND [条件] THEN [系统] SHALL [响应]
@@ -81,6 +87,27 @@ argument-hint: <feature-name>
 ### Requirement 3: [其他主要区域]
 
 [为所有主要功能区域继续此模式]
+
+## Non-Functional Requirements (NFR)
+
+### NFR-001: 性能需求
+**源自 Story:** STORY-XXX
+- **延迟**: P95 < Xs
+- **吞吐量**: >= X req/s
+- **并发**: >= X 并发用户
+
+### NFR-002: 可靠性需求
+**源自 Story:** STORY-XXX
+- **可用性**: >= X%
+- **恢复时间**: < X 分钟
+
+## Traceability Matrix
+
+| Story ID | Requirements | Priority |
+|----------|-------------|----------|
+| STORY-001 | FR-001, NFR-001 | P1 |
+| STORY-002 | FR-002, FR-003 | P2 |
+| STORY-003 | NFR-002 | P1 |
 ```
 
 ### 3. 更新元数据

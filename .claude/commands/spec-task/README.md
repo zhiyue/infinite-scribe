@@ -17,17 +17,20 @@ The `spec-task` command system implements a **Specification-Driven Development**
 ```mermaid
 graph LR
     A[项目描述] --> B[spec-task:init]
-    B --> C[spec-task:requirements]  
-    C --> D{需求审批}
-    D -->|批准| E[spec-task:design]
+    B --> C[spec-task:prd]
+    C --> D{PRD审批}
+    D -->|批准| E[spec-task:requirements]  
     D -->|修改| C
-    E --> F{设计审批}
-    F -->|批准| G[spec-task:tasks]
+    E --> F{需求审批}
+    F -->|批准| G[spec-task:design]
     F -->|修改| E
-    G --> H{任务审批}
-    H -->|批准| I[spec-task:impl]
+    G --> H{设计审批}
+    H -->|批准| I[spec-task:tasks]
     H -->|修改| G
-    I --> J[实施完成]
+    I --> J{任务审批}
+    J -->|批准| K[spec-task:impl]
+    J -->|修改| I
+    K --> L[实施完成]
 ```
 
 ## 📁 Directory Structure
@@ -35,7 +38,8 @@ graph LR
 ```
 .tasks/{feature-name}/
 ├── spec.json           # Metadata and approval tracking
-├── requirements.md     # User stories and EARS acceptance criteria
+├── prd.md             # Product Requirements Document with user stories
+├── requirements.md     # System requirements with EARS acceptance criteria
 ├── design.md          # Technical architecture and design  
 ├── tasks.md           # Implementation plan and task breakdown
 └── impl.md            # Implementation tracking and progress
@@ -60,18 +64,62 @@ graph LR
 
 **Output**: 
 - Feature directory created
-- Next command: `/spec-task:requirements {feature-name}`
+- Next command: `/spec-task:prd {feature-name}`
 
 ---
 
-### 2. `/spec-task:requirements <feature-name>`
+### 2. `/spec-task:prd <feature-name>`
 
-**Purpose**: Generate comprehensive requirements using EARS format
+**Purpose**: Generate Product Requirements Document with business value and user stories
 
 **What it does**:
-- Analyzes project description from init phase
-- Generates user stories with business value
-- Creates acceptance criteria using EARS syntax
+- Creates business-oriented requirements document
+- Generates user stories using User Story or Job Story format
+- Defines business goals, scope, and success metrics
+- Establishes high-level acceptance criteria
+- Creates unique Story IDs for traceability
+
+**Story Formats**:
+- **User Story**: `作为 <角色>，我想要 <能力>，以便 <收益>`
+- **Job Story**: `当 <情境>，我想要 <动机>，从而 <预期结果>`
+
+**Key Sections**:
+- Background & Opportunity
+- Business Goals & Non-Goals
+- User Personas & Scenarios
+- Scope (In/Out)
+- User Stories with high-level acceptance criteria
+- Milestones & Release Plan
+- Risks & Trade-offs
+- Success Metrics
+
+**Example Output**:
+```markdown
+### STORY-001: 实时进度可见
+**作为**读者，**我想要**在写作/评分进行时实时看到进度与阶段结果，**以便**及时决策是否等待或中止。
+
+**高层验收标准：**
+- 页面不刷新即可看到新的进度卡片
+- 中断后刷新页面可恢复到最新进度视图
+- 连接异常时有可理解的用户提示
+
+**优先级：** P1
+```
+
+**Next Step**: Review PRD → `/spec-task:requirements {feature-name} -y`
+
+---
+
+### 3. `/spec-task:requirements <feature-name>`
+
+**Purpose**: Generate system requirements from PRD using EARS format
+
+**What it does**:
+- Analyzes approved PRD and user stories
+- Derives functional requirements (FR) from Story items
+- Defines non-functional requirements (NFR) with measurable thresholds
+- Creates testable acceptance criteria using EARS syntax
+- Establishes traceability matrix linking Stories to FR/NFR
 - Updates approval tracking metadata
 
 **EARS Format** (Required):
@@ -96,7 +144,7 @@ graph LR
 
 ---
 
-### 3. `/spec-task:design <feature-name>`
+### 4. `/spec-task:design <feature-name>`
 
 **Purpose**: Generate technical design based on approved requirements
 
@@ -119,7 +167,7 @@ graph LR
 
 ---
 
-### 4. `/spec-task:tasks <feature-name>`
+### 5. `/spec-task:tasks <feature-name>`
 
 **Purpose**: Generate detailed implementation tasks from approved design
 
@@ -141,7 +189,7 @@ graph LR
 
 ---
 
-### 5. `/spec-task:status <feature-name>`
+### 6. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
@@ -156,7 +204,7 @@ graph LR
 
 ---
 
-### 6. `/spec-task:impl <feature-name>`
+### 7. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -179,14 +227,21 @@ Each specification maintains state in `spec.json`:
   "created_at": "2024-08-30T10:30:00Z",
   "updated_at": "2024-08-30T11:45:00Z", 
   "language": "chinese",
-  "phase": "design-generated",
+  "phase": "requirements-generated",
+  "documents": {
+    "prd": {
+      "generated": true,
+      "approved": true,
+      "story_count": 5
+    }
+  },
   "approvals": {
     "requirements": {
       "generated": true,
-      "approved": true
+      "approved": false
     },
     "design": {
-      "generated": true, 
+      "generated": false, 
       "approved": false
     },
     "tasks": {
@@ -200,11 +255,19 @@ Each specification maintains state in `spec.json`:
 
 ## ✅ Quality Gates
 
+### PRD Phase
+- [ ] Business goals clearly defined
+- [ ] User stories have unique IDs (STORY-xxx)
+- [ ] High-level acceptance criteria are business-readable
+- [ ] Scope (In/Out) clearly defined
+- [ ] Success metrics are measurable
+
 ### Requirements Phase
-- [ ] All core user scenarios covered
+- [ ] All Stories from PRD covered
+- [ ] FR/NFR derived from user stories
 - [ ] EARS format correctly applied
-- [ ] Business value clearly defined
-- [ ] Acceptance criteria testable
+- [ ] Traceability to PRD stories established
+- [ ] Measurable thresholds for NFRs defined
 
 ### Design Phase  
 - [ ] Architecture addresses all requirements
@@ -231,38 +294,51 @@ Each specification maintains state in `spec.json`:
    /spec-task:init "Add real-time notification system for user activities"
    ```
 
-2. **Generate requirements**:
+2. **Generate PRD with user stories**:
    ```bash
-   /spec-task:requirements notification-system
+   /spec-task:prd notification-system
    ```
 
-3. **Review and approve**, then generate design:
+3. **Review and approve PRD**, then generate requirements:
+   ```bash
+   /spec-task:requirements notification-system -y
+   ```
+
+4. **Review and approve requirements**, then generate design:
    ```bash
    /spec-task:design notification-system -y
    ```
 
-4. **Review and approve**, then generate tasks:
+5. **Review and approve design**, then generate tasks:
    ```bash
    /spec-task:tasks notification-system -y  
    ```
 
-5. **Check status anytime**:
+6. **Check status anytime**:
    ```bash
    /spec-task:status notification-system
    ```
 
-6. **Begin implementation**:
+7. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
 
 ## 💡 Best Practices
 
+### 📋 PRD Writing
+- Focus on business value and user needs
+- Use consistent Story ID format (STORY-xxx)
+- Keep high-level acceptance criteria business-readable
+- Define clear scope boundaries (In/Out)
+- Include measurable success metrics
+
 ### 🎯 Requirements Writing
-- Start with core functionality, expand iteratively
-- Use business language, avoid technical details
-- Make acceptance criteria specific and testable
-- Include both positive and negative scenarios
+- Derive FR/NFR from PRD stories systematically
+- Maintain traceability to Story IDs
+- Use EARS format for all acceptance criteria
+- Define measurable thresholds for NFRs
+- Include verification methods for each requirement
 
 ### 🏗️ Design Creation
 - Ground design in approved requirements

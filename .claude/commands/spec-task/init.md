@@ -23,7 +23,8 @@ allowed-tools: Bash, Read, Write, Glob
 
 创建 `.tasks/{generated-feature-name}/` 目录，包含模板文件：
 
-- `requirements.md` - 用户故事的空模板
+- `prd.md` - 产品需求文档的空模板
+- `requirements.md` - 系统需求的空模板
 - `design.md` - 技术设计的空模板
 - `tasks.md` - 实施任务的空模板
 - `spec.json` - 元数据和审批追踪
@@ -39,6 +40,13 @@ allowed-tools: Bash, Read, Write, Glob
   "updated_at": "current_timestamp",
   "language": "chinese",
   "phase": "initialized",
+  "documents": {
+    "prd": {
+      "generated": false,
+      "approved": false,
+      "story_count": 0
+    }
+  },
   "approvals": {
     "requirements": {
       "generated": false,
@@ -59,6 +67,21 @@ allowed-tools: Bash, Read, Write, Glob
 
 ### 4. 创建包含项目上下文的模板文件
 
+#### prd.md（模板）
+
+```markdown
+# Product Requirements Document (PRD)
+
+## Project Description (User Input)
+
+$ARGUMENTS
+
+## Content
+
+<!-- PRD 内容将在 /spec-task:prd 阶段生成 -->
+<!-- 将包含：背景与机会、目标与非目标、用户故事、里程碑等 -->
+```
+
 #### requirements.md（模板）
 
 ```markdown
@@ -66,7 +89,8 @@ allowed-tools: Bash, Read, Write, Glob
 
 ## Overview
 
-<!-- 项目概述将在 /spec-task:requirements 阶段生成 -->
+<!-- 系统需求将在 /spec-task:requirements 阶段生成 -->
+<!-- 将基于 PRD 的用户故事推导出 FR/NFR -->
 
 ## Project Description (User Input)
 
@@ -74,7 +98,7 @@ $ARGUMENTS
 
 ## Requirements
 
-<!-- 详细的用户故事将在 /spec-task:requirements 阶段生成 -->
+<!-- 详细的 EARS 格式需求将在 /spec-task:requirements 阶段生成 -->
 ```
 
 #### design.md（空模板）
@@ -103,9 +127,10 @@ $ARGUMENTS
 
 遵循规范驱动的开发工作流：
 
-1. `/spec-task:requirements {feature-name}` - 生成需求
-2. `/spec-task:design {feature-name}` - 生成设计（交互式审批）
-3. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
+1. `/spec-task:prd {feature-name}` - 生成产品需求文档
+2. `/spec-task:requirements {feature-name}` - 生成系统需求（基于 PRD）
+3. `/spec-task:design {feature-name}` - 生成设计（交互式审批）
+4. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
 
 ## 输出格式
 
@@ -114,16 +139,16 @@ $ARGUMENTS
 1. 生成的功能名称及其理由
 2. 简要的项目摘要
 3. 创建的文件路径
-4. 下一条命令：`/spec-task:requirements {feature-name}`
+4. 下一条命令：`/spec-task:prd {feature-name}`
 
 ---
 
 ## 工作流程图示
 
 ```
-初始化 → 需求生成 → 设计生成 → 任务生成 → 实施准备就绪
-         ↓           ↓          ↓
-       [审批]      [审批]     [审批]
+初始化 → PRD生成 → 需求生成 → 设计生成 → 任务生成 → 实施准备就绪
+          ↓          ↓           ↓          ↓
+       [审批]      [审批]      [审批]     [审批]
 ```
 
 ## 注意事项
