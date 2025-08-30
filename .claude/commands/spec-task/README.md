@@ -213,9 +213,7 @@ adr_candidates:
    - Performance benchmarks collection
    - Community consensus gathering
 2. **Expert Consultation**:
-   - tech-lead-reviewer for architecture impact
-   - security-reviewer for security implications
-   - code-analyzer for performance analysis
+   - tech-lead-reviewer for comprehensive technical analysis including architecture impact, security implications, and performance considerations
 3. **Document Enhancement**:
    - Add research findings to ADR
    - Include real-world evidence

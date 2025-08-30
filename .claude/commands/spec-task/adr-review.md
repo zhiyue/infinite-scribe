@@ -83,7 +83,7 @@ argument-hint: <feature-name> <adr-id>
 
 ### 3. 使用 Agent 工具进行专业分析
 
-根据 ADR 类型，调用相应的专业 Agent：
+根据 ADR 类型，调用专业 Agent 获取架构层面的建议：
 
 ```yaml
 # 技术架构类 ADR
@@ -93,22 +93,8 @@ argument-hint: <feature-name> <adr-id>
     - 这个决策对系统架构的长期影响？
     - 与现有架构的兼容性如何？
     - 可扩展性和维护性评估？
-
-# 安全相关 ADR
-- agent: security-reviewer
-  purpose: 评估安全影响
-  questions:
-    - 各选项的安全风险评估？
-    - 需要哪些安全加固措施？
-    - 合规性要求是否满足？
-
-# 性能相关 ADR
-- agent: code-analyzer
-  purpose: 分析性能影响
-  questions:
-    - 对系统性能的影响预估？
-    - 潜在的性能瓶颈在哪里？
-    - 优化空间和成本？
+    - 安全性和性能影响评估？
+    - 技术风险和缓解措施？
 ```
 
 ### 4. 更新 ADR 文档
@@ -210,7 +196,7 @@ argument-hint: <feature-name> <adr-id>
 - Web 搜索：[搜索关键词列表]
 - 文档分析：[分析的官方文档]
 - 案例研究：[研究的项目/公司]
-- Agent 咨询：[咨询的专业 Agent]
+- 架构咨询：[tech-lead-reviewer Agent 建议]
 
 ### 方案对比（基于实证数据）
 
@@ -238,8 +224,7 @@ argument-hint: <feature-name> <adr-id>
   - 参考：[案例链接]
 
 ### 专家意见
-- **Tech Lead Agent**：[架构层面的建议]
-- **Security Agent**：[安全层面的评估]
+- **Tech Lead Agent**：[架构层面的建议，包含安全和性能考量]
 - **社区共识**：[Stack Overflow/Reddit 高票观点]
 ```
 
@@ -497,10 +482,11 @@ adr_candidates:
 ### 9. 自动化辅助
 
 #### 9.1 使用 Agent 工具深度分析
-对于复杂的技术决策，可调用专门的 Agent：
-- `code-analyzer`：分析现有代码模式
-- `tech-lead-reviewer`：获取架构层面的建议
-- `security-reviewer`：评估安全影响
+对于复杂的技术决策，调用 tech-lead-reviewer Agent：
+- 获取架构层面的建议
+- 评估技术决策的长期影响
+- 分析与现有系统的兼容性
+- 提供安全和性能方面的专业意见
 
 #### 9.2 对比分析
 - 搜索类似项目的 ADR 决策
