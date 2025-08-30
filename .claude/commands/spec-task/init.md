@@ -21,13 +21,20 @@ allowed-tools: Bash, Read, Write, Glob
 
 ### 2. 创建规范目录
 
-创建 `.tasks/{generated-feature-name}/` 目录，包含模板文件：
+创建 `.tasks/{generated-feature-name}/` 目录，包含模板文件和子目录：
 
+**文件**：
 - `prd.md` - 产品需求文档的空模板
 - `requirements.md` - 系统需求的空模板
 - `design.md` - 技术设计的空模板
 - `tasks.md` - 实施任务的空模板
 - `spec.json` - 元数据和审批追踪
+
+**子目录**：
+- `adr/` - 架构决策记录目录
+  - `README.md` - ADR 索引和说明
+  - `templates/` - ADR 模板目录
+    - `adr-template.md` - ADR 通用模板
 
 ### 3. 初始化 spec.json 元数据
 
@@ -60,6 +67,13 @@ allowed-tools: Bash, Read, Write, Glob
       "generated": false,
       "approved": false
     }
+  },
+  "adr": {
+    "total_count": 0,
+    "proposed": 0,
+    "accepted": 0,
+    "superseded": 0,
+    "candidates": []
   },
   "ready_for_implementation": false
 }
@@ -119,6 +133,88 @@ $ARGUMENTS
 <!-- 实施任务将在设计审批后生成 -->
 ```
 
+#### adr/README.md（ADR 索引模板）
+
+```markdown
+# Architecture Decision Records
+
+## Overview
+本目录包含 {feature-name} 功能的所有架构决策记录（ADR）。
+
+## Status Definition
+- **Proposed**: 提议中，待评审
+- **Accepted**: 已接受，指导实施
+- **Rejected**: 已拒绝
+- **Superseded**: 已被替代
+- **Deprecated**: 已废弃
+
+## ADR Index
+
+| ID | Title | Status | Date | Related Requirements |
+|----|-------|--------|------|---------------------|
+| <!-- ADR 将在 /spec-task:adr-draft 阶段生成 --> |
+
+## Decision Flow
+```mermaid
+graph TD
+    A[Requirements Analysis] --> B[Identify ADR Candidates]
+    B --> C[Create ADR Draft: Proposed]
+    C --> D[Spike/Experiment]
+    D --> E[Design Review]
+    E --> F{Approved?}
+    F -->|Yes| G[ADR: Accepted]
+    F -->|No| H[Revise or Reject]
+```
+
+## Related Documents
+- [PRD](../prd.md)
+- [Requirements](../requirements.md)
+- [Design](../design.md)
+```
+
+#### adr/templates/adr-template.md（ADR 模板）
+
+```markdown
+---
+id: ADR-YYYYMMDD-short-title
+title: [Full Title]
+status: Proposed
+date: YYYY-MM-DD
+decision_makers: []
+related_requirements: []
+related_stories: []
+supersedes: []
+superseded_by: null
+tags: []
+---
+
+# [Title]
+
+## Status
+Proposed
+
+## Context
+[描述需要做决策的背景、约束条件、目标]
+
+## Decision Drivers
+[列出影响决策的关键因素]
+
+## Considered Options
+[列出考虑过的选项及其优缺点]
+
+## Decision
+[描述最终决策]
+
+## Consequences
+[描述决策的影响，包括正面和负面]
+
+## Implementation Plan
+[描述实施计划]
+
+## Validation
+[描述如何验证决策的有效性]
+```
+
 ### 5. 更新 CLAUDE.md 引用
 
 将新规范添加到活动规范列表中，包含生成的功能名称和简要描述。
@@ -129,8 +225,10 @@ $ARGUMENTS
 
 1. `/spec-task:prd {feature-name}` - 生成产品需求文档
 2. `/spec-task:requirements {feature-name}` - 生成系统需求（基于 PRD）
-3. `/spec-task:design {feature-name}` - 生成设计（交互式审批）
-4. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
+3. `/spec-task:adr-draft {feature-name}` - 识别架构决策点并生成 ADR 草稿
+4. `/spec-task:adr-review {feature-name}` - 评审 ADR 并做出决策
+5. `/spec-task:design {feature-name}` - 生成设计（与已接受的 ADR 对齐）
+6. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
 
 ## 输出格式
 
@@ -146,9 +244,9 @@ $ARGUMENTS
 ## 工作流程图示
 
 ```
-初始化 → PRD生成 → 需求生成 → 设计生成 → 任务生成 → 实施准备就绪
-          ↓          ↓           ↓          ↓
-       [审批]      [审批]      [审批]     [审批]
+初始化 → PRD生成 → 需求生成 → ADR草稿 → ADR评审 → 设计生成 → 任务生成 → 实施准备
+          ↓          ↓          ↓         ↓          ↓          ↓
+       [审批]      [审批]    [识别]    [决策]     [审批]     [审批]
 ```
 
 ## 注意事项
@@ -168,25 +266,40 @@ $ARGUMENTS
 - 生成模板文件
 - 初始化元数据
 
-### 阶段 2：需求定义（Requirements Definition）
+### 阶段 2：产品需求（Product Requirements）
 
-- 分析项目描述
 - 生成用户故事
-- 定义验收标准
+- 定义业务目标
+- 明确范围边界
 
-### 阶段 3：技术设计（Technical Design）
+### 阶段 3：系统需求（System Requirements）
 
-- 架构设计
-- 技术栈选择
+- 基于 PRD 推导 FR/NFR
+- 定义验收标准（EARS 格式）
+- 建立追踪矩阵
+
+### 阶段 4：架构决策（Architecture Decisions）
+
+- 识别架构重要需求（ASR）
+- 生成 ADR 草稿
+- 分析技术选项
+- 评估与现有架构的对齐
+
+### 阶段 5：技术设计（Technical Design）
+
+- 架构设计（与 ADR 对齐）
+- 组件设计
 - 接口定义
+- 集成方案
 
-### 阶段 4：任务分解（Task Breakdown）
+### 阶段 6：任务分解（Task Breakdown）
 
 - 实施计划
 - 任务优先级
 - 依赖关系
+- 工作量估算
 
-### 阶段 5：实施就绪（Ready for Implementation）
+### 阶段 7：实施就绪（Ready for Implementation）
 
 - 所有文档已审批
 - 任务已分配
@@ -202,22 +315,34 @@ $ARGUMENTS
 /spec-task:init "创建一个用户管理系统，支持注册、登录和权限管理"
 ```
 
-### 生成需求文档
+### 生成产品需求文档
+
+```bash
+/spec-task:prd user-management
+```
+
+### 生成系统需求文档
 
 ```bash
 /spec-task:requirements user-management
 ```
 
+### 生成 ADR 草稿
+
+```bash
+/spec-task:adr-draft user-management
+```
+
 ### 生成技术设计
 
 ```bash
-/spec-task:design user-management
+/spec-task:design user-management -y
 ```
 
 ### 生成实施任务
 
 ```bash
-/spec-task:tasks user-management
+/spec-task:tasks user-management -y
 ```
 
 ---
@@ -226,12 +351,17 @@ $ARGUMENTS
 
 ```
 .
-└── specs/
+└── .tasks/
     └── user-management/
-        ├── requirements.md   # 需求文档
-        ├── design.md        # 设计文档
+        ├── prd.md           # 产品需求文档
+        ├── requirements.md  # 系统需求文档
+        ├── design.md        # 技术设计文档
         ├── tasks.md         # 任务计划
-        └── spec.json        # 元数据和状态追踪
+        ├── spec.json        # 元数据和状态追踪
+        └── adr/             # 架构决策记录
+            ├── README.md    # ADR 索引
+            ├── templates/   # ADR 模板
+            └── *.md         # 具体的 ADR 文件
 ```
 
 ---

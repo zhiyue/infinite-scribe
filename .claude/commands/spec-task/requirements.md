@@ -144,7 +144,8 @@ argument-hint: <feature-name>
 
 **如果需求看起来不错：**
 1. 运行 `/spec-task:adr-draft $ARGUMENTS` 生成 ADR 草稿
-2. 审查 ADR 候选项后，运行 `/spec-task:design $ARGUMENTS -y` 继续到设计阶段
+2. 运行 `/spec-task:adr-review $ARGUMENTS` 评审并决策 ADR
+3. 所有关键 ADR 接受后，运行 `/spec-task:design $ARGUMENTS -y` 继续到设计阶段
 
 **如果需求需要修改：**
 请求更改，然后在修改后重新运行此命令

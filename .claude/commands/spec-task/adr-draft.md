@@ -610,8 +610,8 @@ adr_candidates:
 ## 下一步
 
 ADR 草稿生成后：
-1. 进行 Spike/实验补充证据
-2. 完善 Options 的对比分析
-3. 设计评审时做出决策
-4. 将 ADR 状态更新为 Accepted
-5. 在实施中严格遵循 ADR 指导
+1. 运行 `/spec-task:adr-review {feature-name}` 进行 ADR 评审
+2. 与用户交互式决策每个 ADR
+3. 需要实验的创建 Spike 任务
+4. 所有关键 ADR 接受后继续设计阶段
+5. 运行 `/spec-task:design {feature-name} -y` 生成技术设计

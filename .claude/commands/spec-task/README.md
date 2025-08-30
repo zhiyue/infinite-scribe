@@ -22,16 +22,18 @@ graph LR
     D -->|批准| E[spec-task:requirements]  
     D -->|修改| C
     E --> F[spec-task:adr-draft]
-    F --> G{需求审批}
-    G -->|批准| H[spec-task:design]
-    G -->|修改| E
-    H --> I{设计审批}
-    I -->|批准| J[spec-task:tasks]
-    I -->|修改| H
-    J --> K{任务审批}
-    K -->|批准| L[spec-task:impl]
-    K -->|修改| J
-    L --> M[实施完成]
+    F --> G[spec-task:adr-review]
+    G --> H{ADR决策}
+    H -->|接受| I[spec-task:design]
+    H -->|实验| J[Spike任务]
+    J --> G
+    I --> K{设计审批}
+    K -->|批准| L[spec-task:tasks]
+    K -->|修改| I
+    L --> M{任务审批}
+    M -->|批准| N[spec-task:impl]
+    M -->|修改| L
+    N --> O[实施完成]
 ```
 
 ## 📁 Directory Structure
@@ -188,11 +190,58 @@ adr_candidates:
 - **Superseded**: Replaced by newer decision
 - **Amendment**: Minor adjustments to existing ADR
 
-**Next Step**: Review ADRs and requirements → `/spec-task:design {feature-name} -y`
+**Next Step**: Review and decide on ADRs → `/spec-task:adr-review {feature-name}`
 
 ---
 
-### 5. `/spec-task:design <feature-name>`
+### 5. `/spec-task:adr-review <feature-name>`
+
+**Purpose**: Review ADR drafts and make architectural decisions
+
+**What it does**:
+- Analyzes all proposed ADR drafts
+- Evaluates options with project context
+- Presents structured comparison matrix
+- Facilitates interactive decision making
+- Updates ADR status based on decisions
+- Creates spike tasks for experiments if needed
+
+**Decision Process**:
+1. **Present Analysis**: Show options comparison with pros/cons
+2. **Get User Input**: Accept, modify, experiment, defer, or reject
+3. **Update Status**: 
+   - Proposed → Accepted (confirmed)
+   - Proposed → Experimenting (needs validation)
+   - Proposed → Deferred (postponed)
+   - Proposed → Rejected (declined)
+4. **Document Decision**: Record rationale and decision makers
+
+**Decision Options**:
+- `accept`: Approve recommended option
+- `modify`: Adjust the proposal
+- `experiment`: Create spike task for validation
+- `defer`: Postpone decision
+- `reject`: Decline all options
+
+**Quality Factors Evaluated**:
+- Architecture consistency
+- Implementation complexity
+- Team familiarity
+- Long-term maintainability
+- Performance impact
+- Cost estimation
+
+**Output**:
+- Decision summary report
+- Updated ADR files with decisions
+- Spike task definitions (if needed)
+- Risk mitigation plans
+
+**Next Step**: After all critical ADRs accepted → `/spec-task:design {feature-name} -y`
+
+---
+
+### 6. `/spec-task:design <feature-name>`
 
 **Purpose**: Generate technical design based on approved requirements and ADRs
 
@@ -216,7 +265,7 @@ adr_candidates:
 
 ---
 
-### 6. `/spec-task:tasks <feature-name>`
+### 7. `/spec-task:tasks <feature-name>`
 
 **Purpose**: Generate detailed implementation tasks from approved design
 
@@ -238,14 +287,14 @@ adr_candidates:
 
 ---
 
-### 7. `/spec-task:status <feature-name>`
+### 8. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
 **What it displays**:
 - **Overview**: Feature name, dates, current phase, completion %
 - **Phase Status**: PRD, Requirements, ADRs, Design, Tasks completion
-- **ADR Status**: Proposed, Accepted, Superseded counts
+- **ADR Status**: Proposed, Accepted, Experimenting, Deferred counts
 - **Implementation Progress**: Task completion tracking
 - **Quality Metrics**: Coverage, completeness, dependencies
 - **Recommendations**: Next actions and improvements needed
@@ -254,7 +303,7 @@ adr_candidates:
 
 ---
 
-### 8. `/spec-task:impl <feature-name>`
+### 9. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -326,6 +375,10 @@ Each specification maintains state in `spec.json`:
 - [ ] At least 2-3 options considered per ADR
 - [ ] Measurable validation criteria defined
 - [ ] Decision owners assigned
+- [ ] ADR review completed
+- [ ] Critical decisions accepted or have spike tasks
+- [ ] Decision rationale documented
+- [ ] Risk mitigation plans defined
 
 ### Design Phase  
 - [ ] Architecture addresses all requirements
@@ -369,22 +422,27 @@ Each specification maintains state in `spec.json`:
    /spec-task:adr-draft notification-system
    ```
 
-5. **Review requirements and ADRs**, then generate design:
+5. **Review and make decisions on ADRs**:
+   ```bash
+   /spec-task:adr-review notification-system
+   ```
+
+6. **After ADR decisions**, generate design:
    ```bash
    /spec-task:design notification-system -y
    ```
 
-6. **Review and approve design**, then generate tasks:
+7. **Review and approve design**, then generate tasks:
    ```bash
    /spec-task:tasks notification-system -y  
    ```
 
-7. **Check status anytime**:
+8. **Check status anytime**:
    ```bash
    /spec-task:status notification-system
    ```
 
-8. **Begin implementation**:
+9. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
