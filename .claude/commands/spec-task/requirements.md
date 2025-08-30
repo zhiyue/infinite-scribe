@@ -108,6 +108,11 @@ argument-hint: <feature-name>
 | STORY-001 | FR-001, NFR-001 | P1 |
 | STORY-002 | FR-002, FR-003 | P2 |
 | STORY-003 | NFR-002 | P1 |
+
+## ADR Candidates (Placeholder)
+
+<!-- ADR 候选项将在下一步通过 /spec-task:adr-draft 命令生成 -->
+<!-- 识别的架构决策点将在此处列出，并创建对应的 ADR 草稿文件 -->
 ```
 
 ### 3. 更新元数据
@@ -138,7 +143,8 @@ argument-hint: <feature-name>
 生成 requirements.md 后，审查需求并选择：
 
 **如果需求看起来不错：**
-运行 `/spec-task:design $ARGUMENTS -y` 继续到设计阶段
+1. 运行 `/spec-task:adr-draft $ARGUMENTS` 生成 ADR 草稿
+2. 审查 ADR 候选项后，运行 `/spec-task:design $ARGUMENTS -y` 继续到设计阶段
 
 **如果需求需要修改：**
 请求更改，然后在修改后重新运行此命令

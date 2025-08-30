@@ -33,11 +33,20 @@ argument-hint: <feature-name> [-y]
 ### 当前规范上下文
 
 - 当前设计：@.tasks/$ARGUMENTS/design.md
+- ADR 目录：@.tasks/$ARGUMENTS/adr/
 - 规范元数据：@.tasks/$ARGUMENTS/spec.json
 
 ## 任务：创建技术设计
 
 **先决条件已验证**：需求已批准并准备进入设计阶段。
+
+### ADR 对齐要求
+
+**重要**：设计必须与已识别的 ADR 对齐：
+1. 检查 `@.tasks/$ARGUMENTS/adr/` 中的现有 ADR 草稿
+2. 确保设计决策与 ADR 中的选项分析一致
+3. 如果 ADR 状态为 Proposed，在设计评审时更新为 Accepted
+4. 在设计文档中明确引用相关 ADR
 
 ### 研究与调查流程
 

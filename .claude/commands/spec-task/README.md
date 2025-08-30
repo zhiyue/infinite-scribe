@@ -21,16 +21,17 @@ graph LR
     C --> D{PRD审批}
     D -->|批准| E[spec-task:requirements]  
     D -->|修改| C
-    E --> F{需求审批}
-    F -->|批准| G[spec-task:design]
-    F -->|修改| E
-    G --> H{设计审批}
-    H -->|批准| I[spec-task:tasks]
-    H -->|修改| G
-    I --> J{任务审批}
-    J -->|批准| K[spec-task:impl]
-    J -->|修改| I
-    K --> L[实施完成]
+    E --> F[spec-task:adr-draft]
+    F --> G{需求审批}
+    G -->|批准| H[spec-task:design]
+    G -->|修改| E
+    H --> I{设计审批}
+    I -->|批准| J[spec-task:tasks]
+    I -->|修改| H
+    J --> K{任务审批}
+    K -->|批准| L[spec-task:impl]
+    K -->|修改| J
+    L --> M[实施完成]
 ```
 
 ## 📁 Directory Structure
@@ -40,6 +41,9 @@ graph LR
 ├── spec.json           # Metadata and approval tracking
 ├── prd.md             # Product Requirements Document with user stories
 ├── requirements.md     # System requirements with EARS acceptance criteria
+├── adr/               # Architecture Decision Records
+│   ├── README.md      # ADR index and relationships
+│   └── *.md           # Individual ADR documents
 ├── design.md          # Technical architecture and design  
 ├── tasks.md           # Implementation plan and task breakdown
 └── impl.md            # Implementation tracking and progress
@@ -140,17 +144,61 @@ graph LR
 3. IF 用户连续3次登录失败 THEN 系统 SHALL 锁定账户15分钟
 ```
 
-**Next Step**: Review requirements → `/spec-task:design {feature-name} -y`
+**Next Step**: Generate ADR drafts → `/spec-task:adr-draft {feature-name}`
 
 ---
 
-### 4. `/spec-task:design <feature-name>`
+### 4. `/spec-task:adr-draft <feature-name>`
 
-**Purpose**: Generate technical design based on approved requirements
+**Purpose**: Identify architecture decision points and generate ADR drafts
 
 **What it does**:
-- Analyzes approved requirements
-- Creates architectural design
+- Analyzes FR/NFR to identify Architecturally Significant Requirements (ASR)
+- Creates ADR candidates list in requirements.md
+- Generates ADR draft files for each decision point
+- Creates ADR directory structure and index
+- Establishes traceability between requirements and ADRs
+
+**ADR Trigger Criteria**:
+- External contracts/APIs
+- System qualities (performance, reliability, security)
+- Hard-to-reverse decisions
+- Cross-team consistency needs
+- Long-term architectural impact
+
+**Key Outputs**:
+- ADR candidates section in requirements.md
+- Individual ADR draft files (status: Proposed)
+- ADR index with relationships
+- Updated metadata tracking
+
+**Example ADR Candidates**:
+```yaml
+adr_candidates:
+  - key: ADR-20250830-realtime-channel
+    title: Real-time channel selection (SSE vs WebSocket)
+    driven_by: [FR-001, NFR-001]
+    status: Proposed
+    priority: P1
+```
+
+**ADR Lifecycle**:
+- **Proposed**: Initial draft, pending review
+- **Accepted**: Approved, guides implementation
+- **Superseded**: Replaced by newer decision
+- **Amendment**: Minor adjustments to existing ADR
+
+**Next Step**: Review ADRs and requirements → `/spec-task:design {feature-name} -y`
+
+---
+
+### 5. `/spec-task:design <feature-name>`
+
+**Purpose**: Generate technical design based on approved requirements and ADRs
+
+**What it does**:
+- Analyzes approved requirements and ADR decisions
+- Creates architectural design aligned with ADRs
 - Defines components and interfaces
 - Plans technical implementation approach
 - Updates approval tracking
@@ -162,12 +210,13 @@ graph LR
 - API Interfaces
 - Integration Points
 - Technology Stack
+- ADR Alignment
 
 **Next Step**: Review design → `/spec-task:tasks {feature-name} -y`
 
 ---
 
-### 5. `/spec-task:tasks <feature-name>`
+### 6. `/spec-task:tasks <feature-name>`
 
 **Purpose**: Generate detailed implementation tasks from approved design
 
@@ -189,13 +238,14 @@ graph LR
 
 ---
 
-### 6. `/spec-task:status <feature-name>`
+### 7. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
 **What it displays**:
 - **Overview**: Feature name, dates, current phase, completion %
-- **Phase Status**: Requirements, Design, Tasks completion
+- **Phase Status**: PRD, Requirements, ADRs, Design, Tasks completion
+- **ADR Status**: Proposed, Accepted, Superseded counts
 - **Implementation Progress**: Task completion tracking
 - **Quality Metrics**: Coverage, completeness, dependencies
 - **Recommendations**: Next actions and improvements needed
@@ -204,7 +254,7 @@ graph LR
 
 ---
 
-### 7. `/spec-task:impl <feature-name>`
+### 8. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -269,11 +319,21 @@ Each specification maintains state in `spec.json`:
 - [ ] Traceability to PRD stories established
 - [ ] Measurable thresholds for NFRs defined
 
+### ADR Phase
+- [ ] All ASR (Architecturally Significant Requirements) identified
+- [ ] ADR drafts created for critical decisions
+- [ ] Each ADR linked to specific FR/NFR
+- [ ] At least 2-3 options considered per ADR
+- [ ] Measurable validation criteria defined
+- [ ] Decision owners assigned
+
 ### Design Phase  
 - [ ] Architecture addresses all requirements
+- [ ] Design aligns with accepted ADRs
 - [ ] Technical feasibility validated
 - [ ] Integration points defined
 - [ ] Technology choices justified
+- [ ] All ADR references included
 
 ### Tasks Phase
 - [ ] All design components covered
@@ -304,22 +364,27 @@ Each specification maintains state in `spec.json`:
    /spec-task:requirements notification-system -y
    ```
 
-4. **Review and approve requirements**, then generate design:
+4. **Generate ADR drafts from requirements**:
+   ```bash
+   /spec-task:adr-draft notification-system
+   ```
+
+5. **Review requirements and ADRs**, then generate design:
    ```bash
    /spec-task:design notification-system -y
    ```
 
-5. **Review and approve design**, then generate tasks:
+6. **Review and approve design**, then generate tasks:
    ```bash
    /spec-task:tasks notification-system -y  
    ```
 
-6. **Check status anytime**:
+7. **Check status anytime**:
    ```bash
    /spec-task:status notification-system
    ```
 
-7. **Begin implementation**:
+8. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
@@ -339,6 +404,14 @@ Each specification maintains state in `spec.json`:
 - Use EARS format for all acceptance criteria
 - Define measurable thresholds for NFRs
 - Include verification methods for each requirement
+
+### 📐 ADR Management
+- Identify ADR candidates early (during requirements phase)
+- Draft ADRs as Proposed before making decisions
+- Include at least 2-3 options with pros/cons
+- Define measurable validation criteria
+- Update to Accepted only after design review
+- Use Amendment for minor changes, Supersede for major changes
 
 ### 🏗️ Design Creation
 - Ground design in approved requirements
