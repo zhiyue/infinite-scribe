@@ -30,6 +30,12 @@
         "/home/zhiyue/workspace/mvp/infinite-scribe"
       ],
       "env": {}
+    },
+    "codex": {
+      "type": "stdio",
+      "command": "codex",
+      "args": ["-m", "gpt-5", "-c", "model_reasoning_effort=high", "mcp"],
+      "env": {}
     }
   }
 }
