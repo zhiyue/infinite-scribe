@@ -24,7 +24,7 @@ graph LR
     E --> F[spec-task:adr-draft]
     F --> G[spec-task:adr-review]
     G --> H{ADR决策}
-    H -->|接受| I[spec-task:design]
+    H -->|接受| I[spec-task:design-hld]
     H -->|实验| J[Spike任务]
     J --> G
     I --> K{设计审批}
@@ -46,7 +46,8 @@ graph LR
 ├── adr/               # Architecture Decision Records
 │   ├── README.md      # ADR index and relationships
 │   └── *.md           # Individual ADR documents
-├── design.md          # Technical architecture and design  
+├── design-hld.md      # High-Level Design (系统架构和边界)
+├── design-lld.md      # Low-Level Design (详细实现设计)  
 ├── tasks.md           # Implementation plan and task breakdown
 └── impl.md            # Implementation tracking and progress
 ```
@@ -242,13 +243,13 @@ adr_candidates:
 - Spike task definitions (if needed)
 - Risk mitigation plans
 
-**Next Step**: After all critical ADRs accepted → `/spec-task:design {feature-name} -y`
+**Next Step**: After all critical ADRs accepted → `/spec-task:design-hld {feature-name} -y`
 
 ---
 
-### 6. `/spec-task:design <feature-name>`
+### 6. `/spec-task:design-hld <feature-name>` and `/spec-task:design-lld <feature-name>`
 
-**Purpose**: Generate technical design based on approved requirements and ADRs
+**Purpose**: Generate high-level and low-level technical design based on approved requirements and ADRs
 
 **What it does**:
 - Analyzes approved requirements and ADR decisions
@@ -266,7 +267,7 @@ adr_candidates:
 - Technology Stack
 - ADR Alignment
 
-**Next Step**: Review design → `/spec-task:tasks {feature-name} -y`
+**Next Step**: Review HLD → `/spec-task:design-lld {feature-name} -y` → Review LLD → `/spec-task:tasks {feature-name} -y`
 
 ---
 
@@ -434,10 +435,11 @@ Each specification maintains state in `spec.json`:
 
 6. **After ADR decisions**, generate design:
    ```bash
-   /spec-task:design notification-system -y
+   /spec-task:design-hld notification-system -y
+   /spec-task:design-lld notification-system -y
    ```
 
-7. **Review and approve design**, then generate tasks:
+7. **Review and approve HLD and LLD**, then generate tasks:
    ```bash
    /spec-task:tasks notification-system -y  
    ```
@@ -473,11 +475,11 @@ Each specification maintains state in `spec.json`:
 - Draft ADRs as Proposed before making decisions
 - Include at least 2-3 options with pros/cons
 - Define measurable validation criteria
-- Update to Accepted only after design review
+- Update to Accepted only after HLD review
 - Use Amendment for minor changes, Supersede for major changes
 
 ### 🏗️ Design Creation
-- Ground design in approved requirements
+- Ground HLD in approved requirements, LLD in approved HLD
 - Consider existing system architecture
 - Define clear component boundaries
 - Plan for scalability and maintenance
@@ -497,14 +499,14 @@ Each specification maintains state in `spec.json`:
 ## 🛠️ Integration with Development
 
 ### With Existing Codebase
-- Study existing patterns before design
+- Study existing patterns before HLD
 - Follow established conventions
 - Reuse existing utilities and components
 - Maintain architectural consistency
 
 ### With Testing Strategy
 - Plan tests at requirements phase
-- Define test scenarios in design
+- Define test scenarios in LLD
 - Include testing tasks in implementation plan
 - Validate against acceptance criteria
 

@@ -26,7 +26,8 @@ allowed-tools: Bash, Read, Write, Glob
 **文件**：
 - `prd.md` - 产品需求文档的空模板
 - `requirements.md` - 系统需求的空模板
-- `design.md` - 技术设计的空模板
+- `design-hld.md` - 高层设计的空模板
+- `design-lld.md` - 低层设计的空模板
 - `tasks.md` - 实施任务的空模板
 - `spec.json` - 元数据和审批追踪
 
@@ -59,7 +60,11 @@ allowed-tools: Bash, Read, Write, Glob
       "generated": false,
       "approved": false
     },
-    "design": {
+    "hld": {
+      "generated": false,
+      "approved": false
+    },
+    "lld": {
       "generated": false,
       "approved": false
     },
@@ -115,14 +120,24 @@ $ARGUMENTS
 <!-- 详细的 EARS 格式需求将在 /spec-task:requirements 阶段生成 -->
 ```
 
-#### design.md（空模板）
+#### design-hld.md（空模板）
 
 ```markdown
-# Design Document
+# High-Level Design Document
 
 ## Overview
 
-<!-- 技术设计将在需求审批后生成 -->
+<!-- 高层设计将在需求审批后生成 -->
+```
+
+#### design-lld.md（空模板）
+
+```markdown
+# Low-Level Design Document
+
+## Overview
+
+<!-- 低层设计将在HLD审批后生成 -->
 ```
 
 #### tasks.md（空模板）
@@ -169,7 +184,8 @@ graph TD
 ## Related Documents
 - [PRD](../prd.md)
 - [Requirements](../requirements.md)
-- [Design](../design.md)
+- [High-Level Design](../design-hld.md)
+- [Low-Level Design](../design-lld.md)
 ```
 
 #### adr/templates/adr-template.md（ADR 模板）
@@ -227,8 +243,9 @@ Proposed
 2. `/spec-task:requirements {feature-name}` - 生成系统需求（基于 PRD）
 3. `/spec-task:adr-draft {feature-name}` - 识别架构决策点并生成 ADR 草稿
 4. `/spec-task:adr-review {feature-name}` - 评审 ADR 并做出决策
-5. `/spec-task:design {feature-name}` - 生成设计（与已接受的 ADR 对齐）
-6. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
+5. `/spec-task:design-hld {feature-name}` - 生成高层设计（与已接受的 ADR 对齐）
+6. `/spec-task:design-lld {feature-name}` - 生成低层设计（基于 HLD）
+7. `/spec-task:tasks {feature-name}` - 生成任务（交互式审批）
 
 ## 输出格式
 
@@ -244,9 +261,9 @@ Proposed
 ## 工作流程图示
 
 ```
-初始化 → PRD生成 → 需求生成 → ADR草稿 → ADR评审 → 设计生成 → 任务生成 → 实施准备
-          ↓          ↓          ↓         ↓          ↓          ↓
-       [审批]      [审批]    [识别]    [决策]     [审批]     [审批]
+初始化 → PRD生成 → 需求生成 → ADR草稿 → ADR评审 → HLD生成 → LLD生成 → 任务生成 → 实施准备
+          ↓          ↓          ↓         ↓          ↓         ↓          ↓
+       [审批]      [审批]    [识别]    [决策]     [审批]     [审批]     [审批]
 ```
 
 ## 注意事项
@@ -285,21 +302,28 @@ Proposed
 - 分析技术选项
 - 评估与现有架构的对齐
 
-### 阶段 5：技术设计（Technical Design）
+### 阶段 5：高层设计（High-Level Design）
 
-- 架构设计（与 ADR 对齐）
-- 组件设计
-- 接口定义
-- 集成方案
+- 系统架构设计（与 ADR 对齐）
+- 容器和组件划分
+- 系统边界定义
+- 容量规划
 
-### 阶段 6：任务分解（Task Breakdown）
+### 阶段 6：低层设计（Low-Level Design）
+
+- 详细组件设计
+- 接口签名定义
+- 数据结构设计
+- 异常处理策略
+
+### 阶段 7：任务分解（Task Breakdown）
 
 - 实施计划
 - 任务优先级
 - 依赖关系
 - 工作量估算
 
-### 阶段 7：实施就绪（Ready for Implementation）
+### 阶段 8：实施就绪（Ready for Implementation）
 
 - 所有文档已审批
 - 任务已分配
@@ -333,10 +357,16 @@ Proposed
 /spec-task:adr-draft user-management
 ```
 
-### 生成技术设计
+### 生成高层设计
 
 ```bash
-/spec-task:design user-management -y
+/spec-task:design-hld user-management -y
+```
+
+### 生成低层设计
+
+```bash
+/spec-task:design-lld user-management -y
 ```
 
 ### 生成实施任务
@@ -355,7 +385,8 @@ Proposed
     └── user-management/
         ├── prd.md           # 产品需求文档
         ├── requirements.md  # 系统需求文档
-        ├── design.md        # 技术设计文档
+        ├── design-hld.md    # 高层设计文档
+        ├── design-lld.md    # 低层设计文档
         ├── tasks.md         # 任务计划
         ├── spec.json        # 元数据和状态追踪
         └── adr/             # 架构决策记录

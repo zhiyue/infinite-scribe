@@ -614,4 +614,4 @@ ADR 草稿生成后：
 2. 与用户交互式决策每个 ADR
 3. 需要实验的创建 Spike 任务
 4. 所有关键 ADR 接受后继续设计阶段
-5. 运行 `/spec-task:design {feature-name} -y` 生成技术设计
+5. 运行 `/spec-task:design-hld {feature-name} -y` 生成高层设计

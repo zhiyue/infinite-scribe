@@ -32,7 +32,8 @@ argument-hint: <feature-name> <task-numbers>
 验证所需文件是否存在：
 
 - 需求：检查 `.tasks/<功能名称>/requirements.md` 是否存在
-- 设计：检查 `.tasks/<功能名称>/design.md` 是否存在
+- 高层设计：检查 `.tasks/<功能名称>/design-hld.md` 是否存在
+- 低层设计：检查 `.tasks/<功能名称>/design-lld.md` 是否存在
 - 任务：检查 `.tasks/<功能名称>/tasks.md` 是否存在
 - 元数据：检查 `.tasks/<功能名称>/spec.json` 是否存在
 
@@ -46,7 +47,8 @@ argument-hint: <feature-name> <task-numbers>
 功能名称目录：!`echo "$ARGUMENTS" | awk '{print $1}' | head -1`
 
 - 需求：`.tasks/<功能名称>/requirements.md`
-- 设计：`.tasks/<功能名称>/design.md`
+- 高层设计：`.tasks/<功能名称>/design-hld.md`
+- 低层设计：`.tasks/<功能名称>/design-lld.md`
 - 任务：`.tasks/<功能名称>/tasks.md`
 
 **注意**：<功能名称> 将在执行期间替换为实际的功能名称
@@ -67,7 +69,8 @@ argument-hint: <feature-name> <task-numbers>
 1. **加载项目上下文**（首先读取这些文件）：
    - 规范元数据：`.tasks/<功能名称>/spec.json`
    - 需求：`.tasks/<功能名称>/requirements.md`
-   - 设计：`.tasks/<功能名称>/design.md`
+   - 高层设计：`.tasks/<功能名称>/design-hld.md`
+- 低层设计：`.tasks/<功能名称>/design-lld.md`
    - 所有任务：`.tasks/<功能名称>/tasks.md`
 
 2. **针对每个特定任务的TDD实施**：
@@ -99,7 +102,7 @@ argument-hint: <feature-name> <task-numbers>
 
 2. **验证**：
    - 规范目录存在
-   - 必需文件（requirements.md、design.md、tasks.md、spec.json）存在
+   - 必需文件（requirements.md、design-hld.md、design-lld.md、tasks.md、spec.json）存在
    - 规范已批准可以实施
 
 3. **执行**：

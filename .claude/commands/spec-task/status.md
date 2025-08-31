@@ -14,7 +14,8 @@ allowed-tools: Bash, Read, Glob, Write, Edit, MultiEdit, Update
 - 规范目录：!`ls -la .kiro/specs/$ARGUMENTS/`
 - 规范元数据：`.kiro/specs/$ARGUMENTS/spec.json`
 - 需求文档：`.kiro/specs/$ARGUMENTS/requirements.md`
-- 设计文档：`.kiro/specs/$ARGUMENTS/design.md`
+- 高层设计：`.kiro/specs/$ARGUMENTS/design-hld.md`
+- 低层设计：`.kiro/specs/$ARGUMENTS/design-lld.md`
 - 任务文档：`.kiro/specs/$ARGUMENTS/tasks.md`
 
 ### 所有规范概览

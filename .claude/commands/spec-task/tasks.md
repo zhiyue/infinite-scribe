@@ -23,7 +23,7 @@ argument-hint: <feature-name> [-y]
 ### 先决条件和文件处理
 
 - **需求与设计批准检查**：
-  - 如果使用 `-y` 调用，在 `spec.json` 中设置 `requirements.approved=true` 和 `design.approved=true`
+  - 如果使用 `-y` 调用，在 `spec.json` 中设置 `requirements.approved=true`、`hld.approved=true` 和 `lld.approved=true`
   - 否则，如果需求或设计缺失或未批准，**停止**并显示可操作的消息
 - **任务文件处理**：
   - 如果 tasks.md 不存在：创建新的 tasks.md 文件
@@ -31,7 +31,7 @@ argument-hint: <feature-name> [-y]
     - **[o] 覆盖**：生成全新的任务文档
     - **[m] 合并**：使用现有内容作为参考上下文生成新任务文档
     - **[c] 取消**：停止执行以进行手动审查
-- **上下文加载**：读取 `.tasks/$ARGUMENTS/requirements.md`、`.tasks/$ARGUMENTS/design.md` 中的指导文档，以及现有的 tasks.md（如果是合并模式）
+- **上下文加载**：读取 `.tasks/$ARGUMENTS/requirements.md`、`.tasks/$ARGUMENTS/design-hld.md`、`.tasks/$ARGUMENTS/design-lld.md` 中的指导文档，以及现有的 tasks.md（如果是合并模式）
 
 ### 任务分析与规划
 
@@ -137,8 +137,8 @@ argument-hint: <feature-name> [-y]
 
 如果需求或设计未批准且没有 `-y` 标志：
 
-- **错误消息**："在生成任务之前必须批准需求和设计。运行 `/spec-task:requirements $ARGUMENTS` 和 `/spec-task:design $ARGUMENTS` 进行审查，然后运行 `/spec-task:tasks $ARGUMENTS -y` 继续。"
-- **替代方案**："或运行 `/spec-task:tasks $ARGUMENTS -y` 自动批准两个阶段并生成任务。"
+- **错误消息**："在生成任务之前必须批准需求和设计。运行 `/spec-task:requirements $ARGUMENTS`、`/spec-task:design-hld $ARGUMENTS` 和 `/spec-task:design-lld $ARGUMENTS` 进行审查，然后运行 `/spec-task:tasks $ARGUMENTS -y` 继续。"
+- **替代方案**："或运行 `/spec-task:tasks $ARGUMENTS -y` 自动批准所有阶段并生成任务。"
 
 ---
 
@@ -180,7 +180,7 @@ argument-hint: <feature-name> [-y]
 
 1. **检查 spec.json 中的语言** - 使用元数据中指定的语言
 2. **将设计转换为代码生成提示** - 每个任务必须是特定的编码指令
-3. **假设上下文可用** - 实施期间所有上下文文档（requirements.md、design.md）都将可用
+3. **假设上下文可用** - 实施期间所有上下文文档（requirements.md、design-hld.md、design-lld.md）都将可用
 4. **指定确切的文件和组件** - 定义在哪些文件中编写/修改什么代码
 5. **增量构建** - 每个任务使用前面任务的输出，没有孤立的代码
 6. **映射到需求** - 以 _需求：X.X, Y.Y_ 或 _需求：[描述]_ 格式结束每个任务

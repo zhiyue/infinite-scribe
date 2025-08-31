@@ -454,7 +454,7 @@ adr_candidates:
 
 #### 7.3 触发设计阶段
 如果所有关键 ADR 都已决策：
-- 提示运行 `/spec-task:design {feature-name} -y`
+- 提示运行 `/spec-task:design-hld {feature-name} -y`
 - 确保设计与 ADR 决策对齐
 
 ### 8. 质量检查清单
@@ -585,5 +585,5 @@ graph TD
 ADR 评审完成后：
 1. 所有关键 ADR 状态更新为 Accepted
 2. 实验任务已创建（如有）
-3. 运行 `/spec-task:design {feature-name} -y` 继续设计阶段
+3. 运行 `/spec-task:design-hld {feature-name} -y` 继续高层设计阶段
 4. 设计必须与已接受的 ADR 对齐
