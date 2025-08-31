@@ -34,6 +34,13 @@ graph LR
     M -->|批准| N[spec-task:impl]
     M -->|修改| L
     N --> O[实施完成]
+    
+    H -.->|可选同步| P[spec-task:sync-architecture]
+    K -.->|可选同步| P
+    P -.-> Q[(docs/architecture/)]
+    
+    style P fill:#f9f,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style Q fill:#ccf,stroke:#333,stroke-width:2px
 ```
 
 ## 📁 Directory Structure
@@ -319,6 +326,70 @@ adr_candidates:
 - Progress tracking and completion status
 - Integration testing support
 - Quality assurance checkpoints
+
+---
+
+### 10. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
+
+**Purpose**: Update global architecture documentation with approved spec designs
+
+**Context**:
+- **Global Architecture**: `docs/architecture/` contains the system-wide architecture documentation
+- **Spec Documents**: `.tasks/*/` contains feature-specific ADRs and HLD designs
+- **Goal**: Merge approved spec designs into the global architecture documentation
+
+**What it does**:
+- Scans `.tasks/*/adr/` for approved Architecture Decision Records
+- Scans `.tasks/*/design*.md` for approved High-Level Design documents
+- Checks approval status in metadata (`spec.json`)
+- **Updates existing files** in `docs/architecture/` with new content
+- Performs incremental updates without deleting existing content
+- Creates backups before modifying any files
+- Adds source tracking comments for traceability
+
+**Parameters**:
+- `--force`: Optional, update even if specs are not fully approved
+- `--dry-run`: Optional, preview changes without modifying files
+- `feature-name`: Optional, update only from specific feature's specs
+
+**Content Mapping**:
+| Source (in .tasks/) | Target (in docs/architecture/) | Update Type |
+|---------------------|--------------------------------|-------------|
+| ADR tech decisions | tech-stack.md | Append to relevant sections |
+| ADR architecture patterns | high-level-architecture.md | Add to patterns section |
+| HLD system design | high-level-architecture.md | Update architecture diagrams |
+| HLD data models | data-models.md | Add new domain models |
+| HLD components | components.md | Add new component designs |
+| HLD API design | rest-api-spec.md | Add new endpoints |
+
+**Key Features**:
+- **Incremental Updates**: Adds new content without removing existing documentation
+- **Source Tracking**: Adds comments showing which spec the content came from
+- **Conflict Avoidance**: Creates new sections for feature-specific content
+- **Backup Safety**: Auto-creates timestamped backups before changes
+- **Approval Gates**: Only updates from approved specs by default
+
+**Usage Examples**:
+```bash
+# Update global docs with all approved specs
+/spec-task:sync-architecture
+
+# Preview what would be updated
+/spec-task:sync-architecture --dry-run
+
+# Force update including unapproved specs
+/spec-task:sync-architecture --force
+
+# Update from specific feature only  
+/spec-task:sync-architecture user-management
+```
+
+**Output**:
+- Update report showing which files were modified
+- Content mapping summary
+- Backup file locations
+- Git commit suggestion
+- Manual review recommendations
 
 ---
 
