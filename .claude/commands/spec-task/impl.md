@@ -53,6 +53,13 @@ argument-hint: <feature-name> <task-numbers>
 
 **注意**：<功能名称> 将在执行期间替换为实际的功能名称
 
+【可选：前置规划支持】
+
+- 若存在 `.tasks/<功能名称>/impl-plan.md` 且在 `spec.json` 中 `impl_plan.approved=true`：
+  - 作为权威参考优先加载该文档与 `.tasks/<功能名称>/references/` 缓存（接口签名、示例、坑点）
+  - 实现阶段应以此为依据，减少重复检索；若发现偏差，需回写更新 `impl-plan.md`
+- 若不存在或未批准：按需即时查询库文档（见下文“库文档查询”），但建议先执行 `/spec-task:impl-plan <功能名称>`
+
 ### 任务执行
 
 1. **从参数解析功能名称和任务编号**

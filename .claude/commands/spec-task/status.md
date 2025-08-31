@@ -11,21 +11,17 @@ allowed-tools: Bash, Read, Glob, Write, Edit, MultiEdit, Update
 
 ### 规范文件
 
-- 规范目录：!`ls -la .kiro/specs/$ARGUMENTS/`
-- 规范元数据：`.kiro/specs/$ARGUMENTS/spec.json`
-- 需求文档：`.kiro/specs/$ARGUMENTS/requirements.md`
-- 高层设计：`.kiro/specs/$ARGUMENTS/design-hld.md`
-- 低层设计：`.kiro/specs/$ARGUMENTS/design-lld.md`
-- 任务文档：`.kiro/specs/$ARGUMENTS/tasks.md`
-
-### 所有规范概览
-
-- 可用规范：!`ls -la .kiro/specs/`
-- 活动规范：!`find .kiro/specs/ -name "spec.json" -exec grep -l "implementation_ready.*true" {} \;`
+- 规范目录：!`ls -la .tasks/$ARGUMENTS/`
+- 规范元数据：`.tasks/$ARGUMENTS/spec.json`
+- 需求文档：`.tasks/$ARGUMENTS/requirements.md`
+- 高层设计：`.tasks/$ARGUMENTS/design-hld.md`
+- 低层设计：`.tasks/$ARGUMENTS/design-lld.md`
+- 任务文档：`.tasks/$ARGUMENTS/tasks.md`
 
 ## 任务：生成状态报告
 
-创建规范的综合状态报告，使用 spec.json 中指定的语言（检查 `.kiro/specs/$ARGUMENTS/spec.json` 中的 "language" 字段）：
+创建规范的综合状态报告，使用 spec.json 中指定的语言（检查
+`.tasks/$ARGUMENTS/spec.json` 中的 "language" 字段）：
 
 ### 1. 规范概览
 

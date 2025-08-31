@@ -296,7 +296,7 @@ adr_candidates:
 - Dependencies between tasks
 - Acceptance criteria for each task
 
-**Next Step**: Begin implementation → `/spec-task:impl {feature-name}`
+**Next Step**: (Recommended) Preflight planning → `/spec-task:impl-plan {feature-name}` → Begin implementation → `/spec-task:impl {feature-name}`
 
 ---
 
@@ -320,12 +320,18 @@ adr_candidates:
 
 **Purpose**: Support implementation phase with guidance and tracking
 
+**Preflight (Recommended)**:
+- Run `/spec-task:impl-plan <feature-name>` to generate an implementation plan and research dossier (library APIs, signatures, examples). This reduces rework and ensures accurate interfaces during TDD.
+
 **What it provides**:
 - Implementation guidance and best practices
 - Code examples and patterns
 - Progress tracking and completion status
 - Integration testing support
 - Quality assurance checkpoints
+
+**Notes**:
+- If `.tasks/<feature-name>/impl-plan.md` exists and is approved in `spec.json`, use it and the cached references as authoritative sources during implementation. Otherwise, perform on-demand documentation lookups as needed.
 
 ---
 
@@ -520,7 +526,12 @@ Each specification maintains state in `spec.json`:
    /spec-task:status notification-system
    ```
 
-9. **Begin implementation**:
+9. **(Optional) Implementation plan**:
+   ```bash
+   /spec-task:impl-plan notification-system -y
+   ```
+
+10. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
