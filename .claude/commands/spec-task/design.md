@@ -1,6 +1,8 @@
 ---
 description: Create technical design for a specification
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch
+allowed-tools:
+  Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch,
+  WebFetch
 argument-hint: <feature-name> [-y]
 ---
 
@@ -15,7 +17,10 @@ argument-hint: <feature-name> [-y]
 - 需求文档：@.tasks/$ARGUMENTS/requirements.md
 - 规范元数据：@.tasks/$ARGUMENTS/spec.json
 
-**注意**：如果此命令使用 `-y` 标志调用，需求将自动批准（spec.json 更新为设置 requirements.approved=true）。否则，必须先通过 `/spec-task:requirements $ARGUMENTS` 批准需求，然后使用 `/spec-task:design $ARGUMENTS -y`。
+**注意**：如果此命令使用 `-y`
+标志调用，需求将自动批准（spec.json 更新为设置 requirements.approved=true）。否则，必须先通过
+`/spec-task:requirements $ARGUMENTS` 批准需求，然后使用
+`/spec-task:design $ARGUMENTS -y`。
 
 ## 上下文分析
 
@@ -23,7 +28,8 @@ argument-hint: <feature-name> [-y]
 
 **重要提示**：设计必须建立在已批准的需求文档之上。
 
-- **需求文档**：@.tasks/$ARGUMENTS/requirements.md
+- **产品需求文档**：@.tasks/$ARGUMENTS/prd.md
+- **系统需求文档**：@.tasks/$ARGUMENTS/requirements.md
 - **EARS 格式需求**：每个需求都有验收标准
 - **用户故事映射**：设计组件必须针对特定的用户故事
 - **约束和验收标准**：必须反映在技术决策中
@@ -43,6 +49,7 @@ argument-hint: <feature-name> [-y]
 ### ADR 对齐要求
 
 **重要**：设计必须与已识别的 ADR 对齐：
+
 1. 检查 `@.tasks/$ARGUMENTS/adr/` 中的现有 ADR 草稿
 2. 确保设计决策与 ADR 中的选项分析一致
 3. 如果 ADR 状态为 Proposed，在设计评审时更新为 Accepted
@@ -78,7 +85,8 @@ argument-hint: <feature-name> [-y]
 
 ### 1. 设计文档结构
 
-以 spec.json 中指定的语言创建 design.md（检查 `@.tasks/$ARGUMENTS/spec.json` 的"language"字段）：
+以 spec.json 中指定的语言创建 design.md（检查 `@.tasks/$ARGUMENTS/spec.json`
+的"language"字段）：
 
 ````markdown
 # 技术设计
@@ -99,7 +107,7 @@ argument-hint: <feature-name> [-y]
 
 ### 用户故事覆盖
 
-[确保 requirements.md 中的所有用户故事都得到解决]
+[确保 prd.md 中的所有用户故事都得到解决]
 
 - 用户故事 1：[设计如何解决此故事]
 - 用户故事 2：[此故事的技术方法]
@@ -379,11 +387,9 @@ CREATE TABLE users (
 
 生成 design.md 后，审查设计并选择：
 
-**如果设计看起来不错：**
-运行 `/spec-task:tasks $ARGUMENTS -y` 继续进入任务阶段
+**如果设计看起来不错：** 运行 `/spec-task:tasks $ARGUMENTS -y` 继续进入任务阶段
 
-**如果设计需要修改：**
-请求更改，然后在修改后重新运行此命令
+**如果设计需要修改：** 请求更改，然后在修改后重新运行此命令
 
 `-y` 标志自动批准设计并直接生成任务，在保持审查强制的同时简化工作流程。
 
