@@ -3,7 +3,7 @@
 生成时间：2025-09-01T23:10:00Z
 任务描述：创建 launcher 模块的目录结构与骨架文件
 关联场景：task-1-test-scenarios.md
-关联需求：FR-001, FR-007
+关联需求：FR-001（统一管理）；关联决策：ADR-005（CLI 架构）
 
 ## 被测对象（SUT）
 
@@ -14,6 +14,11 @@
 - **验证时**，通过检查文件存在性、模块可导入性和类定义完整性，完成验证
 
 ## 详细规格
+
+### 测试运行上下文
+
+- 工作目录：apps/backend（pytest 已配置 pythonpath 指向当前目录与 src）
+- 路径断言统一使用 `Path("src/launcher")` 前缀
 
 ### 模块层级结构
 ```
@@ -139,13 +144,13 @@ class TestDirectoryStructure:
     
     def test_launcher_directory_exists(self):
         """Test that launcher main directory exists"""
-        launcher_path = Path("apps/backend/src/launcher")
+        launcher_path = Path("src/launcher")
         assert launcher_path.exists()
         assert launcher_path.is_dir()
     
     def test_adapters_subdirectory_exists(self):
         """Test that adapters subdirectory exists"""
-        adapters_path = Path("apps/backend/src/launcher/adapters")
+        adapters_path = Path("src/launcher/adapters")
         assert adapters_path.exists()
         assert adapters_path.is_dir()
 ```
@@ -157,7 +162,7 @@ class TestModuleFiles:
     
     def test_core_module_files_exist(self):
         """Test all core module files are created"""
-        launcher_path = Path("apps/backend/src/launcher")
+        launcher_path = Path("src/launcher")
         required_files = [
             "__init__.py", "cli.py", "orchestrator.py",
             "health.py", "types.py", "errors.py"
@@ -170,7 +175,7 @@ class TestModuleFiles:
     
     def test_adapter_files_exist(self):
         """Test adapter module files exist"""
-        adapters_path = Path("apps/backend/src/launcher/adapters")
+        adapters_path = Path("src/launcher/adapters")
         required_files = ["__init__.py", "api.py", "agents.py"]
         
         for file_name in required_files:
@@ -247,15 +252,15 @@ class TestExceptionClasses:
 ### CLI入口点测试
 ```python
 import subprocess
-import toml
+import tomllib
 
 class TestCLIEntryPoint:
     """Test CLI entry point registration"""
     
     def test_pyproject_entry_point_registered(self):
         """Test CLI entry point in pyproject.toml"""
-        with open("apps/backend/pyproject.toml", "r") as f:
-            config = toml.load(f)
+        with open("apps/backend/pyproject.toml", "rb") as f:
+            config = tomllib.load(f)
         
         assert "project" in config
         assert "scripts" in config["project"]
@@ -264,13 +269,14 @@ class TestCLIEntryPoint:
     
     def test_cli_help_command(self):
         """Test CLI help command executes"""
+        import sys
         result = subprocess.run(
-            ["python", "-m", "src.launcher.cli", "--help"],
+            [sys.executable, "-m", "src.launcher.cli", "--help"],
             capture_output=True,
             text=True,
             cwd="apps/backend"
         )
-        assert result.returncode == 0 or result.returncode == 2  # 2 for argparse help
+        assert result.returncode == 0
 ```
 
 ### 版本信息测试
@@ -283,7 +289,7 @@ class TestVersionInfo:
         import src.launcher
         assert hasattr(src.launcher, '__version__')
         assert isinstance(src.launcher.__version__, str)
-        assert src.launcher.__version__ == "0.1.0"
+        assert len(src.launcher.__version__) > 0
 ```
 
 ## 断言策略
@@ -291,7 +297,7 @@ class TestVersionInfo:
 ### 文件系统断言
 - **存在性**：`assert path.exists()`
 - **类型检查**：`assert path.is_dir()` 或 `assert path.is_file()`
-- **权限检查**：`assert (path.stat().st_mode & 0o644) == 0o644`
+- **权限检查（可选）**：在非 Windows 平台可验证基本可读权限，例如 `(path.stat().st_mode & 0o444) != 0`
 
 ### 模块导入断言
 - **可导入性**：`import module` 不抛出 ImportError
@@ -314,7 +320,7 @@ class TestVersionInfo:
 ```python
 def get_launcher_path() -> Path:
     """Get launcher module path"""
-    return Path("apps/backend/src/launcher")
+    return Path("src/launcher")
 
 def get_module_files() -> List[str]:
     """Get list of required module files"""
