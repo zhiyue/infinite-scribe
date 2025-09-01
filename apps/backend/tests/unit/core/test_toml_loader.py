@@ -212,7 +212,7 @@ port = "${DB_PORT:-5432}"
         """测试文件不存在的情况"""
         with pytest.raises(FileNotFoundError) as exc_info:
             load_toml_config("non_existent.toml")
-        assert "配置文件不存在" in str(exc_info.value)
+        assert "Configuration file not found" in str(exc_info.value)
 
     def test_load_complex_toml(self):
         """测试加载复杂的 TOML 文件"""
