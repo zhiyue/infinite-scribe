@@ -10,6 +10,9 @@
   ],
   // "python.analysis.diagnosticMode": "workspace",
   "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.exclude": [
+    "apps/backend/tests"
+  ],
   "python.analysis.indexing": true,
   "python.analysis.inlayHints.functionReturnTypes": true,
   "python.analysis.inlayHints.variableTypes": true,
@@ -22,6 +25,9 @@
   "cursor.general.gitGraphIndexing": "enabled",
   "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
   "cursorpyright.analysis.inlayHints.variableTypes": true,
+  "cursorpyright.analysis.exclude": [
+    "apps/backend/tests"
+  ],
   // 禁用其他 linter，避免冲突
   "python.linting.enabled": false,
   "python.linting.pylintEnabled": false,
