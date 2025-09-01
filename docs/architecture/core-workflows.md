@@ -138,78 +138,73 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor Alice as 用户Alice
+    actor User as 用户
     participant UI as 前端UI
     participant APIGW as API网关
     participant DB as PostgreSQL
-    participant Relay as Message Relay
-    participant Kafka as Kafka事件总线
-    participant Prefect as Prefect (Flow Runner)
-    participant PrefectAPI as Prefect Server API
-    participant Redis as Redis (回调缓存)
-    participant CallbackSvc as PrefectCallbackService
+    participant Outbox as Outbox Relay
+    participant Kafka as 事件总线
+    participant Prefect as Prefect Flow
+    participant PrefectAPI as Prefect API
+    participant Redis as Redis(句柄缓存)
+    participant CB as CallbackSvc
     participant Agent as AI Agent
+    participant Notifier as UI Notifier(SSE投影器)
+    participant SSE as SSE(Streams+Pub/Sub)
 
-    title 最终架构：基于领域事件和暂停/恢复机制的完整流程
+    title 最终架构：创世阶段交互（含暂停/恢复与 SSE 投影）
 
-    %% ======================= 阶段一: 命令接收与请求事件发布 =======================
-    UI->>APIGW: 1. POST /.../commands (command_type: RequestChapterGeneration)
-    APIGW->>DB: 2. (IN TRANSACTION) 写入 command_inbox, domain_events, event_outbox
-    APIGW-->>UI: 3. 返回 202 Accepted
+    Note over UI,APIGW: 建立 SSE 订阅：GET /v1/events/stream?sse_token=...
 
-    Relay->>Kafka: 4. (轮询) 将 "Chapter.GenerationRequested" 事件发布到Kafka
+    loop 每个创世阶段或一次迭代
+        UI->>APIGW: 1. POST /genesis/...（开始/反馈/确认 等命令）
+        APIGW->>+DB: 2. 事务写入：command_inbox + domain_events + event_outbox
+        DB-->>-APIGW: 3. 提交成功
+        APIGW-->>UI: 4. 202 Accepted（session_id, correlation_id）
 
-    %% ======================= 阶段二: Prefect启动工作流并派发首个指令 =======================
-    Kafka-->>+Prefect: 5. Prefect的守护Flow监听到 "Chapter.GenerationRequested"
-    Prefect->>Prefect: 6. 根据事件类型，触发一个具体的子流程 (e.g., chapter_generation_flow)
+        Outbox->>Kafka: 5. 发布 Genesis.Session.*Requested
 
-    Note over Prefect: Flow的第一个Task: 通过Outbox发布"生成大纲"指令
-    Prefect->>+DB: 7. (IN TRANSACTION) 创建async_task, 并将 "Chapter.OutlineGenerationRequested" 事件写入outbox
-    DB-->>-Prefect: 确认写入
+        Kafka-->>+Prefect: 6. Flow 启动/路由子流程
+        Prefect->>+DB: 7. 创建 async_tasks，写 *Requested 指令事件到 outbox
+        DB-->>-Prefect: 确认
 
-    Relay->>Kafka: 8. (轮询) 发布 "Chapter.OutlineGenerationRequested" 指令事件
+        Outbox->>Kafka: 8. 发布 *Requested（发给 Agent）
 
-    %% ======================= 阶段三: Prefect进入暂停状态，等待结果 =======================
-    Note over Prefect: 关键：Flow现在执行"等待"任务
-    Prefect->>+PrefectAPI: 9. 请求一个恢复句柄 (resume_handle)
-    PrefectAPI-->>-Prefect: 返回句柄
+        Prefect->>+PrefectAPI: 9. 获取 resume_handle
+        PrefectAPI-->>-Prefect: 返回句柄
+        Prefect->>+DB: 10. 写 flow_resume_handles(status=PENDING_PAUSE)
+        Prefect->>Redis: 11. 可选缓存句柄
+        Prefect->>PrefectAPI: 12. 将 Task Run 置为 PAUSED
+        deactivate Prefect
 
-    Prefect->>+DB: 10. 将回调句柄持久化到 flow_resume_handles (status: PENDING_PAUSE)
+        Kafka-->>+Agent: 13. Agent 消费指令并执行
+        Agent->>Agent: 14. 长耗时处理...
+        Agent->>+DB: 15. 写业务数据与结果类领域事件到 outbox
+        DB-->>-Agent: 确认
+        deactivate Agent
+
+        Outbox->>Kafka: 16. 发布结果事件（…Created/…Proposed 等）
+
+        Kafka-->>+CB: 17. CallbackSvc 消费结果事件
+        CB->>Redis: 18. 查找 resume_handle（miss 则查 DB）
+        CB->>+PrefectAPI: 19. resume_task_run(handle, result)
+        PrefectAPI-->>-CB: 20. 恢复成功
+        deactivate CB
+
+        Prefect-->Prefect: 21. Flow 从暂停点继续并决策下一步
+        alt 需要用户确认/反馈
+            Notifier->>SSE: 22.a 投影并推送 genesis.step.completed
+            SSE-->>UI: 23.a UI 接收并展示
+            UI->>APIGW: 24.a 提交确认/反馈（回到步骤 1）
+        else 自动推进到下一阶段
+            Prefect->>+DB: 22.b 写下一步 *Requested 到 outbox
+            DB-->>-Prefect: 确认（回到步骤 8）
+        end
+    end
+
+    Prefect->>+DB: 终局：写 Genesis.Session.Finished 到 outbox
     DB-->>-Prefect: 确认
-
-    Prefect->>+Redis: 11. (可选) 缓存回调句柄
-    Redis-->>-Prefect: 确认
-
-    Prefect->>+PrefectAPI: 12. 请求将自身Task Run置为 PAUSED
-    PrefectAPI-->>-Prefect: 确认暂停 (Flow Worker已释放)
-    deactivate Prefect
-
-    %% ======================= 阶段四: Agent执行并发布结果事件 =======================
-    Kafka-->>+Agent: 13. 大纲规划师Agent消费到指令
-    Agent->>Agent: 14. 执行工作...
-
-    Note over Agent: Agent完成工作后，通过Outbox发布领域事件结果
-    Agent->>+DB: 15. (IN TRANSACTION) 写入大纲数据, 并将 "Chapter.OutlineCreated" 事件写入outbox
-    DB-->>-Agent: 确认
-    deactivate Agent
-
-    %% ======================= 阶段五: 结果事件触发回调，唤醒Flow =======================
-    Relay->>Kafka: 16. (轮询) 发布 "Chapter.OutlineCreated" 结果事件
-
-    Kafka-->>+CallbackSvc: 17. PrefectCallbackService消费到结果事件
-    CallbackSvc->>CallbackSvc: 18. 从事件payload中解析出关联ID (e.g., source_command_id)
-
-    CallbackSvc->>+Redis: 19. 尝试从缓存获取回调句柄
-    Redis-->>-CallbackSvc: 20. 命中缓存，返回句柄 (或回退到DB查询)
-
-    CallbackSvc->>+PrefectAPI: 21. 调用 resume_task_run(handle, result=event_payload)
-    PrefectAPI->>PrefectAPI: 22. 找到暂停的任务，注入结果，状态改为RUNNING
-    PrefectAPI-->>-CallbackSvc: 23. 返回成功响应
-    deactivate CallbackSvc
-
-    %% ======================= 阶段六: Flow恢复并继续执行 =======================
-    Note over Prefect: Prefect Worker现在可以继续执行被唤醒的Flow...
-    Prefect->>+Prefect: 24. Flow从暂停点恢复，并获得了 "Chapter.OutlineCreated" 事件的payload
-    Prefect->>Prefect: 25. 根据结果，触发流程的下一步 (e.g., 发布 "Chapter.SceneDesignRequested" 指令)...
-    deactivate Prefect
+    Outbox->>Kafka: 发布 Finished
+    Notifier->>SSE: 推送 genesis.session.finished
+    SSE-->>UI: 前端收到完成通知
 ```
