@@ -20,10 +20,9 @@ async def test_login_fix():
         try:
             # 测试登录
             print("登录中...")
-            login_response = await client.post(f"{base_url}/api/v1/auth/login", json={
-                "email": test_email,
-                "password": test_password
-            })
+            login_response = await client.post(
+                f"{base_url}/api/v1/auth/login", json={"email": test_email, "password": test_password}
+            )
 
             if login_response.status_code != 200:
                 print(f"❌ 登录失败: {login_response.text}")
