@@ -141,12 +141,19 @@
       "planned_at": "2025-09-01T23:15:00Z",
       "description": "启动器配置模型 - 定义LauncherConfigModel并集成现有配置系统",
       "estimated_hours": 2.5
+    },
+    "4": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-01T23:50:00Z",
+      "description": "CLI（最小集）- 实现is-launcher命令行接口",
+      "estimated_hours": 3.0
     }
   },
   "test_scenarios": {
     "generated": true,
     "approved": true,
-    "generated_at": "2025-09-01T23:30:00Z",
+    "generated_at": "2025-09-01T23:55:00Z",
     "tasks": {
       "1": {
         "file": "task-plans/task-1-test-scenarios.md",
@@ -156,6 +163,11 @@
       "3": {
         "file": "task-plans/task-3-test-scenarios.md",
         "count": 30,
+        "approved": false
+      },
+      "4": {
+        "file": "task-plans/task-4-test-scenarios.md",
+        "count": 28,
         "approved": false
       }
     }
