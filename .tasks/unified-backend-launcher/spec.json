@@ -23,7 +23,7 @@
     },
     "adr": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "hld": {
       "generated": false,
@@ -40,8 +40,8 @@
   },
   "adr": {
     "total_count": 6,
-    "proposed": 1,
-    "accepted": 5,
+    "proposed": 0,
+    "accepted": 6,
     "superseded": 0,
     "candidates": [
       {
@@ -87,10 +87,12 @@
       {
         "key": "ADR-20250901-cli-architecture-design",
         "title": "CLI架构设计与用户交互模式",
-        "status": "Proposed",
+        "status": "Accepted",
         "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合架构（argparse核心 + 交互增强）",
         "related_requirements": ["FR-007", "NFR-003", "NFR-004"],
-        "owners": ["backend-lead", "ux-lead"]
+        "owners": ["backend-lead", "ux-lead", "tech-lead-reviewer"]
       },
       {
         "key": "ADR-20250901-development-mode-enhancement",
