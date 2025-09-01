@@ -607,7 +607,7 @@ graph TD
 # 流程：
 1. 读取指定 ADR 文件
 2. 搜索 "SSE vs WebSocket best practices 2025"
-3. 分析 GitHub、Shopify、Netflix 的实践
+3. 分析 GitHub、Shopify、Netflix Youtube等大厂的最佳实践
 4. 咨询 tech-lead-reviewer Agent
 5. 更新 ADR 添加研究发现
 6. 展示增强的评审报告
