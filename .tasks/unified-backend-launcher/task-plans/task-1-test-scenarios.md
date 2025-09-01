@@ -2,21 +2,21 @@
 
 生成时间：2025-09-01T23:05:00Z
 任务：创建 launcher 模块的目录结构与骨架文件
-关联需求：FR-001, FR-007
+关联需求：FR-001（统一管理）；关联决策：ADR-005（CLI 架构）
 
 ## 测试场景
 
 ### 1. 目录结构创建测试
 
 - 场景描述：验证launcher主目录及子目录是否正确创建
-- 测试数据：`Path("apps/backend/src/launcher")`
+- 测试数据：`Path("src/launcher")`（测试运行目录为 apps/backend）
 - 预期结果：`path.exists() and path.is_dir()`
 - 关联任务：1
 
 ### 2. 适配器子目录测试
 
 - 场景描述：验证adapters子目录是否存在
-- 测试数据：`Path("apps/backend/src/launcher/adapters")`
+- 测试数据：`Path("src/launcher/adapters")`
 - 预期结果：`path.exists() and path.is_dir()`
 - 关联任务：1
 
@@ -25,6 +25,7 @@
 - 场景描述：验证所有核心模块文件是否创建
 - 测试数据：`["__init__.py", "cli.py", "orchestrator.py", "health.py", "types.py", "errors.py"]`
 - 预期结果：`all(Path(f"apps/backend/src/launcher/{f}").exists())`
+ （Note：测试代码中请使用 `Path("src/launcher") / f`）
 - 关联任务：1
 
 ### 4. CLI模块可导入测试
@@ -78,9 +79,9 @@
 
 ### 11. CLI入口点注册测试
 
-- 场景描述：验证pyproject.toml中CLI入口点是否注册
-- 测试数据：`toml.load("apps/backend/pyproject.toml")`
-- 预期结果：`"is-launcher" in config.get("project", {}).get("scripts", {})`
+- 场景描述：验证 pyproject.toml 中 CLI 入口点是否注册（PEP 621 `project.scripts`）
+- 测试数据：使用 `tomllib.load(open("apps/backend/pyproject.toml", "rb"))`
+- 预期结果：`config["project"]["scripts"].get("is-launcher") == "src.launcher.cli:main"`
 - 关联任务：1
 
 ### 12. 模块版本信息测试
@@ -92,17 +93,17 @@
 
 ### 13. CLI help命令测试
 
-- 场景描述：验证CLI help命令可正常执行
-- 测试数据：`subprocess.run(["python", "-m", "src.launcher.cli", "--help"])`
+- 场景描述：验证 CLI help 命令可正常执行
+- 测试数据：`subprocess.run([sys.executable, "-m", "src.launcher.cli", "--help"], cwd="apps/backend")`
 - 预期结果：`returncode == 0`
 - 关联任务：1
 
-### 14. 文件权限测试
+### 14. 文件权限测试（可选）
 
-- 场景描述：验证创建的Python文件具有正确的权限
-- 测试数据：`Path("apps/backend/src/launcher/cli.py").stat()`
-- 预期结果：`st_mode & 0o644 == 0o644`
-- 关联任务：1
+- 场景描述：验证创建的 Python 文件具备基本可读权限（跨平台差异较大，建议可选）
+- 测试数据：`Path("src/launcher/cli.py").stat()`
+- 预期结果：在非 Windows 平台，`(st_mode & 0o444) != 0`
+- 关联任务：1（可选）
 
 ### 15. 模块初始化导入测试
 
