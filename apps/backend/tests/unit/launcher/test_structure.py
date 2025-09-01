@@ -82,7 +82,7 @@ class TestModuleImports:
         assert isinstance(ApiAdapter, type), "ApiAdapter is not a class"
         assert hasattr(ApiAdapter, "start"), "Missing start method"
         assert hasattr(ApiAdapter, "stop"), "Missing stop method"
-        assert hasattr(ApiAdapter, "status"), "Missing status method"
+        assert hasattr(ApiAdapter, "get_status"), "Missing get_status method"
 
     def test_agents_adapter_class_exists(self):
         """Test AgentsAdapter class is defined"""

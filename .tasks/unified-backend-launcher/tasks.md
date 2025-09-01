@@ -25,7 +25,7 @@
   - `is-launcher logs <component>`
   - 关联: FR-001, FR-002, NFR-003
 
-- [ ] 5. 适配器层
+- [x] 5. 适配器层
   - ApiAdapter：
     - single：同进程后台任务方式运行 uvicorn（或事件循环内启动）
     - multi：`asyncio.create_subprocess_exec` 启动 uvicorn；实现停止（进程组/信号）与超时强杀

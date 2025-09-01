@@ -2,10 +2,11 @@
 
 __version__ = "0.1.0"
 
-from .types import LaunchConfig, LauncherStatus, LaunchMode, ServiceStatus
+from .config import LauncherConfigModel
+from .types import LauncherStatus, LaunchMode, ServiceStatus
 
 __all__ = [
-    "LaunchConfig",
+    "LauncherConfigModel",
     "LaunchMode",
     "LauncherStatus",
     "ServiceStatus",

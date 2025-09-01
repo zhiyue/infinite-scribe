@@ -137,7 +137,8 @@ class TestCLIDownCommand:
     def test_negative_grace_time(self):
         """Scenario 14: Verify negative grace time handling"""
         result = self._run_cli("down", "--grace", "-5")
-        assert result.returncode == 0
+        assert result.returncode == 2  # Should exit with error code
+        assert "Invalid --grace value" in result.stderr
 
 
 class TestCLIStatusCommand:

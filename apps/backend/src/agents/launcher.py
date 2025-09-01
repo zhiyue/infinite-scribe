@@ -10,6 +10,11 @@ from typing import Any
 from ..agents.base import BaseAgent
 from .agent_config import AGENT_PRIORITY, AGENT_TOPICS
 
+
+class AgentsLoadError(Exception):
+    """Exception raised when agents fail to load properly"""
+    pass
+
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -83,7 +88,7 @@ class AgentLauncher:
         if invalid_agents:
             logger.error(f"无效的 agent 名称: {invalid_agents}")
             logger.info(f"可用的 agents: {AVAILABLE_AGENTS}")
-            sys.exit(1)
+            raise AgentsLoadError(f"Invalid agent names: {invalid_agents}. Available agents: {AVAILABLE_AGENTS}")
 
         # 按优先级排序 agents
         sorted_agents = sorted(agent_names, key=lambda x: AGENT_PRIORITY.get(x, 999))
@@ -96,7 +101,7 @@ class AgentLauncher:
 
         if not self.agents:
             logger.error("没有成功加载任何 agent")
-            sys.exit(1)
+            raise AgentsLoadError("No agents were successfully loaded")
 
         logger.info(f"成功加载 {len(self.agents)} 个 agents: {list(self.agents.keys())}")
 

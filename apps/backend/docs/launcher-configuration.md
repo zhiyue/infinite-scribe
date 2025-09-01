@@ -101,8 +101,8 @@ api_port = settings.launcher.api.port
 agent_names = settings.launcher.agents.names
 ```
 
-> 提示：如果需要与运行时 dataclass（如 `LaunchConfig`）对接，可在使用处提供从
-> `LauncherConfigModel` 到运行时结构的转换函数，避免配置来源“各自为政”。
+> 提示：`LauncherConfigModel` 提供了完整的配置验证和类型安全。
+> 如需要与其他运行时结构对接，可在使用处提供适当的转换函数。
 
 ## CLI 集成（is-launcher）
 

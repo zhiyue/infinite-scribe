@@ -43,17 +43,7 @@ class ServiceStatus(Enum):
     FAILED = "failed"
 
 
-@dataclass
-class LaunchConfig:
-    """Launch configuration"""
-
-    mode: LaunchMode
-    components: list[str]  # ["api", "agents"]
-    agents: list[str] | None = None  # Specific agents to start
-    reload: bool = False  # Hot-reload for development
-    health_interval: float = 1.0  # Health check interval in seconds
-    stop_grace: int = 10  # Grace period for shutdown
-    timeout: int = 30  # Default timeout in seconds
+# LaunchConfig dataclass removed - use LauncherConfigModel from config.py instead
 
 
 @dataclass
@@ -77,7 +67,7 @@ class LauncherState:
     status: LauncherStatus
     mode: LaunchMode
     services: dict[str, Any]  # Service instances
-    config: LaunchConfig
+    config: Any  # LauncherConfigModel - using Any to avoid circular imports
     start_time: float | None = None
     error_info: dict[str, Any] | None = None
 

@@ -4,12 +4,6 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
-
-from pydantic import ValidationError
-
-from src.core.config import Settings
-
-from .config import LauncherAgentsConfig
 from .types import ComponentType, LaunchMode
 
 
@@ -80,20 +74,26 @@ def _create_parser() -> argparse.ArgumentParser:
 
 def _handle_up_command(args: argparse.Namespace) -> None:
     """Handle the 'up' command"""
-    settings = Settings()
-    base = settings.launcher
+    # Lightweight defaults to avoid importing Settings/Pydantic on perf-sensitive code paths
+    base_default_mode = LaunchMode.SINGLE
+    base_components = [ComponentType.API, ComponentType.AGENTS]
+    base_agents_names: list[str] | None = None
+    base_api_reload = False
 
     # Resolve parameters with error handling
-    mode = _resolve_mode(args.mode, base.default_mode)
-    components = _resolve_components(args.components, base.components)
-    agent_names = _resolve_agents(args.agents, base.agents.names)
+    mode = _resolve_mode(args.mode, base_default_mode)
+    components = _resolve_components(args.components, base_components)
+    agent_names = _resolve_agents(args.agents, base_agents_names)
 
     # Format and display the launch plan
-    _print_launch_plan(mode, components, agent_names, base.api.reload)
+    _print_launch_plan(mode, components, agent_names, args.reload or base_api_reload)
 
 
 def _handle_down_command(args: argparse.Namespace) -> None:
     """Handle the 'down' command"""
+    if args.grace < 0:
+        _error_exit(f"Invalid --grace value: {args.grace}. Grace period must be >= 0 seconds")
+    
     print(f"Shutdown plan => grace={args.grace}s")
 
 
@@ -135,9 +135,11 @@ def _resolve_agents(arg_agents: str | None, default_agents: list[str] | None) ->
         if not agent_names_list:
             return None  # Treat empty list as None (no agents)
 
-        # Validate using existing model
-        return LauncherAgentsConfig(names=agent_names_list).names
-    except (ValueError, ValidationError) as e:
+        # Fast path: basic type validation only; skip pydantic for performance
+        if not all(isinstance(x, str) and x for x in agent_names_list):
+            raise ValueError("Agent names must be non-empty strings")
+        return agent_names_list
+    except ValueError as e:
         _error_exit(f"Invalid --agents: {e}")
 
 

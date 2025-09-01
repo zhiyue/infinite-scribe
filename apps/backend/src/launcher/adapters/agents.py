@@ -1,23 +1,25 @@
 """Agents service adapter for managing AI agents"""
 
-from typing import Any, TypedDict
+from typing import Any
+
+import structlog
+
+from src.agents.launcher import AgentLauncher, AgentsLoadError
 
 from ..types import ServiceStatus
+from .base import BaseAdapter
+
+logger = structlog.get_logger(__name__)
 
 
-class AgentsStatus(TypedDict):
-    adapter: str
-    agents: dict[str, str]
-
-
-class AgentsAdapter:
+class AgentsAdapter(BaseAdapter):
     """Adapter for managing AI agents"""
 
-    def __init__(self):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the agents adapter"""
-        self._launcher = None  # Will reuse apps/backend/src/agents/launcher.AgentLauncher
-        self._agents: dict[str, Any] = {}
-        self._status: ServiceStatus = ServiceStatus.STOPPED
+        super().__init__("agents", config)
+        self._agent_names = config.get("agents")
+        self._launcher: AgentLauncher | None = None
         self._loaded_agents: list[str] = []
 
     def load(self, agent_names: list[str] | None = None) -> None:
@@ -25,15 +27,15 @@ class AgentsAdapter:
         Load specified agents
 
         Args:
-            agent_names: List of agent names to load. If None, loads all available agents.
+            agent_names: List of agent names to load. If None, loads default agents.
         """
-        # TODO: Implement agent loading logic
-        # Will integrate with existing AgentLauncher
         if agent_names:
             self._loaded_agents = agent_names
         else:
             # Default agents
             self._loaded_agents = ["worldsmith", "plotmaster", "director", "writer"]
+
+        logger.info("Loaded agents", agents=self._loaded_agents)
 
     async def start(self) -> bool:
         """
@@ -42,47 +44,87 @@ class AgentsAdapter:
         Returns:
             bool: True if all agents started successfully
         """
-        self._status = ServiceStatus.STARTING
+        try:
+            self.status = ServiceStatus.STARTING
 
-        # TODO: Implement agent startup logic
-        # Will use existing AgentLauncher.start() method
+            # Create AgentLauncher instance
+            self._launcher = AgentLauncher()
 
-        self._status = ServiceStatus.RUNNING
-        return True
+            # Setup signal handlers
+            self._launcher.setup_signal_handlers()
 
-    async def stop(self, grace: int = 10) -> bool:
+            # Use agent names from config if not loaded explicitly
+            agents_to_load = self._loaded_agents if self._loaded_agents else self._agent_names
+
+            # Load agents
+            self._launcher.load_agents(agents_to_load)
+
+            # Sync loaded agent names for consistent health reporting
+            if not self._loaded_agents and self._launcher.agents:
+                self._loaded_agents = list(self._launcher.agents.keys())
+
+            # Start all agents
+            await self._launcher.start_all()
+
+            self.status = ServiceStatus.RUNNING
+            logger.info("All agents started successfully")
+            return True
+
+        except Exception as e:
+            logger.error("Failed to start agents", error=str(e))
+            self.status = ServiceStatus.FAILED
+            return False
+
+    async def stop(self, timeout: int = 30) -> bool:
         """
         Stop all agents
 
         Args:
-            grace: Grace period in seconds for graceful shutdown
+            timeout: Grace period in seconds for graceful shutdown
 
         Returns:
             bool: True if all agents stopped successfully
         """
-        self._status = ServiceStatus.STOPPING
+        try:
+            self.status = ServiceStatus.STOPPING
 
-        # TODO: Implement agent shutdown logic
-        # Will use existing AgentLauncher.stop() method
+            if self._launcher:
+                await self._launcher.stop_all()
 
-        self._status = ServiceStatus.STOPPED
-        return True
+            self.status = ServiceStatus.STOPPED
+            logger.info("All agents stopped successfully")
+            return True
 
-    def status(self) -> AgentsStatus:
+        except Exception as e:
+            logger.error("Failed to stop agents", error=str(e))
+            self.status = ServiceStatus.FAILED
+            return False
+
+    async def health_check(self) -> dict[str, Any]:
         """
-        Get status of all agents
+        Perform health check on agents
 
         Returns:
-            Dict mapping agent names to their status
+            dict: Health check result with status and agent info
         """
-        agents: dict[str, str] = {}
-        status_dict: AgentsStatus = {"adapter": self._status.value, "agents": agents}
+        if not self._launcher:
+            return {"status": "not_started", "agents": {}, "total_agents": 0}
 
-        for agent_name in self._loaded_agents:
-            # TODO: Get actual agent status
-            agents[agent_name] = "running"
+        # Get agent status
+        agent_status = {}
+        # Fallback to launcher's agents if _loaded_agents not populated
+        names = self._loaded_agents or list(self._launcher.agents.keys())
+        for agent_name in names:
+            if self._launcher.running:
+                agent_status[agent_name] = "running"
+            else:
+                agent_status[agent_name] = "stopped"
 
-        return status_dict
+        return {
+            "status": "healthy" if self._launcher.running else "stopped",
+            "agents": agent_status,
+            "total_agents": len(self._launcher.agents) if self._launcher.agents else 0,
+        }
 
     def get_loaded_agents(self) -> list[str]:
         """Get list of loaded agents"""
