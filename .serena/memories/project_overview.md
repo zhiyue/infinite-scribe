@@ -1,47 +1,25 @@
 # InfiniteScribe Project Overview
 
-## Project Purpose
-InfiniteScribe is an AI-powered novel writing platform that uses multi-agent collaboration to assist writers in creating novels. It provides intelligent writing assistance through specialized AI agents for different aspects of novel writing (worldbuilding, story direction, character development, etc.).
+## Purpose
+InfiniteScribe is an AI-powered novel writing platform built as a monorepo using multi-agent collaboration. The platform helps users create novels through AI-driven writing assistance and world-building tools.
+
+## Architecture
+- **Monorepo Structure**: Apps organized under `apps/` with backend (Python FastAPI) and frontend (React TypeScript)
+- **Unified Backend**: Single codebase for all backend services (API Gateway + AI Agents) in `apps/backend/`
+- **Flexible Service Selection**: Uses `SERVICE_TYPE` environment variable to determine which service runs
+- **Multi-database Setup**: PostgreSQL, Redis, Neo4j, Milvus for different data needs
+- **Container-first Development**: Docker Compose for local development and deployment
 
 ## Tech Stack
+- **Backend**: Python 3.11, FastAPI, SQLAlchemy, Pydantic Settings, uv package manager
+- **Frontend**: React 18, TypeScript, Vite, pnpm
+- **Databases**: PostgreSQL (main), Redis (cache/SSE), Neo4j (graph data), Milvus (vector embeddings)
+- **Infrastructure**: Docker Compose, multi-environment support
+- **Configuration**: TOML-based with environment variable interpolation
 
-### Monorepo Structure
-- **Package Manager**: pnpm with workspaces
-- **Architecture**: Microservices with shared infrastructure
-- **Development**: Docker Compose with multi-environment support
-
-### Backend (Python 3.11 + FastAPI)
-- **Framework**: FastAPI with async/await
-- **ORM**: SQLAlchemy 2.0 with typed relationships
-- **Package Manager**: `uv` for dependency management
-- **Code Quality**: Ruff (linting/formatting), mypy (type checking)
-- **Testing**: pytest with testcontainers for integration tests
-- **Databases**: PostgreSQL, Redis, Neo4j, Milvus (vector DB)
-
-### Frontend (React 18 + TypeScript)
-- **Framework**: React 18.2 with TypeScript 5.2
-- **Build Tool**: Vite 7.0
-- **State Management**: TanStack Query + Zustand
-- **UI Library**: Shadcn UI with Tailwind CSS
-- **Testing**: Vitest (unit) + Playwright (E2E)
-
-### Infrastructure
-- **Containerization**: Docker + Docker Compose
-- **Environments**: Local, Development (192.168.2.201), Test (192.168.2.202)
-- **Services**: PostgreSQL, Redis, Neo4j, MinIO, Prefect
-- **Authentication**: JWT tokens with Redis session management
-
-## Key Architecture Patterns
-
-### Backend
-- **Service Layer Pattern**: Business logic in `common/services/`
-- **CQRS Schema Pattern**: Separate Create/Read/Update schemas
-- **Agent Architecture**: BaseAgent pattern for AI agents
-- **Dependency Injection**: Services injected into API routes
-
-### Frontend  
-- **Component-Based**: Reusable UI components with Shadcn UI
-- **Server State**: TanStack Query for API interactions
-- **Client State**: Zustand for local state
-- **Type Safety**: Full TypeScript coverage
-- **Authentication**: Token-based with automatic refresh
+## Key Features
+- Multi-agent AI collaboration for novel writing
+- Advanced configuration system with TOML + environment variable support
+- Unified backend launcher for multiple service types
+- Real-time SSE communication
+- Comprehensive authentication and session management
