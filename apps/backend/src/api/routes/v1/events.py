@@ -194,4 +194,10 @@ def _determine_overall_status(redis_healthy: bool, connection_stats: dict) -> st
     """Determine overall service status based on components."""
     if connection_stats.get("active_connections", -1) == -1:
         return "unhealthy"  # Can't get basic stats
-    return "healthy" if redis_healthy else "degraded"
+
+    # If Redis is not healthy, consider the service unhealthy
+    # SSE service requires Redis for event publishing and connection management
+    if not redis_healthy:
+        return "unhealthy"
+
+    return "healthy"

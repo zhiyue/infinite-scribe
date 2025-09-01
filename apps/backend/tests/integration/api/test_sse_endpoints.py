@@ -118,7 +118,7 @@ class TestSSEServiceIntegration:
     """Test SSE service integration scenarios."""
 
     @pytest.mark.asyncio
-    @patch("src.services.sse_connection_manager.SSEConnectionManager.add_connection")
+    @patch("src.services.sse.connection_manager.SSEConnectionManager.add_connection")
     @patch("src.api.routes.v1.events.verify_sse_token")
     async def test_stream_connection_with_valid_token(
         self, mock_verify_token, mock_add_connection, postgres_async_client

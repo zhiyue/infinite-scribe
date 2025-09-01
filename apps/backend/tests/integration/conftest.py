@@ -191,7 +191,8 @@ class _PubSubStub:
 
 class _PubSubClientStub:
     async def ping(self) -> bool:
-        return True
+        # In test environment without real Redis, ping should fail to simulate unhealthy state
+        raise Exception("Redis unavailable in test environment")
 
     def pubsub(self) -> _PubSubStub:
         return _PubSubStub()
