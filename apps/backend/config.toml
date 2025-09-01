@@ -99,3 +99,34 @@ api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
 [logging]
 level = "${LOG_LEVEL:-INFO}"
 format = "${LOG_FORMAT:-%(asctime)s - %(name)s - %(levelname)s - %(message)s}"
+
+# ----------------------------------------
+# 统一后端启动器配置
+# - 支持单/多进程模式（P1 手动选择，P3 自动推荐）
+# - P1 仅聚焦 API + Agents；不直接编排外部基础设施（Kafka/Postgres/Redis/Neo4j/MinIO/Prefect），
+#   由 `pnpm infra` 负责。启动器仅进行就绪性检测与提示。
+# - 管理端点（如 /admin/launcher/status）建议仅在开发环境启用；生产需鉴权并仅绑定 127.0.0.1。
+# ----------------------------------------
+
+[launcher]
+# 运行模式：single|multi（P3 可选 auto）
+default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
+# 启动组件：可选 api、agents（逗号分隔数组）
+components = ["api", "agents"]
+# 健康检查间隔（秒）：默认 1Hz
+health_interval = 1.0
+
+[launcher.api]
+# API Gateway 启动参数（开发环境可开启 reload）
+host = "${LAUNCHER__API__HOST:-0.0.0.0}"
+port = "${LAUNCHER__API__PORT:-8000}"
+reload = true
+
+[launcher.agents]
+# 启动的 agents 列表；留空表示使用内置可用列表
+# names = ["worldsmith", "plotmaster"]
+
+# 环境变量覆盖（数组）：建议使用 JSON 字符串表示，Pydantic 会自动解析
+# 例如：
+#   LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
+# 也可以在 .env 中设置同名键，效果等同。

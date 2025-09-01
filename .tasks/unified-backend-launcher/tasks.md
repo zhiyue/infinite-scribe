@@ -13,7 +13,7 @@
   - 在 `apps/backend/config.toml.example` 新增 `[launcher]` 段（mode、components、health_interval、api、agents）
   - 关联: FR-006
 
-- [ ] 3. 启动器配置模型
+- [x] 3. 启动器配置模型
   - 定义 `LauncherConfigModel`（`default_mode`, `components`, `health_interval`, `api`, `agents`）
   - 复用现有 TOML 加载器与 pydantic-settings 的多层合并与环境变量覆盖
   - 关联: FR-006, NFR-004

@@ -1,6 +1,7 @@
 """Launcher configuration models"""
 
 import re
+from typing import ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,21 +19,26 @@ class LauncherApiConfig(BaseModel):
 class LauncherAgentsConfig(BaseModel):
     """Launcher Agents configuration"""
 
+    # Class-level constants
+    MAX_NAME_LENGTH: ClassVar[int] = 50
+    NAME_PATTERN: ClassVar[re.Pattern] = re.compile(r"^[a-zA-Z0-9_-]+$")
+
     names: list[str] | None = Field(default=None, description="List of agent names to start")
 
     @field_validator("names")
     @classmethod
     def validate_agent_names(cls, v: list[str] | None) -> list[str] | None:
-        if v is not None:
-            if len(v) == 0:
-                raise ValueError("Agent names list cannot be empty")
+        if v is None:
+            return v
 
-            pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
-            for name in v:
-                if not pattern.match(name):
-                    raise ValueError(f"Invalid agent name: {name}")
-                if len(name) > 50:
-                    raise ValueError(f"Agent name too long: {name}")
+        if not v:  # Empty list
+            raise ValueError("Agent names list cannot be empty")
+
+        for name in v:
+            if not cls.NAME_PATTERN.match(name):
+                raise ValueError(f"Invalid agent name: {name}")
+            if len(name) > cls.MAX_NAME_LENGTH:
+                raise ValueError(f"Agent name too long: {name}")
         return v
 
 
@@ -50,11 +56,10 @@ class LauncherConfigModel(BaseModel):
     @field_validator("components")
     @classmethod
     def validate_components(cls, v: list[ComponentType]) -> list[ComponentType]:
-        if len(v) == 0:
+        if not v:  # Empty list
             raise ValueError("Components list cannot be empty")
 
-        # Check for duplicate components
-        if len(set(v)) != len(v):
+        if len(set(v)) != len(v):  # Check for duplicates
             raise ValueError("Duplicate components are not allowed")
 
         return v
