@@ -78,7 +78,7 @@ async def execute_query(
     """
     async with create_neo4j_session(database=database) as session:
         # Neo4j type stubs expect LiteralString, but we need dynamic queries
-        cypher_query = Query(query, parameters or {})  # type: ignore[arg-type]
+        cypher_query = Query(query, parameters or {})
         result = await session.run(cypher_query)
         return await result.data()
 
