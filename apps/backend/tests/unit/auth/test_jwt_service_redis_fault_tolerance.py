@@ -99,8 +99,10 @@ class TestJWTServiceRedisFaultTolerance:
     def test_redis_connection_pool_configuration(self, jwt_service: JWTService):
         """Test that Redis connection pool is properly configured."""
         # Access redis_client to trigger pool creation
-        with patch("src.common.services.jwt_service.ConnectionPool") as mock_pool_class:
-            with patch("src.common.services.jwt_service.Redis") as mock_redis_class:
+        with (
+            patch("src.common.services.jwt_service.ConnectionPool") as mock_pool_class,
+            patch("src.common.services.jwt_service.Redis") as mock_redis_class,
+        ):
                 # Reset the internal state
                 jwt_service._redis_pool = None
                 jwt_service._redis_client = None
@@ -140,8 +142,10 @@ class TestJWTServiceRedisFaultTolerance:
 
     def test_redis_client_singleton_pattern(self, jwt_service: JWTService):
         """Test that Redis client uses singleton pattern."""
-        with patch("src.common.services.jwt_service.ConnectionPool"):
-            with patch("src.common.services.jwt_service.Redis") as mock_redis_class:
+        with (
+            patch("src.common.services.jwt_service.ConnectionPool"),
+            patch("src.common.services.jwt_service.Redis") as mock_redis_class,
+        ):
                 # Reset the internal state
                 jwt_service._redis_pool = None
                 jwt_service._redis_client = None

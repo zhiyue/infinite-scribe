@@ -10,8 +10,7 @@ from pydantic import BaseModel
 
 from src.api.routes.v1.auth_sse_token import verify_sse_token
 from src.common.services.redis_service import redis_service
-from src.services.sse import RedisSSEService
-from src.services.sse import SSEConnectionManager
+from src.services.sse import RedisSSEService, SSEConnectionManager
 
 logger = logging.getLogger(__name__)
 

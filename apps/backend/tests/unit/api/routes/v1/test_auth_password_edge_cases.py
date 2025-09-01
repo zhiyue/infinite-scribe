@@ -38,7 +38,8 @@ class TestForgotPasswordEdgeCases:
 
         for email in malformed_emails:
             # 对于明显格式错误的邮箱，Pydantic验证应该拒绝请求
-            with pytest.raises(Exception):  # ValidationError 或类似错误
+            from pydantic import ValidationError
+            with pytest.raises(ValidationError):  # Pydantic validation error
                 request = ForgotPasswordRequest(email=email)
 
         # 测试格式看起来正确但可能有问题的邮箱

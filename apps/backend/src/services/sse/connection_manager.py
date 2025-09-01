@@ -20,11 +20,11 @@ import logging
 from fastapi import Request
 from sse_starlette import EventSourceResponse
 
-from .redis_client import RedisSSEService
-from .redis_counter import RedisCounterService
 from .config import sse_config
 from .connection_state import SSEConnectionState, SSEConnectionStateManager
 from .event_streamer import SSEEventStreamer
+from .redis_client import RedisSSEService
+from .redis_counter import RedisCounterService
 
 # Re-export for backward compatibility
 __all__ = ["SSEConnectionManager", "SSEConnectionState"]

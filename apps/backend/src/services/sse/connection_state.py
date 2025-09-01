@@ -6,8 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from .redis_counter import RedisCounterService
 from .config import sse_config
+from .redis_counter import RedisCounterService
 
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import timedelta
 
 import pytest
@@ -56,10 +57,8 @@ async def test_pubsub_realtime_event_flow(use_redis_container: None):
     except TimeoutError:
         # 任务未在合理时间内结束，取消它
         consumer_task.cancel()
-        try:
+        with suppress(TimeoutError, asyncio.CancelledError):
             await asyncio.wait_for(consumer_task, timeout=2.0)
-        except (TimeoutError, asyncio.CancelledError):
-            pass
 
     assert received.event == event.event
     assert received.data == event.data

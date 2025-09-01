@@ -7,8 +7,12 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.services.jwt_service import jwt_service
 from src.common.services.redis_service import redis_service
-
-from tests.integration.api.auth_test_helpers import create_and_verify_test_user, perform_login, perform_logout, perform_token_refresh
+from tests.integration.api.auth_test_helpers import (
+    create_and_verify_test_user,
+    perform_login,
+    perform_logout,
+    perform_token_refresh,
+)
 
 
 @pytest.mark.asyncio
@@ -75,7 +79,8 @@ async def test_token_refresh_with_session_update(client: AsyncClient, db_session
 
     # 验证旧的 access token 被加入黑名单
     # 旧的 access token 应该已经被黑名单化，所以验证会失败
-    with pytest.raises(Exception):  # JWTError 或其他异常
+    from jose.exceptions import JWTError
+    with pytest.raises(JWTError):  # JWT token revocation error
         jwt_service.verify_token(old_access_token, "access")
 
     # 或者我们可以从旧令牌中提取 JTI（不验证）来检查黑名单
@@ -112,7 +117,7 @@ async def test_session_cache_consistency_after_multiple_refreshes(client: AsyncC
     generated_jtis = []
 
     # 连续刷新3次
-    for i in range(3):
+    for _i in range(3):
         # 刷新令牌
         refresh_status, refresh_data = await perform_token_refresh(client, current_access_token, current_refresh_token)
         assert refresh_status == 200

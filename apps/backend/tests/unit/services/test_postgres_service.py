@@ -318,7 +318,7 @@ class TestPostgreSQLService:
         """Test execute without parameters."""
         # Setup - simulate already connected state
         service._pool = MagicMock()  # Mock pool to avoid connect() call
-        
+
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
 
@@ -347,7 +347,7 @@ class TestPostgreSQLService:
         """Test execute with parameters."""
         # Setup - simulate already connected state
         service._pool = MagicMock()  # Mock pool to avoid connect() call
-        
+
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
 
@@ -373,7 +373,7 @@ class TestPostgreSQLService:
         """Test execute with list parameters."""
         # Setup - simulate already connected state
         service._pool = MagicMock()  # Mock pool to avoid connect() call
-        
+
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
         mock_conn.fetch.return_value = []
@@ -395,7 +395,7 @@ class TestPostgreSQLService:
         """Test execute with empty result."""
         # Setup - simulate already connected state
         service._pool = MagicMock()  # Mock pool to avoid connect() call
-        
+
         mock_conn = AsyncMock()
         mock_acquire.return_value.__aenter__.return_value = mock_conn
         mock_conn.fetch.return_value = []

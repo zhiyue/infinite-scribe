@@ -6,11 +6,10 @@ from datetime import datetime
 import httpx
 import pytest
 from src.common.utils.datetime_utils import utc_now
-
 from tests.integration.api.auth_test_helpers import (
     create_and_verify_test_user_with_registration,
     get_user_by_email,
-    perform_login
+    perform_login,
 )
 
 

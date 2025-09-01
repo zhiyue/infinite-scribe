@@ -8,8 +8,8 @@ from collections.abc import AsyncGenerator
 from fastapi import Request
 from sse_starlette import ServerSentEvent
 
-from .redis_client import RedisSSEService
 from .config import sse_config
+from .redis_client import RedisSSEService
 
 logger = logging.getLogger(__name__)
 

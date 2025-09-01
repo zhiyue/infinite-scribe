@@ -15,9 +15,9 @@ from tests.unit.test_mocks import mock_email_service, mock_redis
 @pytest.fixture
 async def test_user(postgres_test_session):
     """Create a test user for authentication tests."""
-    from src.models.user import User
-    from src.common.utils.datetime_utils import utc_now
     from sqlalchemy import select
+    from src.common.utils.datetime_utils import utc_now
+    from src.models.user import User
 
     # Check if user already exists
     result = await postgres_test_session.execute(select(User).where(User.id == 123))
@@ -302,9 +302,9 @@ class TestSSETokenSecurity:
         malicious_token = jwt.encode(malicious_payload, "different_secret", algorithm="HS256")
 
         # Act & Assert - Verification should fail
+        from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
-
-        with pytest.raises(Exception):  # Should raise HTTPException
+        with pytest.raises(HTTPException):
             verify_sse_token(malicious_token)
 
     @pytest.mark.asyncio
@@ -328,9 +328,9 @@ class TestSSETokenSecurity:
         unsigned_token = f"{encoded_header}.{encoded_payload}."
 
         # Act & Assert - Verification should fail
+        from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
-
-        with pytest.raises(Exception):  # Should raise HTTPException
+        with pytest.raises(HTTPException):
             verify_sse_token(unsigned_token)
 
     @pytest.mark.asyncio
@@ -359,7 +359,7 @@ class TestSSETokenSecurity:
         tampered_token = f"{header}.{tampered_payload}.{signature}"
 
         # Act & Assert - Verification should fail
+        from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
-
-        with pytest.raises(Exception):  # Should raise HTTPException due to invalid signature
+        with pytest.raises(HTTPException):  # Should raise HTTPException due to invalid signature
             verify_sse_token(tampered_token)

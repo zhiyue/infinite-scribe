@@ -10,8 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from src.api.main import app
 from src.api.routes.v1.events import ConnectionStatistics, SSEHealthResponse
-from src.services.sse import RedisSSEService
-from src.services.sse import SSEConnectionManager
+from src.services.sse import RedisSSEService, SSEConnectionManager
 
 
 @pytest.fixture

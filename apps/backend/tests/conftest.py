@@ -3,7 +3,7 @@
 import asyncio
 import os
 import sys
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -56,7 +56,7 @@ async def create_async_context_mock(return_value):
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session.
-    
+
     This fixture is needed for session-scoped async fixtures like test_engine and postgres_test_engine.
     """
     try:

@@ -1,5 +1,6 @@
 """边角案例测试 - 密码重置功能的全面测试覆盖."""
 
+from contextlib import suppress
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -471,10 +472,8 @@ class TestEmailServiceEdgeCases:
             )
 
             # 即使邮件发送失败，也应该优雅处理
-            try:
+            with suppress(TimeoutError):
                 await mock_email_service.send_password_changed_email("test@example.com", "Test User")
-            except TimeoutError:
-                pass  # 预期的异常
 
             mock_email_service.send_password_changed_email.assert_called_once()
 
@@ -488,10 +487,8 @@ class TestEmailServiceEdgeCases:
             )
 
             # 测试邮件发送异常处理
-            try:
+            with suppress(Exception):
                 await mock_email_service.send_password_changed_email("test@example.com", "Test User")
-            except Exception:
-                pass  # 预期的异常
 
             mock_email_service.send_password_changed_email.assert_called_once()
 
