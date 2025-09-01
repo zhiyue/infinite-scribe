@@ -1,9 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/vscode-pyright/schemas/pyrightconfig.schema.json",
-  "include": [
-    "apps/backend/src",
-    "apps/backend/tests"
-  ],
+  "include": ["apps/backend/src"],
   "exclude": [
     "**/__pycache__",
     "**/.pytest_cache",
@@ -12,7 +9,8 @@
     "**/.venv",
     "node_modules",
     "dist",
-    "build"
+    "build",
+    "apps/backend/tests"
   ],
   "pythonVersion": "3.11",
   "typeCheckingMode": "basic",
@@ -21,10 +19,7 @@
   "executionEnvironments": [
     {
       "root": "apps/backend",
-      "extraPaths": [
-        "apps/backend/src"
-      ]
+      "extraPaths": ["apps/backend/src"]
     }
   ]
 }
-
