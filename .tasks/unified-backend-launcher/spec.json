@@ -40,8 +40,8 @@
   },
   "adr": {
     "total_count": 6,
-    "proposed": 3,
-    "accepted": 3,
+    "proposed": 2,
+    "accepted": 4,
     "superseded": 0,
     "candidates": [
       {
@@ -67,8 +67,10 @@
       {
         "key": "ADR-20250901-configuration-management-system",
         "title": "配置管理系统设计与模板化策略",
-        "status": "Proposed", 
+        "status": "Accepted", 
         "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 1 - 扩展现有TOML系统（多层配置合并）",
         "related_requirements": ["FR-006", "NFR-004", "NFR-005"],
         "owners": ["backend-lead", "platform-arch"]
       },
