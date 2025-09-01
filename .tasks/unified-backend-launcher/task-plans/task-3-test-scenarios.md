@@ -132,6 +132,14 @@
 - 测试数据：`LauncherConfigModel().api.host` 和 `LauncherConfigModel().agents.names`
 - 预期结果：`"0.0.0.0"` 和 `None`
 
+## 超时策略（pytest-timeout）
+
+- 全局：已通过 `pyproject` 配置 `--timeout=60 --timeout-method=thread`。
+- 用例级：对集成/慢测增加 `@pytest.mark.timeout(N)`，本任务建议：
+  - 单元测试：5–10 秒
+  - 集成测试：30–60 秒（多数 5–10 秒即可）
+  - 性能测试：亚秒级阈值（示例 0.3s / 0.15s）
+
 ## 配置系统集成测试场景
 
 21. Settings包含启动器配置验证

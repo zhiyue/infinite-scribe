@@ -429,6 +429,7 @@ names = ["worldsmith", "plotmaster"]
         assert hasattr(settings, 'launcher')
         assert isinstance(settings.launcher, LauncherConfigModel)
     
+    @pytest.mark.timeout(5)
     def test_toml_config_loading(self, temp_toml_file):
         """测试TOML配置加载"""
         from src.core.toml_loader import load_toml_config
@@ -442,6 +443,7 @@ names = ["worldsmith", "plotmaster"]
         assert config['launcher']['api']['port'] == 9000
         assert config['launcher']['agents']['names'] == ["worldsmith", "plotmaster"]
     
+    @pytest.mark.timeout(5)
     def test_environment_variable_override(self, monkeypatch):
         """测试环境变量覆盖"""
         from src.core.config import Settings
@@ -457,6 +459,7 @@ names = ["worldsmith", "plotmaster"]
         assert settings.launcher.health_interval == 5.0
         assert settings.launcher.api.port == 9001
 
+    @pytest.mark.timeout(5)
     def test_environment_variable_list_parsing(self, monkeypatch):
         """测试列表类型环境变量(JSON)解析"""
         from src.core.config import Settings
@@ -469,6 +472,7 @@ names = ["worldsmith", "plotmaster"]
         assert settings.launcher.components == ["api"]
         assert settings.launcher.agents.names == ["worldsmith", "plotmaster"]
     
+    @pytest.mark.timeout(10)
     def test_configuration_priority(self, tmp_path, monkeypatch):
         """测试配置优先级：环境变量 > .env > TOML > 默认值（这里验证 环境变量 > TOML）"""
         from src.core.config import Settings
@@ -508,6 +512,15 @@ port = 9000
 - **字段定位优先**：优先使用 `exc.errors()` 校验 `loc`、`type`、`msg`，减少对具体文案的依赖
 - **示例**：`any(e.get("loc") == ("components",) for e in exc.errors())`
 - **特定异常类型**：`pytest.raises(ValueError)`（用于自定义 validator 抛出的值错误）
+
+## Timeout 策略
+
+- 默认：在 `apps/backend/pyproject.toml` 中通过 `addopts` 启用 `pytest-timeout`，全局 `--timeout=60 --timeout-method=thread`。
+- 用例级：对可能阻塞或偶发慢的测试添加 `@pytest.mark.timeout(N)`，本规范示例已为集成与性能测试分别添加 5s/10s 与亚秒级超时。
+- 推荐阈值：
+  - 单元测试：5–10 秒
+  - 集成测试：30–60 秒（多数场景 5–10 秒即可）
+  - 全量测试：60–120 秒（视用例数量）
 
 ### Mock验证
 - **环境变量Mock**：使用pytest的`monkeypatch.setenv()`
@@ -611,6 +624,7 @@ import time
 import pytest
 
 @pytest.mark.perf
+@pytest.mark.timeout(0.3)
 def test_config_instantiation_performance():
     """测试配置模型实例化性能"""
     start_time = time.time()
@@ -627,6 +641,7 @@ def test_config_instantiation_performance():
     assert elapsed < 0.3, f"Instantiation took {elapsed:.3f}s, expected < 0.3s"
 
 @pytest.mark.perf
+@pytest.mark.timeout(0.15)
 def test_serialization_performance():
     """测试序列化性能"""
     config = LauncherConfigModel()
