@@ -40,8 +40,8 @@
   },
   "adr": {
     "total_count": 6,
-    "proposed": 2,
-    "accepted": 4,
+    "proposed": 1,
+    "accepted": 5,
     "superseded": 0,
     "candidates": [
       {
@@ -77,8 +77,10 @@
       {
         "key": "ADR-20250901-health-monitoring-strategy",
         "title": "健康监控策略与状态管理设计",
-        "status": "Proposed",
-        "priority": "P2", 
+        "status": "Accepted",
+        "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合监控模式（推拉结合）",
         "related_requirements": ["FR-003", "NFR-002", "NFR-003"],
         "owners": ["platform-arch", "backend-lead", "sre"]
       },
