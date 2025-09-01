@@ -2,24 +2,25 @@
 
 ## 系统概览
 
-统一后端启动器是一个 Python
-CLI 工具，为 InfiniteScribe 后端服务集群提供统一的生命周期管理。系统支持单进程和多进程两种运行模式，通过组件化架构和状态机服务编排器实现灵活的服务控制、依赖管理和实时监控。
+统一后端启动器是一个 Python CLI 工具，为 InfiniteScribe 后端服务集群提供统一的生命周期管理。系统支持单进程与多进程两种运行模式，优先复用现有 API Gateway、AgentLauncher 与 TOML 配置，通过轻量状态机与服务适配器实现服务编排、依赖检测与健康监控。
 
 ### 核心价值定位
 
-- **开发效率提升**: 单命令启动完整开发环境，资源消耗降低 35%
+- **开发效率提升**: 单命令启动完整开发环境
 - **运维复杂度降低**: 统一的服务管理接口，支持选择性服务启动
-- **系统可观测性增强**: 实时状态监控，秒级故障检测，详细诊断信息
+- **系统可观测性增强**: 实时状态监控，秒级故障检测，结构化日志
 
 ### 系统边界
 
-系统管理以下服务组件：
+系统管理以下服务组件（P1 聚焦 API + Agents；外部基础设施仅检测、不编排）：
 
 - **API Gateway** (FastAPI)
 - **Agent 集群** (多个 AI Agent 服务)
 - **数据库服务** (PostgreSQL, Redis, Neo4j)
 - **消息队列** (Kafka)
 - **外部依赖服务** (MinIO, Prefect)
+
+说明：外部依赖（Kafka/DB/MinIO/Prefect）由既有脚本与 Compose 负责（如 `pnpm infra up`）。统一启动器对其进行“就绪性检测与提示”，不直接启动或编排这些基础设施。
 
 ## 需求映射
 
@@ -32,14 +33,14 @@ CLI 工具，为 InfiniteScribe 后端服务集群提供统一的生命周期管
 | FR-003 | 实时状态监控     | 混合监控模式 + 健康检查适配器 | HealthMonitor, StateManager            |
 | FR-004 | 优雅停止管理     | 状态机生命周期管理 + 超时处理 | GracefulShutdown, ServiceOrchestrator  |
 | FR-005 | 开发模式增强     | 文件监控 + 热重载机制         | DevModeManager, FileWatcher            |
-| FR-006 | 配置模板系统     | 多层配置合并 + YAML 模板      | ConfigManager, TemplateEngine          |
-| FR-007 | 智能模式推荐     | 环境检测 + 启发式推荐算法     | ModeRecommender, EnvironmentDetector   |
+| FR-006 | 配置层扩展       | TOML 多层合并（示例/覆盖）     | ConfigManager                          |
+| FR-007 | 智能模式推荐     | 环境检测 + 启发式推荐（P3/可选）| ModeRecommender, EnvironmentDetector   |
 
 ### 非功能需求满足 (NFR)
 
 | 需求ID  | 性能/安全/可用性要求               | 设计保障                         | 验证方法                 |
 | ------- | ---------------------------------- | -------------------------------- | ------------------------ |
-| NFR-001 | 启动时间 P95 ≤ 25s，资源节省 ≥ 40% | 组件化架构，资源共享，异步启动   | 性能基准测试，资源监控   |
+| NFR-001 | 启动时间 P95 ≤ 25s；资源节省（目标≥20%，以实测校正） | 组件化架构，资源共享，异步启动   | 性能基准测试，资源监控   |
 | NFR-002 | 启动成功率 ≥ 98%，优雅停止 ≥ 99.5% | 状态机管理，重试机制，超时处理   | 集成测试，故障注入测试   |
 | NFR-003 | CLI响应 ≤ 50ms，状态查询 ≤ 200ms   | 异步架构，缓存状态，本地存储     | 响应时间监控，负载测试   |
 | NFR-004 | Python 3.11+，多OS支持，向后兼容   | 标准库优先，版本检测，适配器模式 | 兼容性测试，版本矩阵测试 |
@@ -51,12 +52,19 @@ CLI 工具，为 InfiniteScribe 后端服务集群提供统一的生命周期管
 | ------- | ------------ | ------------------------------------ | ---------------- |
 | ADR-001 | 进程管理架构 | 混合架构（组件化FastAPI + 动态路由） | 整体系统架构     |
 | ADR-002 | 服务编排框架 | 状态机服务编排器（分阶段实施）       | 服务生命周期管理 |
-| ADR-003 | 配置管理系统 | 扩展现有TOML系统（多层配置合并）     | 配置和模板管理   |
+| ADR-003 | 配置管理系统 | 扩展现有TOML系统（多层配置合并）     | 配置管理         |
 | ADR-004 | 健康监控策略 | 混合监控模式（推拉结合）             | 监控和可观测性   |
 | ADR-005 | CLI架构设计  | 混合架构（argparse核心 + 交互增强）  | 用户交互界面     |
 | ADR-006 | 开发模式增强 | 扩展uvicorn reload（多服务文件监控） | 开发体验优化     |
 
 ## 系统架构
+
+### 与现有能力对齐（仓库现状）
+
+- 复用 `apps/backend/src/agents/launcher.py` 作为 Agents 管理核心（本设计中的 AgentsAdapter）。
+- 复用现有 FastAPI API Gateway 作为管理面承载：新增只读状态端点（开发默认启用，生产禁用或强制鉴权+仅本机绑定）。
+- 复用 `config.toml` + 环境变量；新增 `[launcher]` 配置段（单/多进程、组件选择、agents 列表、检查频率、超时等）。
+- 外部基础设施（Kafka/DB/MinIO/Prefect）不由启动器编排，仍由 `pnpm infra` 系列脚本负责；启动器负责检测/等待与报告。
 
 ### 系统边界
 
@@ -96,8 +104,8 @@ graph TB
         unified_launcher["统一启动器<br/>Python/AsyncIO<br/>核心启动逻辑和模式管理"]
         service_orchestrator["服务编排器<br/>Python/StateMachine<br/>依赖管理和生命周期控制"]
         health_monitor["健康监控<br/>Python/AsyncIO<br/>实时状态监控和故障检测"]
-        config_manager["配置管理<br/>Python/TOML<br/>配置解析和模板管理"]
-        component_manager["组件管理器<br/>Python/FastAPI<br/>动态路由和组件加载"]
+        config_manager["配置管理<br/>Python/TOML<br/>配置解析与多层合并"]
+        component_manager["适配器层<br/>Python/Adapters<br/>API/Agents 适配与集成"]
     end
 
     subgraph managed_services["被管理服务"]
@@ -107,8 +115,8 @@ graph TB
         message_queue["消息队列<br/>Kafka<br/>异步消息处理"]
     end
 
-    state_storage[("状态存储<br/>Redis<br/>服务状态和配置缓存")]
-    config_storage[("配置存储<br/>YAML/TOML<br/>模板和配置文件")]
+    state_storage[("状态存储<br/>内存(默认)/Redis(可选)<br/>服务状态缓存")]
+    config_storage[("配置存储<br/>TOML<br/>示例与覆盖配置")]
 
     cli_interface -->|命令调用| unified_launcher
     unified_launcher -->|编排请求| service_orchestrator
@@ -117,7 +125,7 @@ graph TB
     config_manager -->|配置读取| config_storage
     service_orchestrator -->|状态同步| state_storage
 
-    component_manager -.->|生命周期管理| fastapi_app
+    component_manager -.->|集成复用| fastapi_app
     service_orchestrator -.->|启动控制| agent_services
     service_orchestrator -.->|依赖管理| db_services
     service_orchestrator -.->|服务编排| message_queue
@@ -208,26 +216,35 @@ stateDiagram-v2
 | 健康检查接口 | HTTP          | 外部监控集成   | 响应时间 < 100ms               |
 | 日志接口     | 文件/标准输出 | 日志记录和分析 | 结构化JSON格式                 |
 
+注：管理状态 REST API 默认仅开发环境启用；生产环境建议禁用或强制鉴权，并仅绑定 127.0.0.1。
+
 ### 内部接口
 
-| 组件间接口          | 通信方式      | 数据格式   | 频率估算         |
-| ------------------- | ------------- | ---------- | ---------------- |
-| CLI → 启动器        | 函数调用      | Python对象 | 低频(用户操作)   |
-| 编排器 → 组件管理器 | AsyncIO       | Python协程 | 中频(启动/停止)  |
-| 监控器 → 服务实例   | HTTP/异步调用 | JSON       | 高频(每秒2次)    |
-| 状态管理 → 缓存     | Redis协议     | 序列化对象 | 高频(每秒5-10次) |
+| 组件间接口          | 通信方式      | 数据格式   | 频率估算                      |
+| ------------------- | ------------- | ---------- | ----------------------------- |
+| CLI → 启动器        | 函数调用      | Python对象 | 低频(用户操作)                |
+| 编排器 → 适配器层   | AsyncIO       | Python协程 | 中频(启动/停止)               |
+| 监控器 → 服务实例   | HTTP/异步调用 | JSON       | 默认1次/秒（可配 1–20Hz）     |
+| 状态管理 → 缓存     | 本地内存/Redis | 序列化对象 | 默认本地内存（多实例用 Redis） |
+
+### 管理端点（建议，默认开发启用）
+
+- `GET /admin/launcher/status`：启动器与各组件状态总览（只读）
+- `GET /admin/launcher/health`：聚合健康检查结果（只读）
+
+说明：生产环境建议禁用上述端点或强制鉴权，并仅绑定 127.0.0.1。
 
 ## 容量规划
 
 ### 容量估算
 
-| 指标         | 当前需求    | 峰值需求  | 设计目标         |
-| ------------ | ----------- | --------- | ---------------- |
-| 管理服务数量 | 6-8个       | 20个      | 支持50个服务实例 |
-| 并发健康检查 | 8次/秒      | 40次/秒   | 支持100次/秒     |
-| 状态更新频率 | 2Hz         | 10Hz      | 支持20Hz状态更新 |
-| 内存使用     | 单进程400MB | 混合500MB | 优化到400MB以下  |
-| 启动时间     | 25秒        | 35秒      | P95 < 25秒       |
+| 指标         | 当前需求    | 峰值需求  | 设计目标           |
+| ------------ | ----------- | --------- | ------------------ |
+| 管理服务数量 | 6-8个       | 20个      | 支持50个服务实例   |
+| 并发健康检查 | 8次/秒      | 40次/秒   | 支持100次/秒（可配）|
+| 状态更新频率 | 1Hz         | 10Hz      | 支持20Hz状态更新   |
+| 内存使用     | 单进程400MB | 混合500MB | 优化到400MB以下    |
+| 启动时间     | 25秒        | 35秒      | P95 < 25秒         |
 
 ### 扩展策略
 
@@ -246,15 +263,16 @@ stateDiagram-v2
 | 服务启动时间 P95 | < 25s   | 端到端启动测试 |
 | 健康检查响应时间 | < 200ms | HTTP响应时间   |
 | 状态查询响应时间 | < 100ms | API端点测试    |
-| 内存使用优化     | 减少35% | 资源监控对比   |
+| 内存使用优化     | 目标≥20%（以实测为准） | 资源监控对比   |
 | 优雅停止成功率   | > 99.5% | 停止测试统计   |
+
+注：启动时间度量建议拆分为“依赖就绪时间（外部基础设施）”与“应用启动时间”，便于定位性能瓶颈。
 
 ### 缓存策略
 
-- **状态缓存**: Redis缓存服务状态，减少重复健康检查
+- **状态缓存**: 默认使用本地内存缓存；多实例/跨进程需求下可启用 Redis
 - **配置缓存**: 内存缓存解析后的配置，避免重复文件读取
 - **依赖图缓存**: 缓存计算后的依赖关系，优化启动性能
-- **模板缓存**: 缓存编译后的配置模板，提升模板应用速度
 
 ### 可扩展性方法
 
@@ -273,7 +291,7 @@ stateDiagram-v2
 | -------- | ----------------------- | ------------------------ | ------- |
 | 进程管理 | 混合架构(FastAPI组件化) | 平衡资源效率和服务隔离   | ADR-001 |
 | 服务编排 | Python状态机            | 99%优雅停止成功率要求    | ADR-002 |
-| 配置管理 | TOML多层合并            | 与现有系统兼容，支持模板 | ADR-003 |
+| 配置管理 | TOML多层合并            | 与现有系统兼容（示例/覆盖） | ADR-003 |
 | 健康监控 | 混合推拉模式            | 实时性和资源效率平衡     | ADR-004 |
 | CLI接口  | argparse + 交互增强     | 兼容性和用户体验平衡     | ADR-005 |
 | 开发增强 | uvicorn热重载扩展       | 基于现有工具，降低复杂度 | ADR-006 |
@@ -282,10 +300,10 @@ stateDiagram-v2
 
 **为什么选择混合架构进程管理**：
 
-- 单进程模式实现35%资源节省目标
+- 单进程模式可能减少进程开销（以实测为准）
 - 组件化设计支持细粒度服务控制
 - 动态路由避免FastAPI实例间路由冲突
-- 基于现有FastAPI专业知识，降低学习成本
+- 复用现有 FastAPI 与脚本体系，降低学习与迁移成本
 
 **为什么选择状态机服务编排**：
 
@@ -308,7 +326,7 @@ stateDiagram-v2
 - 生态系统：丰富的中间件和插件，与asyncio深度集成
 - 集成方式：作为主要Web框架，通过组件化架构支持服务编排
 
-**Python-statemachine** (2.1+)
+**Python-statemachine** (2.1+)（P1 可用轻量手写状态表替代依赖）
 
 - 核心功能：声明式状态机定义，异步状态转换支持
 - 性能特征：内存占用小，状态转换延迟 < 1ms
@@ -330,6 +348,7 @@ stateDiagram-v2
 - **权限管理**: 最小权限原则，启动器只获取必要的系统权限
 - **配置安全**: 敏感配置加密存储，运行时解密
 - **日志安全**: 结构化日志记录，敏感信息脱敏处理
+- **管理端点限制**: 管理面 REST 端点默认仅在开发启用；生产需鉴权并仅绑定 127.0.0.1
 
 ### 安全合规
 
@@ -395,6 +414,8 @@ graph TB
         PROD_SERVICES --> PROD_MONITOR
     end
 ```
+
+注：外部基础设施（Kafka/DB/MinIO/Prefect）由 `pnpm infra` 与 Compose/Kubernetes 负责，统一启动器不直接编排这些服务，仅检测其就绪状态并提供指引。
 
 ### 环境规划
 
@@ -480,17 +501,57 @@ graph TB
 
 ## 技术实施指导
 
-### 实施优先级
+### 实施优先级（重排与收敛）
 
-**第一阶段 (P1)**: 核心架构实现
+**第一阶段 (P1) - 最小可用**
 
-1. 混合架构进程管理 (ADR-001)
-2. 状态机服务编排器 (ADR-002)
+- 统一 CLI：`is-launcher`（单/多进程）启动/停止/状态
+- 复用现有 AgentLauncher，作为 Agents 适配器接入
+- 与 API Gateway 集成只读管理端点（开发默认启用；生产禁用或鉴权+仅本机）
+- 轻量状态表（INIT/STARTING/RUNNING/DEGRADED/STOPPING/STOPPED/ERROR）
+- 依赖检测（Kafka/DB/Redis/Neo4j/MinIO 等）：检测/等待/提示，不直接编排
+- 结构化日志（component/mode/state/elapsed_ms/attempt/error_type）
 
-**第二阶段 (P2)**: 支撑功能完善 3. 配置管理系统 (ADR-003) 4. 健康监控策略 (ADR-004) 5.
-CLI架构设计 (ADR-005)
+**第二阶段 (P2) - 支撑完善**
 
-**第三阶段 (P3)**: 增强功能开发 6. 开发模式增强 (ADR-006)
+- 依赖图与失败重试/退避（带抖动）
+- Prometheus 指标（可选）：launcher_state、service_state_count 等
+- 配置层增强：`config.toml` 新增 `[launcher]`（mode、components、agents、health_interval、timeouts 等）
+- 健康检查默认 1Hz，可配置 1–20Hz；watchdog 热重载（开发）
+
+**第三阶段 (P3) - 增强能力**
+
+- 模式推荐器（开发/CI/容器/核数/内存检测，给出建议）
+- 插件化服务适配器（entry-points 或配置化注册）
+- Kubernetes 集成（可选）：与 K8s 编排对齐的探针/生命周期
+- 分布式追踪（Jaeger）与完整可观测性集成
+
+### CLI 设计（最小集）
+
+```bash
+is-launcher up   --mode [single|multi] --components api,agents \
+                 --agents worldsmith,plotmaster --reload
+is-launcher down [--grace 10]
+is-launcher status [--watch]
+is-launcher logs <component>
+```
+
+### 配置示例（TOML）
+
+```toml
+[launcher]
+default_mode = "single"           # single|multi
+components   = ["api","agents"]  # 可选：仅启动所需组件
+health_interval = 1.0              # 秒，默认 1Hz
+
+[launcher.api]
+host = "0.0.0.0"
+port = 8000
+reload = true
+
+[launcher.agents]
+names = ["worldsmith","plotmaster"]
+```
 
 ### 验收标准
 

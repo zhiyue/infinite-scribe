@@ -2,7 +2,14 @@
 
 ## 概述
 
-基于高层设计(HLD)的具体实现方案，统一后端启动器采用组件化FastAPI架构结合状态机服务编排器的混合模式。系统核心组件包括统一启动器、服务编排器、组件管理器、健康监控器和配置管理器，通过异步架构实现高效的服务生命周期管理。
+基于最新 HLD 的具体实现方案，本启动器优先复用现有能力（API Gateway、AgentLauncher、TOML 配置），采用“轻量状态机 + 适配器层”的混合模式：
+
+- 单/多进程两种模式（P1 手动选择，P3 可选自动推荐）。
+- 不直接编排外部基础设施（Kafka/Postgres/Redis/Neo4j/MinIO/Prefect），仅做就绪性检测与提示；编排仍由 `pnpm infra` 负责。
+- 管理状态 REST 端点集成到现有 API Gateway，默认仅开发启用；生产禁用或需鉴权并仅绑定 127.0.0.1。
+- 默认使用本地内存作为状态缓存；多实例/跨进程场景可选 Redis。
+
+系统核心组件包括统一启动器、服务编排器（轻量状态表实现）、适配器层（ApiAdapter/AgentsAdapter）、健康监控器和配置管理器，通过 AsyncIO 实现高效的服务生命周期管理。
 
 ## 组件详细设计
 
@@ -18,15 +25,15 @@ from dataclasses import dataclass
 import asyncio
 
 class LaunchMode(Enum):
-    SINGLE_PROCESS = "single_process"
-    MULTI_PROCESS = "multi_process"
-    AUTO_DETECT = "auto_detect"
+    SINGLE = "single"      # 单进程：API + Agents 同进程并发（开发首选）
+    MULTI = "multi"        # 多进程：API 与 Agents 独立进程（测试/预发/生产）
+    AUTO = "auto"          # 自动推荐（P3/可选）
 
 class LauncherStatus(Enum):
-    IDLE = "idle"
-    INITIALIZING = "initializing"
+    INIT = "init"
     STARTING = "starting"
     RUNNING = "running"
+    DEGRADED = "degraded"
     STOPPING = "stopping"
     STOPPED = "stopped"
     ERROR = "error"
@@ -34,11 +41,12 @@ class LauncherStatus(Enum):
 @dataclass
 class LaunchConfig:
     mode: LaunchMode
-    services: List[str]
-    profile: Optional[str] = None
-    dev_mode: bool = False
-    auto_restart: bool = True
-    timeout: int = 30
+    components: List[str]                  # ["api","agents"]
+    agents: Optional[List[str]] = None     # 指定 agents 列表；None 表示全部
+    reload: bool = False                   # 开发模式热重载（API）
+    health_interval: float = 1.0           # 健康检查间隔秒（默认 1Hz）
+    stop_grace: int = 10                   # 优雅停止宽限秒
+    timeout: int = 30                      # 启动/停止默认超时秒
 
 class UnifiedLauncher:
     """统一后端启动器核心类"""
@@ -97,31 +105,22 @@ class UnifiedLauncher:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> 空闲: 初始化完成
-    空闲 --> 初始化中: start()
-    初始化中 --> 配置验证: 加载配置
-    配置验证 --> 依赖检查: 验证通过
-    配置验证 --> 错误: 配置无效
-    
-    依赖检查 --> 启动中: 依赖满足
-    依赖检查 --> 错误: 依赖缺失
-    
-    启动中 --> 运行中: 所有服务启动成功
-    启动中 --> 错误: 启动失败
-    启动中 --> 停止中: 用户中断
-    
-    运行中 --> 停止中: stop()
-    运行中 --> 重启中: restart()
-    运行中 --> 错误: 运行时异常
-    
-    重启中 --> 停止中: 停止现有服务
-    停止中 --> 启动中: 重启模式
-    停止中 --> 已停止: 正常停止
-    停止中 --> 错误: 强制停止失败
-    
-    已停止 --> 空闲: reset()
-    错误 --> 空闲: reset()
-    错误 --> 停止中: 恢复停止
+    [*] --> INIT
+    INIT --> STARTING: start()
+    STARTING --> RUNNING: 服务就绪
+    STARTING --> ERROR: 启动失败
+    STARTING --> STOPPING: 用户中断
+
+    RUNNING --> DEGRADED: 健康检查失败/依赖抖动
+    DEGRADED --> RUNNING: 恢复健康
+    RUNNING --> STOPPING: stop()
+    RUNNING --> ERROR: 运行时异常
+
+    STOPPING --> STOPPED: 优雅停止完成
+    STOPPING --> ERROR: 超时/强杀
+
+    ERROR --> STOPPING: 故障恢复/清理
+    STOPPED --> [*]
 ```
 
 #### 内部数据结构
@@ -176,89 +175,61 @@ class ServiceInstance:
 #### 接口签名
 
 ```python
-from statemachine import StateMachine, State, Event
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Optional
+from enum import Enum
 
 class ServiceStatus(Enum):
     STOPPED = "stopped"
     STARTING = "starting"
     RUNNING = "running"
+    DEGRADED = "degraded"
     STOPPING = "stopping"
     FAILED = "failed"
-    RESTARTING = "restarting"
 
-class ServiceOrchestrator(StateMachine):
-    """基于状态机的服务编排器"""
-    
-    # 状态定义
-    stopped = State('Stopped', initial=True)
-    starting = State('Starting')
-    running = State('Running')
-    stopping = State('Stopping')
-    failed = State('Failed')
-    restarting = State('Restarting')
-    
-    # 事件定义
-    start_service = Event(stopped.to(starting))
-    service_started = Event(starting.to(running))
-    stop_service = Event(running.to(stopping) | restarting.to(stopping))
-    service_stopped = Event(stopping.to(stopped))
-    service_failed = Event([starting, running].to(failed))
-    restart_service = Event([failed, running].to(restarting))
-    retry_start = Event(failed.to(starting))
-    
+class ServiceOrchestrator:
+    """轻量服务编排器（P1 使用手写状态表；P2 可替换为 python-statemachine）"""
+
     def __init__(self, services: Dict[str, ServiceDefinition]):
-        """
-        初始化服务编排器
-        :param services: 服务定义字典
-        """
         self.services = services
         self.dependency_graph = self._build_dependency_graph()
-        self.service_states: Dict[str, ServiceStatus] = {}
-        super().__init__()
-    
+        self.service_states: Dict[str, ServiceStatus] = {k: ServiceStatus.STOPPED for k in services}
+
     async def orchestrate_startup(self, target_services: List[str]) -> bool:
-        """
-        编排服务启动
-        :param target_services: 目标服务列表
-        :return: 是否全部启动成功
-        :raises: OrchestrationError 编排失败
-        """
-        pass
-    
+        # 依赖层级启动（并发启动同层服务），失败回滚
+        levels = self.get_startup_order(target_services)
+        for level in levels:
+            results = await self._start_level(level)
+            if not all(results.values()):
+                await self._rollback_started(levels)
+                return False
+        return True
+
     async def orchestrate_shutdown(self, target_services: Optional[List[str]] = None) -> bool:
-        """
-        编排服务停止
-        :param target_services: 目标服务列表，None则停止所有
-        :return: 是否全部停止成功
-        """
-        pass
-    
+        # 逆拓扑顺序优雅停止
+        targets = list(self.services.keys()) if target_services is None else target_services
+        levels = self.get_startup_order(targets)
+        for level in reversed(levels):
+            await self._stop_level(level)
+        return True
+
     def get_startup_order(self, target_services: List[str]) -> List[List[str]]:
-        """
-        计算启动顺序（按依赖层级分组）
-        :param target_services: 目标服务列表
-        :return: 按依赖层级分组的服务列表
-        :raises: CircularDependencyError 循环依赖
-        """
-        pass
-    
+        # 参见“服务依赖图算法”一节中的拓扑分层实现
+        return topological_sort(self, target_services)
+
     def _build_dependency_graph(self) -> Dict[str, Set[str]]:
-        """构建服务依赖图"""
-        pass
-    
-    async def on_start_service(self, service_name: str):
-        """服务启动回调"""
-        print(f"Starting service: {service_name}")
-        
-    async def on_service_started(self, service_name: str):
-        """服务启动成功回调"""
-        self.service_states[service_name] = ServiceStatus.RUNNING
-        
+        graph: Dict[str, Set[str]] = {name: set(defn.dependencies or []) for name, defn in self.services.items()}
+        return graph
+
+    async def _start_level(self, names: List[str]) -> Dict[str, bool]:
+        # 该方法委托给适配器（ApiAdapter/AgentsAdapter）具体执行
+        return {name: True for name in names}
+
+    async def _stop_level(self, names: List[str]) -> None:
+        # 该方法委托给适配器具体执行
+        return None
+
     async def on_service_failed(self, service_name: str, error: Exception):
-        """服务失败回调"""
         self.service_states[service_name] = ServiceStatus.FAILED
-        print(f"Service {service_name} failed: {error}")
 ```
 
 #### 服务依赖图算法
@@ -299,76 +270,102 @@ def topological_sort(self, services: List[str]) -> List[List[str]]:
     return levels
 ```
 
-### 组件3：ComponentManager (组件管理器)
+### 组件3：Adapters Layer（适配器层）
 
-#### 接口签名
+适配器层对接具体服务类型，复用现有实现，避免重复造轮子：
+
+- ApiAdapter：以子进程方式运行/停止 uvicorn（多进程模式），或在同进程下作为后台任务（单进程模式）启动 API Gateway；管理开发模式 `--reload`。
+- AgentsAdapter：复用 `apps/backend/src/agents/launcher.py` 的 `AgentLauncher` 进行 agents 的加载、启动、停止与信号处理。
+
+#### 接口签名（示意）
 
 ```python
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Optional, List, Dict
+import asyncio
+import signal
 
-class ComponentManager:
-    """FastAPI组件管理器"""
-    
-    def __init__(self, app: FastAPI):
-        """
-        初始化组件管理器
-        :param app: FastAPI应用实例
-        """
-        self.app = app
-        self.components: Dict[str, Any] = {}
-        self.routers: Dict[str, Any] = {}
-        
-    async def load_component(self, service_def: ServiceDefinition) -> bool:
-        """
-        动态加载服务组件
-        :param service_def: 服务定义
-        :return: 加载是否成功
-        :raises: ComponentLoadError 组件加载失败
-        """
-        pass
-    
-    async def unload_component(self, service_name: str) -> bool:
-        """
-        卸载服务组件
-        :param service_name: 服务名称
-        :return: 卸载是否成功
-        """
-        pass
-    
-    def register_router(self, service_name: str, router: Any, prefix: str) -> None:
-        """
-        注册服务路由
-        :param service_name: 服务名称
-        :param router: FastAPI Router实例
-        :param prefix: 路由前缀
-        :raises: RouterConflictError 路由冲突
-        """
-        pass
-    
-    @asynccontextmanager
-    async def lifespan_manager(self, app: FastAPI):
-        """
-        FastAPI生命周期管理器
-        """
-        # 启动阶段
-        await self._startup_components()
-        yield
-        # 关闭阶段
-        await self._shutdown_components()
-    
-    async def _startup_components(self):
-        """启动所有已注册组件"""
-        for name, component in self.components.items():
-            if hasattr(component, 'startup'):
-                await component.startup()
-    
-    async def _shutdown_components(self):
-        """关闭所有组件"""
-        for name, component in self.components.items():
-            if hasattr(component, 'shutdown'):
-                await component.shutdown()
+class ApiAdapter:
+    async def start(self, host: str, port: int, reload: bool, mode: LaunchMode) -> bool: ...
+    async def stop(self, grace: int = 10) -> bool: ...
+    def status(self) -> ServiceStatus: ...
+
+class AgentsAdapter:
+    def __init__(self):
+        self._launcher = None  # 复用 apps/backend/src/agents/launcher.AgentLauncher
+
+    def load(self, agent_names: Optional[List[str]] = None) -> None: ...
+    async def start(self) -> bool: ...
+    async def stop(self, grace: int = 10) -> bool: ...
+    def status(self) -> Dict[str, ServiceStatus]: ...
+
+def setup_signal_handlers(stop_coro):
+    def handler(sig, frame):
+        asyncio.create_task(stop_coro())
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+```
+
+说明：管理路由集成到 API Gateway（建议 `/admin/launcher/status`、`/admin/launcher/health`），默认仅开发启用。
+
+## CLI 设计（最小集）
+
+- `is-launcher up --mode [single|multi] --components api,agents --agents worldsmith,plotmaster --reload`
+- `is-launcher down [--grace 10]`
+- `is-launcher status [--watch]`
+- `is-launcher logs <component>`
+
+```python
+import argparse
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Unified Backend Launcher")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    up = sub.add_parser("up")
+    up.add_argument("--mode", choices=["single", "multi"], default="single")
+    up.add_argument("--components", default="api,agents")
+    up.add_argument("--agents", default="")
+    up.add_argument("--reload", action="store_true")
+
+    down = sub.add_parser("down")
+    down.add_argument("--grace", type=int, default=10)
+
+    sub.add_parser("status")
+
+    logs = sub.add_parser("logs")
+    logs.add_argument("component", choices=["api", "agents"]) 
+
+    return parser
+```
+
+## 信号与进程管理
+
+- 单进程：注册 `SIGINT/SIGTERM`，触发优雅停止协程；确保等待后台任务（agents）完成清理。
+- 多进程：
+  - Linux/Unix：子进程以新进程组启动（`preexec_fn=os.setsid`），停止时向进程组发送 `SIGTERM`，超过 `grace` 再发 `SIGKILL`。
+  - Windows：使用 `creationflags=CREATE_NEW_PROCESS_GROUP` 启动，停止时发送 `CTRL_BREAK_EVENT`，超时后强制终止。
+
+```python
+import asyncio, os, signal, sys
+
+async def spawn_uvicorn(host: str, port: int, reload: bool) -> asyncio.subprocess.Process:
+    args = [sys.executable, "-m", "uvicorn", "src.api.main:app", "--host", host, "--port", str(port)]
+    if reload:
+        args.append("--reload")
+    if os.name != "nt":
+        return await asyncio.create_subprocess_exec(*args, preexec_fn=os.setsid)
+    else:
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        return await asyncio.create_subprocess_exec(*args, creationflags=CREATE_NEW_PROCESS_GROUP)
+
+def terminate_process(proc: asyncio.subprocess.Process, grace: int = 10):
+    if os.name != "nt":
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except ProcessLookupError:
+            return
+    else:
+        proc.send_signal(signal.CTRL_BREAK_EVENT)
 ```
 
 ### 组件4：HealthMonitor (健康监控器)
@@ -377,8 +374,8 @@ class ComponentManager:
 
 ```python
 import asyncio
-from typing import Callable, Dict
-import aiohttp
+from typing import Callable, Dict, Optional
+import httpx
 
 class HealthStatus(Enum):
     HEALTHY = "healthy"
@@ -398,7 +395,7 @@ class HealthCheckResult:
 class HealthMonitor:
     """混合模式健康监控器"""
     
-    def __init__(self, check_interval: int = 5):
+    def __init__(self, check_interval: float = 1.0):
         """
         初始化健康监控器
         :param check_interval: 检查间隔(秒)
@@ -489,100 +486,48 @@ class HealthMonitor:
 
 ### 组件5：ConfigManager (配置管理器)
 
-#### 接口签名
+基于现有 `pydantic-settings` + TOML 加载器（见 `src/core/config.py`），新增 `[launcher]` 配置段，支持多层合并与环境变量覆盖。移除 YAML/模板引擎依赖，保持与仓库一致的加载路径。
+
+#### 配置模型（示例）
 
 ```python
-from pathlib import Path
-import toml
-import yaml
-from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
-class ConfigManager:
-    """多层配置管理器"""
-    
-    def __init__(self, config_dir: Path, profile: Optional[str] = None):
-        """
-        初始化配置管理器
-        :param config_dir: 配置目录路径
-        :param profile: 配置profile（如dev, prod）
-        """
-        self.config_dir = config_dir
-        self.profile = profile
-        self._config_cache: Dict[str, Any] = {}
-        
-    def load_config(self, config_name: str = "launcher") -> Dict[str, Any]:
-        """
-        加载配置文件（支持TOML和YAML）
-        :param config_name: 配置文件名（不含扩展名）
-        :return: 合并后的配置字典
-        :raises: ConfigLoadError 配置加载失败
-        """
-        if config_name in self._config_cache:
-            return self._config_cache[config_name]
-            
-        config = self._load_base_config(config_name)
-        
-        # 应用profile特定配置
-        if self.profile:
-            profile_config = self._load_profile_config(config_name, self.profile)
-            config = self._merge_configs(config, profile_config)
-        
-        # 应用环境变量覆盖
-        config = self._apply_env_overrides(config)
-        
-        self._config_cache[config_name] = config
-        return config
-    
-    def get_service_config(self, service_name: str) -> Dict[str, Any]:
-        """
-        获取服务特定配置
-        :param service_name: 服务名称
-        :return: 服务配置字典
-        """
-        base_config = self.load_config("launcher")
-        return base_config.get("services", {}).get(service_name, {})
-    
-    def generate_template_config(self, template_name: str, variables: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        生成模板化配置
-        :param template_name: 模板名称
-        :param variables: 模板变量
-        :return: 生成的配置
-        :raises: TemplateError 模板生成失败
-        """
-        pass
-    
-    def validate_config(self, config: Dict[str, Any], schema_name: str) -> bool:
-        """
-        验证配置格式
-        :param config: 配置字典
-        :param schema_name: 验证模式名称
-        :return: 是否通过验证
-        :raises: ConfigValidationError 验证失败
-        """
-        pass
-    
-    def _load_base_config(self, config_name: str) -> Dict[str, Any]:
-        """加载基础配置文件"""
-        for ext in ['.toml', '.yaml', '.yml']:
-            config_file = self.config_dir / f"{config_name}{ext}"
-            if config_file.exists():
-                if ext == '.toml':
-                    return toml.load(config_file)
-                else:
-                    with open(config_file) as f:
-                        return yaml.safe_load(f)
-        return {}
-    
-    def _merge_configs(self, base: Dict, override: Dict) -> Dict[str, Any]:
-        """深度合并配置字典"""
-        result = base.copy()
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._merge_configs(result[key], value)
-            else:
-                result[key] = value
-        return result
+class LauncherApiConfig(BaseModel):
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=8000)
+    reload: bool = Field(default=False)
+
+class LauncherAgentsConfig(BaseModel):
+    names: Optional[List[str]] = Field(default=None)
+
+class LauncherConfigModel(BaseModel):
+    default_mode: str = Field(default="single")            # single|multi
+    components: List[str] = Field(default_factory=lambda: ["api","agents"])
+    health_interval: float = Field(default=1.0)
+    api: LauncherApiConfig = Field(default_factory=LauncherApiConfig)
+    agents: LauncherAgentsConfig = Field(default_factory=LauncherAgentsConfig)
+
+# 实际加载复用 TomlConfigSettingsSource（参考 src/core/config.py）
+# 此处仅定义模型，加载与合并策略保持与 Settings 一致。
+```
+
+#### TOML 配置示例
+
+```toml
+[launcher]
+default_mode = "single"
+components = ["api","agents"]
+health_interval = 1.0
+
+[launcher.api]
+host = "0.0.0.0"
+port = 8000
+reload = true
+
+[launcher.agents]
+names = ["worldsmith","plotmaster"]
 ```
 
 ## 异常处理与重试机制
@@ -593,11 +538,11 @@ class ConfigManager:
 |----------|--------|----------|----------|
 | ConfigValidationError | 1001 | 返回详细错误信息，停止启动 | 不重试 |
 | ServiceStartupError | 2001 | 记录错误，尝试启动其他服务 | 指数退避，最多3次 |
-| DependencyValidationError | 2002 | 显示依赖关系图，停止启动 | 不重试 |
+| DependencyNotReadyError | 2002 | 输出依赖就绪提示，等待/超时 | 线性退避，直至超时 |
 | OrchestrationError | 2003 | 回滚已启动服务 | 最多1次 |
-| ComponentLoadError | 3001 | 跳过组件，继续其他组件 | 线性退避，最多2次 |
-| RouterConflictError | 3002 | 自动重新分配端口 | 最多5次 |
-| HealthCheckError | 4001 | 标记服务为不健康状态 | 指数退避，无限制 |
+| ApiStartError | 3001 | 记录错误并中止/回滚 | 指数退避，最多2次 |
+| AgentsStartError | 3002 | 记录错误并中止/回滚 | 指数退避，最多2次 |
+| HealthCheckError | 4001 | 标记为DEGRADED并保持监控 | 指数退避，无限制 |
 | ServiceStopError | 5001 | 强制终止进程 | 最多1次，然后SIGKILL |
 
 ### 重试实现
@@ -838,59 +783,28 @@ class ConfigVersionManager:
 
 ## 容量参数配置
 
-### 资源限制配置
+### 资源限制配置（TOML 示例）
 
-```yaml
-# 容量配置
-capacity:
-  # 进程资源限制
-  process_limits:
-    max_memory_mb: 2048
-    max_cpu_percent: 80
-    max_file_descriptors: 1024
-    max_threads: 50
-  
-  # 并发控制
-  concurrency:
-    max_concurrent_startups: 5
-    max_concurrent_health_checks: 10
-    startup_timeout_seconds: 30
-    health_check_timeout_seconds: 5
-    
-  # 连接池配置
-  connection_pools:
-    http_client:
-      max_connections: 100
-      max_keepalive_connections: 20
-      keepalive_expiry: 5.0
-    
-    database:
-      min_size: 5
-      max_size: 50
-      max_idle_time: 300
-  
-  # 缓存配置
-  caches:
-    health_status:
-      max_size: 1000
-      ttl_seconds: 10
-    
-    config_cache:
-      max_size: 100
-      ttl_seconds: 300
-  
-  # 队列配置
-  queues:
-    health_check_queue:
-      max_size: 1000
-      timeout_seconds: 60
-    
-    event_queue:
-      max_size: 5000
-      timeout_seconds: 30
+```toml
+[launcher.capacity]
+max_memory_mb = 2048
+max_cpu_percent = 80
+max_file_descriptors = 1024
+max_threads = 50
+
+[launcher.capacity.concurrency]
+max_concurrent_startups = 5
+max_concurrent_health_checks = 10
+startup_timeout_seconds = 30
+health_check_timeout_seconds = 5
+
+[launcher.capacity.http_client]
+max_connections = 100
+max_keepalive_connections = 20
+keepalive_expiry = 5.0
 ```
 
-### 自动伸缩参数
+### 自动伸缩参数（P3/可选）
 
 ```python
 @dataclass
@@ -1196,10 +1110,12 @@ class TestPerformanceBenchmarks:
 
 ## 监控指标
 
-### 应用指标
+说明：指标采集为 P2/可选能力。推荐与 API Gateway 集成暴露（而非独立启动 HTTP 指标端口），或复用现有监控导出器。
+
+### 应用指标（P2/可选）
 
 ```python
-from prometheus_client import Counter, Histogram, Gauge, start_http_server
+from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Optional
 import time
 import functools
@@ -1264,75 +1180,32 @@ class MetricsCollector:
 # 全局指标收集器实例
 metrics_collector = MetricsCollector()
 
-# 启动Prometheus指标服务器
-def start_metrics_server(port: int = 9090):
-    """启动Prometheus指标服务器"""
-    start_http_server(port)
-    print(f"Metrics server started on port {port}")
+# 注：建议通过 API Gateway 挂载 `/metrics` 暴露指标；不单独启动指标 HTTP 端口。
 ```
 
 ### 日志规范
 
+优先使用仓库已集成的 `structlog` 输出结构化日志，统一字段（component, mode, state, elapsed_ms, attempt, error_type）。
+
 ```python
-import json
-import logging
-import time
-from typing import Dict, Any, Optional
-import traceback
+import structlog
 
-class StructuredLogger:
-    """结构化日志记录器"""
-    
-    def __init__(self, service_name: str, log_level: str = "INFO"):
-        self.service_name = service_name
-        self.logger = logging.getLogger(service_name)
-        self.logger.setLevel(getattr(logging, log_level.upper()))
-        
-        # 配置结构化日志格式
-        handler = logging.StreamHandler()
-        handler.setFormatter(StructuredFormatter())
-        self.logger.addHandler(handler)
-        
-    def _create_log_entry(
-        self, 
-        level: str, 
-        message: str, 
-        **kwargs
-    ) -> Dict[str, Any]:
-        """创建结构化日志条目"""
-        entry = {
-            "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.%fZ', time.gmtime()),
-            "level": level,
-            "service": self.service_name,
-            "message": message,
-            **kwargs
-        }
-        return entry
-    
-    def info(self, message: str, **kwargs):
-        """记录INFO级别日志"""
-        entry = self._create_log_entry("INFO", message, **kwargs)
-        self.logger.info(json.dumps(entry, ensure_ascii=False))
-    
-    def error(self, message: str, error: Optional[Exception] = None, **kwargs):
-        """记录ERROR级别日志"""
-        entry = self._create_log_entry("ERROR", message, **kwargs)
-        
-        if error:
-            entry["error"] = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "traceback": traceback.format_exc() if error.__traceback__ else None
-            }
-        
-        self.logger.error(json.dumps(entry, ensure_ascii=False))
+logger = structlog.get_logger(__name__)
 
-class StructuredFormatter(logging.Formatter):
-    """结构化日志格式化器"""
-    
-    def format(self, record):
-        # 直接返回消息，因为消息已经是JSON格式
-        return record.getMessage()
+def log_start(component: str, mode: str):
+    logger.info("component_start", component=component, mode=mode)
+
+def log_state(component: str, state: str, **kwargs):
+    logger.info("component_state", component=component, state=state, **kwargs)
+
+def log_error(component: str, error: Exception, **kwargs):
+    logger.error(
+        "component_error",
+        component=component,
+        error_type=type(error).__name__,
+        error_message=str(error),
+        **kwargs,
+    )
 ```
 
 ## 安全实现
@@ -1453,142 +1326,48 @@ class InputSanitizer:
 
 ## 部署细节
 
-### CI/CD Pipeline
+### CI/CD Pipeline（对齐仓库现有流程）
+
+统一启动器与后端共仓库、共依赖，沿用现有 CI：
 
 ```yaml
-# .github/workflows/unified-launcher.yml
-name: Unified Backend Launcher CI/CD
-
-on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'apps/backend/unified_launcher/**'
-      - '.github/workflows/unified-launcher.yml'
-  pull_request:
-    branches: [ main ]
-
 jobs:
-  unit-tests:
+  backend-tests:
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
-      - name: Install dependencies
-        run: |
-          pip install -e apps/backend/
-          pip install pytest pytest-asyncio pytest-cov
-          
-      - name: Run unit tests
-        run: |
-          pytest apps/backend/unified_launcher/tests/unit/ \
-            --cov=apps/backend/unified_launcher \
-            --cov-report=xml \
-            --cov-fail-under=90
-            
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
+      - name: Install backend deps (uv)
+        working-directory: apps/backend
+        run: uv sync --dev
+      - name: Run backend tests
+        working-directory: apps/backend
+        run: uv run pytest -v --timeout=60
 ```
 
-### Docker配置
+### 容器与打包
 
-```dockerfile
-# apps/backend/unified_launcher/Dockerfile
-FROM python:3.11-slim as base
-
-# 设置工作目录
-WORKDIR /app
-
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# 创建非root用户
-RUN groupadd -r launcher && useradd -r -g launcher launcher
-
-# 复制requirements文件
-COPY apps/backend/requirements.txt requirements.txt
-COPY apps/backend/unified_launcher/requirements.txt unified_launcher_requirements.txt
-
-# 安装Python依赖
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir -r unified_launcher_requirements.txt
-
-# 复制应用代码
-COPY apps/backend/ .
-COPY scripts/ scripts/
-
-# 设置权限
-RUN chown -R launcher:launcher /app
-
-# 切换到非root用户
-USER launcher
-
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')"
-
-# 暴露端口
-EXPOSE 8080
-
-# 设置环境变量
-ENV PYTHONPATH="/app"
-ENV LAUNCHER_ENV="production"
-
-# 启动命令
-CMD ["python", "-m", "unified_launcher.main", "--config", "/app/config/launcher.toml"]
-```
+- 复用 `apps/backend/Dockerfile` 构建单一镜像，部署时通过 env/entrypoint 选择服务类型。
+- 启动器为 CLI 工具（console_scripts: `is-launcher`），用于开发/测试/本地一体化启动；生产环境通常由编排系统（Compose/K8s）拉起 API 与 Agents 进程。
 
 ## 依赖管理
 
-### 外部依赖
+### 外部依赖（对齐仓库）
 
-| 依赖名称 | 版本 | 用途 | 降级方案 |
-|---------|------|------|---------|
-| FastAPI | >=0.110.0 | Web框架和组件管理 | 降级到单独进程模式 |
-| python-statemachine | >=2.1.0 | 服务状态管理 | 简化状态跟踪 |
-| aiohttp | >=3.8.0 | HTTP客户端健康检查 | 同步requests库 |
-| psutil | >=5.9.0 | 系统资源监控 | 基础资源信息 |
-| toml | >=0.10.0 | 配置文件解析 | JSON配置格式 |
-| pydantic | >=2.0.0 | 数据验证 | 手动验证逻辑 |
-| prometheus-client | >=0.17.0 | 指标收集 | 文件日志记录 |
-| cryptography | >=41.0.0 | 数据加密 | 环境变量存储 |
+| 依赖名称 | 版本 | 用途 | 备注 |
+|---------|------|------|------|
+| FastAPI | 与仓库一致 | API Gateway | 复用现有实现 |
+| httpx | 与仓库一致 | 健康检查 HTTP 客户端 | 替代 aiohttp |
+| pydantic / pydantic-settings | 与仓库一致 | 配置建模/加载 | 复用 TOML 加载器 |
+| structlog | 与仓库一致 | 结构化日志 | 统一字段输出 |
+| prometheus-client | 可选（P2） | 指标收集 | 建议由 API 暴露 |
+| python-statemachine | 可选（P2） | 状态机 | P1 采用轻量状态表 |
 
-### 版本兼容性矩阵
+### 版本兼容性说明
 
-```python
-# requirements.txt
-fastapi>=0.110.0,<1.0.0
-python-statemachine>=2.1.0,<3.0.0
-aiohttp>=3.8.0,<4.0.0
-psutil>=5.9.0,<6.0.0
-toml>=0.10.0
-pydantic>=2.0.0,<3.0.0
-prometheus-client>=0.17.0
-cryptography>=41.0.0
-uvicorn[standard]>=0.23.0
-click>=8.0.0
-PyJWT>=2.8.0
-
-# 开发依赖
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.0.0
-black>=23.0.0
-ruff>=0.1.0
-mypy>=1.5.0
-pre-commit>=3.0.0
-```
+版本以仓库 `apps/backend/pyproject.toml` 为准；新增依赖仅在必要时引入，且优先选用仓库已存在库（如 httpx、structlog）。
 
 ---
 
@@ -1604,7 +1383,7 @@ pre-commit>=3.0.0
 ✅ **回滚脚本**（服务回滚、配置回滚）  
 ✅ **容量配置参数**（资源限制、自动伸缩）  
 ✅ **测试用例设计**（单元、集成、性能测试）  
-✅ **监控指标定义**（Prometheus指标、结构化日志）  
+✅ **监控指标定义**（P2/可选的 Prometheus 指标；结构化日志用 structlog）  
 ✅ **安全实现**（认证授权、输入验证、数据加密）  
 ✅ **CI/CD配置**（GitHub Actions、Docker、K8s）  
 ✅ **依赖管理策略**（版本兼容性、依赖注入）
