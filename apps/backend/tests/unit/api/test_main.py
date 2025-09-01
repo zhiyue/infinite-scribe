@@ -244,16 +244,17 @@ class TestLifespan:
         test_app = FastAPI()
 
         # Test that lifespan can be used as async context manager
-        with patch("src.common.services.postgres_service.postgres_service"), \
-             patch("src.common.services.neo4j_service.neo4j_service"), \
-             patch("src.common.services.redis_service.redis_service"), \
-             patch("logging.getLogger"):
-
+        with (
+            patch("src.common.services.postgres_service.postgres_service"),
+            patch("src.common.services.neo4j_service.neo4j_service"),
+            patch("src.common.services.redis_service.redis_service"),
+            patch("logging.getLogger"),
+        ):
             context_manager = lifespan(test_app)
 
             # Should have __aenter__ and __aexit__ methods
-            assert hasattr(context_manager, '__aenter__')
-            assert hasattr(context_manager, '__aexit__')
+            assert hasattr(context_manager, "__aenter__")
+            assert hasattr(context_manager, "__aexit__")
 
             # Should be able to enter and exit
             async with context_manager:

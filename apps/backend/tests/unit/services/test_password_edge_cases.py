@@ -70,9 +70,7 @@ class TestPasswordChangeEdgeCases:
             mock_db_session.commit.side_effect = OperationalError("Database error", None, None)
 
             # 执行测试
-            result = await user_service.change_password(
-                mock_db_session, 1, "current_password", "NewPassword123!"
-            )
+            result = await user_service.change_password(mock_db_session, 1, "current_password", "NewPassword123!")
 
             # 验证结果 - UserService会捕获所有异常并返回通用错误消息
             assert result["success"] is False
@@ -104,9 +102,7 @@ class TestPasswordChangeEdgeCases:
             )
             mock_db_session.commit.side_effect = IntegrityError("Integrity constraint", None, None)
 
-            result = await user_service.change_password(
-                mock_db_session, 1, "current_password", "NewPassword123!"
-            )
+            result = await user_service.change_password(mock_db_session, 1, "current_password", "NewPassword123!")
 
             assert result["success"] is False
             assert "error occurred during password change" in result["error"].lower()
@@ -116,9 +112,10 @@ class TestPasswordChangeEdgeCases:
         """测试邮件发送服务失败的情况."""
         background_tasks = Mock(spec=BackgroundTasks)
 
-        with patch.object(user_service, "password_service") as mock_password_service, patch(
-            "src.common.services.user_service.email_tasks"
-        ) as mock_email_tasks:
+        with (
+            patch.object(user_service, "password_service") as mock_password_service,
+            patch("src.common.services.user_service.email_tasks") as mock_email_tasks,
+        ):
             # Mock verify_password to return different values for different calls
             # First call for current password should return True
             # Second call to check if new password is same as current should return False
@@ -173,9 +170,7 @@ class TestPasswordChangeEdgeCases:
                 ]
             )
 
-            result = await user_service.change_password(
-                mock_db_session, 1, "current_password", "NewPassword123!"
-            )
+            result = await user_service.change_password(mock_db_session, 1, "current_password", "NewPassword123!")
 
             assert result["success"] is False
             assert "error occurred during password change" in result["error"].lower()
@@ -199,9 +194,7 @@ class TestPasswordChangeEdgeCases:
             }
 
             # 这个测试需要Mock数据库查询以避免在密码验证之前就失败
-            mock_db_session.execute = AsyncMock(
-                return_value=Mock(scalar_one_or_none=Mock(return_value=mock_user))
-            )
+            mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=mock_user)))
 
             result = await user_service.change_password(mock_db_session, 1, "current_password", long_password)
 
@@ -224,9 +217,7 @@ class TestPasswordChangeEdgeCases:
             }
 
             # 模拟用户不存在的情况（在初始查询时就返回None）
-            mock_db_session.execute = AsyncMock(
-                return_value=Mock(scalar_one_or_none=Mock(return_value=None))
-            )
+            mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=None)))
 
             result = await user_service.change_password(mock_db_session, 1, "current_password", "NewPassword123!")
 
@@ -294,9 +285,7 @@ class TestPasswordResetEdgeCases:
         verification.is_used = False
         verification.is_valid = False
 
-        mock_db_session.execute = AsyncMock(
-            return_value=Mock(scalar_one_or_none=Mock(return_value=verification))
-        )
+        mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=verification)))
 
         result = await user_service.reset_password(mock_db_session, "expired_token", "NewPassword123!")
 
@@ -318,9 +307,7 @@ class TestPasswordResetEdgeCases:
 
         for token in malformed_tokens:
             # 对于格式错误的令牌，数据库查询应该返回None
-            mock_db_session.execute = AsyncMock(
-                return_value=Mock(scalar_one_or_none=Mock(return_value=None))
-            )
+            mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=None)))
 
             result = await user_service.reset_password(mock_db_session, token, "NewPassword123!")
 
@@ -341,9 +328,7 @@ class TestPasswordResetEdgeCases:
         verification.is_valid = False
         verification.used_at = datetime.utcnow() - timedelta(minutes=5)
 
-        mock_db_session.execute = AsyncMock(
-            return_value=Mock(scalar_one_or_none=Mock(return_value=verification))
-        )
+        mock_db_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=verification)))
 
         result = await user_service.reset_password(mock_db_session, "used_token", "NewPassword123!")
 
@@ -392,16 +377,18 @@ class TestPasswordResetEdgeCases:
                 ]
             )
 
-            result = await user_service.reset_password(
-                mock_db_session, "valid_token", "NewPassword123!"
-            )
+            result = await user_service.reset_password(mock_db_session, "valid_token", "NewPassword123!")
 
             # UserService不会检查用户活跃状态，会正常处理密码重置
             # 如果需要检查活跃状态，应该在实际实现中添加
-            assert result["success"] is True or (result["success"] is False and "error occurred" in result["error"].lower())
+            assert result["success"] is True or (
+                result["success"] is False and "error occurred" in result["error"].lower()
+            )
 
     @pytest.mark.asyncio
-    async def test_reset_password_concurrent_token_usage(self, user_service, mock_db_session, mock_user, mock_verification):
+    async def test_reset_password_concurrent_token_usage(
+        self, user_service, mock_db_session, mock_user, mock_verification
+    ):
         """测试令牌并发使用的情况."""
         with patch("src.common.services.user_service.password_service") as mock_password_service:
             mock_password_service.validate_password_strength.return_value = {

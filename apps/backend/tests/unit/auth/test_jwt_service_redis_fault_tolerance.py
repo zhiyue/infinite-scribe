@@ -103,25 +103,25 @@ class TestJWTServiceRedisFaultTolerance:
             patch("src.common.services.jwt_service.ConnectionPool") as mock_pool_class,
             patch("src.common.services.jwt_service.Redis") as mock_redis_class,
         ):
-                # Reset the internal state
-                jwt_service._redis_pool = None
-                jwt_service._redis_client = None
+            # Reset the internal state
+            jwt_service._redis_pool = None
+            jwt_service._redis_client = None
 
-                # Access the property to trigger initialization
-                _ = jwt_service.redis_client
+            # Access the property to trigger initialization
+            _ = jwt_service.redis_client
 
-                # Verify ConnectionPool was created with correct parameters
-                mock_pool_class.assert_called_once()
-                pool_args = mock_pool_class.call_args[1]
+            # Verify ConnectionPool was created with correct parameters
+            mock_pool_class.assert_called_once()
+            pool_args = mock_pool_class.call_args[1]
 
-                assert pool_args["max_connections"] == 10
-                assert pool_args["socket_connect_timeout"] == 5
-                assert pool_args["socket_timeout"] == 5
-                assert pool_args["retry_on_timeout"] is True
-                assert pool_args["decode_responses"] is True
+            assert pool_args["max_connections"] == 10
+            assert pool_args["socket_connect_timeout"] == 5
+            assert pool_args["socket_timeout"] == 5
+            assert pool_args["retry_on_timeout"] is True
+            assert pool_args["decode_responses"] is True
 
-                # Verify Redis client was created with the pool
-                mock_redis_class.assert_called_once_with(connection_pool=mock_pool_class.return_value)
+            # Verify Redis client was created with the pool
+            mock_redis_class.assert_called_once_with(connection_pool=mock_pool_class.return_value)
 
     def test_multiple_redis_errors_in_sequence(self, jwt_service: JWTService):
         """Test handling multiple Redis errors in sequence."""
@@ -146,16 +146,16 @@ class TestJWTServiceRedisFaultTolerance:
             patch("src.common.services.jwt_service.ConnectionPool"),
             patch("src.common.services.jwt_service.Redis") as mock_redis_class,
         ):
-                # Reset the internal state
-                jwt_service._redis_pool = None
-                jwt_service._redis_client = None
+            # Reset the internal state
+            jwt_service._redis_pool = None
+            jwt_service._redis_client = None
 
-                # Multiple accesses should only create one instance
-                client1 = jwt_service.redis_client
-                client2 = jwt_service.redis_client
-                client3 = jwt_service.redis_client
+            # Multiple accesses should only create one instance
+            client1 = jwt_service.redis_client
+            client2 = jwt_service.redis_client
+            client3 = jwt_service.redis_client
 
-                # Should only create Redis client once
-                assert mock_redis_class.call_count == 1
-                assert client1 is client2
-                assert client2 is client3
+            # Should only create Redis client once
+            assert mock_redis_class.call_count == 1
+            assert client1 is client2
+            assert client2 is client3

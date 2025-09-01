@@ -44,11 +44,11 @@ class TestEmailService:
                 patch("src.common.services.email_service.EmailService.__init__", return_value=None),
                 patch("resend.api_key"),
             ):
-                    service = EmailService()
-                    service.is_development = False
-                    service.use_maildev = False
-                    service.template_env = MagicMock()
-                    return service
+                service = EmailService()
+                service.is_development = False
+                service.use_maildev = False
+                service.template_env = MagicMock()
+                return service
 
     @pytest.mark.asyncio
     async def test_send_email_via_maildev_success(self, email_service):
@@ -137,23 +137,23 @@ class TestEmailService:
             patch("src.common.services.email_service.EmailService.__init__", return_value=None),
             patch("resend.api_key"),
         ):
-                service = EmailService()
-                service.is_development = True
-                service.use_maildev = False  # Force Resend in dev
-                service.template_env = MagicMock()
+            service = EmailService()
+            service.is_development = True
+            service.use_maildev = False  # Force Resend in dev
+            service.template_env = MagicMock()
 
-                with patch.object(service, "_send_via_resend", new_callable=AsyncMock) as mock_send:
-                    mock_send.return_value = True
+            with patch.object(service, "_send_via_resend", new_callable=AsyncMock) as mock_send:
+                mock_send.return_value = True
 
-                    # Act
-                    result = await service.send_email(
-                        to=["test@example.com"], subject="Test Subject", html_content="<p>Test HTML</p>"
-                    )
+                # Act
+                result = await service.send_email(
+                    to=["test@example.com"], subject="Test Subject", html_content="<p>Test HTML</p>"
+                )
 
-                    # Assert
-                    assert result is True
-                    # Check that _send_via_resend was called
-                    mock_send.assert_called_once()
+                # Assert
+                assert result is True
+                # Check that _send_via_resend was called
+                mock_send.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_send_verification_email(self, email_service):

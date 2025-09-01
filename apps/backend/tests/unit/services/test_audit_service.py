@@ -62,9 +62,7 @@ class TestAuditService:
 
     def test_init(self, mock_logger):
         """Test audit service initialization."""
-        with patch("logging.FileHandler") as mock_handler, \
-             patch("logging.Formatter"):
-
+        with patch("logging.FileHandler") as mock_handler, patch("logging.Formatter"):
             mock_logger.handlers = []
             AuditService()
 
@@ -91,7 +89,7 @@ class TestAuditService:
             user_id="user123",
             email="test@example.com",
             ip_address="192.168.1.1",
-            user_agent="TestAgent"
+            user_agent="TestAgent",
         )
 
         expected_data = {
@@ -120,7 +118,7 @@ class TestAuditService:
             email="test@example.com",
             success=False,
             error_message="Authentication failed",
-            additional_data=additional_data
+            additional_data=additional_data,
         )
 
         expected_data = {
@@ -141,10 +139,7 @@ class TestAuditService:
         """Test log_login_success method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_login_success(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -159,10 +154,7 @@ class TestAuditService:
         """Test log_login_failure method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_login_failure(
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent",
-                reason="Invalid password"
+                email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent", reason="Invalid password"
             )
 
             mock_log_event.assert_called_once_with(
@@ -178,10 +170,7 @@ class TestAuditService:
         """Test log_logout method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_logout(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -196,10 +185,7 @@ class TestAuditService:
         """Test log_registration method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_registration(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -214,10 +200,7 @@ class TestAuditService:
         """Test log_password_change method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_password_change(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -232,9 +215,7 @@ class TestAuditService:
         """Test log_password_reset_request method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_password_reset_request(
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -248,10 +229,7 @@ class TestAuditService:
         """Test log_password_reset_success method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_password_reset_success(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -266,10 +244,7 @@ class TestAuditService:
         """Test log_account_locked method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_account_locked(
-                user_id="user123",
-                email="test@example.com",
-                ip_address="192.168.1.1",
-                failed_attempts=5
+                user_id="user123", email="test@example.com", ip_address="192.168.1.1", failed_attempts=5
             )
 
             mock_log_event.assert_called_once_with(
@@ -284,9 +259,7 @@ class TestAuditService:
         """Test log_account_unlocked method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_account_unlocked(
-                user_id="user123",
-                email="test@example.com",
-                unlock_reason="manual"
+                user_id="user123", email="test@example.com", unlock_reason="manual"
             )
 
             mock_log_event.assert_called_once_with(
@@ -299,10 +272,7 @@ class TestAuditService:
     def test_log_account_unlocked_default_reason(self, audit_service_instance):
         """Test log_account_unlocked with default reason."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
-            audit_service_instance.log_account_unlocked(
-                user_id="user123",
-                email="test@example.com"
-            )
+            audit_service_instance.log_account_unlocked(user_id="user123", email="test@example.com")
 
             mock_log_event.assert_called_once_with(
                 AuditEventType.ACCOUNT_UNLOCKED,
@@ -315,9 +285,7 @@ class TestAuditService:
         """Test log_rate_limit_exceeded method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_rate_limit_exceeded(
-                ip_address="192.168.1.1",
-                endpoint="/api/login",
-                user_id="user123"
+                ip_address="192.168.1.1", endpoint="/api/login", user_id="user123"
             )
 
             mock_log_event.assert_called_once_with(
@@ -332,10 +300,7 @@ class TestAuditService:
         """Test log_unauthorized_access method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_unauthorized_access(
-                ip_address="192.168.1.1",
-                endpoint="/api/admin",
-                user_agent="TestAgent",
-                reason="Invalid token"
+                ip_address="192.168.1.1", endpoint="/api/admin", user_agent="TestAgent", reason="Invalid token"
             )
 
             mock_log_event.assert_called_once_with(
@@ -351,9 +316,7 @@ class TestAuditService:
         """Test log_token_refresh method."""
         with patch.object(audit_service_instance, "log_event") as mock_log_event:
             audit_service_instance.log_token_refresh(
-                user_id="user123",
-                ip_address="192.168.1.1",
-                user_agent="TestAgent"
+                user_id="user123", ip_address="192.168.1.1", user_agent="TestAgent"
             )
 
             mock_log_event.assert_called_once_with(
@@ -373,7 +336,7 @@ class TestAuditService:
                 email="test@example.com",
                 ip_address="192.168.1.1",
                 user_agent="TestAgent",
-                fields_changed=fields_changed
+                fields_changed=fields_changed,
             )
 
             mock_log_event.assert_called_once_with(

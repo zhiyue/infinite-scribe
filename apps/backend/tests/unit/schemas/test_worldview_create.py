@@ -16,9 +16,7 @@ class TestWorldviewEntryCreateRequest:
         novel_id = uuid4()
 
         entry = WorldviewEntryCreateRequest(
-            novel_id=novel_id,
-            entry_type=WorldviewEntryType.LOCATION,
-            name="Ancient Library"
+            novel_id=novel_id, entry_type=WorldviewEntryType.LOCATION, name="Ancient Library"
         )
 
         assert entry.novel_id == novel_id
@@ -36,7 +34,7 @@ class TestWorldviewEntryCreateRequest:
             entry_type=WorldviewEntryType.ORGANIZATION,
             name="The Guild",
             description="A powerful organization controlling trade",
-            tags=["guild", "trade", "political"]
+            tags=["guild", "trade", "political"],
         )
 
         assert entry.novel_id == novel_id
@@ -51,17 +49,13 @@ class TestWorldviewEntryCreateRequest:
 
         # Test CONCEPT type
         entry1 = WorldviewEntryCreateRequest(
-            novel_id=novel_id,
-            entry_type=WorldviewEntryType.CONCEPT,
-            name="Magic System"
+            novel_id=novel_id, entry_type=WorldviewEntryType.CONCEPT, name="Magic System"
         )
         assert entry1.entry_type == WorldviewEntryType.CONCEPT
 
         # Test TECHNOLOGY type
         entry2 = WorldviewEntryCreateRequest(
-            novel_id=novel_id,
-            entry_type=WorldviewEntryType.TECHNOLOGY,
-            name="Skyships"
+            novel_id=novel_id, entry_type=WorldviewEntryType.TECHNOLOGY, name="Skyships"
         )
         assert entry2.entry_type == WorldviewEntryType.TECHNOLOGY
 
@@ -70,10 +64,7 @@ class TestWorldviewEntryCreateRequest:
         novel_id = uuid4()
 
         entry = WorldviewEntryCreateRequest(
-            novel_id=novel_id,
-            entry_type=WorldviewEntryType.ITEM,
-            name="Sacred Sword",
-            tags=[]
+            novel_id=novel_id, entry_type=WorldviewEntryType.ITEM, name="Sacred Sword", tags=[]
         )
 
         assert entry.tags == []
@@ -84,21 +75,13 @@ class TestWorldviewEntryCreateRequest:
 
         # Test valid length (255 chars)
         valid_name = "A" * 255
-        entry = WorldviewEntryCreateRequest(
-            novel_id=novel_id,
-            entry_type=WorldviewEntryType.OTHER,
-            name=valid_name
-        )
+        entry = WorldviewEntryCreateRequest(novel_id=novel_id, entry_type=WorldviewEntryType.OTHER, name=valid_name)
         assert len(entry.name) == 255
 
         # Test invalid length (256 chars)
         invalid_name = "A" * 256
         with pytest.raises(ValidationError):
-            WorldviewEntryCreateRequest(
-                novel_id=novel_id,
-                entry_type=WorldviewEntryType.OTHER,
-                name=invalid_name
-            )
+            WorldviewEntryCreateRequest(novel_id=novel_id, entry_type=WorldviewEntryType.OTHER, name=invalid_name)
 
 
 class TestStoryArcCreateRequest:
@@ -108,10 +91,7 @@ class TestStoryArcCreateRequest:
         """Test valid arc creation with minimal required fields."""
         novel_id = uuid4()
 
-        arc = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="The Hero's Journey"
-        )
+        arc = StoryArcCreateRequest(novel_id=novel_id, title="The Hero's Journey")
 
         assert arc.novel_id == novel_id
         assert arc.title == "The Hero's Journey"
@@ -130,7 +110,7 @@ class TestStoryArcCreateRequest:
             summary="A story arc about escalating tensions",
             start_chapter_number=5,
             end_chapter_number=12,
-            status="IN_PROGRESS"
+            status="IN_PROGRESS",
         )
 
         assert arc.novel_id == novel_id
@@ -145,10 +125,7 @@ class TestStoryArcCreateRequest:
         novel_id = uuid4()
 
         arc = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="Single Chapter Arc",
-            start_chapter_number=7,
-            end_chapter_number=7
+            novel_id=novel_id, title="Single Chapter Arc", start_chapter_number=7, end_chapter_number=7
         )
 
         assert arc.start_chapter_number == 7
@@ -159,10 +136,7 @@ class TestStoryArcCreateRequest:
         novel_id = uuid4()
 
         arc = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="Multi Chapter Arc",
-            start_chapter_number=3,
-            end_chapter_number=8
+            novel_id=novel_id, title="Multi Chapter Arc", start_chapter_number=3, end_chapter_number=8
         )
 
         assert arc.start_chapter_number == 3
@@ -173,12 +147,7 @@ class TestStoryArcCreateRequest:
         novel_id = uuid4()
 
         with pytest.raises(ValidationError) as exc_info:
-            StoryArcCreateRequest(
-                novel_id=novel_id,
-                title="Invalid Arc",
-                start_chapter_number=10,
-                end_chapter_number=5
-            )
+            StoryArcCreateRequest(novel_id=novel_id, title="Invalid Arc", start_chapter_number=10, end_chapter_number=5)
 
         assert "结束章节号不能小于开始章节号" in str(exc_info.value)
 
@@ -187,20 +156,12 @@ class TestStoryArcCreateRequest:
         novel_id = uuid4()
 
         # Only start chapter number
-        arc1 = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="Arc with start only",
-            start_chapter_number=5
-        )
+        arc1 = StoryArcCreateRequest(novel_id=novel_id, title="Arc with start only", start_chapter_number=5)
         assert arc1.start_chapter_number == 5
         assert arc1.end_chapter_number is None
 
         # Only end chapter number
-        arc2 = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="Arc with end only",
-            end_chapter_number=10
-        )
+        arc2 = StoryArcCreateRequest(novel_id=novel_id, title="Arc with end only", end_chapter_number=10)
         assert arc2.start_chapter_number is None
         assert arc2.end_chapter_number == 10
 
@@ -210,19 +171,11 @@ class TestStoryArcCreateRequest:
 
         # Test start chapter number zero
         with pytest.raises(ValidationError):
-            StoryArcCreateRequest(
-                novel_id=novel_id,
-                title="Invalid start",
-                start_chapter_number=0
-            )
+            StoryArcCreateRequest(novel_id=novel_id, title="Invalid start", start_chapter_number=0)
 
         # Test end chapter number zero
         with pytest.raises(ValidationError):
-            StoryArcCreateRequest(
-                novel_id=novel_id,
-                title="Invalid end",
-                end_chapter_number=0
-            )
+            StoryArcCreateRequest(novel_id=novel_id, title="Invalid end", end_chapter_number=0)
 
     def test_title_max_length_validation(self):
         """Test title field max length validation."""
@@ -230,19 +183,13 @@ class TestStoryArcCreateRequest:
 
         # Test valid length (255 chars)
         valid_title = "A" * 255
-        arc = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title=valid_title
-        )
+        arc = StoryArcCreateRequest(novel_id=novel_id, title=valid_title)
         assert len(arc.title) == 255
 
         # Test invalid length (256 chars)
         invalid_title = "A" * 256
         with pytest.raises(ValidationError):
-            StoryArcCreateRequest(
-                novel_id=novel_id,
-                title=invalid_title
-            )
+            StoryArcCreateRequest(novel_id=novel_id, title=invalid_title)
 
     def test_status_max_length_validation(self):
         """Test status field max length validation."""
@@ -250,18 +197,10 @@ class TestStoryArcCreateRequest:
 
         # Test valid length (50 chars)
         valid_status = "A" * 50
-        arc = StoryArcCreateRequest(
-            novel_id=novel_id,
-            title="Test Arc",
-            status=valid_status
-        )
+        arc = StoryArcCreateRequest(novel_id=novel_id, title="Test Arc", status=valid_status)
         assert len(arc.status) == 50
 
         # Test invalid length (51 chars)
         invalid_status = "A" * 51
         with pytest.raises(ValidationError):
-            StoryArcCreateRequest(
-                novel_id=novel_id,
-                title="Test Arc",
-                status=invalid_status
-            )
+            StoryArcCreateRequest(novel_id=novel_id, title="Test Arc", status=invalid_status)

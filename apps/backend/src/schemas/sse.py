@@ -77,9 +77,7 @@ class SSEMessage(BaseModel):
 
         return "\n".join(lines)
 
-    model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)}
-    )
+    model_config = ConfigDict(json_encoders={datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)})
 
 
 # ============================================================================

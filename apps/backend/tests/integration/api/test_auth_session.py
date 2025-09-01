@@ -80,6 +80,7 @@ async def test_token_refresh_with_session_update(client: AsyncClient, db_session
     # 验证旧的 access token 被加入黑名单
     # 旧的 access token 应该已经被黑名单化，所以验证会失败
     from jose.exceptions import JWTError
+
     with pytest.raises(JWTError):  # JWT token revocation error
         jwt_service.verify_token(old_access_token, "access")
 

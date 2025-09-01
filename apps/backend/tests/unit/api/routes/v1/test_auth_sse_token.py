@@ -69,7 +69,6 @@ class TestCreateSSEToken:
         assert "iat" in decoded_payload
 
 
-
 class TestVerifySSEToken:
     """Test cases for SSE token verification function."""
 

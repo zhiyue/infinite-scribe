@@ -39,6 +39,7 @@ class TestForgotPasswordEdgeCases:
         for email in malformed_emails:
             # 对于明显格式错误的邮箱，Pydantic验证应该拒绝请求
             from pydantic import ValidationError
+
             with pytest.raises(ValidationError):  # Pydantic validation error
                 request = ForgotPasswordRequest(email=email)
 
@@ -78,9 +79,7 @@ class TestForgotPasswordEdgeCases:
 
         # 模拟多次快速请求
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
-            mock_user_service.request_password_reset = AsyncMock(
-                return_value={"message": "Reset email sent"}
-            )
+            mock_user_service.request_password_reset = AsyncMock(return_value={"message": "Reset email sent"})
 
             # 连续5次请求
             for _i in range(5):
@@ -97,17 +96,13 @@ class TestForgotPasswordEdgeCases:
         request = ForgotPasswordRequest(email="test@example.com")
 
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
-            mock_user_service.request_password_reset = AsyncMock(
-                return_value={"message": "Reset email sent"}
-            )
+            mock_user_service.request_password_reset = AsyncMock(return_value={"message": "Reset email sent"})
 
             # BackgroundTasks参数为None应该仍然工作
             result = await forgot_password(request, None, mock_db)
 
             assert result.success is True
-            mock_user_service.request_password_reset.assert_called_once_with(
-                mock_db, "test@example.com", None
-            )
+            mock_user_service.request_password_reset.assert_called_once_with(mock_db, "test@example.com", None)
 
 
 class TestResetPasswordEdgeCases:
@@ -130,9 +125,7 @@ class TestResetPasswordEdgeCases:
             request = ResetPasswordRequest(token=token, new_password="NewPassword123!")
 
             with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
-                mock_user_service.reset_password = AsyncMock(
-                    return_value={"success": False, "error": "Invalid token"}
-                )
+                mock_user_service.reset_password = AsyncMock(return_value={"success": False, "error": "Invalid token"})
 
                 with pytest.raises(HTTPException) as exc_info:
                     await reset_password(request, mock_db)
@@ -167,9 +160,7 @@ class TestResetPasswordEdgeCases:
                 result = await reset_password(request, mock_db)
 
                 assert result.success is True
-                mock_user_service.reset_password.assert_called_once_with(
-                    mock_db, "valid_token", password
-                )
+                mock_user_service.reset_password.assert_called_once_with(mock_db, "valid_token", password)
 
     @pytest.mark.asyncio
     async def test_reset_password_extremely_long_token(self):
@@ -180,9 +171,7 @@ class TestResetPasswordEdgeCases:
         mock_db = AsyncMock()
 
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
-            mock_user_service.reset_password = AsyncMock(
-                return_value={"success": False, "error": "Invalid token"}
-            )
+            mock_user_service.reset_password = AsyncMock(return_value={"success": False, "error": "Invalid token"})
 
             with pytest.raises(HTTPException) as exc_info:
                 await reset_password(request, mock_db)
@@ -213,17 +202,11 @@ class TestChangePasswordEdgeCases:
         mock_db = AsyncMock()
         mock_background_tasks = Mock(spec=BackgroundTasks)
         # 当前密码和新密码相同
-        request = ChangePasswordRequest(
-            current_password="SamePassword123!",
-            new_password="SamePassword123!"
-        )
+        request = ChangePasswordRequest(current_password="SamePassword123!", new_password="SamePassword123!")
 
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
             mock_user_service.change_password = AsyncMock(
-                return_value={
-                    "success": False,
-                    "error": "New password must be different from current password"
-                }
+                return_value={"success": False, "error": "New password must be different from current password"}
             )
 
             with pytest.raises(HTTPException) as exc_info:
@@ -246,10 +229,7 @@ class TestChangePasswordEdgeCases:
         mock_background_tasks = Mock(spec=BackgroundTasks)
 
         for password in passwords_with_whitespace:
-            request = ChangePasswordRequest(
-                current_password="current_password",
-                new_password=password
-            )
+            request = ChangePasswordRequest(current_password="current_password", new_password=password)
 
             with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
                 mock_user_service.change_password = AsyncMock(
@@ -272,10 +252,7 @@ class TestChangePasswordEdgeCases:
 
         # 包含不可打印字符的密码
         binary_password = "Pass\x00\x01\x02word123!"
-        request = ChangePasswordRequest(
-            current_password="current_password",
-            new_password=binary_password
-        )
+        request = ChangePasswordRequest(current_password="current_password", new_password=binary_password)
 
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
             # 密码服务可能会拒绝包含二进制数据的密码
@@ -293,10 +270,7 @@ class TestChangePasswordEdgeCases:
         """测试用户对象损坏的情况."""
         mock_db = AsyncMock()
         mock_background_tasks = Mock(spec=BackgroundTasks)
-        request = ChangePasswordRequest(
-            current_password="current_password",
-            new_password="NewPassword123!"
-        )
+        request = ChangePasswordRequest(current_password="current_password", new_password="NewPassword123!")
 
         # 模拟用户对象缺少必要属性
         corrupted_user = Mock()
@@ -304,9 +278,7 @@ class TestChangePasswordEdgeCases:
         # 缺少其他必要属性
 
         with patch("src.api.routes.v1.auth_password.user_service") as mock_user_service:
-            mock_user_service.change_password = AsyncMock(
-                return_value={"success": False, "error": "Invalid user data"}
-            )
+            mock_user_service.change_password = AsyncMock(return_value={"success": False, "error": "Invalid user data"})
 
             with pytest.raises(HTTPException) as exc_info:
                 await change_password(request, mock_background_tasks, mock_db, corrupted_user)
@@ -401,9 +373,7 @@ class TestValidatePasswordStrengthEdgeCases:
 
         with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
             # 模拟服务超时
-            mock_password_service.validate_password_strength.side_effect = TimeoutError(
-                "Service timeout"
-            )
+            mock_password_service.validate_password_strength.side_effect = TimeoutError("Service timeout")
 
             result = await validate_password_strength(password=password)
 
@@ -421,9 +391,7 @@ class TestValidatePasswordStrengthEdgeCases:
 
         with patch("src.api.routes.v1.auth_password.password_service") as mock_password_service:
             # 模拟内存不足错误
-            mock_password_service.validate_password_strength.side_effect = MemoryError(
-                "Insufficient memory"
-            )
+            mock_password_service.validate_password_strength.side_effect = MemoryError("Insufficient memory")
 
             result = await validate_password_strength(password=large_password)
 

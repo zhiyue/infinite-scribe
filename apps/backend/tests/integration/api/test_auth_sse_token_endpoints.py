@@ -304,6 +304,7 @@ class TestSSETokenSecurity:
         # Act & Assert - Verification should fail
         from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
+
         with pytest.raises(HTTPException):
             verify_sse_token(malicious_token)
 
@@ -330,6 +331,7 @@ class TestSSETokenSecurity:
         # Act & Assert - Verification should fail
         from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
+
         with pytest.raises(HTTPException):
             verify_sse_token(unsigned_token)
 
@@ -361,5 +363,6 @@ class TestSSETokenSecurity:
         # Act & Assert - Verification should fail
         from fastapi import HTTPException
         from src.api.routes.v1.auth_sse_token import verify_sse_token
+
         with pytest.raises(HTTPException):  # Should raise HTTPException due to invalid signature
             verify_sse_token(tampered_token)

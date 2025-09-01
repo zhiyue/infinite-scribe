@@ -27,11 +27,7 @@ class TestCommandInboxUpdate:
 
     def test_valid_update_multiple_fields(self):
         """Test valid update with multiple fields."""
-        update = CommandInboxUpdate(
-            status=CommandStatus.COMPLETED,
-            error_message="Success",
-            retry_count=3
-        )
+        update = CommandInboxUpdate(status=CommandStatus.COMPLETED, error_message="Success", retry_count=3)
 
         assert update.status == CommandStatus.COMPLETED
         assert update.error_message == "Success"
@@ -79,7 +75,7 @@ class TestAsyncTaskUpdate:
             execution_node="node-1",
             retry_count=2,
             started_at=now,
-            completed_at=now
+            completed_at=now,
         )
 
         assert update.status == TaskStatus.COMPLETED
@@ -124,10 +120,7 @@ class TestEventOutboxUpdate:
         sent_time = utc_now()
 
         update = EventOutboxUpdate(
-            status=OutboxStatus.PENDING,
-            retry_count=3,
-            last_error="Connection timeout",
-            sent_at=sent_time
+            status=OutboxStatus.PENDING, retry_count=3, last_error="Connection timeout", sent_at=sent_time
         )
 
         assert update.status == OutboxStatus.PENDING
@@ -163,11 +156,7 @@ class TestFlowResumeHandleUpdate:
         resumed_time = utc_now()
         payload = {"data": {"step": 1, "context": "test"}}
 
-        update = FlowResumeHandleUpdate(
-            status=HandleStatus.EXPIRED,
-            resume_payload=payload,
-            resumed_at=resumed_time
-        )
+        update = FlowResumeHandleUpdate(status=HandleStatus.EXPIRED, resume_payload=payload, resumed_at=resumed_time)
 
         assert update.status == HandleStatus.EXPIRED
         assert update.resume_payload == payload
@@ -189,11 +178,8 @@ class TestFlowResumeHandleUpdate:
         """Test valid complex resume payload."""
         complex_payload = {
             "step_id": "step-1",
-            "context": {
-                "variables": {"x": 1, "y": "test"},
-                "state": "paused"
-            },
-            "metadata": ["tag1", "tag2"]
+            "context": {"variables": {"x": 1, "y": "test"}, "state": "paused"},
+            "metadata": ["tag1", "tag2"],
         }
 
         update = FlowResumeHandleUpdate(resume_payload=complex_payload)

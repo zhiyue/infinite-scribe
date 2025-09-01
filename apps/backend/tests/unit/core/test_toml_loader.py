@@ -74,10 +74,7 @@ class TestInterpolateEnvVars:
             "database": {
                 "host": "${DB_HOST:-localhost}",
                 "port": "${DB_PORT:-5432}",
-                "credentials": {
-                    "user": "${DB_USER:-admin}",
-                    "pass": "${DB_PASS}"
-                }
+                "credentials": {"user": "${DB_USER:-admin}", "pass": "${DB_PASS}"},
             }
         }
 
@@ -103,9 +100,7 @@ class TestInterpolateEnvVars:
             "number": 42,
             "bool": True,
             "list": ["${ITEM:-default}", 123],
-            "nested": {
-                "value": "${NESTED:-nested_default}"
-            }
+            "nested": {"value": "${NESTED:-nested_default}"},
         }
 
         result = _interpolate_env_vars(config)
@@ -136,57 +131,23 @@ class TestFlattenConfig:
 
     def test_nested_dict(self):
         """测试嵌套字典的扁平化"""
-        config = {
-            "database": {
-                "host": "localhost",
-                "port": 5432
-            },
-            "api": {
-                "timeout": 30
-            }
-        }
+        config = {"database": {"host": "localhost", "port": 5432}, "api": {"timeout": 30}}
 
-        expected = {
-            "database__host": "localhost",
-            "database__port": 5432,
-            "api__timeout": 30
-        }
+        expected = {"database__host": "localhost", "database__port": 5432, "api__timeout": 30}
         assert flatten_config(config) == expected
 
     def test_deeply_nested(self):
         """测试深度嵌套的扁平化"""
-        config = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "value": "deep"
-                    }
-                }
-            }
-        }
+        config = {"level1": {"level2": {"level3": {"value": "deep"}}}}
 
         expected = {"level1__level2__level3__value": "deep"}
         assert flatten_config(config) == expected
 
     def test_mixed_values(self):
         """测试包含各种类型值的扁平化"""
-        config = {
-            "string": "text",
-            "number": 123,
-            "bool": True,
-            "list": [1, 2, 3],
-            "nested": {
-                "key": "value"
-            }
-        }
+        config = {"string": "text", "number": 123, "bool": True, "list": [1, 2, 3], "nested": {"key": "value"}}
 
-        expected = {
-            "string": "text",
-            "number": 123,
-            "bool": True,
-            "list": [1, 2, 3],
-            "nested__key": "value"
-        }
+        expected = {"string": "text", "number": 123, "bool": True, "list": [1, 2, 3], "nested__key": "value"}
         assert flatten_config(config) == expected
 
     def test_empty_dict(self):
@@ -209,7 +170,7 @@ port = 8080
 url = "postgresql://localhost/db"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             f.flush()
 
@@ -233,7 +194,7 @@ host = "${DB_HOST:-localhost}"
 port = "${DB_PORT:-5432}"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             f.flush()
 
@@ -279,7 +240,7 @@ enabled = "${DB_ENABLED:-true}"
   dc = "eqdc10"
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             f.flush()
 
@@ -298,7 +259,7 @@ enabled = "${DB_ENABLED:-true}"
         """测试不同类型的路径参数"""
         toml_content = '[test]\nkey = "value"'
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             f.flush()
 

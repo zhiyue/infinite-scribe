@@ -85,10 +85,7 @@ def verify_sse_token(sse_token: str) -> str:
     """
     # Input validation
     if not sse_token or not sse_token.strip():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token is required"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is required")
 
     try:
         # Decode the SSE token

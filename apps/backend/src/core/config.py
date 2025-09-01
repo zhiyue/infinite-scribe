@@ -13,11 +13,7 @@ from .toml_loader import flatten_config, load_toml_config
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
     """从 TOML 配置文件加载设置的自定义源"""
 
-    def __init__(
-        self,
-        settings_cls: type[BaseSettings],
-        config_path: Path = Path("config.toml")
-    ):
+    def __init__(self, settings_cls: type[BaseSettings], config_path: Path = Path("config.toml")):
         super().__init__(settings_cls)
         self.config_path = config_path
 
@@ -36,9 +32,7 @@ class TomlConfigSettingsSource(PydanticBaseSettingsSource):
             print(f"加载 TOML 配置失败: {e}")
             return {}
 
-    def get_field_value(
-        self, field: Any, field_name: str
-    ) -> tuple[Any, str, bool]:
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
         """获取字段值"""
         file_content = self._read_file(self.config_path)
         field_value = file_content.get(field_name)
@@ -141,8 +135,7 @@ class DatabaseSettings(BaseModel):
 
     # Redis SSE Settings
     redis_sse_stream_maxlen: int = Field(
-        default=1000,
-        description="Maximum length for Redis SSE event streams (XADD maxlen parameter)"
+        default=1000, description="Maximum length for Redis SSE event streams (XADD maxlen parameter)"
     )
 
     @property

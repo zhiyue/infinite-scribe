@@ -230,9 +230,7 @@ class TestAuthRegisterEndpoints:
         request = ResendVerificationRequest(email="test@example.com")
 
         with patch("src.api.routes.v1.auth_register.user_service") as mock_user_service:
-            mock_user_service.resend_verification_email = AsyncMock(
-                side_effect=Exception("Email service error")
-            )
+            mock_user_service.resend_verification_email = AsyncMock(side_effect=Exception("Email service error"))
 
             with pytest.raises(HTTPException) as exc_info:
                 await resend_verification_email(request, mock_background_tasks, mock_db)

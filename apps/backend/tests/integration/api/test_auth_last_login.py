@@ -23,7 +23,8 @@ class TestAuthLastLogin:
         """测试成功登录时 last_login_at 在数据库中被更新。"""
         # 创建并验证测试用户
         register_data = await create_and_verify_test_user_with_registration(
-            postgres_async_client, postgres_test_session,
+            postgres_async_client,
+            postgres_test_session,
             username="lastloginuser",
             email="lastlogin@example.com",
             password="SecurePass123!",
@@ -89,7 +90,8 @@ class TestAuthLastLogin:
         """测试登录失败时不更新 last_login_at。"""
         # 创建并验证测试用户
         register_data = await create_and_verify_test_user_with_registration(
-            postgres_async_client, postgres_test_session,
+            postgres_async_client,
+            postgres_test_session,
             username="failedloginuser",
             email="failedlogin@example.com",
             password="SecurePass123!",
