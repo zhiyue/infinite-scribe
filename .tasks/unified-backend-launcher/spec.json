@@ -135,5 +135,27 @@
       "description": "目录与骨架 - 创建launcher模块的目录结构与骨架文件",
       "estimated_hours": 1.5
     }
+  },
+  "test_scenarios": {
+    "generated": true,
+    "approved": true,
+    "generated_at": "2025-09-01T23:05:00Z",
+    "tasks": {
+      "1": {
+        "file": "task-plans/task-1-test-scenarios.md",
+        "count": 15,
+        "approved": true
+      }
+    }
+  },
+  "test_details": {
+    "1": {
+      "generated": true,
+      "approved": true,
+      "generated_at": "2025-09-01T23:10:00Z",
+      "sut_class": "launcher module structure",
+      "core_methods": ["main", "orchestrate_startup", "orchestrate_shutdown", "check_health", "start", "stop", "load"],
+      "test_classes": 7
+    }
   }
 }
