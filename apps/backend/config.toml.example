@@ -108,3 +108,37 @@ api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
 [logging]
 level = "${LOG_LEVEL:-INFO}"
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# ----------------------------------------
+# Launcher (统一后端启动器) 配置示例
+# 说明：
+# - P1 仅聚焦 API + Agents；不直接编排外部基础设施（Kafka/Postgres/Redis/Neo4j/MinIO/Prefect），
+#   由 `pnpm infra` 负责。启动器仅进行就绪性检测与提示。
+# - 管理端点（如 /admin/launcher/status）建议仅在开发环境启用；生产需鉴权并仅绑定 127.0.0.1。
+# ----------------------------------------
+
+[launcher]
+# 运行模式：single|multi（P3 可选 auto）
+default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
+# 启动组件：可选 api、agents（逗号分隔数组）
+components = ["api", "agents"]
+# 健康检查间隔（秒）：默认 1Hz
+health_interval = 1.0
+
+[launcher.api]
+# API Gateway 启动参数（开发环境可开启 reload）
+host = "${LAUNCHER__API__HOST:-0.0.0.0}"
+port = "${LAUNCHER__API__PORT:-8000}"
+reload = true
+
+[launcher.agents]
+# 启动的 agents 列表；留空表示使用内置可用列表
+# names = ["worldsmith", "plotmaster"]
+
+# 可选：容量与并发（按需启用）
+# [launcher.capacity]
+# max_memory_mb = 2048
+# max_cpu_percent = 80
+# [launcher.capacity.concurrency]
+# max_concurrent_startups = 5
+# max_concurrent_health_checks = 10
