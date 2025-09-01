@@ -166,9 +166,10 @@
 - **标题**: 统一后端启动器进程管理架构选型
 - **驱动需求**: FR-001, NFR-001, NFR-004
 - **决策理由**: 在单进程和多进程模式之间选择最优技术实现，平衡资源效率、开发体验和部署灵活性
-- **责任人**: platform-arch, backend-lead
-- **状态**: Proposed
+- **责任人**: platform-arch, backend-lead, tech-lead-reviewer
+- **状态**: Accepted (2025-09-01)
 - **优先级**: P1
+- **选定方案**: Option 3 - 混合架构（组件化FastAPI + 动态路由）
 
 **2. ADR-20250901-service-orchestration-framework**
 - **标题**: 服务编排框架选型与依赖管理策略

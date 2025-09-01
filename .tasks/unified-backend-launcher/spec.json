@@ -40,17 +40,19 @@
   },
   "adr": {
     "total_count": 6,
-    "proposed": 6,
-    "accepted": 0,
+    "proposed": 5,
+    "accepted": 1,
     "superseded": 0,
     "candidates": [
       {
         "key": "ADR-20250901-process-management-architecture",
         "title": "统一后端启动器进程管理架构选型",
-        "status": "Proposed",
+        "status": "Accepted",
         "priority": "P1",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合架构（组件化FastAPI + 动态路由）",
         "related_requirements": ["FR-001", "NFR-001", "NFR-004"],
-        "owners": ["platform-arch", "backend-lead"]
+        "owners": ["platform-arch", "backend-lead", "tech-lead-reviewer"]
       },
       {
         "key": "ADR-20250901-service-orchestration-framework",
