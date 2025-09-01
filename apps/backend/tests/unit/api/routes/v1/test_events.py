@@ -94,7 +94,7 @@ class TestSSEHealthEndpoint:
     @patch("src.api.routes.v1.events.get_sse_connection_manager")
     @patch("src.api.routes.v1.events.get_redis_sse_service")
     async def test_health_endpoint_degraded_redis(self, mock_get_redis_sse, mock_get_connection_manager, client):
-        """Test health endpoint returns degraded state when Redis is unhealthy."""
+        """Test health endpoint returns unhealthy state when Redis is unhealthy."""
         # Arrange
         mock_connection_manager = Mock(spec=SSEConnectionManager)
         mock_connection_manager.get_connection_count = AsyncMock(
@@ -112,7 +112,7 @@ class TestSSEHealthEndpoint:
         # Assert
         assert response.status_code == 503
         data = response.json()
-        assert data["status"] == "degraded"
+        assert data["status"] == "unhealthy"
         assert data["redis_status"] == "unhealthy"
         assert data["service"] == "sse"
         assert data["connection_statistics"]["active_connections"] == 2
@@ -140,7 +140,7 @@ class TestSSEHealthEndpoint:
         # Assert
         assert response.status_code == 503  # Service unavailable when Redis client not available
         data = response.json()
-        assert data["status"] == "degraded"  # Degraded when Redis not available
+        assert data["status"] == "unhealthy"  # Unhealthy when Redis not available
         assert data["redis_status"] == "unhealthy"
         assert data["connection_statistics"]["active_connections"] == 0
 
@@ -214,7 +214,7 @@ class TestSSEHealthEndpoint:
         # Assert
         assert response.status_code == 503
         data = response.json()
-        assert data["status"] == "degraded"  # Should be degraded due to Redis timeout
+        assert data["status"] == "unhealthy"  # Should be unhealthy due to Redis timeout
         assert data["redis_status"] == "unhealthy"
         assert data["connection_statistics"]["active_connections"] == 3
 
