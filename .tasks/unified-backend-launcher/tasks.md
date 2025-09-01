@@ -18,7 +18,7 @@
   - 复用现有 TOML 加载器与 pydantic-settings 的多层合并与环境变量覆盖
   - 关联: FR-006, NFR-004
 
-- [ ] 4. CLI（最小集）
+- [x] 4. CLI（最小集）
   - `is-launcher up --mode [single|multi] --components api,agents --agents <list> --reload`
   - `is-launcher down [--grace 10]`
   - `is-launcher status [--watch]`
