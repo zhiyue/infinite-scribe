@@ -135,6 +135,11 @@ reload = true
 # 启动的 agents 列表；留空表示使用内置可用列表
 # names = ["worldsmith", "plotmaster"]
 
+# 环境变量覆盖（数组）：建议使用 JSON 字符串表示，Pydantic 会自动解析
+# 例如：
+#   LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
+# 也可以在 .env 中设置同名键，效果等同。
+
 # 可选：容量与并发（按需启用）
 # [launcher.capacity]
 # max_memory_mb = 2048

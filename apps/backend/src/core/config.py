@@ -173,11 +173,13 @@ class Settings(BaseSettings):
 
     环境变量命名规则：
     - 顶层配置：直接使用变量名（如 NODE_ENV, API_PORT）
-    - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST）
+    - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST, LAUNCHER__DEFAULT_MODE）
 
     配置文件位置：
-    - TOML 配置：apps/backend/config.toml
-    - 环境变量：apps/backend/.env
+    - TOML 配置：默认从运行目录读取 `config.toml`。在本项目中，后端服务以 `apps/backend` 为工作目录运行，
+      因此建议将实际配置文件放置在 `apps/backend/config.toml`（不纳入版本控制）。
+    - 模板文件：`apps/backend/config.toml.example`，可复制为 `config.toml` 并按需修改。
+    - 环境变量：`apps/backend/.env`（开发环境）
     """
 
     # Service identification

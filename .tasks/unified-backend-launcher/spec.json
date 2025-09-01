@@ -146,12 +146,17 @@
   "test_scenarios": {
     "generated": true,
     "approved": true,
-    "generated_at": "2025-09-01T23:05:00Z",
+    "generated_at": "2025-09-01T23:30:00Z",
     "tasks": {
       "1": {
         "file": "task-plans/task-1-test-scenarios.md",
         "count": 15,
         "approved": true
+      },
+      "3": {
+        "file": "task-plans/task-3-test-scenarios.md",
+        "count": 30,
+        "approved": false
       }
     }
   },
@@ -163,6 +168,14 @@
       "sut_class": "launcher module structure",
       "core_methods": ["main", "orchestrate_startup", "orchestrate_shutdown", "check_health", "start", "stop", "load"],
       "test_classes": 7
+    },
+    "3": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-01T23:35:00Z",
+      "sut_class": "LauncherConfigModel",
+      "core_methods": ["__init__", "model_validate", "model_dump", "validate_agent_names", "validate_components"],
+      "test_classes": 6
     }
   }
 }

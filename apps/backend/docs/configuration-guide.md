@@ -74,6 +74,21 @@ name = "${SERVICE_NAME:-my-service}"
 - `DATABASE__POSTGRES_HOST`
 - `DATABASE__REDIS_PASSWORD`
 
+### Launcher 配置（统一后端启动器）
+Launcher 为 `Settings` 中的嵌套配置（键名 `launcher`）。常用环境变量：
+
+```bash
+LAUNCHER__DEFAULT_MODE=single            # single|multi（预留 auto）
+LAUNCHER__COMPONENTS='["api","agents"]' # 列表字段建议使用 JSON 字符串
+LAUNCHER__HEALTH_INTERVAL=1.0
+LAUNCHER__API__HOST=0.0.0.0
+LAUNCHER__API__PORT=8000
+LAUNCHER__API__RELOAD=true
+LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
+```
+
+更多细节（字段说明、示例与注意事项）参见：`apps/backend/docs/launcher-configuration.md`。
+
 ## 配置示例
 
 ### 1. 开发环境
