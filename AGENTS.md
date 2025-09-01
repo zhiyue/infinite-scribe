@@ -28,6 +28,64 @@
 - Frontend: vitest for unit; Playwright for E2E (`apps/frontend/e2e/**`). Mock network where possible; add integration tests for API flows.
 - Add tests for new features and bug fixes; no hard coverage gate, but keep critical paths covered.
 
+### 测试超时（Timeout）
+
+- 目的：避免测试进入死循环或长时间挂起，尽快暴露问题并防止潜在内存泄露。
+- 推荐阈值：
+  - 单元测试：5–10 秒
+  - 集成测试：30–60 秒
+  - 全量测试：60–120 秒（视用例数量而定）
+
+- Backend（pytest）：
+  - 本地快速包裹进程（无需额外依赖）：
+    ```bash
+    # 单元测试（快速）
+    timeout 10 uv run pytest tests/unit/ -v
+    # 全量 + 覆盖率
+    timeout 120 uv run pytest tests/ -v --cov=src --cov-report=html
+    ```
+  - 可选：使用 `pytest-timeout` 插件（更精细的用例级超时控制）：
+    ```bash
+    # 安装（开发依赖）
+    uv add --group dev pytest-timeout
+    # 运行时指定
+    uv run pytest tests/ -v --timeout=60 --timeout-method=thread
+    # 或在 pyproject.toml 中通过 addopts 统一配置（仅文档建议，需手动添加）：
+    # [tool.pytest.ini_options]
+    # addopts = "--timeout=60 --timeout-method=thread"
+    ```
+
+- Frontend（Vitest）：
+  - 临时通过 CLI 指定：
+    ```bash
+    pnpm --filter @infinitescribe/frontend test -- --testTimeout=5000
+    ```
+  - 或在 `apps/frontend/vitest.config.ts` 的 `test` 配置中设置：
+    ```ts
+    export default defineConfig({
+      test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './src/test/setup.ts',
+        testTimeout: 5000,
+      },
+    })
+    ```
+
+- E2E（Playwright）：
+  - 已在 `apps/frontend/playwright.config.ts` 配置了用例级 `timeout`；如需加强，建议在 CI 使用 `--global-timeout` 限制整套测试总时长：
+    ```bash
+    pnpm --filter @infinitescribe/frontend test:e2e -- --timeout=60000 --global-timeout=300000
+    ```
+
+- CI 建议：
+  - 在 CI 任务层面增加全局超时（Job 超时时长）以兜底。
+  - 对于统一脚本（如 `pnpm test all`、`pnpm backend test`、`pnpm frontend test`），可在外层使用系统 `timeout` 包裹以限制整体运行时长：
+    ```bash
+    timeout 120 pnpm backend test
+    timeout 120 pnpm frontend test
+    ```
+
 ## Commit & Pull Request Guidelines
 
 - Commits follow Conventional Commits (seen in history): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Example: `feat(auth): add password reset flow`.

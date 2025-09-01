@@ -62,6 +62,7 @@ dev = [
     "pre-commit~=4.0.1",
     "types-python-jose>=3.5.0.20250531",
     "pyright>=1.1.404",
+    "pytest-timeout>=2.4.0",
 ]
 
 [build-system]
@@ -148,6 +149,7 @@ pythonpath = [
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = "--timeout=60 --timeout-method=thread"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",

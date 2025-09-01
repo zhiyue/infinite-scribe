@@ -104,21 +104,37 @@ make backend-lint && make backend-format && make backend-typecheck
 ### Testing
 
 ```bash
-# Unit tests only (fast)
-uv run pytest tests/unit/ -v
+# Unit tests only (fast) - with timeout to prevent hanging
+timeout 5 uv run pytest tests/unit/ -v
 
-# Integration tests (requires Docker services)
-uv run pytest tests/integration/ -v
+# Integration tests (requires Docker services) - with longer timeout
+timeout 30 uv run pytest tests/integration/ -v
 
-# All tests
-uv run pytest tests/ -v
+# All tests - with comprehensive timeout
+timeout 60 uv run pytest tests/ -v
 
-# Coverage report
-uv run pytest tests/ --cov=src --cov-report=html
+# Coverage report - with timeout
+timeout 60 uv run pytest tests/ --cov=src --cov-report=html
 
-# Test specific module
-uv run pytest tests/unit/services/test_user_service.py -v
+# Test specific module - with timeout
+timeout 10 uv run pytest tests/unit/services/test_user_service.py -v
+
+# Alternative: Using pytest timeout plugin (install with: uv add pytest-timeout)
+uv run pytest tests/ -v --timeout=300 --timeout-method=thread
 ```
+
+**Important**: Always use timeouts when running tests to:
+- Prevent infinite loops in test code
+- Avoid long-hanging tests that mask real issues
+- Prevent memory leaks from stuck processes
+- Enable faster feedback during development
+- Ensure CI/CD pipelines don't hang indefinitely
+
+**Timeout Guidelines**:
+- Unit tests: 5-10 seconds (should be very fast)
+- Integration tests: 30-60 seconds (involve database/external services)
+- Full test suite: 60-120 seconds (depending on test count)
+- Individual test modules: 10-30 seconds (based on complexity)
 
 ### Database Management
 
