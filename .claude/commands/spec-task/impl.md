@@ -66,8 +66,16 @@ argument-hint: <feature-name> <task-numbers>
 - 若存在 `.tasks/<功能名称>/task-plans/` 目录：
   - 当指定了任务编号 `<id>`：优先尝试加载 `.tasks/<功能名称>/task-plans/task-<id>-test-scenarios.md`
   - 若任务级文件不存在，则回退加载 `.tasks/<功能名称>/task-plans/test-scenarios.md`
-  - 加载到的“测试场景”用于 RED 阶段直接转化为测试用例（名称、测试数据、预期结果），以减少歧义并统一断言口径
+  - 加载到的"测试场景"用于 RED 阶段直接转化为测试用例（名称、测试数据、预期结果），以减少歧义并统一断言口径
   - 测试场景由可选命令 `/spec-task:impl-test-scenario` 生成
+
+【可选：测试细节支持】
+
+- 若存在 `.tasks/<功能名称>/task-plans/test-details-<任务编号>.md`：
+  - 提供被测对象（SUT）的技术规格
+  - 明确构造函数依赖、方法签名、返回类型
+  - 定义Mock策略和断言模式
+  - 测试细节由可选命令 `/spec-task:impl-test-detail` 生成
 
 **任务级详细规划**：
 - 若存在 `.tasks/<功能名称>/task-plans/<任务编号>.md` 且在 `spec.json` 中 `task_plans.<任务编号>.approved=true`：
@@ -96,13 +104,18 @@ argument-hint: <feature-name> <task-numbers>
    - 低层设计：`.tasks/<功能名称>/design-lld.md`
    - 所有任务：`.tasks/<功能名称>/tasks.md`
    - 任务计划（如果存在）：`.tasks/<功能名称>/task-plans/<任务编号>.md`
+   - 测试细节（如果存在）：`.tasks/<功能名称>/task-plans/test-details-<任务编号>.md`
 
 2. **针对每个特定任务的TDD实施**：
    - **优先使用测试场景（若存在）**：
      - 从 `task-plans/task-<id>-test-scenarios.md` 或 `task-plans/test-scenarios.md` 提取场景条目
-     - 将每个场景转化为一个独立的测试用例（RED），使用场景中的“测试数据”和“预期结果”作为断言依据
+     - 将每个场景转化为一个独立的测试用例（RED），使用场景中的"测试数据"和"预期结果"作为断言依据
+   - **应用测试细节（若存在）**：
+     - 从 `test-details-<id>.md` 获取 SUT 类名、构造函数依赖、方法签名
+     - 使用定义的 Mock 策略和断言模式
+     - 按照测试实现模板结构编写测试代码
    - **库文档查询（必需）**：在开始实施前，使用 context7 获取任务中涉及库的最新接口、方法签名和调用示例（若 impl-plan 已批准且 references 可用则优先引用）
-   - **红灯（RED）**：首先编写失败的测试
+   - **红灯（RED）**：首先编写失败的测试，结合测试场景数据和测试细节规格
    - **绿灯（GREEN）**：编写最少的代码使测试通过，使用从 context7 获取的准确接口
    - **重构（REFACTOR）**：清理和改进代码结构，遵循库的最佳实践
 

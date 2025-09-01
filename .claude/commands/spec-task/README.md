@@ -344,11 +344,58 @@ adr_candidates:
 - **API Contracts**: Define input/output contracts
 - **Bug Prevention**: Catch edge cases early
 
-**Next Step**: Review scenarios → `/spec-task:impl {feature-name} {task-number}`
+**Next Step**: Review scenarios → `/spec-task:impl-test-detail {feature-name} --task {task-number}` → `/spec-task:impl {feature-name} {task-number}`
 
 ---
 
-### 9. `/spec-task:impl-task-plan <feature-name> <task-number>`
+### 9. `/spec-task:impl-test-detail <feature-name> [--task <id>]`
+
+**Purpose**: Generate test implementation details based on requirements and scenarios
+
+**What it does**:
+- Determines the System Under Test (SUT) specification
+- Defines core methods, parameters, and return types
+- Specifies dependency injection strategy
+- Creates assertion and validation patterns
+
+**Key Features**:
+- **SUT Definition**: Clear specification of tested classes
+- **Method Signatures**: Exact parameter and return types
+- **Mock Strategy**: Dependency injection patterns
+- **Assertion Templates**: Ready-to-use test code structure
+
+**Output Structure**:
+```
+.tasks/{feature-name}/task-plans/test-details-{task-number}.md
+```
+
+**Example Output**:
+```markdown
+- The tested class is `ArgumentParser`. Its constructor accepts `Map<string, ArgConfig>` as configuration;
+- `ArgumentParser`'s `parse` method returns `Map<string, any>` as result, accepts `string[] args` as parameter;
+- For validation, get values from the `Map` to verify correctness
+```
+
+**Usage Examples**:
+```bash
+# Generate test details for a task
+/spec-task:impl-test-detail user-auth --task 1.1 -y
+
+# Review the generated details
+cat .tasks/user-auth/task-plans/test-details-1.1.md
+```
+
+**When to Use**:
+- **API Design**: Define clear interface contracts
+- **Complex Logic**: Establish test boundaries
+- **Team Collaboration**: Unify testing specifications
+- **Before Refactoring**: Lock behavior specifications
+
+**Next Step**: Review details → `/spec-task:impl {feature-name} {task-number}`
+
+---
+
+### 10. `/spec-task:impl-task-plan <feature-name> <task-number>`
 
 **Purpose**: Generate detailed implementation plan for a specific task
 
@@ -395,7 +442,7 @@ adr_candidates:
 
 ---
 
-### 11. `/spec-task:status <feature-name>`
+### 12. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
@@ -411,7 +458,7 @@ adr_candidates:
 
 ---
 
-### 12. `/spec-task:impl <feature-name>`
+### 13. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -430,7 +477,7 @@ adr_candidates:
 
 ---
 
-### 13. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
+### 14. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
 
 **Purpose**: Update global architecture documentation with approved spec designs
 
@@ -634,12 +681,19 @@ Each specification maintains state in `spec.json`:
    - 生成精炼可断言的测试场景与测试数据，写入 `.tasks/{feature}/task-plans/`
    - `impl` 将在 RED 阶段优先读取这些场景并转化为测试用例
 
-11. **(Optional) Task-level planning for complex tasks**:
+11. **(Optional) Test implementation details**:
+   ```bash
+   /spec-task:impl-test-detail notification-system --task 1.1 -y
+   ```
+   - 基于场景生成测试技术细节（SUT、方法签名、断言策略）
+   - 为 TDD 实施提供明确的技术规格
+
+12. **(Optional) Task-level planning for complex tasks**:
    ```bash
    /spec-task:impl-task-plan notification-system 1.1
    ```
 
-12. **Begin implementation**:
+13. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
