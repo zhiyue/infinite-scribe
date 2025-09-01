@@ -27,6 +27,8 @@ from collections.abc import AsyncIterator
 import redis.asyncio as redis
 from redis.asyncio import Redis
 from redis.asyncio.client import PubSub
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
 
 from src.common.services.redis_service import RedisService
 from src.core.config import settings
@@ -38,6 +40,8 @@ logger = logging.getLogger(__name__)
 SSE_TIMEOUT = 30.0
 CLEANUP_TIMEOUT = 2.0
 MAX_EVENTS_QUERY = 100
+BATCH_SIZE = 50  # Batch size for historical event processing
+DEFAULT_HISTORY_LIMIT = 50  # Default limit for initial connections
 
 
 class RedisSSEService:
@@ -78,6 +82,15 @@ class RedisSSEService:
 
     async def init_pubsub_client(self) -> None:
         """Initialize dedicated Redis client for Pub/Sub operations."""
+        # Close existing connection to prevent resource leaks on re-init
+        if self._pubsub_client:
+            try:
+                await self._pubsub_client.close()
+            except Exception as e:
+                logger.warning(f"Error closing existing pubsub client: {e}")
+            finally:
+                self._pubsub_client = None
+
         self._pubsub_client = redis.from_url(
             settings.database.redis_url,
             decode_responses=True,
@@ -92,6 +105,24 @@ class RedisSSEService:
         if self._pubsub_client:
             await self._pubsub_client.close()
             self._pubsub_client = None
+
+    async def check_health(self) -> bool:
+        """
+        Check if Pub/Sub client is healthy and connected.
+
+        Returns:
+            bool: True if healthy, False otherwise
+        """
+        try:
+            if not self._pubsub_client:
+                return False
+
+            # Test actual connectivity with ping
+            await self._pubsub_client.ping()
+            return True
+        except Exception as e:
+            logger.warning(f"Redis Pub/Sub health check failed: {e}")
+            return False
 
     def _ensure_pubsub_client(self) -> None:
         """Ensure Pub/Sub client is initialized."""
@@ -152,35 +183,87 @@ class RedisSSEService:
         return stream_id
 
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
-        """Subscribe to real-time user events using pointer-based architecture."""
-        client: Redis = self._get_pubsub_client()
+        """
+        Subscribe to real-time user events with connection resilience.
 
-        channel = f"sse:user:{user_id}"
-        pubsub = client.pubsub()
-        await pubsub.subscribe(channel)
+        Features:
+        - Automatic reconnection on connection failure
+        - Exponential backoff for retries
+        - Graceful error handling
+        - Proper resource cleanup to prevent memory leaks
+        """
+        max_retries = 3
+        retry_delay = 1  # Initial delay in seconds
+        retry_count = 0
 
-        try:
-            listener = pubsub.listen()
-            while True:
+        while retry_count < max_retries:
+            pubsub = None
+            channel = f"sse:user:{user_id}"
+
+            try:
+                # Get or reconnect to Pub/Sub client
+                client: Redis = self._get_pubsub_client()
+                pubsub = client.pubsub()
+                await pubsub.subscribe(channel)
+
+                # Reset retry count on successful connection
+                retry_count = 0
+                retry_delay = 1
+
                 try:
-                    message = await asyncio.wait_for(listener.__anext__(), timeout=SSE_TIMEOUT)
-                    if message["type"] != "message":
-                        continue
+                    # Consume messages directly from the async iterator to avoid
+                    # repeatedly timing out and cancelling __anext__(), which can
+                    # accumulate pending tasks and increase memory usage.
+                    async for message in pubsub.listen():
+                        if message.get("type") != "message":
+                            continue
 
-                    event = await self._process_pointer_message(message, user_id)
-                    if event:
-                        yield event
+                        event = await self._process_pointer_message(message, user_id)
+                        if event:
+                            yield event
 
-                except TimeoutError:
-                    continue  # Allow cancellation check
-                except StopAsyncIteration:
-                    break
+                except asyncio.CancelledError:
+                    logger.debug(f"Subscription cancelled for user {user_id}")
+                    raise
 
-        except asyncio.CancelledError:
-            logger.debug(f"Subscription cancelled for user {user_id}")
-            raise
-        finally:
-            await self._safe_cleanup(pubsub, channel, user_id)
+            except RedisConnectionError as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    logger.error(f"Max retries reached for user {user_id}: {e}")
+                    raise
+
+                logger.warning(
+                    f"Pub/Sub connection error for user {user_id}, retry {retry_count}/{max_retries} in {retry_delay}s: {e}"
+                )
+
+                # Clean up the failed pubsub connection before retry
+                if pubsub:
+                    await self._safe_cleanup(pubsub, channel, user_id)
+                    pubsub = None
+
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 30)  # Exponential backoff, max 30s
+
+                # Try to reinitialize the pubsub client and continue retry loop
+                try:
+                    await self.init_pubsub_client()
+                except Exception as init_error:
+                    logger.error(f"Failed to reinitialize Pub/Sub client: {init_error}")
+                    # Don't break, let the retry loop try again with the potentially broken client
+                    # The next iteration will fail quickly and we'll retry or give up
+
+            except RedisError as e:
+                logger.error(f"Redis error in subscription for user {user_id}: {e}")
+                raise
+
+            except Exception as e:
+                logger.error(f"Unexpected error in subscription for user {user_id}: {e}")
+                raise
+
+            finally:
+                # Always clean up pubsub resources
+                if pubsub:
+                    await self._safe_cleanup(pubsub, channel, user_id)
 
     async def _process_pointer_message(self, message: dict, user_id: str) -> SSEMessage | None:
         """Process a pointer message and return the SSE event."""
@@ -203,17 +286,44 @@ class RedisSSEService:
             return None
 
     async def get_recent_events(self, user_id: str, since_id: str = "-") -> list[SSEMessage]:
-        """Retrieve historical events from Redis Streams for catch-up scenarios."""
+        """
+        Retrieve historical events from Redis Streams for catch-up scenarios.
+
+        For initial connections (since_id="-"), returns the most recent DEFAULT_HISTORY_LIMIT events.
+        For reconnections (with since_id), returns all events since the given ID using batch processing.
+        """
         stream_key = f"events:user:{user_id}"
 
         async with self.redis_service.acquire() as redis_client:
             if since_id in ("-", None):
-                items = await redis_client.xrange(stream_key, "-", "+", count=MAX_EVENTS_QUERY)
+                # Initial connection: Get most recent events using XREVRANGE
+                items = await redis_client.xrevrange(stream_key, "+", "-", count=DEFAULT_HISTORY_LIMIT)
+                # Reverse to maintain chronological order (oldest to newest)
+                items = list(reversed(items))
             else:
-                entries = await redis_client.xread({stream_key: since_id}, count=MAX_EVENTS_QUERY)
-                if not entries:
-                    return []
-                (_key, items) = entries[0]
+                # Reconnection: Get all events since since_id using batch processing
+                items = []
+                current_id = since_id
+
+                while True:
+                    batch_entries = await redis_client.xread({stream_key: current_id}, count=BATCH_SIZE)
+
+                    if not batch_entries:
+                        break
+
+                    (_key, batch_items) = batch_entries[0]
+
+                    if not batch_items:
+                        break
+
+                    items.extend(batch_items)
+
+                    # Update current_id to last processed ID for next batch
+                    current_id = batch_items[-1][0]
+
+                    # If we got fewer items than batch size, we've reached the end
+                    if len(batch_items) < BATCH_SIZE:
+                        break
 
         events = []
         for stream_id, fields in items:

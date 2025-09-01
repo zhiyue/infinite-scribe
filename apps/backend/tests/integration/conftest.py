@@ -202,7 +202,7 @@ def _stub_redis_sse_pubsub(request: pytest.FixtureRequest):
     if request.node.get_closest_marker("redis_container"):
         yield
         return
-    from src.common.services.redis_sse_service import RedisSSEService
+    from src.services.sse import RedisSSEService
 
     original_init = RedisSSEService.init_pubsub_client
 

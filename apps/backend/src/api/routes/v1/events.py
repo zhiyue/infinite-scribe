@@ -10,8 +10,8 @@ from pydantic import BaseModel
 
 from src.api.routes.v1.auth_sse_token import verify_sse_token
 from src.common.services.redis_service import redis_service
-from src.common.services.redis_sse_service import RedisSSEService
-from src.services.sse_connection_manager import SSEConnectionManager
+from src.services.sse import RedisSSEService
+from src.services.sse import SSEConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class SSEHealthResponse(BaseModel):
     version: str
 
 
-# Service instances - simple singleton pattern
+# Service instances - managed singleton pattern with cleanup
 _redis_sse_service: RedisSSEService | None = None
 _sse_connection_manager: SSEConnectionManager | None = None
 
@@ -61,6 +61,58 @@ async def get_sse_connection_manager(
     if _sse_connection_manager is None:
         _sse_connection_manager = SSEConnectionManager(redis_sse_service)
     return _sse_connection_manager
+
+
+async def cleanup_sse_services():
+    """
+    Clean up SSE services during application shutdown.
+
+    This includes:
+    - Cleaning up active connections
+    - Resetting the global connection counter to prevent drift
+    - Closing Redis SSE service
+    """
+    global _redis_sse_service, _sse_connection_manager
+
+    try:
+        # First, cleanup connection manager and reset global counter
+        if _sse_connection_manager is not None:
+            logger.info("Cleaning up SSE connection manager...")
+
+            try:
+                # Clean up any stale connections first
+                stale_count = await _sse_connection_manager.cleanup_stale_connections()
+                if stale_count > 0:
+                    logger.info(f"Cleaned up {stale_count} stale connections during shutdown")
+
+                # Reset global connection counter to prevent drift after restart
+                if _sse_connection_manager.redis_sse._pubsub_client:
+                    global_key = "global:sse_connections_count"
+                    await _sse_connection_manager.redis_sse._pubsub_client.delete(global_key)
+                    logger.info("Reset global connection counter to prevent drift")
+
+            except Exception as cleanup_error:
+                logger.error(f"Error during connection manager cleanup: {cleanup_error}")
+            finally:
+                _sse_connection_manager = None
+
+        # Then close Redis SSE service
+        if _redis_sse_service is not None:
+            logger.info("Closing Redis SSE service...")
+            try:
+                await _redis_sse_service.close()
+            except Exception as redis_error:
+                logger.error(f"Error closing Redis SSE service: {redis_error}")
+            finally:
+                _redis_sse_service = None
+
+        logger.info("SSE services cleaned up successfully")
+
+    except Exception as e:
+        logger.error(f"Unexpected error during SSE services cleanup: {e}")
+        # Ensure services are still reset even if cleanup fails
+        _redis_sse_service = None
+        _sse_connection_manager = None
 
 
 @router.get("/stream")
@@ -116,40 +168,25 @@ async def sse_health():
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        error_data = {
-            "status": "unhealthy",
-            "error": str(e),
-            "service": "sse",
-            "version": SSE_SERVICE_VERSION
-        }
+        error_data = {"status": "unhealthy", "error": str(e), "service": "sse", "version": SSE_SERVICE_VERSION}
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_data)
 
 
 async def _get_connection_stats(sse_connection_manager: SSEConnectionManager) -> dict:
     """Get connection statistics with timeout protection."""
     try:
-        return await asyncio.wait_for(
-            sse_connection_manager.get_connection_count(),
-            timeout=HEALTH_CHECK_TIMEOUT
-        )
+        return await asyncio.wait_for(sse_connection_manager.get_connection_count(), timeout=HEALTH_CHECK_TIMEOUT)
     except (TimeoutError, Exception) as e:
         logger.warning(f"Failed to get connection statistics: {e}")
         return {"active_connections": -1, "redis_connection_counters": -1}
 
 
 async def _check_redis_health(redis_sse_service: RedisSSEService) -> bool:
-    """Check Redis connectivity with timeout protection."""
+    """Check Redis connectivity with timeout protection using public method."""
     try:
-        if not hasattr(redis_sse_service, '_pubsub_client') or not redis_sse_service._pubsub_client:
-            return False
-        
-        # Test actual connectivity with ping
-        await asyncio.wait_for(
-            redis_sse_service._pubsub_client.ping(),
-            timeout=HEALTH_CHECK_TIMEOUT
-        )
-        return True
-    except (TimeoutError, ConnectionError, OSError, Exception) as e:
+        # Use public health check method instead of accessing private attributes
+        return await asyncio.wait_for(redis_sse_service.check_health(), timeout=HEALTH_CHECK_TIMEOUT)
+    except (TimeoutError, Exception) as e:
         logger.warning(f"Redis health check failed: {e}")
         return False
 

@@ -53,11 +53,18 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     try:
-        logger.info("Shutting down database connections...")
+        logger.info("Shutting down services...")
+
+        # Clean up SSE services if initialized
+        from src.api.routes.v1.events import cleanup_sse_services
+
+        await cleanup_sse_services()
+
+        # Disconnect database services
         await postgres_service.disconnect()
         await neo4j_service.disconnect()
         await redis_service.disconnect()
-        logger.info("Database connections closed successfully")
+        logger.info("All services shut down successfully")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 

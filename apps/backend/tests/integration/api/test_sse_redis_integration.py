@@ -11,9 +11,9 @@ from datetime import timedelta
 
 import pytest
 from src.common.services.redis_service import redis_service
-from src.common.services.redis_sse_service import RedisSSEService
 from src.common.utils.datetime_utils import utc_now
 from src.schemas.sse import EventScope, SSEMessage
+from src.services.sse import RedisSSEService
 
 
 @pytest.mark.redis_container

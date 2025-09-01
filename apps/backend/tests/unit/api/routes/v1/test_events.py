@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from src.api.main import app
 from src.api.routes.v1.events import ConnectionStatistics, SSEHealthResponse
-from src.common.services.redis_sse_service import RedisSSEService
-from src.services.sse_connection_manager import SSEConnectionManager
+from src.services.sse import RedisSSEService
+from src.services.sse import SSEConnectionManager
 
 
 @pytest.fixture
@@ -104,9 +104,7 @@ class TestSSEHealthEndpoint:
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
-        mock_pubsub_client = AsyncMock()
-        mock_pubsub_client.ping = AsyncMock(side_effect=Exception("Redis connection failed"))
-        mock_redis_sse_service._pubsub_client = mock_pubsub_client
+        mock_redis_sse_service.check_health = AsyncMock(return_value=False)  # Redis unhealthy
         mock_get_redis_sse.return_value = mock_redis_sse_service
 
         # Act
@@ -134,7 +132,7 @@ class TestSSEHealthEndpoint:
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
-        mock_redis_sse_service._pubsub_client = None  # No client initialized
+        mock_redis_sse_service.check_health = AsyncMock(return_value=False)  # Redis unhealthy (no client)
         mock_get_redis_sse.return_value = mock_redis_sse_service
 
         # Act
@@ -208,9 +206,7 @@ class TestSSEHealthEndpoint:
         mock_get_connection_manager.return_value = mock_connection_manager
 
         mock_redis_sse_service = Mock(spec=RedisSSEService)
-        mock_pubsub_client = AsyncMock()
-        mock_pubsub_client.ping = AsyncMock(side_effect=TimeoutError())
-        mock_redis_sse_service._pubsub_client = mock_pubsub_client
+        mock_redis_sse_service.check_health = AsyncMock(return_value=False)  # Redis unhealthy (timeout)
         mock_get_redis_sse.return_value = mock_redis_sse_service
 
         # Act

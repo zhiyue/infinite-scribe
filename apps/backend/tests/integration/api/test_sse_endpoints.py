@@ -185,7 +185,7 @@ class TestSSEErrorHandling:
         assert "Token is required" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch("src.common.services.redis_sse_service.RedisSSEService.init_pubsub_client")
+    @patch("src.services.sse.redis_client.RedisSSEService.init_pubsub_client")
     async def test_health_handles_redis_connection_errors(self, mock_init_pubsub, postgres_async_client):
         """Health endpoint should handle Redis connection errors gracefully."""
         # Mock Redis connection failure
