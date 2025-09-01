@@ -178,6 +178,63 @@ sequenceDiagram
     Note right of Kafka: 根据策略，失败消息可同时进入 DLQ（domain-events.dlq）
 ```
 
+### 2.2 异常路径：评审失败/部分通过 → 修订分支（简图）
+
+当评审（文学/事实）未通过或仅部分通过时，进入修订循环；超过上限后执行升级策略。
+
+```mermaid
+sequenceDiagram
+    participant Prefect as 编排器
+    participant Kafka as 事件总线
+    participant CR_Agent as 评论家Agent
+    participant FC_Agent as 事实核查员Agent
+    participant WR_Agent as 作家Agent
+    participant DIR_Agent as 导演Agent
+    participant PG_DB as PostgreSQL
+
+    %% ======================= 阶段一: 评审结果汇聚 =======================
+    Kafka-->>Prefect: 收到 Chapter.CritiqueCompleted
+    Kafka-->>Prefect: 收到 FactCheckCompleted
+    Prefect->>Prefect: (决策) 评审未通过/部分通过
+
+    %% ======================= 阶段二: 发起修订请求 =======================
+    Prefect->>+Kafka: 发布 Chapter.RewriteRequested（附改进建议/差异）
+    Kafka-->>WR_Agent: 消费 RewriteRequested
+    WR_Agent->>WR_Agent: 执行修订...
+    WR_Agent->>+Kafka: 发布 Chapter.DraftRevised
+
+    %% ======================= 阶段三: 复审循环（至多 N 轮） =======================
+    loop 复审循环（最多 N 轮）
+        Kafka-->>CR_Agent: 消费 DraftRevised（触发复评）
+        CR_Agent->>+Kafka: 发布 Chapter.CritiqueCompleted（复评）
+        Kafka-->>FC_Agent: 消费 DraftRevised（触发复核）
+        FC_Agent->>+Kafka: 发布 FactCheckCompleted（复核）
+        Kafka-->>Prefect: 收到复评/复核结果
+        Prefect->>Prefect: (决策) 若仍未满足通过门槛 -> 下一轮；否则通过
+    end
+
+    alt 达到最大修订轮次仍未通过
+        %% ======================= 阶段四: 升级策略或终止 =======================
+        Prefect->>+Kafka: 发布 Chapter.ReviewEscalationRequested（升级处理）
+        Kafka-->>DIR_Agent: 导演介入裁决/重组任务链
+        DIR_Agent->>+Kafka: 发布 Chapter.ReviewDecisionMade（接受/再修订/终止）
+        Kafka-->>Prefect: Prefect 消费裁决结果
+        Prefect->>PG_DB: 更新章节/任务状态（ACCEPTED/ABANDONED/PENDING_REWRITE）
+    else 通过
+        %% ======================= 阶段五: 通过后合入发布 =======================
+        Prefect->>PG_DB: 更新章节状态为 'PUBLISHED'（或进入下一编排阶段）
+    end
+```
+
+### 2.3 默认策略参数建议（指导性）
+
+- 最大修订轮次: 2–3 轮（`max_revision_rounds`）。
+- 评审通过门槛: 严格通过（CR 和 FC 均通过），或配置“部分通过 + 风险标记”。
+- Agent 重试: 每个 Agent 内部失败重试 3 次（指数退避 1s/2s/4s）。
+- 评审超时: 单轮 10–15 分钟；超时视作失败并触发修订或升级。
+- 升级策略: 达到最大修订轮次或累计超时后，发布 `ReviewEscalationRequested`，由导演/人工规则裁决。
+- 数据一致性: 重要状态变更需 (IN TRANSACTION) 落库，并通过 Outbox 发布领域事件，保持因果链（correlation/causation）。
+
 ## 3. 技术实现：包含所有机制的权威时序图
 
 这张最终的、最详尽的图表展示了我们系统所有核心技术组件是如何协同工作的，特别是**事务性发件箱**和**Prefect的暂停/恢复机制**。这是对系统“如何工作”的最精确描述。
