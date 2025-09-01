@@ -126,5 +126,14 @@
     "dependencies_count": 10,
     "risks_identified": 4,
     "cached_references": 3
+  },
+  "task_plans": {
+    "1": {
+      "planned": true,
+      "approved": true,
+      "planned_at": "2025-09-01T23:00:00Z",
+      "description": "目录与骨架 - 创建launcher模块的目录结构与骨架文件",
+      "estimated_hours": 1.5
+    }
   }
 }

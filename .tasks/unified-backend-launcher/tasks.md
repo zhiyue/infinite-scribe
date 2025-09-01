@@ -1,232 +1,120 @@
-# 实施计划 - 统一后端启动器
+# 实施计划 - 统一后端启动器（对齐最新 HLD/LLD）
 
-## 基础架构设置
+分阶段落地，优先交付 P1 最小可用方案；P2 增强可观测性与健壮性；P3 进阶能力可选。
 
-- [ ] 1. 设置项目结构和核心配置
-  - 创建 `apps/backend/src/launcher/` 目录结构
-  - 设置基础 Python 包结构 (`__init__.py`, `main.py`)
-  - 创建类型定义文件 `types.py` (LaunchMode, ServiceStatus等枚举)
-  - 配置 pyproject.toml 添加启动器相关依赖
-  - _需求：所有需求都需要基础设置_
+## P1 最小可用（MVP）
 
-- [ ] 2. 实现基础配置管理系统
-  - 创建 `config_manager.py` 实现 ConfigManager 类
-  - 实现 TOML 配置文件加载和解析
-  - 实现多层配置合并逻辑（基础配置 + profile配置 + 环境变量）
-  - 创建配置验证方法和异常处理
-  - 编写配置管理器的单元测试
-  - _需求：FR-006_
+- [ ] 1. 目录与骨架
+  - 创建 `apps/backend/src/launcher/`：`__init__.py`, `cli.py`, `orchestrator.py`, `adapters/api.py`, `adapters/agents.py`, `health.py`, `types.py`, `errors.py`
+  - 在 `apps/backend/pyproject.toml` 注册 `console_scripts`: `is-launcher = src.launcher.cli:main`
+  - 关联: 支撑项（为 FR-001/002/003/004/005/006 与 NFR 全部提供基础）
 
-## 服务定义与依赖管理
+- [x] 2. 配置示例
+  - 在 `apps/backend/config.toml.example` 新增 `[launcher]` 段（mode、components、health_interval、api、agents）
+  - 关联: FR-006
 
-- [ ] 3. 创建服务定义数据模型
-  - 在 `models.py` 中定义 ServiceDefinition 数据类
-  - 定义 ServiceInstance 类处理运行时状态
-  - 创建 LauncherState 状态管理类
-  - 实现状态序列化和反序列化方法
-  - _需求：FR-001, FR-002_
+- [ ] 3. 启动器配置模型
+  - 定义 `LauncherConfigModel`（`default_mode`, `components`, `health_interval`, `api`, `agents`）
+  - 复用现有 TOML 加载器与 pydantic-settings 的多层合并与环境变量覆盖
+  - 关联: FR-006, NFR-004
 
-- [ ] 4. 实现服务依赖图管理
-  - 创建 `dependency_manager.py` 实现依赖图构建
-  - 实现拓扑排序算法计算启动顺序
-  - 添加循环依赖检测逻辑
-  - 创建依赖验证方法
-  - 编写依赖管理的单元测试
-  - _需求：FR-002_
+- [ ] 4. CLI（最小集）
+  - `is-launcher up --mode [single|multi] --components api,agents --agents <list> --reload`
+  - `is-launcher down [--grace 10]`
+  - `is-launcher status [--watch]`
+  - `is-launcher logs <component>`
+  - 关联: FR-001, FR-002, NFR-003
 
-## 核心启动器组件
+- [ ] 5. 适配器层
+  - ApiAdapter：
+    - single：同进程后台任务方式运行 uvicorn（或事件循环内启动）
+    - multi：`asyncio.create_subprocess_exec` 启动 uvicorn；实现停止（进程组/信号）与超时强杀
+  - AgentsAdapter：复用 `apps/backend/src/agents/launcher.py`（加载、start/stop、信号处理）
+  - 关联: FR-001, FR-002, FR-004, NFR-002
 
-- [ ] 5. 实现 UnifiedLauncher 主类
-  - 创建 `unified_launcher.py` 文件
-  - 实现启动器初始化和配置验证
-  - 添加单进程/多进程模式选择逻辑
-  - 实现基础的启动和停止方法框架
-  - _需求：FR-001_
+- [ ] 6. 轻量编排器
+  - 基于手写状态表与拓扑分层：按依赖启动/逆序停止，失败回滚
+  - 组件状态：`INIT/STARTING/RUNNING/DEGRADED/STOPPING/STOPPED/ERROR`
+  - 关联: FR-001, FR-002, FR-004, NFR-002
 
-- [ ] 6. 实现服务编排器状态机
-  - 创建 `service_orchestrator.py` 
-  - 使用 python-statemachine 库实现状态机
-  - 定义服务生命周期状态转换
-  - 实现状态转换回调方法
-  - 编写状态机转换的单元测试
-  - _需求：FR-002, FR-004_
+- [ ] 7. 健康监控（最小）
+  - 使用 `httpx` 实现 API 健康检查，默认 1Hz（可配 1–20Hz）
+  - 订阅通知机制；集群健康聚合（API + AgentsAdapter 内部状态）
+  - 关联: FR-003, NFR-003
 
-## 单进程模式实现
+- [ ] 8. 管理端点（开发默认启用）
+  - 在 API Gateway 新增只读端点：`GET /admin/launcher/status`、`GET /admin/launcher/health`
+  - 生产禁用或强制鉴权，并仅绑定 127.0.0.1
+  - 关联: FR-003, NFR-003
 
-- [ ] 7. 创建 FastAPI 组件管理器
-  - 创建 `component_manager.py` 实现动态组件加载
-  - 实现 FastAPI 路由注册和冲突检测
-  - 添加组件生命周期管理（startup/shutdown）
-  - 实现组件隔离和错误边界
-  - _需求：FR-001_
+- [ ] 9. 信号与跨平台停止
+  - POSIX：以新进程组启动；`SIGTERM` → 超时 `SIGKILL`
+  - Windows：`CREATE_NEW_PROCESS_GROUP` + `CTRL_BREAK_EVENT`
+  - 关联: FR-004, NFR-002, NFR-004
 
-- [ ] 8. 实现单进程服务启动逻辑
-  - 在 UnifiedLauncher 中实现单进程启动流程
-  - 集成 ComponentManager 进行组件加载
-  - 实现共享 FastAPI 实例管理
-  - 添加端口分配和路由前缀管理
-  - 编写单进程模式的集成测试
-  - _需求：FR-001_
+- [ ] 10. 结构化日志
+  - 统一使用 `structlog`，字段：component、mode、state、elapsed_ms、attempt、error_type
+  - 关联: NFR-005
 
-## 多进程模式实现
+- [ ] 11. 单元与集成测试
+  - 单元：CLI 解析、ApiAdapter/AgentsAdapter、Orchestrator、HealthMonitor
+  - 集成：依赖已就绪下 `up`→`/health` 200→`down`（single 与 multi 各一条）
+  - 关联: NFR-005, NFR-002
 
-- [ ] 9. 实现进程池管理器
-  - 创建 `process_manager.py` 实现进程池管理
-  - 使用 multiprocessing 或 subprocess 管理子进程
-  - 实现进程监控和重启机制
-  - 添加进程间通信机制
-  - _需求：FR-001_
+## P2 支撑完善（可观测性/健壮性）
 
-- [ ] 10. 实现多进程服务启动逻辑
-  - 在 UnifiedLauncher 中实现多进程启动流程
-  - 实现端口范围分配（8000-8010）
-  - 添加进程隔离和故障恢复
-  - 编写多进程模式的集成测试
-  - _需求：FR-001_
+- [ ] 12. 依赖与重试
+  - 失败重试（指数退避+抖动）与回滚增强；`DependencyNotReadyError` 等异常分类
+  - 关联: FR-002, NFR-002
 
-## 健康监控系统
+- [ ] 13. 指标采集（可选）
+  - Prometheus 指标（launcher_state、service_state_count、startup_duration 等）
+  - 通过 API Gateway 暴露 `/metrics`（不单独起指标端口）
+  - 关联: FR-003, NFR-003
 
-- [ ] 11. 实现健康监控器基础功能
-  - 创建 `health_monitor.py` 实现 HealthMonitor 类
-  - 实现 HTTP 健康检查接口调用
-  - 添加健康状态缓存机制
-  - 实现异步并发健康检查
-  - _需求：FR-003_
+- [ ] 14. 配置能力增强
+  - `[launcher]` 容量/并发可选项（TOML）；健康检查频率可配
+  - 关联: FR-006, NFR-004
 
-- [ ] 12. 实现混合监控模式
-  - 添加推模式主动健康检查循环
-  - 实现拉模式 REST API 接口 (/status)
-  - 添加健康状态变化订阅机制
-  - 集成 Redis 存储健康状态历史
-  - 编写健康监控的单元测试
-  - _需求：FR-003, NFR-002_
+- [ ] 15. 开发体验
+  - watchdog 热重载（开发）；更丰富的 `status --watch` 输出
+  - 关联: FR-005
 
-## 优雅停止管理
+## P3 进阶能力（可选）
 
-- [ ] 13. 实现优雅停止机制
-  - 在 UnifiedLauncher 中实现优雅停止流程
-  - 添加 SIGINT/SIGTERM 信号处理
-  - 实现超时控制和强制终止逻辑
-  - 添加停止进度显示和状态更新
-  - _需求：FR-004_
+- [ ] 16. 模式推荐器（AUTO）
+  - 基于核数/内存/容器/CI 环境进行模式推荐
+  - 关联: FR-007
 
-- [ ] 14. 实现服务级别停止控制
-  - 添加单个服务停止功能
-  - 实现停止顺序管理（反向依赖）
-  - 添加请求完成等待机制
-  - 编写优雅停止的集成测试
-  - _需求：FR-004_
+- [ ] 17. 插件化适配器
+  - 可插拔服务适配器（entry points/配置注册）
+  - 关联: FR-001, FR-002
 
-## CLI 接口实现
+- [ ] 18. 编排平台与追踪
+  - K8s 探针/生命周期对齐；Jaeger 追踪集成
+  - 关联: FR-003, NFR-004
 
-- [ ] 15. 创建命令行接口
-  - 创建 `cli.py` 使用 argparse 实现命令解析
-  - 添加启动命令和参数（--services, --profile等）
-  - 实现停止和重启命令
-  - 添加状态查询命令
-  - _需求：FR-007_
+## 验收与 NFR 校验
 
-- [ ] 16. 实现交互式模式选择
-  - 添加运行模式选择菜单
-  - 实现智能模式推荐逻辑
-  - 添加环境检测（开发/生产）
-  - 实现 10 秒超时自动选择
-  - _需求：FR-001, FR-007_
+- [ ] A1. 启动性能
+  - 依赖就绪前提下，服务启动 P95 < 25s（记录“依赖就绪时间”与“应用启动时间”）
+  - 关联: NFR-001
 
-## 开发模式增强
+- [ ] A2. 健康与停止
+  - 健康检查 1Hz（可配），优雅停止成功率 > 99.5%
+  - 关联: NFR-002
 
-- [ ] 17. 实现热重载机制
-  - 创建 `dev_mode_manager.py` 实现文件监控
-  - 使用 watchdog 库监控 .py 文件变更
-  - 实现服务选择性重启逻辑
-  - 保持数据状态和连接池
-  - _需求：FR-005_
+- [ ] A3. 可观测性（P2/可选）
+  - 结构化日志覆盖核心路径；指标可通过 `/metrics` 暴露
+  - 关联: NFR-003, NFR-005
 
-- [ ] 18. 添加调试支持
-  - 实现 DEBUG 级别日志输出
-  - 添加执行时间统计和显示
-  - 暴露调试端口 5678
-  - 支持 VS Code/PyCharm 远程调试
-  - _需求：FR-005_
+## 文档
 
-## 配置模板系统
+- [ ] D1. 使用说明与故障排查
+  - CLI 使用示例、配置说明（[launcher]）、常见问题
+  - 开发/测试/本地一体化启动手册
+  - 关联: NFR-005
 
-- [ ] 19. 实现配置模板功能
-  - 创建 `template_engine.py` 实现模板处理
-  - 支持 YAML 模板格式解析
-  - 实现模板变量替换逻辑
-  - 添加模板保存和加载功能
-  - _需求：FR-006_
-
-- [ ] 20. 实现预定义配置集
-  - 创建 minimal/full/debug 预定义配置
-  - 实现 --profile 参数处理
-  - 添加配置验证和服务名称检查
-  - 编写配置模板的单元测试
-  - _需求：FR-002, FR-006_
-
-## 异常处理与重试
-
-- [ ] 21. 实现异常处理框架
-  - 创建 `exceptions.py` 定义自定义异常类
-  - 实现错误码系统（1xxx配置, 2xxx服务等）
-  - 添加详细错误信息和解决方案
-  - 创建异常处理装饰器
-  - _需求：NFR-002_
-
-- [ ] 22. 实现重试和熔断机制
-  - 创建 `retry_manager.py` 实现重试策略
-  - 实现指数退避算法
-  - 添加电路熔断器模式
-  - 编写重试机制的单元测试
-  - _需求：NFR-002_
-
-## 回滚与恢复
-
-- [ ] 23. 实现回滚管理器
-  - 创建 `rollback_manager.py` 实现回滚栈
-  - 添加服务启动失败回滚逻辑
-  - 实现配置版本备份和恢复
-  - 添加状态清理和恢复机制
-  - _需求：NFR-002_
-
-## 监控与可观测性
-
-- [ ] 24. 实现结构化日志系统
-  - 配置 JSON 格式日志输出
-  - 添加日志等级管理
-  - 实现敏感信息脱敏
-  - 集成到所有核心组件
-  - _需求：NFR-005_
-
-- [ ] 25. 添加性能指标收集
-  - 实现启动时间统计
-  - 添加资源使用监控
-  - 创建 Prometheus metrics 导出接口
-  - 编写性能基准测试
-  - _需求：NFR-001, NFR-003_
-
-## 集成测试
-
-- [ ] 26. 创建端到端测试套件
-  - 编写完整启动流程测试
-  - 测试服务依赖管理
-  - 测试优雅停止流程
-  - 测试故障恢复机制
-  - _需求：所有需求都需要端到端验证_
-
-- [ ] 27. 实现性能和压力测试
-  - 测试启动时间性能（P95 < 25秒）
-  - 测试资源使用优化（内存减少35%）
-  - 测试并发健康检查性能
-  - 验证所有 NFR 指标
-  - _需求：NFR-001, NFR-002, NFR-003_
-
-## 文档和示例
-
-- [ ] 28. 创建使用示例和配置模板
-  - 编写示例配置文件
-  - 创建常用场景的启动脚本
-  - 添加故障排查指南
-  - 创建 API 文档和 CLI 帮助
-  - _需求：NFR-005_
+- [ ] D2. 代码内联文档
+  - 关键模块与公共接口注释（adapters/orchestrator/cli）
+  - 关联: NFR-005
