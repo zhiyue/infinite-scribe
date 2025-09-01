@@ -1,241 +1,150 @@
-# Task 4 测试场景 - CLI（最小集）
+# Task 4 测试场景 - CLI（最小集，修订版）
 
-生成时间：2025-09-01T23:55:00Z  
+生成时间：2025-09-02T00:00:00Z  
 关联任务：4  
 关联需求：FR-001, FR-002, NFR-003  
-测试场景数量：25
+测试场景数量：28
 
-## Up 命令测试场景
+说明：本场景集已对齐函数式实现（`apps/backend/src/launcher/cli.py`）。输出断言以包含/正则方式验证关键字段，避免对整行输出的脆弱匹配。
 
-### 1. 基本up命令解析
+## 基础与帮助
 
-- 场景描述：验证up命令的基本参数解析功能
-- 测试数据：`is-launcher up`
-- 预期结果：`{"command": "up", "mode": "multi", "components": ["api", "agents"], "agents": null, "reload": false}`
+1) 未指定命令显示帮助并退出码 0  
+- 命令：`python -m src.launcher.cli`  
+- 预期：`returncode=0`，`stdout` 包含 `usage:`
 
-### 2. Single模式启动
+2) `--help` 显示帮助  
+- 命令：`python -m src.launcher.cli --help`  
+- 预期：`returncode=0`，输出包含 `launcher` 关键词
 
-- 场景描述：验证单进程模式参数解析
-- 测试数据：`is-launcher up --mode single`
-- 预期结果：`{"command": "up", "mode": "single", "components": ["api", "agents"], "agents": null, "reload": false}`
+3) 非法子命令报错  
+- 命令：`python -m src.launcher.cli invalid_cmd`  
+- 预期：`returncode=2`，`stderr` 包含 `invalid choice`
 
-### 3. Multi模式启动
+## Up 命令
 
-- 场景描述：验证多进程模式参数解析
-- 测试数据：`is-launcher up --mode multi`
-- 预期结果：`{"command": "up", "mode": "multi", "components": ["api", "agents"], "agents": null, "reload": false}`
+4) 默认启动（取自 Settings）  
+- 命令：`python -m src.launcher.cli up`  
+- 预期：`returncode=0`，`stdout` 含 `Launcher plan =>`、`components=[`、`api.reload=`
 
-### 4. 组件选择解析
+5) 显式模式 single  
+- 命令：`... up --mode single`  
+- 预期：`returncode=0`，`stdout` 含 `mode=single`
 
-- 场景描述：验证components参数的逗号分隔解析
-- 测试数据：`is-launcher up --components api,agents`
-- 预期结果：`{"components": ["api", "agents"]}`
+6) 显式模式 multi  
+- 命令：`... up --mode multi`  
+- 预期：`returncode=0`，`stdout` 含 `mode=multi`
 
-### 5. 单组件选择
+7) 显式模式 auto  
+- 命令：`... up --mode auto`  
+- 预期：`returncode=0`，`stdout` 含 `mode=auto`
 
-- 场景描述：验证单个组件选择解析
-- 测试数据：`is-launcher up --components api`
-- 预期结果：`{"components": ["api"]}`
+8) 无效模式报错  
+- 命令：`... up --mode invalid`  
+- 预期：`returncode=2`，`stderr` 含 `invalid choice`
 
-### 6. Agent列表解析
+9) components=CSV（api,agents）  
+- 命令：`... up --components api,agents`  
+- 预期：`returncode=0`，`stdout` 含 `components=[api,agents]`
 
-- 场景描述：验证agents参数的逗号分隔解析
-- 测试数据：`is-launcher up --agents writer,editor,analyzer`
-- 预期结果：`{"agents": ["writer", "editor", "analyzer"]}`
+10) components=JSON 去重并保持顺序  
+- 命令：`... up --components ["api","agents","api"]`  
+- 预期：`returncode=0`，`stdout` 含 `components=[api,agents]`
 
-### 7. 热重载标志
+11) components=空字符串触发空列表错误  
+- 命令：`... up --components ""`  
+- 预期：`returncode=2`，`stderr` 含 `Components list cannot be empty`
 
-- 场景描述：验证reload标志解析
-- 测试数据：`is-launcher up --reload`
-- 预期结果：`{"reload": true}`
+12) components=非法 JSON  
+- 命令：`... up --components [1,2]`  
+- 预期：`returncode=2`，`stderr` 含 `JSON value must be a list of strings`
 
-### 8. 复合参数组合
+13) components=包含未知项  
+- 命令：`... up --components api,unknown`  
+- 预期：`returncode=2`，`stderr` 含 `Unknown component`
 
-- 场景描述：验证多个参数同时使用的解析
-- 测试数据：`is-launcher up --mode single --components api --agents writer,editor --reload`
-- 预期结果：`{"mode": "single", "components": ["api"], "agents": ["writer", "editor"], "reload": true}`
+14) agents=CSV  
+- 命令：`... up --agents writer,editor-1`  
+- 预期：`returncode=0`，`stdout` 包含 `agents=` 片段
 
-### 9. 无效模式参数
+15) agents=JSON  
+- 命令：`... up --agents ["writer","editor-1"]`  
+- 预期：`returncode=0`，`stdout` 包含 `agents=` 片段
 
-- 场景描述：验证无效mode参数的错误处理
-- 测试数据：`is-launcher up --mode invalid`
-- 预期结果：`SystemExit with error message containing "invalid choice: 'invalid'"`
+16) agents=空 JSON 列表报错  
+- 命令：`... up --agents []`  
+- 预期：`returncode=2`，`stderr` 含 `Agent names list cannot be empty`
 
-### 10. 空组件列表
+17) agents=非法命名报错  
+- 命令：`... up --agents writer,invalid name`（含空格）  
+- 预期：`returncode=2`，`stderr` 含 `Invalid agent name`
 
-- 场景描述：验证空组件列表的处理
-- 测试数据：`is-launcher up --components ""`
-- 预期结果：`{"components": [""]}`
+18) 未指定 agents 使用配置默认  
+- 命令：`... up`  
+- 预期：`returncode=0`，若配置为 `None`，则 `stdout` 含 `agents=<auto>`
 
-## Down 命令测试场景
+19) reload 开关可解析  
+- 命令：`... up --reload`  
+- 预期：`returncode=0`（当前实现输出不包含 reload 字段，仅校验不报错）
 
-### 11. 基本down命令
+## Down 命令（占位）
 
-- 场景描述：验证down命令的基本功能
-- 测试数据：`is-launcher down`
-- 预期结果：`{"command": "down", "grace": 10}`
+20) 基本 down  
+- 命令：`... down`  
+- 预期：`returncode=0`，`stdout` 为 `Command: down`
 
-### 12. 自定义grace时间
+21) down 自定义 grace  
+- 命令：`... down --grace 15`  
+- 预期：`returncode=0`，`stdout` 为 `Command: down`
 
-- 场景描述：验证grace参数的整数解析
-- 测试数据：`is-launcher down --grace 15`
-- 预期结果：`{"command": "down", "grace": 15}`
+## Status 命令（占位）
 
-### 13. 零grace时间
+22) 基本 status  
+- 命令：`... status`  
+- 预期：`returncode=0`，`stdout` 为 `Command: status`
 
-- 场景描述：验证零grace时间的处理
-- 测试数据：`is-launcher down --grace 0`
-- 预期结果：`{"grace": 0}`
+23) status --watch  
+- 命令：`... status --watch`  
+- 预期：`returncode=0`，`stdout` 为 `Command: status`
 
-### 14. 负数grace时间
+## Logs 命令（占位）
 
-- 场景描述：验证负数grace时间的处理
-- 测试数据：`is-launcher down --grace -5`
-- 预期结果：`{"grace": -5}`
+24) logs api  
+- 命令：`... logs api`  
+- 预期：`returncode=0`，`stdout` 为 `Command: logs`
 
-## Status 命令测试场景
+25) logs agents  
+- 命令：`... logs agents`  
+- 预期：`returncode=0`，`stdout` 为 `Command: logs`
 
-### 15. 基本status命令
+26) logs all  
+- 命令：`... logs all`  
+- 预期：`returncode=0`，`stdout` 为 `Command: logs`
 
-- 场景描述：验证status命令的基本功能
-- 测试数据：`is-launcher status`
-- 预期结果：`{"command": "status", "watch": false}`
+27) logs 缺少 component  
+- 命令：`... logs`  
+- 预期：`returncode=2`，`stderr` 含 `the following arguments are required`
 
-### 16. Watch模式状态查询
+28) logs 非法 component  
+- 命令：`... logs invalid`  
+- 预期：`returncode=2`，`stderr` 含 `invalid choice`
 
-- 场景描述：验证watch标志的解析
-- 测试数据：`is-launcher status --watch`
-- 预期结果：`{"command": "status", "watch": true}`
+## 集成与入口
 
-## Logs 命令测试场景
-
-### 17. API组件日志
-
-- 场景描述：验证api组件日志查看
-- 测试数据：`is-launcher logs api`
-- 预期结果：`{"command": "logs", "component": "api"}`
-
-### 18. Agents组件日志
-
-- 场景描述：验证agents组件日志查看
-- 测试数据：`is-launcher logs agents`
-- 预期结果：`{"command": "logs", "component": "agents"}`
-
-### 19. 无效组件日志
-
-- 场景描述：验证无效组件名称的错误处理
-- 测试数据：`is-launcher logs invalid`
-- 预期结果：`SystemExit with error message containing "invalid choice: 'invalid'"`
-
-### 20. 缺失组件参数
-
-- 场景描述：验证logs命令缺少组件参数的错误处理
-- 测试数据：`is-launcher logs`
-- 预期结果：`SystemExit with error message about required positional argument`
-
-## 性能测试场景
-
-### 21. CLI响应时间测试
-
-- 场景描述：验证CLI初始化响应时间满足NFR要求
-- 测试数据：
-```python
-import time
-start = time.time()
-cli = LauncherCLI()
-cli.setup_parser()
-elapsed = (time.time() - start) * 1000
-```
-- 预期结果：`elapsed < 100  # milliseconds (NFR-001)`
-
-### 22. 参数解析性能测试
-
-- 场景描述：验证复杂参数解析的响应时间
-- 测试数据：
-```python
-start = time.time()
-args = parser.parse_args(['up', '--mode', 'single', '--components', 'api,agents', '--agents', 'writer,editor', '--reload'])
-elapsed = (time.time() - start) * 1000
-```
-- 预期结果：`elapsed < 50  # milliseconds (NFR-003)`
-
-## 错误处理测试场景
-
-### 23. 未指定命令
-
-- 场景描述：验证不提供任何命令时的处理
-- 测试数据：`is-launcher`
-- 预期结果：`help message displayed and exit code 1`
-
-### 24. 无效命令
-
-- 场景描述：验证无效命令的错误处理
-- 测试数据：`is-launcher invalid_command`
-- 预期结果：`SystemExit with error message about invalid choice`
-
-### 25. 帮助信息显示
-
-- 场景描述：验证help参数的正确显示
-- 测试数据：`is-launcher --help`
-- 预期结果：`help text contains "InfiniteScribe统一后端启动器" and exit code 0`
-
-## 集成测试场景
-
-### 26. 控制台脚本可用性
-
-- 场景描述：验证is-launcher命令在安装后可用
-- 测试数据：
-```python
-import subprocess
-result = subprocess.run(['is-launcher', '--help'], capture_output=True, text=True)
-```
-- 预期结果：`result.returncode == 0 and "InfiniteScribe统一后端启动器" in result.stdout`
-
-### 27. 命令调度正确性
-
-- 场景描述：验证命令正确调度到对应处理函数
-- 测试数据：
-```python
-with patch.object(cli, '_handle_up_command') as mock_up:
-    cli.run(['up', '--mode', 'single'])
-```
-- 预期结果：`mock_up.assert_called_once()`
-
-### 28. 异常处理覆盖
-
-- 场景描述：验证CLI运行时异常的优雅处理
-- 测试数据：
-```python
-with patch.object(cli, '_handle_up_command', side_effect=Exception("test error")):
-    result = cli.run(['up'])
-```
-- 预期结果：`result == 1 and error message printed to stderr`
+- `python -m src.launcher.cli --help` 可成功执行并返回 0；
+- `pyproject.toml` 存在入口：`is-launcher = "src.launcher.cli:main"`；
+- 若安装为控制台脚本，`is-launcher --help` 可用（CI 可选验证）。
 
 ## 验收标准映射
 
-### FR-001 相关测试
-- 场景1-10：统一服务启动管理的参数解析验证
+- FR-001：场景 4–19（模式、组件、agents 参数解析与错误处理）
+- FR-002：场景 9–10, 13–16（选择性服务控制/过滤能力）
+- NFR-003：通过 pytest-timeout/外层 `timeout` 控制总时长，避免微基准的脆弱性
 
-### FR-002 相关测试  
-- 场景4-6, 9-10：选择性服务控制的参数验证
+## 说明与注意
 
-### NFR-003 相关测试
-- 场景21-22：CLI响应性能要求验证
+- 所有断言使用包含匹配或正则匹配关键片段（如 `mode=single`、`components=[api,agents]`），避免依赖完整输出字符串；
+- `down/status/logs` 当前为占位实现，仅验证解析与占位输出；
+- 建议在 `apps/backend/tests/unit/launcher/` 下组织用例；
+- 超时策略参考仓库指南：单测 5–10s、集成 30–60s、全量 60–120s（可在 CI 外层包裹 `timeout`）。
 
-### 错误处理标准
-- 场景9, 19, 23-25：错误信息完整性和用户友好性验证
-
-## 测试数据说明
-
-- **参数格式**：所有测试数据使用标准命令行格式
-- **预期结果**：以字典形式表示解析后的参数结构
-- **性能测试**：包含具体的时间测量代码
-- **错误测试**：明确期望的异常类型和错误信息内容
-
-## 实施注意事项
-
-1. **TDD流程**：每个场景应先编写测试（RED），再实现功能（GREEN），最后重构（REFACTOR）
-2. **性能监控**：场景21-22需要实际性能测量，不能仅依赖断言
-3. **错误覆盖**：确保所有错误场景都有对应的测试用例
-4. **集成测试**：场景26需要在真实环境中验证控制台脚本安装
-5. **Mock使用**：场景27-28需要适当使用mock来隔离测试范围

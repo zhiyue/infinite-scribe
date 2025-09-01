@@ -188,6 +188,14 @@
       "sut_class": "LauncherConfigModel",
       "core_methods": ["__init__", "model_validate", "model_dump", "validate_agent_names", "validate_components"],
       "test_classes": 6
+    },
+    "4": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-01T23:58:00Z",
+      "sut_class": "LauncherCLI",
+      "core_methods": ["__init__", "setup_parser", "run", "_handle_up_command", "_handle_down_command", "_handle_status_command", "_handle_logs_command"],
+      "test_classes": 3
     }
   }
 }

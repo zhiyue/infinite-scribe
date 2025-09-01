@@ -13,14 +13,14 @@ class TestLauncherApiConfig:
         config = LauncherApiConfig()
         assert config.host == "0.0.0.0"
         assert config.port == 8000
-        assert config.reload == False
+        assert config.reload is False
 
     def test_custom_values(self):
         """Test API config custom values"""
         config = LauncherApiConfig(host="127.0.0.1", port=9000, reload=True)
         assert config.host == "127.0.0.1"
         assert config.port == 9000
-        assert config.reload == True
+        assert config.reload is True
 
     def test_port_range_validation(self):
         """Test port range validation"""
