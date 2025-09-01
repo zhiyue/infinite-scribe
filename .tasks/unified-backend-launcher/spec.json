@@ -40,8 +40,8 @@
   },
   "adr": {
     "total_count": 6,
-    "proposed": 5,
-    "accepted": 1,
+    "proposed": 3,
+    "accepted": 3,
     "superseded": 0,
     "candidates": [
       {
@@ -57,8 +57,10 @@
       {
         "key": "ADR-20250901-service-orchestration-framework",
         "title": "服务编排框架选型与依赖管理策略", 
-        "status": "Proposed",
+        "status": "Accepted",
         "priority": "P1",
+        "decision_date": "2025-09-01",
+        "decision": "Option 2 - 状态机服务编排器（分阶段实施）",
         "related_requirements": ["FR-002", "FR-004", "NFR-002"],
         "owners": ["platform-arch", "backend-lead", "devops"]
       },
@@ -89,8 +91,10 @@
       {
         "key": "ADR-20250901-development-mode-enhancement",
         "title": "开发模式增强与热重载机制设计",
-        "status": "Proposed", 
+        "status": "Accepted", 
         "priority": "P3",
+        "decision_date": "2025-09-01",
+        "decision": "Option 2 - 自定义热重载引擎（分层文件监控）",
         "related_requirements": ["FR-005", "NFR-003", "NFR-005"],
         "owners": ["backend-lead", "devex-lead"]
       }
