@@ -94,7 +94,7 @@
         "status": "Accepted", 
         "priority": "P3",
         "decision_date": "2025-09-01",
-        "decision": "Option 2 - 自定义热重载引擎（分层文件监控）",
+        "decision": "Option 1 - 扩展uvicorn reload（多服务文件监控）",
         "related_requirements": ["FR-005", "NFR-003", "NFR-005"],
         "owners": ["backend-lead", "devex-lead"]
       }

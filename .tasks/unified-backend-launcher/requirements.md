@@ -213,8 +213,9 @@
 - **驱动需求**: FR-005, NFR-003, NFR-005
 - **决策理由**: 设计高效的开发模式，支持热重载和调试功能，显著提升开发效率
 - **责任人**: backend-lead, devex-lead
-- **状态**: Proposed
+- **状态**: Accepted (2025-09-01)
 - **优先级**: P3
+- **选定方案**: Option 1 - 扩展uvicorn reload
 
 ### ADR 关系依赖图
 
