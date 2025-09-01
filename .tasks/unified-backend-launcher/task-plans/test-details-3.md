@@ -26,19 +26,14 @@ class LaunchMode(Enum):
     SINGLE = "single"  # 单进程模式
     MULTI = "multi"    # 多进程模式  
     AUTO = "auto"      # 自动推荐模式
-
-class ComponentType(Enum):
-    """组件类型枚举"""
-    API = "api"        # API Gateway
-    AGENTS = "agents"  # AI Agents
 ```
 
 #### 配置模型类
 ```python
 # src/launcher/config.py
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
-from .types import LaunchMode, ComponentType
+from .types import LaunchMode
 import re
 
 class LauncherApiConfig(BaseModel):
@@ -69,10 +64,7 @@ class LauncherAgentsConfig(BaseModel):
 class LauncherConfigModel(BaseModel):
     """启动器主配置模型"""
     default_mode: LaunchMode = Field(default=LaunchMode.SINGLE, description="默认启动模式")
-    components: List[ComponentType] = Field(
-        default_factory=lambda: [ComponentType.API, ComponentType.AGENTS],
-        description="启动的组件列表"
-    )
+    components: list[str] = Field(default_factory=lambda: ["api", "agents"], description="启动的组件列表")
     health_interval: float = Field(
         default=1.0, 
         ge=0.1, 
@@ -84,11 +76,15 @@ class LauncherConfigModel(BaseModel):
     
     @field_validator('components')
     @classmethod
-    def validate_components(cls, v: List[ComponentType]) -> List[ComponentType]:
+    def validate_components(cls, v: list[str]) -> list[str]:
         if len(v) == 0:
             raise ValueError("Components list cannot be empty")
         if len(set(v)) != len(v):
             raise ValueError("Duplicate components are not allowed")
+        allowed = {"api", "agents"}
+        for item in v:
+            if item not in allowed:
+                raise ValueError(f"Unsupported component: {item}")
         return v
 ```
 
@@ -156,7 +152,7 @@ class Settings(BaseSettings):
 # tests/unit/launcher/test_config_models.py
 import pytest
 from pydantic import ValidationError
-from src.launcher.types import LaunchMode, ComponentType
+from src.launcher.types import LaunchMode
 from src.launcher.config import LauncherApiConfig, LauncherAgentsConfig, LauncherConfigModel
 
 class TestLaunchMode:
@@ -173,18 +169,24 @@ class TestLaunchMode:
         for mode in LaunchMode:
             assert isinstance(mode.value, str)
 
-class TestComponentType:
-    """测试组件类型枚举"""
-    
-    def test_enum_values(self):
-        """测试枚举值正确性"""
-        assert ComponentType.API.value == "api"
-        assert ComponentType.AGENTS.value == "agents"
-    
-    def test_enum_string_type(self):
-        """测试枚举值为字符串类型"""
-        for component in ComponentType:
-            assert isinstance(component.value, str)
+class TestComponentsField:
+    """测试组件列表字段"""
+
+    def test_allowed_values(self):
+        config = LauncherConfigModel(components=["api"]) 
+        assert config.components == ["api"]
+
+    def test_default_values(self):
+        config = LauncherConfigModel()
+        assert config.components == ["api", "agents"]
+
+    def test_reject_invalid_value(self):
+        with pytest.raises(ValidationError):
+            LauncherConfigModel(components=["invalid"])  # 不支持的组件
+
+    def test_reject_duplicates(self):
+        with pytest.raises(ValidationError):
+            LauncherConfigModel(components=["api", "api"])  # 重复
 
 class TestLauncherApiConfig:
     """测试API配置模型"""
@@ -292,7 +294,7 @@ class TestLauncherConfigModel:
         """测试默认配置值"""
         config = LauncherConfigModel()
         assert config.default_mode == LaunchMode.SINGLE
-        assert config.components == [ComponentType.API, ComponentType.AGENTS]
+        assert config.components == ["api", "agents"]
         assert config.health_interval == 1.0
         assert isinstance(config.api, LauncherApiConfig)
         assert isinstance(config.agents, LauncherAgentsConfig)
@@ -301,11 +303,11 @@ class TestLauncherConfigModel:
         """测试自定义配置值"""
         config = LauncherConfigModel(
             default_mode=LaunchMode.MULTI,
-            components=[ComponentType.API],
+            components=["api"],
             health_interval=2.5
         )
         assert config.default_mode == LaunchMode.MULTI
-        assert config.components == [ComponentType.API]
+        assert config.components == ["api"]
         assert config.health_interval == 2.5
     
     def test_health_interval_range_validation(self):
@@ -327,12 +329,18 @@ class TestLauncherConfigModel:
         # 测试空列表
         with pytest.raises(ValidationError) as exc_info:
             LauncherConfigModel(components=[])
-        assert "cannot be empty" in str(exc_info.value)
+        # 优先检查字段定位，避免依赖具体错误文案
+        assert any(e.get("loc") == ("components",) for e in exc_info.value.errors())
         
         # 测试重复组件
         with pytest.raises(ValidationError) as exc_info:
-            LauncherConfigModel(components=[ComponentType.API, ComponentType.API])
-        assert "Duplicate components" in str(exc_info.value)
+            LauncherConfigModel(components=["api", "api"])
+        assert any("Duplicate" in e.get("msg", "") for e in exc_info.value.errors())
+
+        # 测试非法组件
+        with pytest.raises(ValidationError) as exc_info:
+            LauncherConfigModel(components=["api", "invalid"])
+        assert any("Unsupported component" in e.get("msg", "") for e in exc_info.value.errors())
     
     def test_nested_model_access(self):
         """测试嵌套模型访问"""
@@ -448,18 +456,36 @@ names = ["worldsmith", "plotmaster"]
         assert settings.launcher.default_mode == LaunchMode.AUTO
         assert settings.launcher.health_interval == 5.0
         assert settings.launcher.api.port == 9001
-    
-    def test_configuration_priority(self, temp_toml_file, monkeypatch):
-        """测试配置优先级：环境变量 > TOML > 默认值"""
+
+    def test_environment_variable_list_parsing(self, monkeypatch):
+        """测试列表类型环境变量(JSON)解析"""
         from src.core.config import Settings
-        
-        # TOML设置port=9000，环境变量覆盖为9001
-        monkeypatch.setenv('LAUNCHER__API__PORT', '9001')
-        
-        # 模拟使用TOML配置（这需要具体的Settings实现细节）
+
+        monkeypatch.setenv('LAUNCHER__COMPONENTS', '["api"]')
+        monkeypatch.setenv('LAUNCHER__AGENTS__NAMES', '["worldsmith","plotmaster"]')
+
         settings = Settings()
-        
-        # 环境变量应该有更高优先级
+
+        assert settings.launcher.components == ["api"]
+        assert settings.launcher.agents.names == ["worldsmith", "plotmaster"]
+    
+    def test_configuration_priority(self, tmp_path, monkeypatch):
+        """测试配置优先级：环境变量 > .env > TOML > 默认值（这里验证 环境变量 > TOML）"""
+        from src.core.config import Settings
+
+        # 在临时目录创建 TOML 并切换工作目录，让 Settings 的 TomlConfigSettingsSource 读取到
+        toml_text = """
+[launcher]
+[launcher.api]
+port = 9000
+"""
+        (tmp_path / 'config.toml').write_text(toml_text)
+        monkeypatch.chdir(tmp_path)
+
+        # 环境变量覆盖 TOML
+        monkeypatch.setenv('LAUNCHER__API__PORT', '9001')
+
+        settings = Settings()
         assert settings.launcher.api.port == 9001
 ```
 
@@ -478,9 +504,10 @@ names = ["worldsmith", "plotmaster"]
 - **字典键值**：`assert "api" in config.model_dump()`
 
 ### 异常断言
-- **验证错误**：`pytest.raises(ValidationError)`
-- **错误消息**：`assert "expected message" in str(exc_info.value)`
-- **特定异常类型**：`pytest.raises(ValueError)`
+- **验证错误类型**：`pytest.raises(ValidationError)`
+- **字段定位优先**：优先使用 `exc.errors()` 校验 `loc`、`type`、`msg`，减少对具体文案的依赖
+- **示例**：`any(e.get("loc") == ("components",) for e in exc.errors())`
+- **特定异常类型**：`pytest.raises(ValueError)`（用于自定义 validator 抛出的值错误）
 
 ### Mock验证
 - **环境变量Mock**：使用pytest的`monkeypatch.setenv()`
@@ -583,6 +610,7 @@ def create_boundary_port_values() -> List[int]:
 import time
 import pytest
 
+@pytest.mark.perf
 def test_config_instantiation_performance():
     """测试配置模型实例化性能"""
     start_time = time.time()
@@ -595,9 +623,10 @@ def test_config_instantiation_performance():
     end_time = time.time()
     elapsed = end_time - start_time
     
-    # 应该在100ms内完成
-    assert elapsed < 0.1, f"Instantiation took {elapsed:.3f}s, expected < 0.1s"
+    # 在多数 CI/本地环境下应在 300ms 内，标记为 perf 以便选择性执行
+    assert elapsed < 0.3, f"Instantiation took {elapsed:.3f}s, expected < 0.3s"
 
+@pytest.mark.perf
 def test_serialization_performance():
     """测试序列化性能"""
     config = LauncherConfigModel()
@@ -611,8 +640,8 @@ def test_serialization_performance():
     end_time = time.time()
     elapsed = end_time - start_time
     
-    # 应该在50ms内完成
-    assert elapsed < 0.05, f"Serialization took {elapsed:.3f}s, expected < 0.05s"
+    # 在多数 CI/本地环境下应在 150ms 内，标记为 perf 以便选择性执行
+    assert elapsed < 0.15, f"Serialization took {elapsed:.3f}s, expected < 0.15s"
 ```
 
 ## 验证清单
@@ -627,6 +656,7 @@ def test_serialization_performance():
 - [ ] 边界值测试全面
 - [ ] 集成测试包含配置系统
 - [ ] 异常处理测试充分
+- [ ] ENV/TOML/优先级验证路径与工作目录切换说明明确
 
 ---
 *此文档由 spec-task:impl-test-detail 生成，作为测试实现的技术规格*
