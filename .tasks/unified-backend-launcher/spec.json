@@ -1,9 +1,9 @@
 {
   "feature_name": "unified-backend-launcher",
   "created_at": "2025-09-01T00:00:00Z",
-  "updated_at": "2025-09-01T17:00:00Z",
+  "updated_at": "2025-09-01T20:00:00Z",
   "language": "chinese",
-  "phase": "hld-generated",
+  "phase": "tasks-generated",
   "documents": {
     "prd": {
       "generated": true,
@@ -27,14 +27,14 @@
     },
     "hld": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "lld": {
-      "generated": false,
-      "approved": false
+      "generated": true,
+      "approved": true
     },
     "tasks": {
-      "generated": false,
+      "generated": true,
       "approved": false
     }
   },
