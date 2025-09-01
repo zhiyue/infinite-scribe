@@ -41,6 +41,9 @@ dependencies = [
     "sse-starlette>=2.1.3",
 ]
 
+[project.scripts]
+is-launcher = "src.launcher.cli:main"
+
 [dependency-groups]
 dev = [
     # Testing

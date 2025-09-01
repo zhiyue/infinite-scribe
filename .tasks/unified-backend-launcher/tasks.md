@@ -4,7 +4,7 @@
 
 ## P1 最小可用（MVP）
 
-- [ ] 1. 目录与骨架
+- [x] 1. 目录与骨架
   - 创建 `apps/backend/src/launcher/`：`__init__.py`, `cli.py`, `orchestrator.py`, `adapters/api.py`, `adapters/agents.py`, `health.py`, `types.py`, `errors.py`
   - 在 `apps/backend/pyproject.toml` 注册 `console_scripts`: `is-launcher = src.launcher.cli:main`
   - 关联: 支撑项（为 FR-001/002/003/004/005/006 与 NFR 全部提供基础）
