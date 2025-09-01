@@ -13,6 +13,13 @@ class LaunchMode(Enum):
     AUTO = "auto"  # Auto-detect mode
 
 
+class ComponentType(Enum):
+    """Component type enumeration"""
+
+    API = "api"        # API Gateway
+    AGENTS = "agents"  # AI Agents
+
+
 class LauncherStatus(Enum):
     """Launcher status enumeration"""
 
