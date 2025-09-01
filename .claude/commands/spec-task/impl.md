@@ -66,7 +66,7 @@ argument-hint: <feature-name> <task-numbers>
   - 作为该任务的实施蓝图，严格按照计划的步骤执行
   - 使用计划中定义的测试用例和验收标准
   - 遵循计划中的TDD步骤顺序
-- 若不存在或未批准：按照标准TDD流程执行，对复杂任务建议先执行 `/spec-task:task-plan <功能名称> <任务编号>`
+- 若不存在或未批准：按照标准TDD流程执行，对复杂任务建议先执行 `/spec-task:impl-task-plan <功能名称> <任务编号>`
 
 ### 任务执行
 

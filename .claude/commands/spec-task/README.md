@@ -296,11 +296,11 @@ adr_candidates:
 - Dependencies between tasks
 - Acceptance criteria for each task
 
-**Next Step**: (Recommended) Preflight planning → `/spec-task:impl-plan {feature-name}` → For complex tasks → `/spec-task:task-plan {feature-name} {task-number}` → Begin implementation → `/spec-task:impl {feature-name}`
+**Next Step**: (Recommended) Preflight planning → `/spec-task:impl-plan {feature-name}` → For complex tasks → `/spec-task:impl-task-plan {feature-name} {task-number}` → Begin implementation → `/spec-task:impl {feature-name}`
 
 ---
 
-### 8. `/spec-task:task-plan <feature-name> <task-number>`
+### 8. `/spec-task:impl-task-plan <feature-name> <task-number>`
 
 **Purpose**: Generate detailed implementation plan for a specific task
 
@@ -325,11 +325,11 @@ adr_candidates:
 **Usage Examples**:
 ```bash
 # Plan a specific task
-/spec-task:task-plan user-auth 1.1
+/spec-task:impl-task-plan user-auth 1.1
 
 # Plan multiple tasks in parallel
-/spec-task:task-plan user-auth 2.1
-/spec-task:task-plan user-auth 2.2
+/spec-task:impl-task-plan user-auth 2.1
+/spec-task:impl-task-plan user-auth 2.2
 ```
 
 **When to Use**:
@@ -580,7 +580,7 @@ Each specification maintains state in `spec.json`:
 
 10. **(Optional) Task-level planning for complex tasks**:
    ```bash
-   /spec-task:task-plan notification-system 1.1
+   /spec-task:impl-task-plan notification-system 1.1
    ```
 
 11. **Begin implementation**:

@@ -196,7 +196,7 @@ test('{test-description}', () => {
 - [ ] 准备开始实施
 
 ---
-*此文档由 spec-task:task-plan 生成，作为单任务实施的详细指导*
+*此文档由 spec-task:impl-task-plan 生成，作为单任务实施的详细指导*
 ```
 
 ### 4. 更新元数据
@@ -260,7 +260,7 @@ graph LR
     A[spec-task:tasks] --> B[选择任务]
     B --> C{任务复杂度}
     C -->|简单| D[直接 impl]
-    C -->|复杂| E[task-plan]
+    C -->|复杂| E[impl-task-plan]
     E --> F[审查计划]
     F --> G{批准?}
     G -->|是| H[impl --use-plan]
@@ -273,9 +273,9 @@ graph LR
 ## 最佳实践
 
 1. **简单任务**（< 1小时）：直接使用 impl
-2. **中等任务**（1-3小时）：可选使用 task-plan
-3. **复杂任务**（> 3小时）：强烈建议先 task-plan
-4. **高风险任务**：必须先 task-plan
+2. **中等任务**（1-3小时）：可选使用 impl-task-plan
+3. **复杂任务**（> 3小时）：强烈建议先 impl-task-plan
+4. **高风险任务**：必须先 impl-task-plan
 
 ## 优势
 
