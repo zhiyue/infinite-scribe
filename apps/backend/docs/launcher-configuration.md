@@ -4,12 +4,14 @@
 
 ## 总览
 
-- 配置实现：Pydantic v2 + pydantic-settings，自定义 `TomlConfigSettingsSource`（支持 `${VAR}` 与 `${VAR:-default}` 插值）。
+- 配置实现：Pydantic v2 + pydantic-settings，自定义
+  `TomlConfigSettingsSource`（支持 `${VAR}` 与 `${VAR:-default}` 插值）。
 - 配置入口：`Settings`（`src/core/config.py`）中的嵌套字段 `launcher`。
 - 配置来源优先级：环境变量 > `.env` > `config.toml` > 模型默认值。
 - 配置文件位置：
   - 实际文件：`apps/backend/config.toml`（不纳入版本控制）。
-  - 模板文件：`apps/backend/config.toml.example`（复制为 `config.toml` 后按需修改）。
+  - 模板文件：`apps/backend/config.toml.example`（复制为 `config.toml`
+    后按需修改）。
   - `.env` 文件：`apps/backend/.env`（开发环境可选）。
 
 ## 字段结构
@@ -57,7 +59,8 @@ LAUNCHER__API__RELOAD=true
 LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
 ```
 
-不建议使用以逗号分隔的纯字符串来表示列表（如 `a,b`），除非在自定义解析层显式支持。项目当前推荐 JSON 字符串方案，最稳健、可读性好。
+不建议使用以逗号分隔的纯字符串来表示列表（如
+`a,b`），除非在自定义解析层显式支持。项目当前推荐 JSON 字符串方案，最稳健、可读性好。
 
 ## TOML 配置示例
 
@@ -81,7 +84,8 @@ reload = true
 # LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
 ```
 
-说明：`TomlConfigSettingsSource` 会在读取 `config.toml` 时执行 `${VAR}` 插值，并对布尔/整数/浮点进行基本类型转换；当整值就是一个变量引用时，才会尝试自动转换为数字或布尔。
+说明：`TomlConfigSettingsSource` 会在读取 `config.toml` 时执行 `${VAR}`
+插值，并对布尔/整数/浮点进行基本类型转换；当整值就是一个变量引用时，才会尝试自动转换为数字或布尔。
 
 ## 在代码中读取
 
@@ -97,7 +101,23 @@ api_port = settings.launcher.api.port
 agent_names = settings.launcher.agents.names
 ```
 
-> 提示：如果需要与运行时 dataclass（如 `LaunchConfig`）对接，可在使用处提供从 `LauncherConfigModel` 到运行时结构的转换函数，避免配置来源“各自为政”。
+> 提示：如果需要与运行时 dataclass（如 `LaunchConfig`）对接，可在使用处提供从
+> `LauncherConfigModel` 到运行时结构的转换函数，避免配置来源“各自为政”。
+
+## CLI 集成（is-launcher）
+
+- CLI 命令：`is-launcher up` 默认从 `settings.launcher`
+  读取初始配置，再应用 CLI 覆盖项。
+- 覆盖项：
+  - `--mode`: `single|multi|auto`，缺省时使用 `settings.launcher.default_mode`。
+  - `--components`: 组件列表，支持 CSV（如 `api,agents`）或 JSON（如
+    `'["api","agents"]'`）。
+  - `--agents`: agent 名称列表，支持 CSV 或 JSON。值将复用
+    `LauncherAgentsConfig` 的校验（名称格式、长度、非空列表）。
+- 校验：组件列表会去重且要求非空；agent 列表为空数组将被拒绝（`None`
+  表示未指定，由系统决定）。
+
+> 注：CLI 仅做解析与校验对齐，后续编排逻辑由 orchestrator/adapters 接入。
 
 ## 常见问题（FAQ）
 
@@ -105,11 +125,18 @@ agent_names = settings.launcher.agents.names
   - A: 这是运行时冲突，模型只校验取值范围。请修改端口或停止占用该端口的进程。
 
 - Q: 我想只启动 `api`，如何配置？
-  - A: 在 `config.toml` 里设置 `components = ["api"]`，或通过环境变量 `LAUNCHER__COMPONENTS='["api"]'` 覆盖。
+  - A: 在 `config.toml` 里设置 `components = ["api"]`，或通过环境变量
+    `LAUNCHER__COMPONENTS='["api"]'` 覆盖。
 
 - Q: `names` 通过环境变量设置数组的推荐方式？
   - A: 使用 JSON 字符串：`LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'`。
 
 - Q: 枚举字段和字符串如何对比？
-  - A: 在代码层统一使用枚举类型；若需要与字符串比较，使用 `enum_member.value` 获取底层字符串值。若未来改为 `StrEnum`，可直接与同名字符串相等比较。
+  - A: 在代码层统一使用枚举类型；若需要与字符串比较，使用 `enum_member.value`
+    获取底层字符串值。若未来改为 `StrEnum`，可直接与同名字符串相等比较。
 
+## 说明与澄清
+
+- `[api]` 小节与 `Settings` 顶层字段：`Settings` 使用顶层 `api_host`/`api_port`
+  字段，而非 `[api]` 小节；`[launcher.api]` 才用于 Launcher 启动参数。保留
+  `[api]` 作为示例与插值参考，避免混淆时请优先查看 `Settings` 字段定义。

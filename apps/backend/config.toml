@@ -11,6 +11,8 @@ host = "${API_HOST:-0.0.0.0}"
 port = "${API_PORT:-8000}"
 frontend_url = "${FRONTEND_URL:-http://localhost:3000}"
 allowed_origins = ["*"]
+## 说明：Settings 使用顶层字段 `api_host`/`api_port`，而非本小节；
+## Launcher 启动参数请使用 `[launcher.api]` 配置。
 
 [auth]
 # JWT 配置

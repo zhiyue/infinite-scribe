@@ -1,5 +1,7 @@
 """Tests for launcher config integration with Settings"""
 
+import pytest
+from pydantic import ValidationError
 from src.core.config import Settings
 from src.launcher.config import LauncherConfigModel
 from src.launcher.types import ComponentType, LaunchMode
@@ -104,3 +106,21 @@ port = 8000
         assert hasattr(settings, "database")
         assert settings.service_name == "infinite-scribe-backend"
         assert settings.api_port == 8000
+
+    def test_environment_variable_components_duplicate_validation(self, monkeypatch):
+        """Duplicate components provided via ENV should be rejected by validation."""
+        monkeypatch.setenv("LAUNCHER__COMPONENTS", '["api","api"]')
+
+        with pytest.raises(ValidationError) as exc_info:
+            Settings()
+        # Error message should indicate duplicate components
+        assert any("Duplicate" in (e.get("msg") or "") for e in exc_info.value.errors())
+
+    def test_environment_variable_agents_empty_list_rejected(self, monkeypatch):
+        """Empty agents list from ENV should be rejected (None is allowed, empty list is not)."""
+        monkeypatch.setenv("LAUNCHER__AGENTS__NAMES", "[]")
+
+        with pytest.raises(ValidationError) as exc_info:
+            Settings()
+        # Error message should indicate empty list is not allowed
+        assert any("cannot be empty" in str(e) or "cannot be empty" in (e.get("msg") or "") for e in exc_info.value.errors())
