@@ -134,6 +134,13 @@
       "planned_at": "2025-09-01T23:00:00Z",
       "description": "目录与骨架 - 创建launcher模块的目录结构与骨架文件",
       "estimated_hours": 1.5
+    },
+    "3": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-01T23:15:00Z",
+      "description": "启动器配置模型 - 定义LauncherConfigModel并集成现有配置系统",
+      "estimated_hours": 2.5
     }
   },
   "test_scenarios": {
