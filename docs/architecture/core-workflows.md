@@ -137,7 +137,45 @@ sequenceDiagram
     Kafka-->>Prefect: 聚合/消费评审结果事件
     Prefect->>Prefect: (决策逻辑) 假设评审通过
     Prefect->>PG_DB: 更新章节状态为 'PUBLISHED'
-    Prefect-->>-APIGW: (通过事件) 通知工作流完成
+Prefect-->>-APIGW: (通过事件) 通知工作流完成
+```
+
+### 2.1 异常路径：失败与重试（简图）
+
+下图展示章节生成过程中，Agent 执行失败时的重试、最终失败（DLQ）与编排侧处理的最小路径。
+
+```mermaid
+sequenceDiagram
+    participant Prefect as 编排器
+    participant Kafka as 事件总线
+    participant WR_Agent as 作家Agent
+    participant PG_DB as PostgreSQL
+
+    %% ======================= 阶段一: 请求派发 =======================
+    Prefect->>+Kafka: 发布 Chapter.DraftGenerationRequested 事件
+
+    %% ======================= 阶段二: Agent 尝试与重试 =======================
+    Kafka-->>WR_Agent: 消费 DraftGenerationRequested
+    WR_Agent->>WR_Agent: 第1次尝试（执行生成草稿）
+    alt 执行失败（可恢复）
+        Note right of WR_Agent: 指数退避重试：1s → 2s → 4s ...
+        WR_Agent->>WR_Agent: 第2..N次尝试（直到最大重试次数）
+        alt 某次重试成功
+            WR_Agent->>+Kafka: 发布 Chapter.DraftCreated 事件
+            Kafka-->>Prefect: Prefect 消费成功事件（回到标准路径）
+        else 达到最大重试仍失败
+            WR_Agent->>+Kafka: 发布 Workflow.TaskFailed（携带 last_error, stacktrace）
+        end
+    else 执行成功（一次成功）
+        WR_Agent->>+Kafka: 发布 Chapter.DraftCreated 事件
+        Kafka-->>Prefect: Prefect 消费成功事件（回到标准路径）
+    end
+
+    %% ======================= 阶段三: 最终失败处理与通知 =======================
+    Kafka-->>Prefect: 消费 Workflow.TaskFailed 事件
+    Prefect->>PG_DB: 标记 async_tasks 为 FAILED，记录错误（error_data, retry_count）
+    Note right of Prefect: 可选：发布补偿/告警事件；通过 SSE 推送 run.failed 给 UI
+    Note right of Kafka: 根据策略，失败消息可同时进入 DLQ（domain-events.dlq）
 ```
 
 ## 3. 技术实现：包含所有机制的权威时序图
