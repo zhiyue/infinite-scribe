@@ -77,9 +77,7 @@ async def execute_query(
         查询结果列表
     """
     async with create_neo4j_session(database=database) as session:
-        # Wrap the dynamic Cypher string in a `Query` object to satisfy
-        # the updated Neo4j type stubs that expect either a `LiteralString`
-        # or a `neo4j.Query` instance.
+        # Neo4j type stubs expect LiteralString, but we need dynamic queries
         cypher_query = Query(query, parameters or {})  # type: ignore[arg-type]
         result = await session.run(cypher_query)
         return await result.data()
