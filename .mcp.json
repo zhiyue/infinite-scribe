@@ -34,7 +34,19 @@
     "codex": {
       "type": "stdio",
       "command": "codex",
-      "args": ["-m", "gpt-5", "-c", "model_reasoning_effort=high", "mcp"],
+      "args": [
+        "-m",
+        "gpt-5",
+        "-c",
+        "model_reasoning_effort=high",
+        "mcp",
+        "-c",
+        "approval_policy=\"never\"",
+        "-c",
+        "sandbox_mode=\"danger-full-access\"",
+        "-c",
+        "model_reasoning_effort=\"high\""
+      ],
       "env": {}
     }
   }
