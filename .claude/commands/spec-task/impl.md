@@ -55,10 +55,18 @@ argument-hint: <feature-name> <task-numbers>
 
 【可选：前置规划支持】
 
+**整体技术规划**：
 - 若存在 `.tasks/<功能名称>/impl-plan.md` 且在 `spec.json` 中 `impl_plan.approved=true`：
   - 作为权威参考优先加载该文档与 `.tasks/<功能名称>/references/` 缓存（接口签名、示例、坑点）
   - 实现阶段应以此为依据，减少重复检索；若发现偏差，需回写更新 `impl-plan.md`
-- 若不存在或未批准：按需即时查询库文档（见下文“库文档查询”），但建议先执行 `/spec-task:impl-plan <功能名称>`
+- 若不存在或未批准：按需即时查询库文档（见下文"库文档查询"），但建议先执行 `/spec-task:impl-plan <功能名称>`
+
+**任务级详细规划**：
+- 若存在 `.tasks/<功能名称>/task-plans/<任务编号>.md` 且在 `spec.json` 中 `task_plans.<任务编号>.approved=true`：
+  - 作为该任务的实施蓝图，严格按照计划的步骤执行
+  - 使用计划中定义的测试用例和验收标准
+  - 遵循计划中的TDD步骤顺序
+- 若不存在或未批准：按照标准TDD流程执行，对复杂任务建议先执行 `/spec-task:task-plan <功能名称> <任务编号>`
 
 ### 任务执行
 
@@ -77,8 +85,9 @@ argument-hint: <feature-name> <task-numbers>
    - 规范元数据：`.tasks/<功能名称>/spec.json`
    - 需求：`.tasks/<功能名称>/requirements.md`
    - 高层设计：`.tasks/<功能名称>/design-hld.md`
-- 低层设计：`.tasks/<功能名称>/design-lld.md`
+   - 低层设计：`.tasks/<功能名称>/design-lld.md`
    - 所有任务：`.tasks/<功能名称>/tasks.md`
+   - 任务计划（如果存在）：`.tasks/<功能名称>/task-plans/<任务编号>.md`
 
 2. **针对每个特定任务的TDD实施**：
    - **库文档查询（必需）**：在开始实施前，使用 context7 获取任务中涉及库的最新接口、方法签名和调用示例

@@ -296,11 +296,58 @@ adr_candidates:
 - Dependencies between tasks
 - Acceptance criteria for each task
 
-**Next Step**: (Recommended) Preflight planning → `/spec-task:impl-plan {feature-name}` → Begin implementation → `/spec-task:impl {feature-name}`
+**Next Step**: (Recommended) Preflight planning → `/spec-task:impl-plan {feature-name}` → For complex tasks → `/spec-task:task-plan {feature-name} {task-number}` → Begin implementation → `/spec-task:impl {feature-name}`
 
 ---
 
-### 8. `/spec-task:status <feature-name>`
+### 8. `/spec-task:task-plan <feature-name> <task-number>`
+
+**Purpose**: Generate detailed implementation plan for a specific task
+
+**What it does**:
+- Analyzes a single task from tasks.md
+- Creates step-by-step TDD implementation plan
+- Identifies specific APIs and methods needed
+- Defines test cases and acceptance criteria
+- Estimates time and identifies risks
+
+**Key Features**:
+- **Granular Planning**: Breaks down individual tasks into concrete steps
+- **TDD Blueprint**: Provides exact test-first implementation sequence
+- **API Preparation**: Identifies specific methods and signatures needed
+- **Risk Assessment**: Highlights potential issues before coding starts
+
+**Output Structure**:
+```
+.tasks/{feature-name}/task-plans/{task-number}.md
+```
+
+**Usage Examples**:
+```bash
+# Plan a specific task
+/spec-task:task-plan user-auth 1.1
+
+# Plan multiple tasks in parallel
+/spec-task:task-plan user-auth 2.1
+/spec-task:task-plan user-auth 2.2
+```
+
+**When to Use**:
+- **Simple tasks** (< 1 hour): Optional, usually not needed
+- **Medium tasks** (1-3 hours): Recommended for clarity
+- **Complex tasks** (> 3 hours): Strongly recommended
+- **High-risk tasks**: Required for risk mitigation
+
+**Integration with impl**:
+- If task plan exists and is approved, `/spec-task:impl` will follow it
+- Plans are optional - impl can work without them
+- Use `--use-plan` flag to explicitly use the plan
+
+**Next Step**: Review plan → Approve in spec.json → `/spec-task:impl {feature-name} {task-number}`
+
+---
+
+### 10. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
@@ -316,7 +363,7 @@ adr_candidates:
 
 ---
 
-### 9. `/spec-task:impl <feature-name>`
+### 11. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -335,7 +382,7 @@ adr_candidates:
 
 ---
 
-### 10. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
+### 12. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
 
 **Purpose**: Update global architecture documentation with approved spec designs
 
@@ -526,12 +573,17 @@ Each specification maintains state in `spec.json`:
    /spec-task:status notification-system
    ```
 
-9. **(Optional) Implementation plan**:
+9. **(Optional) Overall implementation plan**:
    ```bash
    /spec-task:impl-plan notification-system -y
    ```
 
-10. **Begin implementation**:
+10. **(Optional) Task-level planning for complex tasks**:
+   ```bash
+   /spec-task:task-plan notification-system 1.1
+   ```
+
+11. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
