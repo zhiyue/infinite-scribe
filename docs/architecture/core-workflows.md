@@ -152,10 +152,10 @@ sequenceDiagram
     participant PG_DB as PostgreSQL
 
     %% ======================= 阶段一: 请求派发 =======================
-    Prefect->>+Kafka: 发布 Chapter.DraftGenerationRequested 事件
+    Prefect->>+Kafka: 发布 Chapter.Draft.GenerationRequested 事件
 
     %% ======================= 阶段二: Agent 尝试与重试 =======================
-    Kafka-->>WR_Agent: 消费 DraftGenerationRequested
+    Kafka-->>WR_Agent: 消费 Draft.GenerationRequested
     WR_Agent->>WR_Agent: 第1次尝试（执行生成草稿）
     alt 执行失败（可恢复）
         Note right of WR_Agent: 指数退避重试：1s → 2s → 4s ...
@@ -198,16 +198,16 @@ sequenceDiagram
     Prefect->>Prefect: (决策) 评审未通过/部分通过
 
     %% ======================= 阶段二: 发起修订请求 =======================
-    Prefect->>+Kafka: 发布 Chapter.RewriteRequested（附改进建议/差异）
-    Kafka-->>WR_Agent: 消费 RewriteRequested
+    Prefect->>+Kafka: 发布 Chapter.Draft.RewriteRequested（附改进建议/差异）
+    Kafka-->>WR_Agent: 消费 Draft.RewriteRequested
     WR_Agent->>WR_Agent: 执行修订...
-    WR_Agent->>+Kafka: 发布 Chapter.DraftRevised
+    WR_Agent->>+Kafka: 发布 Chapter.Draft.Revised
 
     %% ======================= 阶段三: 复审循环（至多 N 轮） =======================
     loop 复审循环（最多 N 轮）
-        Kafka-->>CR_Agent: 消费 DraftRevised（触发复评）
+        Kafka-->>CR_Agent: 消费 Draft.Revised（触发复评）
         CR_Agent->>+Kafka: 发布 Chapter.CritiqueCompleted（复评）
-        Kafka-->>FC_Agent: 消费 DraftRevised（触发复核）
+        Kafka-->>FC_Agent: 消费 Draft.Revised（触发复核）
         FC_Agent->>+Kafka: 发布 FactCheckCompleted（复核）
         Kafka-->>Prefect: 收到复评/复核结果
         Prefect->>Prefect: (决策) 若仍未满足通过门槛 -> 下一轮；否则通过
@@ -217,7 +217,7 @@ sequenceDiagram
         %% ======================= 阶段四: 升级策略或终止 =======================
         Prefect->>+Kafka: 发布 Chapter.ReviewEscalationRequested（升级处理）
         Kafka-->>DIR_Agent: 导演介入裁决/重组任务链
-        DIR_Agent->>+Kafka: 发布 Chapter.ReviewDecisionMade（接受/再修订/终止）
+        DIR_Agent->>+Kafka: 发布 Chapter.Review.DecisionCompleted（接受/再修订/终止）
         Kafka-->>Prefect: Prefect 消费裁决结果
         Prefect->>PG_DB: 更新章节/任务状态（ACCEPTED/ABANDONED/PENDING_REWRITE）
     else 通过
