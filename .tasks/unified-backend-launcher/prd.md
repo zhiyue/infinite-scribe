@@ -76,6 +76,60 @@
 - 日志聚合和监控告警功能
 - 容器化和Docker Compose集成
 
+### 实现形态（方案 A：Python CLI 编排器）
+
+- 形态：新增一个 Python 启动器（例如 `src/launcher/main.py` 或 `src/launcher/__main__.py`），作为统一的后端运行入口。
+- 职责：
+  - 以子进程方式启动 API Gateway（`uvicorn src.api.main:app`）。
+  - 以协程/子任务方式启动多 Agent 启动器（复用 `apps/backend/src/agents/launcher.py`），并支持 `--only/--exclude` 精确控制。
+  - 统一处理信号（SIGINT/SIGTERM）、优雅退出与超时强制终止。
+  - 提供基础健康探测（端口探测 + Kafka 连接 + Agent 订阅成功日志代理）。
+- 与现有脚本对齐：由 `scripts/run.js` 新增 `backend.commands.run:all`、`run:agents` 等命令，底层调用 Python 启动器，保持 `pnpm` 心智一致。
+
+### 默认服务清单（与仓库现状对齐）
+
+默认“一键启动（All）”包含以下进程/子任务：
+
+- API Gateway（FastAPI）
+  - 入口：`apps/backend/src/api/main.py`
+  - 运行：`uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000`
+  - 健康：`GET /health`、`GET /ready`（同时提供 SSE 健康 `GET /api/v1/events/health`）
+- Agents 集群（通过 `apps/backend/src/agents/launcher.py` 启动）
+  - 列表（来自 `AGENT_TOPICS`）：
+    - `director`
+    - `outliner`
+    - `writer`
+    - `critic`
+    - `characterexpert`
+    - `worldbuilder`
+    - `plotmaster`
+    - `factchecker`
+    - `rewriter`
+    - `worldsmith`
+  - 说明：以上 Agents 均为 Kafka 消费者/生产者；默认按 `AGENT_PRIORITY` 顺序启动。
+
+不纳入本期默认启动的“概念性/规划中”服务（见 `docs/architecture`）：
+
+- Message Relay、Prefect Orchestrator、Prefect Callback Service、Task Creator 等尚未在仓库中形成独立可运行进程，暂不纳入默认启动范围（可在后续里程碑按需纳入）。
+
+### CLI 规格（MVP）
+
+- 入口命令（建议）：
+  - `pnpm backend run:all` → API + 全量 Agents（默认）
+  - `pnpm backend run:api`
+  - `pnpm backend run:agents -- --only writer,director`（或 `--exclude critic,factchecker`）
+  - `pnpm backend run:profiles minimal|full|debug`
+- Python 启动器直调（开发/CI 可选）：
+  - `uv run python -m src.launcher --all`
+  - `uv run python -m src.launcher --api`
+  - `uv run python -m src.launcher --agents --only writer,director`
+- 通用参数：
+  - `--only <a,b>` / `--exclude <a,b>`：精确控制 Agent 子集（与 `AGENT_TOPICS` 校验）。
+  - `--wait-for <kafka,postgres,redis>`：启动前等待依赖就绪（端口/健康探测）。
+  - `--log-level <info|debug>`、`--no-reload`、`--dry-run`。
+  - `--status`（显示进程/订阅概览）、`--stop`/`--stop api`、`--force`（超时强杀）。
+  - 退出码规则：任一核心子进程失败即非零退出，并输出最近 50 行子进程日志指引。
+
 ## 5. 用户故事
 
 ### STORY-001: 灵活的统一启动
