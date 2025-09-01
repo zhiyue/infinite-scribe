@@ -4,12 +4,16 @@ on:
   push:
     branches: [ main, develop ]
     paths:
-      - 'apps/backend/**'
+      - 'apps/backend/**/*.py'
+      - 'apps/backend/pyproject.toml'
+      - 'apps/backend/uv.lock'
       - '.github/workflows/python-backend-ci.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'apps/backend/**'
+      - 'apps/backend/**/*.py'
+      - 'apps/backend/pyproject.toml'
+      - 'apps/backend/uv.lock'
       - '.github/workflows/python-backend-ci.yml'
   workflow_dispatch:
 
@@ -26,6 +30,9 @@ jobs:
     name: Linting (Ruff)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/backend
     
     steps:
     - name: Checkout code
@@ -47,6 +54,9 @@ jobs:
     name: Type Checking (MyPy)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/backend
     
     steps:
     - name: Checkout code
@@ -64,12 +74,15 @@ jobs:
     
     - name: Type check with mypy
       run: |
-        uv run mypy apps/backend/src/ --ignore-missing-imports
+        uv run mypy src/ --ignore-missing-imports
     
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/backend
     
     steps:
     - name: Checkout code
@@ -89,13 +102,12 @@ jobs:
       env:
         USE_EXTERNAL_SERVICES: false
       run: |
-        cd apps/backend
         uv run python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       with:
-        file: ./apps/backend/coverage.xml
+        file: ./coverage.xml
         flags: backend-unit
         name: backend-unit-coverage
   
@@ -103,6 +115,9 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/backend
     
     steps:
     - name: Checkout code
@@ -122,12 +137,11 @@ jobs:
       env:
         USE_EXTERNAL_SERVICES: false
       run: |
-        cd apps/backend
         uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       with:
-        file: ./apps/backend/coverage.xml
+        file: ./coverage.xml
         flags: backend-integration
         name: backend-integration-coverage
