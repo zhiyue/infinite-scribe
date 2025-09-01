@@ -59,7 +59,15 @@ argument-hint: <feature-name> <task-numbers>
 - 若存在 `.tasks/<功能名称>/impl-plan.md` 且在 `spec.json` 中 `impl_plan.approved=true`：
   - 作为权威参考优先加载该文档与 `.tasks/<功能名称>/references/` 缓存（接口签名、示例、坑点）
   - 实现阶段应以此为依据，减少重复检索；若发现偏差，需回写更新 `impl-plan.md`
-- 若不存在或未批准：按需即时查询库文档（见下文"库文档查询"），但建议先执行 `/spec-task:impl-plan <功能名称>`
+- 若不存在或未批准：按需即时查询库文档（见下文“库文档查询”），但建议先执行 `/spec-task:impl-plan <功能名称>`
+
+【可选：测试场景支持】
+
+- 若存在 `.tasks/<功能名称>/task-plans/` 目录：
+  - 当指定了任务编号 `<id>`：优先尝试加载 `.tasks/<功能名称>/task-plans/task-<id>-test-scenarios.md`
+  - 若任务级文件不存在，则回退加载 `.tasks/<功能名称>/task-plans/test-scenarios.md`
+  - 加载到的“测试场景”用于 RED 阶段直接转化为测试用例（名称、测试数据、预期结果），以减少歧义并统一断言口径
+  - 测试场景由可选命令 `/spec-task:impl-test-scenario` 生成
 
 **任务级详细规划**：
 - 若存在 `.tasks/<功能名称>/task-plans/<任务编号>.md` 且在 `spec.json` 中 `task_plans.<任务编号>.approved=true`：
@@ -90,7 +98,10 @@ argument-hint: <feature-name> <task-numbers>
    - 任务计划（如果存在）：`.tasks/<功能名称>/task-plans/<任务编号>.md`
 
 2. **针对每个特定任务的TDD实施**：
-   - **库文档查询（必需）**：在开始实施前，使用 context7 获取任务中涉及库的最新接口、方法签名和调用示例
+   - **优先使用测试场景（若存在）**：
+     - 从 `task-plans/task-<id>-test-scenarios.md` 或 `task-plans/test-scenarios.md` 提取场景条目
+     - 将每个场景转化为一个独立的测试用例（RED），使用场景中的“测试数据”和“预期结果”作为断言依据
+   - **库文档查询（必需）**：在开始实施前，使用 context7 获取任务中涉及库的最新接口、方法签名和调用示例（若 impl-plan 已批准且 references 可用则优先引用）
    - **红灯（RED）**：首先编写失败的测试
    - **绿灯（GREEN）**：编写最少的代码使测试通过，使用从 context7 获取的准确接口
    - **重构（REFACTOR）**：清理和改进代码结构，遵循库的最佳实践

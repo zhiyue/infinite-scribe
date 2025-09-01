@@ -300,7 +300,55 @@ adr_candidates:
 
 ---
 
-### 8. `/spec-task:impl-task-plan <feature-name> <task-number>`
+### 8. `/spec-task:impl-test-scenario <feature-name> <task-number>`
+
+**Purpose**: Generate test scenarios for TDD implementation
+
+**What it does**:
+- Analyzes task requirements to generate test scenarios
+- Creates concrete test data and expected results
+- Follows TDD principle: write tests first
+- Provides ready-to-use test cases for implementation
+
+**Key Features**:
+- **Concrete Test Data**: Specific input values for testing
+- **Clear Expectations**: Defined expected outputs
+- **Comprehensive Coverage**: Normal, edge, and error cases
+- **TDD Foundation**: Test scenarios guide implementation
+
+**Output Structure**:
+```
+.tasks/{feature-name}/task-plans/test-scenarios-{task-number}.md
+```
+
+**Example Output**:
+```markdown
+### 1. Boolean Flag Test
+- **Scenario**: Test parser handles boolean flags correctly
+- **Test Data**: `-l -p 8080`
+- **Expected Result**: `{"l": true, "p": 8080}`
+```
+
+**Usage Examples**:
+```bash
+# Generate test scenarios for a task
+/spec-task:impl-test-scenario user-auth 1.1
+
+# Review and use in implementation
+/spec-task:impl user-auth 1.1  # Will auto-detect and use scenarios
+```
+
+**When to Use**:
+- **Always for TDD**: Generate before writing any code
+- **Complex Logic**: Essential for algorithmic tasks
+- **API Contracts**: Define input/output contracts
+- **Bug Prevention**: Catch edge cases early
+
+**Next Step**: Review scenarios → `/spec-task:impl {feature-name} {task-number}`
+
+---
+
+### 9. `/spec-task:impl-task-plan <feature-name> <task-number>`
 
 **Purpose**: Generate detailed implementation plan for a specific task
 
@@ -347,7 +395,7 @@ adr_candidates:
 
 ---
 
-### 10. `/spec-task:status <feature-name>`
+### 11. `/spec-task:status <feature-name>`
 
 **Purpose**: Show comprehensive status and progress tracking
 
@@ -363,7 +411,7 @@ adr_candidates:
 
 ---
 
-### 11. `/spec-task:impl <feature-name>`
+### 12. `/spec-task:impl <feature-name>`
 
 **Purpose**: Support implementation phase with guidance and tracking
 
@@ -382,7 +430,7 @@ adr_candidates:
 
 ---
 
-### 12. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
+### 13. `/spec-task:sync-architecture [--force] [--dry-run] [feature-name]`
 
 **Purpose**: Update global architecture documentation with approved spec designs
 
@@ -578,12 +626,20 @@ Each specification maintains state in `spec.json`:
    /spec-task:impl-plan notification-system -y
    ```
 
-10. **(Optional) Task-level planning for complex tasks**:
+10. **(Optional) Test scenarios (TDD)**:
+   ```bash
+   /spec-task:impl-test-scenario notification-system -y
+   /spec-task:impl-test-scenario notification-system --task 1.1 -y
+   ```
+   - 生成精炼可断言的测试场景与测试数据，写入 `.tasks/{feature}/task-plans/`
+   - `impl` 将在 RED 阶段优先读取这些场景并转化为测试用例
+
+11. **(Optional) Task-level planning for complex tasks**:
    ```bash
    /spec-task:impl-task-plan notification-system 1.1
    ```
 
-11. **Begin implementation**:
+12. **Begin implementation**:
    ```bash
    /spec-task:impl notification-system
    ```
