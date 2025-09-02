@@ -433,6 +433,7 @@ async def test_api_adapter_port_already_in_use():
     occupied_port = sock.getsockname()[1]
     sock.listen(1)
 
+    api_adapter = None
     try:
         # Now try to start adapter on same port
         api_adapter = ApiAdapter()
@@ -446,15 +447,22 @@ async def test_api_adapter_port_already_in_use():
         )
 
         # This should fail because port is in use
-        result = await api_adapter.start()
+        # Uvicorn may call sys.exit(1) on port conflict, so catch SystemExit
+        try:
+            result = await api_adapter.start()
+            # If no exception, should return False for failure
+            assert result is False
+        except SystemExit as e:
+            # SystemExit with code 1 indicates port binding failure
+            assert e.code == 1
+            result = False
 
-        assert result is False
         assert api_adapter.status == ServiceStatus.STOPPED
 
     finally:
         sock.close()
         # Ensure cleanup
-        if hasattr(api_adapter, "status") and api_adapter.status == ServiceStatus.RUNNING:
+        if api_adapter and hasattr(api_adapter, "status") and api_adapter.status == ServiceStatus.RUNNING:
             await api_adapter.stop()
 
 
