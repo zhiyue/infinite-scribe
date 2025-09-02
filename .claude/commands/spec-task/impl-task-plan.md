@@ -1,6 +1,8 @@
 ---
 description: Generate detailed implementation plan for a specific task
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, WebSearch, WebFetch, Task, Agent
+allowed-tools:
+  Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, WebSearch, WebFetch, Task,
+  Agent
 argument-hint: <feature-name> <task-number>
 ---
 
@@ -11,6 +13,7 @@ argument-hint: <feature-name> <task-number>
 ## 说明
 
 此命令为单个任务生成详细的实施计划，包括：
+
 - 具体的实施步骤分解
 - TDD测试策略
 - 需要调用的API和方法
@@ -38,20 +41,27 @@ argument-hint: <feature-name> <task-number>
 ### 1. 加载上下文
 
 从以下文件加载相关信息：
+
 - `.tasks/{feature-name}/requirements.md` - 相关需求
+- `.tasks/$ARGUMENTS/design-hld.md` - 高层设计
 - `.tasks/{feature-name}/design-lld.md` - 详细设计
 - `.tasks/{feature-name}/tasks.md` - 提取特定任务描述
+- `.tasks/$ARGUMENTS/adr/` - adr 决策
 
 ### 2. 任务分析
 
 #### 2.1 提取任务信息
+
 从 tasks.md 中找到指定编号的任务：
+
 - 任务描述
 - 关联的需求编号
 - 依赖的前置任务
 
 #### 2.2 技术依赖分析
+
 识别该任务需要的：
+
 - 具体的库和框架
 - API接口和方法
 - 数据模型
@@ -61,118 +71,133 @@ argument-hint: <feature-name> <task-number>
 
 创建 `.tasks/{feature-name}/task-plans/{task-number}.md`：
 
-```markdown
+````markdown
 # 任务 {task-number} 实施计划
 
-生成时间：{timestamp}
-任务描述：{task-description}
-关联需求：{requirements}
-预计工时：{estimated-hours}
+生成时间：{timestamp} 任务描述：{task-description} 关联需求：{requirements} 预计工时：{estimated-hours}
 
 ## 执行概要
 
 ### 目标
+
 {明确的任务目标}
 
 ### 范围
+
 - **包含**：{具体要实现的功能}
 - **不包含**：{明确不在此任务范围内的内容}
 
 ### 前置条件
+
 - {需要完成的前置任务}
 - {需要的环境或配置}
 
 ## 技术准备
 
 ### 需要的API/库
-| 库/模块 | 方法/类 | 用途 | 文档链接 |
-|---------|--------|------|---------|
-| {lib} | {method} | {usage} | {docs} |
+
+| 库/模块 | 方法/类  | 用途    | 文档链接 |
+| ------- | -------- | ------- | -------- |
+| {lib}   | {method} | {usage} | {docs}   |
 
 ### 代码位置
+
 - **需要创建的文件**：
   - `{file-path}` - {purpose}
-  
 - **需要修改的文件**：
   - `{file-path}` - {changes}
 
 ## TDD实施步骤
 
 ### 步骤1：{步骤名称}
+
 **测试先行（RED）**：
+
 ```{language}
 // 测试文件：{test-file}
 test('{test-description}', () => {
   // 准备
   {setup-code}
-  
+
   // 执行
   {action-code}
-  
+
   // 断言
   {assertion-code}
 })
 ```
+````
 
 **最小实现（GREEN）**：
+
 ```{language}
 // 实现文件：{impl-file}
 {minimal-implementation}
 ```
 
 **重构优化（REFACTOR）**：
+
 - {refactor-point-1}
 - {refactor-point-2}
 
 ### 步骤2：{步骤名称}
+
 [继续其他步骤...]
 
 ## 边界情况处理
 
 ### 错误场景
+
 1. **{error-scenario}**
    - 触发条件：{condition}
    - 处理方式：{handling}
    - 测试用例：{test-case}
 
 ### 性能考虑
+
 - {performance-consideration}
 
 ## 验收标准
 
 ### 功能验收
+
 - [ ] {functional-criterion-1}
 - [ ] {functional-criterion-2}
 
 ### 技术验收
+
 - [ ] 所有测试通过
 - [ ] 代码覆盖率 > 80%
 - [ ] 无 linting 错误
 - [ ] 代码复杂度符合标准
 
 ### 集成验收
+
 - [ ] 与前置任务输出正确对接
 - [ ] 为后续任务提供必要接口
 
 ## 风险与缓解
 
-| 风险 | 概率 | 影响 | 缓解措施 |
-|------|------|------|----------|
+| 风险   | 概率          | 影响     | 缓解措施     |
+| ------ | ------------- | -------- | ------------ |
 | {risk} | {probability} | {impact} | {mitigation} |
 
 ## 实施检查清单
 
 ### 开始前
+
 - [ ] 确认所有前置任务完成
 - [ ] 确认开发环境配置正确
 - [ ] 理解任务需求和设计
 
 ### 实施中
+
 - [ ] 遵循TDD流程
 - [ ] 每个步骤后运行测试
 - [ ] 及时提交代码
 
 ### 完成后
+
 - [ ] 运行完整测试套件
 - [ ] 代码审查（code-review-expert）
 - [ ] 代码简化（code-simplifier）
@@ -180,14 +205,14 @@ test('{test-description}', () => {
 
 ## 时间估算
 
-| 阶段 | 预计时间 |
-|------|----------|
-| 技术准备 | 15分钟 |
-| 步骤1实施 | {time} |
-| 步骤2实施 | {time} |
-| 测试完善 | 30分钟 |
-| 代码优化 | 20分钟 |
-| **总计** | {total} |
+| 阶段      | 预计时间 |
+| --------- | -------- |
+| 技术准备  | 15分钟   |
+| 步骤1实施 | {time}   |
+| 步骤2实施 | {time}   |
+| 测试完善  | 30分钟   |
+| 代码优化  | 20分钟   |
+| **总计**  | {total}  |
 
 ## 审批状态
 
@@ -196,8 +221,10 @@ test('{test-description}', () => {
 - [ ] 准备开始实施
 
 ---
-*此文档由 spec-task:impl-task-plan 生成，作为单任务实施的详细指导*
-```
+
+_此文档由 spec-task:impl-task-plan 生成，作为单任务实施的详细指导_
+
+````
 
 ### 4. 更新元数据
 
@@ -213,7 +240,7 @@ test('{test-description}', () => {
     }
   }
 }
-```
+````
 
 ### 5. 输出摘要
 
