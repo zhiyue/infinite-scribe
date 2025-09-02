@@ -178,6 +178,13 @@
       "planned_at": "2025-09-02T16:30:00Z",
       "description": "管理端点（开发默认启用）- API Gateway管理接口实现",
       "estimated_hours": 2.5
+    },
+    "9": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:50:00Z",
+      "description": "信号与跨平台停止 - 实现POSIX/Windows跨平台的优雅停止机制，支持信号处理和进程组管理",
+      "estimated_hours": 3.0
     }
   },
   "test_scenarios": {
@@ -293,6 +300,16 @@
       "test_classes": 1,
       "test_scenarios": 26,
       "coverage_target": 85
+    },
+    "8": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-02T16:45:00Z",
+      "sut_class": "AdminRouter",
+      "core_methods": ["get_launcher_status", "get_health_summary"],
+      "test_classes": 1,
+      "test_scenarios": 24,
+      "coverage_target": 90
     }
   }
 }
