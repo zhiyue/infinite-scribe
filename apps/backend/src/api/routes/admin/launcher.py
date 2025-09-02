@@ -1,14 +1,17 @@
 """Admin launcher management endpoints."""
 
+import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.models.launcher import HealthSummaryItem, HealthSummaryResponse, LauncherStatusResponse, ServiceStatusItem
 from src.core.config import Settings, get_settings
 from src.launcher.health import HealthMonitor, HealthStatus
 from src.launcher.orchestrator import Orchestrator
 from src.launcher.types import ServiceStatus
+
+logger = logging.getLogger(__name__)
 
 
 def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
@@ -23,37 +26,34 @@ def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
 router = APIRouter(prefix="/admin/launcher", tags=["launcher-admin"], dependencies=[Depends(require_admin_access)])
 
 
-# Global singletons for launcher components
-_orchestrator_instance: Orchestrator | None = None
-_health_monitor_instance: HealthMonitor | None = None
+def get_orchestrator(request: Request) -> Orchestrator:
+    """Get orchestrator instance from application state."""
+    orchestrator = getattr(request.app.state, 'orchestrator', None)
+    if orchestrator is None:
+        logger.error("Orchestrator instance not available - launcher components not initialized")
+        raise HTTPException(
+            status_code=503, 
+            detail="Launcher orchestrator service unavailable"
+        )
+    return orchestrator
 
 
-def get_orchestrator() -> Orchestrator:
-    """Get orchestrator instance."""
-    global _orchestrator_instance
-    if _orchestrator_instance is None:
-        # For minimal implementation, create a basic orchestrator
-        # In real implementation, this would get the actual running instance
-        from src.launcher.config import LauncherConfigModel
-
-        _orchestrator_instance = Orchestrator(LauncherConfigModel())
-    return _orchestrator_instance
-
-
-def get_health_monitor() -> HealthMonitor:
-    """Get health monitor instance."""
-    global _health_monitor_instance
-    if _health_monitor_instance is None:
-        # For minimal implementation, create a basic health monitor
-        _health_monitor_instance = HealthMonitor(check_interval=1.0)
-    return _health_monitor_instance
+def get_health_monitor(request: Request) -> HealthMonitor:
+    """Get health monitor instance from application state."""
+    health_monitor = getattr(request.app.state, 'health_monitor', None)
+    if health_monitor is None:
+        logger.error("Health monitor instance not available - launcher components not initialized")
+        raise HTTPException(
+            status_code=503, 
+            detail="Launcher health monitor service unavailable"
+        )
+    return health_monitor
 
 
 @router.get("/status", response_model=LauncherStatusResponse)
-async def get_launcher_status() -> LauncherStatusResponse:
+async def get_launcher_status(orchestrator: Orchestrator = Depends(get_orchestrator)) -> LauncherStatusResponse:
     """Get launcher and service status."""
     try:
-        orchestrator = get_orchestrator()
         # Get all service states from orchestrator
         service_states = orchestrator.get_all_service_states()
 
@@ -95,15 +95,23 @@ async def get_launcher_status() -> LauncherStatusResponse:
             total_services=total_services,
             running_services=running_count,
         )
-    except Exception:
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve launcher status",
+            extra={
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "endpoint": "/admin/launcher/status"
+            },
+            exc_info=True
+        )
         raise HTTPException(status_code=503, detail="Service unavailable")
 
 
 @router.get("/health", response_model=HealthSummaryResponse)
-async def get_launcher_health() -> HealthSummaryResponse:
+async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health_monitor)) -> HealthSummaryResponse:
     """Get cluster health summary."""
     try:
-        health_monitor = get_health_monitor()
         # Get cluster health status
         cluster_health = health_monitor.get_cluster_health()
         cluster_status = health_monitor.get_cluster_status()
@@ -131,7 +139,16 @@ async def get_launcher_health() -> HealthSummaryResponse:
             healthy_count=healthy_count,
             total_count=len(services),
         )
-    except Exception:
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve cluster health summary",
+            extra={
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "endpoint": "/admin/launcher/health"
+            },
+            exc_info=True
+        )
         raise HTTPException(status_code=503, detail="Service unavailable")
 
 

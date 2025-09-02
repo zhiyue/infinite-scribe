@@ -46,6 +46,25 @@ async def lifespan(app: FastAPI):
         else:
             logger.error("Failed to establish Redis connection")
 
+        # Initialize launcher components
+        logger.info("Initializing launcher components...")
+        try:
+            from src.launcher.config import LauncherConfigModel
+            from src.launcher.health import HealthMonitor
+            from src.launcher.orchestrator import Orchestrator
+
+            # Create launcher components (in production, these would be shared with the launcher process)
+            launcher_config = LauncherConfigModel()
+            app.state.orchestrator = Orchestrator(launcher_config)
+            app.state.health_monitor = HealthMonitor(check_interval=launcher_config.health_interval)
+
+            logger.info("Launcher components initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize launcher components: {e}")
+            # Set None to indicate unavailable (graceful degradation)
+            app.state.orchestrator = None
+            app.state.health_monitor = None
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
 
@@ -59,6 +78,17 @@ async def lifespan(app: FastAPI):
         from src.api.routes.v1.events import cleanup_sse_services
 
         await cleanup_sse_services()
+
+        # Cleanup launcher components
+        if hasattr(app.state, "orchestrator") and app.state.orchestrator:
+            try:
+                # In production, this would coordinate with launcher shutdown
+                logger.info("Shutting down launcher components...")
+                app.state.orchestrator = None
+                app.state.health_monitor = None
+                logger.info("Launcher components shut down successfully")
+            except Exception as e:
+                logger.error(f"Error shutting down launcher components: {e}")
 
         # Disconnect database services
         await postgres_service.disconnect()
@@ -91,8 +121,9 @@ app.include_router(health.router, tags=["health"])
 app.include_router(v1.router, prefix="/api/v1")
 
 # Include admin routes (conditionally based on environment)
-if settings.environment == "development" or (hasattr(settings, 'launcher') and 
-                                           hasattr(settings.launcher, 'admin_enabled') and 
-                                           settings.launcher.admin_enabled):
+if settings.environment == "development" or (
+    hasattr(settings, "launcher") and hasattr(settings.launcher, "admin_enabled") and settings.launcher.admin_enabled
+):
     from src.api.routes.admin import launcher as launcher_admin
+
     app.include_router(launcher_admin.router)

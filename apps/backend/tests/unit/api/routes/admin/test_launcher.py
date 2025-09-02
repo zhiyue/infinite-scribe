@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from src.api.routes.admin.launcher import require_admin_access, router
+from src.api.routes.admin.launcher import get_health_monitor, get_orchestrator, require_admin_access, router
 from src.core.config import Settings
 from src.launcher.health import HealthCheckResult, HealthMonitor, HealthStatus
 from src.launcher.orchestrator import Orchestrator
@@ -44,17 +44,15 @@ def test_client(mock_orchestrator, mock_health_monitor, mock_settings):
     """Create test client with mocked dependencies."""
     app = FastAPI()
 
-    # Override dependencies
+    # Override dependencies using FastAPI's recommended approach
     app.dependency_overrides[require_admin_access] = lambda: True
+    
+    # Set mock instances directly in app.state (new approach)
+    app.state.orchestrator = mock_orchestrator
+    app.state.health_monitor = mock_health_monitor
 
-    # Mock the dependency injection functions
-    with (
-        patch("src.api.routes.admin.launcher.get_orchestrator", return_value=mock_orchestrator),
-        patch("src.api.routes.admin.launcher.get_health_monitor", return_value=mock_health_monitor),
-        patch("src.api.routes.admin.launcher.get_settings", return_value=mock_settings),
-    ):
-        app.include_router(router)
-        return TestClient(app)
+    app.include_router(router)
+    return TestClient(app)
 
 
 class TestAdminEndpoints:
@@ -205,20 +203,17 @@ class TestAdminEndpoints:
         assert data["total_count"] == 0
         assert data["services"] == []
 
-    def test_orchestrator_not_ready(self, test_client):
+    def test_orchestrator_not_ready(self, test_client, mock_orchestrator):
         """Test status endpoint when orchestrator is not ready - Scenario 17"""
         # Arrange - Mock orchestrator throws exception
-        with patch("src.api.routes.admin.launcher.get_orchestrator", side_effect=Exception("Orchestrator not ready")):
-            app = FastAPI()
-            app.include_router(router)
-            test_client = TestClient(app)
+        mock_orchestrator.get_all_service_states.side_effect = Exception("Orchestrator not ready")
 
-            # Act
-            response = test_client.get("/admin/launcher/status")
+        # Act
+        response = test_client.get("/admin/launcher/status")
 
-            # Assert
-            assert response.status_code == 503
-            assert "service unavailable" in response.json()["detail"].lower()
+        # Assert
+        assert response.status_code == 503
+        assert "service unavailable" in response.json()["detail"].lower()
 
     def test_health_monitor_exception(self, test_client, mock_health_monitor):
         """Test health endpoint when health monitor throws exception - Scenario 18"""
@@ -387,6 +382,7 @@ class TestAPISpecCompliance:
         mock_health_monitor.get_cluster_health.return_value = {
             "api": HealthCheckResult("api", HealthStatus.HEALTHY, 25.0, time.time())
         }
+        mock_health_monitor.get_cluster_status.return_value = HealthStatus.HEALTHY
 
         # Act
         status_response = test_client.get("/admin/launcher/status")
