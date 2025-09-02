@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -412,7 +412,7 @@ class TestCLIStayMode:
         mock_args.agents = None
 
         with (
-            patch("launcher.commands.Orchestrator") as mock_orch_class,
+            patch("launcher.orchestrator.Orchestrator") as mock_orch_class,
             patch("launcher.commands.asyncio.run") as mock_asyncio_run,
             patch("launcher.commands._handle_stay_mode") as mock_stay_mode,
             patch("builtins.print"),
@@ -442,7 +442,7 @@ class TestCLIStayMode:
         mock_args.agents = None
 
         with (
-            patch("launcher.commands.Orchestrator") as mock_orch_class,
+            patch("launcher.orchestrator.Orchestrator") as mock_orch_class,
             patch("launcher.commands.asyncio.run") as mock_asyncio_run,
             patch("launcher.commands._handle_stay_mode") as mock_stay_mode,
             patch("builtins.print"),
@@ -465,13 +465,15 @@ class TestCLIStayMode:
         from launcher.commands import _handle_stay_mode
 
         mock_orch = Mock()
+        mock_orch.orchestrate_shutdown = AsyncMock()
         service_names = ["api", "agents"]
         mock_signal_cleanup = Mock()
         mock_shutdown_event = Mock()
+        mock_shutdown_event.wait = AsyncMock()
 
         with (
             patch("launcher.commands.handle_daemon_mode_with_early_registration") as mock_handle_early,
-            patch("launcher.commands.handle_daemon_mode_fallback") as mock_handle_fallback,
+            patch("launcher.commands.handle_daemon_mode") as mock_handle_fallback,
             patch("builtins.print"),
         ):
             # 测试早期注册成功的情况（signal_cleanup不为None）
@@ -515,7 +517,7 @@ class TestCLIStayMode:
             return mock_orch
 
         with (
-            patch("launcher.commands.Orchestrator", side_effect=capture_config),
+            patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
             patch("launcher.commands.asyncio.run") as mock_asyncio_run,
             patch("launcher.commands._handle_stay_mode") as mock_stay_mode,
             patch("builtins.print"),
@@ -549,7 +551,7 @@ class TestCLIStayMode:
             return mock_orch
 
         with (
-            patch("launcher.commands.Orchestrator", side_effect=capture_config),
+            patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
             patch("launcher.commands.asyncio.run") as mock_asyncio_run,
             patch("builtins.print"),
         ):
