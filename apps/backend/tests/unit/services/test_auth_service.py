@@ -5,11 +5,10 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import HTTPException, status
-
 from src.api.routes.v1.auth_login import login_user
 from src.api.schemas import UserLoginRequest
-from src.common.settings import settings
-from src.utils import utc_now
+from src.common.utils.datetime_utils import utc_now
+from src.core.config import settings
 
 
 class TestAccountLockout:
@@ -104,14 +103,19 @@ class TestAccountLockout:
                 return_value={
                     "success": True,
                     "user": {
-                        "id": "user123",
+                        "id": 123,
                         "email": "test@example.com",
                         "username": "testuser",
                         "is_active": True,
-                        "is_email_verified": True,
-                        "role": "user",
+                        "is_verified": True,
+                        "is_superuser": False,
                         "created_at": utc_now().isoformat(),
                         "updated_at": utc_now().isoformat(),
+                        "email_verified_at": utc_now().isoformat(),
+                        "last_login_at": utc_now().isoformat(),
+                        "first_name": None,
+                        "last_name": None,
+                        "bio": None,
                     },
                     "access_token": "access_token_here",
                     "refresh_token": "refresh_token_here",

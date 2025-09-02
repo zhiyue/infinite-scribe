@@ -32,7 +32,7 @@
   - AgentsAdapter：复用 `apps/backend/src/agents/launcher.py`（加载、start/stop、信号处理）
   - 关联: FR-001, FR-002, FR-004, NFR-002
 
-- [ ] 6. 轻量编排器
+- [x] 6. 轻量编排器
   - 基于手写状态表与拓扑分层：按依赖启动/逆序停止，失败回滚
   - 组件状态：`INIT/STARTING/RUNNING/DEGRADED/STOPPING/STOPPED/ERROR`
   - 关联: FR-001, FR-002, FR-004, NFR-002

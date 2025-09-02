@@ -1,7 +1,7 @@
 {
   "feature_name": "unified-backend-launcher",
   "created_at": "2025-09-01T00:00:00Z",
-  "updated_at": "2025-09-02T13:15:00Z",
+  "updated_at": "2025-09-02T16:20:00Z",
   "language": "chinese",
   "phase": "impl-plan-generated",
   "documents": {
@@ -164,12 +164,19 @@
       "description": "轻量编排器 - 基于手写状态表与拓扑分层，按依赖启动/逆序停止，失败回滚",
       "estimated_hours": 5.5,
       "enhancements": ["并发启动优化", "状态锁保护", "超时控制", "循环依赖检测", "分层停止"]
+    },
+    "7": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:00:00Z",
+      "description": "健康监控（最小）- 实现API健康检查与状态聚合",
+      "estimated_hours": 3.5
     }
   },
   "test_scenarios": {
     "generated": true,
     "approved": true,
-    "generated_at": "2025-09-01T23:55:00Z",
+    "generated_at": "2025-09-02T16:10:00Z",
     "tasks": {
       "1": {
         "file": "task-plans/task-1-test-scenarios.md",
@@ -199,6 +206,17 @@
         "priority_distribution": {
           "P0": 18,
           "P1": 10,
+          "P2": 4
+        }
+      },
+      "7": {
+        "file": "task-plans/task-7-test-scenarios.md",
+        "count": 25,
+        "approved": false,
+        "generated_at": "2025-09-02T16:10:00Z",
+        "priority_distribution": {
+          "P0": 9,
+          "P1": 12,
           "P2": 4
         }
       }
@@ -247,6 +265,16 @@
       "test_classes": 7,
       "test_scenarios": 32,
       "coverage_target": 90
+    },
+    "7": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-02T16:20:00Z",
+      "sut_class": "HealthMonitor",
+      "core_methods": ["__init__", "check_health", "start_monitoring", "stop_monitoring", "get_cluster_health", "get_cluster_status", "subscribe", "unsubscribe", "add_service", "check_agents_health"],
+      "test_classes": 1,
+      "test_scenarios": 26,
+      "coverage_target": 85
     }
   }
 }
