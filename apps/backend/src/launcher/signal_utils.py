@@ -52,8 +52,10 @@ def _create_safe_callback_wrapper(callback: Callable[[], Awaitable[None]]) -> Ca
     def wrapper() -> None:
         try:
             loop = asyncio.get_running_loop()
+
             # Use call_soon_threadsafe to safely schedule async task
-            loop.call_soon_threadsafe(lambda: asyncio.create_task(callback()))
+            coro = callback()  # Get the coroutine
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))  # type: ignore[arg-type]
         except RuntimeError:
             logger.warning("No running event loop for signal callback")
 
@@ -93,16 +95,22 @@ def _register_windows_signal_handler(callback_wrapper: Callable[[], None]) -> Cl
     """Register signal handler for Windows using signal.signal fallback"""
     try:
         # Windows only supports SIGINT, use signal.signal fallback
-        original_handler = signal.signal(signal.SIGINT, lambda sig, frame: callback_wrapper())
+        def signal_handler(sig, frame):
+            callback_wrapper()
+
+        original_handler = signal.signal(signal.SIGINT, signal_handler)
         logger.info("Registered Windows signal handler", signal="SIGINT")
 
-        return lambda: signal.signal(signal.SIGINT, original_handler)
+        def cleanup():
+            signal.signal(signal.SIGINT, original_handler)
+
+        return cleanup
     except Exception as e:
         logger.error("Failed to register Windows signal handler", error=str(e))
         return None
 
 
-def register_shutdown_handler(callback: Callable[[], Awaitable[None]]) -> Callable[[], None]:
+def register_shutdown_handler(callback: Callable[[], Awaitable[None]]) -> Callable[[], None] | None:
     """
     Register a unified shutdown signal handler that takes ownership of SIGINT/SIGTERM
 
@@ -121,10 +129,10 @@ def register_shutdown_handler(callback: Callable[[], Awaitable[None]]) -> Callab
     else:  # Windows systems
         cleanup_fn = _register_windows_signal_handler(callback_wrapper)
 
-    # Return cleanup function or no-op if registration failed
+    # Return cleanup function or None if registration failed
     if cleanup_fn is None:
-        logger.warning("Signal handler registration failed, returning no-op cleanup")
-        return lambda: None
+        logger.warning("Signal handler registration failed")
+        return None
 
     def cleanup() -> None:
         """Clean up the signal handler"""
@@ -135,6 +143,39 @@ def register_shutdown_handler(callback: Callable[[], Awaitable[None]]) -> Callab
             logger.warning("Signal handler cleanup failed", error=str(e))
 
     return cleanup
+
+
+def create_shutdown_signal_handler() -> tuple[asyncio.Event, Callable[[], None] | None]:
+    """
+    Create shutdown signal handler without waiting - for early registration during startup
+
+    Returns:
+        tuple: (shutdown_event, cleanup_function) - cleanup_function is None if registration failed
+    """
+    try:
+        # Check if we have a running event loop (required for asyncio.Event and signal handlers)
+        asyncio.get_running_loop()
+
+        shutdown_event = asyncio.Event()
+
+        async def shutdown_handler():
+            shutdown_event.set()
+            logger.info("Shutdown signal received")
+
+        # Register signal handlers early (before service startup)
+        cleanup = register_shutdown_handler(shutdown_handler)
+
+        if cleanup is None:
+            logger.warning("Signal registration failed despite having event loop")
+            return shutdown_event, None
+
+        logger.info("Early signal registration successful")
+        return shutdown_event, cleanup
+
+    except RuntimeError:
+        # No event loop running - early registration not possible
+        logger.info("No event loop running, early signal registration not possible")
+        return asyncio.Event(), None  # Return dummy event and None cleanup
 
 
 async def wait_for_shutdown_signal() -> None:
@@ -153,16 +194,10 @@ async def wait_for_shutdown_signal() -> None:
     # 注册信号处理器
     cleanup = register_shutdown_handler(shutdown_handler)
 
-    # 检查是否成功注册（通过检查cleanup函数是否为no-op）
-    try:
-        # 如果信号注册失败，register_shutdown_handler会返回lambda: None
-        # 我们可以通过检查其字节码来判断是否为no-op函数
-        if cleanup.__code__.co_code == (lambda: None).__code__.co_code:
-            signal_registered_successfully = False
-            logger.warning("Signal registration failed, will rely on KeyboardInterrupt fallback")
-    except Exception:
-        # 如果检查失败，假设注册成功，让后续逻辑处理
-        pass
+    # 检查是否成功注册
+    if cleanup is None:
+        signal_registered_successfully = False
+        logger.warning("Signal registration failed, will rely on KeyboardInterrupt fallback")
 
     try:
         # 等待信号或KeyboardInterrupt
@@ -178,7 +213,8 @@ async def wait_for_shutdown_signal() -> None:
         # KeyboardInterrupt被捕获，正常继续
     finally:
         # 清理信号处理器
-        try:
-            cleanup()
-        except Exception as e:
-            logger.warning("Failed to cleanup signal handler during shutdown", error=str(e))
+        if cleanup is not None:
+            try:
+                cleanup()
+            except Exception as e:
+                logger.warning("Failed to cleanup signal handler during shutdown", error=str(e))

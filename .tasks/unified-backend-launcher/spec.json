@@ -193,6 +193,21 @@
         "只监听SIGINT避免agents冲突",
         "测试基于实际存在的API方法"
       ]
+    },
+    "10": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T17:00:00Z",
+      "description": "结构化日志 - 统一使用structlog，标准化日志字段：component、mode、state、elapsed_ms、attempt、error_type",
+      "estimated_hours": 4.0,
+      "related_requirements": ["NFR-005"],
+      "key_features": [
+        "配置structlog与标准字段格式",
+        "创建日志配置模块和类型定义",
+        "更新所有启动器组件使用标准化日志",
+        "支持开发/生产环境不同输出格式",
+        "实现错误类型自动分类"
+      ]
     }
   },
   "test_scenarios": {

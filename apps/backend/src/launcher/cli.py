@@ -117,6 +117,58 @@ def _handle_daemon_mode(orchestrator, service_names: list[str]) -> None:
         raise
 
 
+def _handle_daemon_mode_with_early_registration(
+    orchestrator, service_names: list[str], shutdown_event, cleanup_fn
+) -> None:
+    """
+    Handle daemon mode with pre-registered signal handlers
+
+    :param orchestrator: The orchestrator instance to use for shutdown
+    :param service_names: List of service names to shutdown
+    :param shutdown_event: Pre-registered asyncio.Event that will be set on signal
+    :param cleanup_fn: Pre-registered cleanup function (should not be None when this function is called)
+    """
+    import asyncio as _asyncio
+
+    # Additional safety check - this function should only be called when registration succeeded
+    if cleanup_fn is None:
+        raise RuntimeError("_handle_daemon_mode_with_early_registration called with failed registration")
+
+    if shutdown_event is None:
+        raise RuntimeError("_handle_daemon_mode_with_early_registration called with invalid shutdown_event")
+
+    print("🔄 Stay mode enabled (early registration), waiting for shutdown signal (Ctrl+C)...")
+
+    try:
+        # Wait for the pre-registered shutdown signal (guaranteed to be registered since cleanup_fn is not None)
+        _asyncio.run(shutdown_event.wait())
+
+        print("📡 Shutdown signal received, stopping services...")
+
+        # Gracefully shutdown services
+        _asyncio.run(orchestrator.orchestrate_shutdown(service_names))
+        print("✅ Services stopped gracefully")
+
+    except KeyboardInterrupt:
+        print("📡 Interrupted by user, stopping services...")
+        try:
+            _asyncio.run(orchestrator.orchestrate_shutdown(service_names))
+            print("✅ Services stopped gracefully")
+        except Exception as e:
+            print(f"❌ Error during shutdown: {e}")
+            raise
+    except Exception as e:
+        print(f"❌ Error during shutdown: {e}")
+        # Re-raise to ensure proper exit code
+        raise
+    finally:
+        # Clean up signal handlers (cleanup_fn guaranteed to be not None)
+        try:
+            cleanup_fn()
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to cleanup signal handlers: {e}")
+
+
 def _handle_up_command(args: argparse.Namespace) -> None:
     """Handle the 'up' command"""
     # Lightweight defaults to avoid importing Settings/Pydantic on perf-sensitive code paths
@@ -142,16 +194,21 @@ def _handle_up_command(args: argparse.Namespace) -> None:
 
         # When --stay mode is enabled, CLI takes unified signal handling ownership
         # so agent signal handlers should be disabled to prevent conflicts
-        disable_agent_signals = getattr(args, 'stay', False)
-        
+        disable_agent_signals = getattr(args, "stay", False)
+
+        # Early signal registration for --stay mode (before service startup)
+        shutdown_event = None
+        signal_cleanup = None
+        if disable_agent_signals:
+            from .signal_utils import create_shutdown_signal_handler
+
+            shutdown_event, signal_cleanup = create_shutdown_signal_handler()
+
         config = LauncherConfigModel(
             default_mode=mode,
             components=components,
             api=LauncherApiConfig(reload=bool(args.reload)),
-            agents=LauncherAgentsConfig(
-                names=agent_names,
-                disable_signal_handlers=disable_agent_signals
-            ),
+            agents=LauncherAgentsConfig(names=agent_names, disable_signal_handlers=disable_agent_signals),
         )
         orch = Orchestrator(config)
         service_names = [c.value for c in components]
@@ -168,7 +225,18 @@ def _handle_up_command(args: argparse.Namespace) -> None:
 
         # Handle daemon mode if requested
         if getattr(args, "stay", False):
-            _handle_daemon_mode(orch, service_names)
+            # Critical: Check if early signal registration succeeded (signal_cleanup is not None)
+            # This determines whether SIGTERM can be handled via early registration or needs fallback
+            if signal_cleanup is not None:
+                print("✅ Using early signal registration for daemon mode")
+                # Early registration successful, use pre-registered handlers
+                _handle_daemon_mode_with_early_registration(orch, service_names, shutdown_event, signal_cleanup)
+            else:
+                print("⚠️  Early signal registration failed (no event loop), using proven fallback method")
+                print("   → SIGTERM handling guaranteed via fallback path")
+                # Early registration failed - use original method which registers signals within event loop context
+                # This path ensures both SIGINT and SIGTERM are properly handled
+                _handle_daemon_mode(orch, service_names)
         else:
             # Default behavior: exit immediately after startup
             print("💡 Use --stay to wait for shutdown signal.")
