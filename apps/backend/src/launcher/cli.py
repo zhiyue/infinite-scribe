@@ -4,6 +4,8 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
+from typing import NoReturn
+
 from .types import ComponentType, LaunchMode
 
 
@@ -93,7 +95,7 @@ def _handle_down_command(args: argparse.Namespace) -> None:
     """Handle the 'down' command"""
     if args.grace < 0:
         _error_exit(f"Invalid --grace value: {args.grace}. Grace period must be >= 0 seconds")
-    
+
     print(f"Shutdown plan => grace={args.grace}s")
 
 
@@ -152,7 +154,7 @@ def _print_launch_plan(
     print(f"Launcher plan => mode={mode.value}, components=[{components_str}], agents={agent_str}, api.reload={reload}")
 
 
-def _error_exit(message: str, exit_code: int = 2) -> None:
+def _error_exit(message: str, exit_code: int = 2) -> NoReturn:
     """Print error message and exit with consistent formatting"""
     print(message, file=sys.stderr)
     sys.exit(exit_code)
@@ -165,7 +167,7 @@ def _parse_list_like(value: str) -> list[str]:
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON list: {e}")
+            raise ValueError(f"Invalid JSON list: {e}") from e
         if not isinstance(parsed, list) or not all(isinstance(x, str) for x in parsed):
             raise ValueError("JSON value must be a list of strings")
         return parsed

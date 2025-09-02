@@ -465,7 +465,7 @@ async def test_api_adapter_startup_timeout_failure():
     api_adapter = ApiAdapter()
 
     # Configure with invalid app module to cause startup failure
-    with patch("launcher.adapters.api.uvicorn.Config") as mock_config:
+    with patch("launcher.adapters.api.uvicorn.Config"):
         mock_server = Mock()
         mock_server.started = False  # Never becomes ready
         mock_server.serve = AsyncMock()

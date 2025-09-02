@@ -40,8 +40,8 @@ class ApiAdapter(BaseAdapter):
         if isinstance(mode_cfg, str):
             try:
                 mode = LaunchMode(mode_cfg)
-            except ValueError:
-                raise ValueError(f"Unsupported launch mode: {mode_cfg}")
+            except ValueError as e:
+                raise ValueError(f"Unsupported launch mode: {mode_cfg}") from e
 
         self._host = self.config.get("host", self._host)
         self._port = int(self.config.get("port", self._port))

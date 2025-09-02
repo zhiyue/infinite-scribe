@@ -63,7 +63,7 @@ class TestLauncherConfigModel:
         # Test API config access
         assert config.api.host == "0.0.0.0"
         assert config.api.port == 8000
-        assert config.api.reload == False
+        assert not config.api.reload
 
         # Test Agents config access
         assert config.agents.names is None

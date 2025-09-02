@@ -4,7 +4,7 @@ from typing import Any
 
 import structlog
 
-from src.agents.launcher import AgentLauncher, AgentsLoadError
+from src.agents.launcher import AgentLauncher
 
 from ..types import ServiceStatus
 from .base import BaseAdapter
