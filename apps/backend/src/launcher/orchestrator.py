@@ -352,7 +352,10 @@ class Orchestrator:
             }
             return ApiAdapter(cfg)
         if name == ComponentType.AGENTS.value:
-            cfg = {"agents": self.config.agents.names}
+            cfg = {
+                "agents": self.config.agents.names,
+                "disable_signal_handlers": self.config.agents.disable_signal_handlers,
+            }
             return AgentsAdapter(cfg)
         return None
 

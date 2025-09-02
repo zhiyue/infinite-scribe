@@ -47,7 +47,7 @@
   - 生产禁用或强制鉴权，并仅绑定 127.0.0.1
   - 关联: FR-003, NFR-003
 
-- [ ] 9. 信号与跨平台停止
+- [x] 9. 信号与跨平台停止
   - POSIX：以新进程组启动；`SIGTERM` → 超时 `SIGKILL`
   - Windows：`CREATE_NEW_PROCESS_GROUP` + `CTRL_BREAK_EVENT`
   - 关联: FR-004, NFR-002, NFR-004

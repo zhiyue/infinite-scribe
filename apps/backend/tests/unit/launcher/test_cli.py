@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 import time
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -388,55 +388,133 @@ class TestCLIStayMode:
     def test_parser_includes_stay_option(self):
         """up子命令解析器应包含--stay选项"""
         from launcher.cli import _create_parser
-        
+
         parser = _create_parser()
-        
+
         # 测试--stay参数存在
         args = parser.parse_args(["up", "--stay"])
-        assert hasattr(args, 'stay')
+        assert hasattr(args, "stay")
         assert args.stay is True
-        
+
         # 测试默认行为（不stay）
         args = parser.parse_args(["up"])
         assert args.stay is False
-    
+
     def test_stay_mode_waits_after_apply(self, mock_args):
         """--stay模式在apply成功后应等待信号"""
         from launcher.cli import _handle_up_command
-        
+
         mock_args.stay = True
-        
-        with patch('launcher.orchestrator.Orchestrator') as mock_orch_class, \
-             patch('asyncio.run') as mock_asyncio_run, \
-             patch('builtins.print'), \
-             patch('launcher.signal_utils.wait_for_shutdown_signal', new_callable=AsyncMock) as mock_wait:
-            
+
+        with (
+            patch("launcher.orchestrator.Orchestrator") as mock_orch_class,
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("builtins.print"),
+            patch("launcher.signal_utils.wait_for_shutdown_signal", new_callable=AsyncMock) as mock_wait,
+        ):
             mock_orch = Mock()
             mock_orch.orchestrate_startup.return_value = True
-            mock_orch.get_service_state.return_value.value = 'running'
+            mock_orch.get_service_state.return_value.value = "running"
             mock_orch_class.return_value = mock_orch
-            
+
             _handle_up_command(mock_args)
-            
+
             # 验证_asyncio.run被调用了至少2次：startup + wait_signal + shutdown
             assert mock_asyncio_run.call_count >= 2
-    
+
     def test_default_mode_exits_immediately(self, mock_args):
         """默认模式在apply后应立即退出"""
         from launcher.cli import _handle_up_command
-        
+
         mock_args.stay = False
-        
-        with patch('launcher.orchestrator.Orchestrator') as mock_orch_class, \
-             patch('asyncio.run') as mock_asyncio_run, \
-             patch('builtins.print'):
-            
+
+        with (
+            patch("launcher.orchestrator.Orchestrator") as mock_orch_class,
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("builtins.print"),
+        ):
             mock_orch = Mock()
             mock_orch.orchestrate_startup.return_value = True
-            mock_orch.get_service_state.return_value.value = 'running'
+            mock_orch.get_service_state.return_value.value = "running"
             mock_orch_class.return_value = mock_orch
-            
+
             _handle_up_command(mock_args)
-            
+
             # 验证只调用startup，不调用wait信号
             assert mock_asyncio_run.call_count == 1
+
+    def test_daemon_mode_keyboard_interrupt_handling(self, mock_args):
+        """测试daemon模式下KeyboardInterrupt的处理"""
+        from launcher.cli import _handle_daemon_mode
+
+        mock_orch = Mock()
+        service_names = ["api", "agents"]
+
+        with patch("asyncio.run") as mock_asyncio_run, patch("builtins.print"):
+            # 模拟第一次调用(wait_for_shutdown_signal)抛出KeyboardInterrupt
+            # 第二次调用(orchestrate_shutdown)正常执行
+            mock_asyncio_run.side_effect = [KeyboardInterrupt(), None]
+
+            # 应该不抛出异常，而是优雅处理KeyboardInterrupt
+            _handle_daemon_mode(mock_orch, service_names)
+
+            # 验证两次调用：wait_for_shutdown_signal + orchestrate_shutdown
+            assert mock_asyncio_run.call_count == 2
+            # 验证orchestrate_shutdown被调用
+            mock_orch.orchestrate_shutdown.assert_called_once_with(service_names)
+
+    def test_stay_mode_disables_agent_signal_handlers(self, mock_args):
+        """测试--stay模式下代理信号处理被禁用"""
+        from launcher.cli import _handle_up_command
+
+        mock_args.stay = True
+
+        # 捕获传递给Orchestrator的配置
+        captured_config = None
+
+        def capture_config(config):
+            nonlocal captured_config
+            captured_config = config
+            mock_orch = Mock()
+            mock_orch.orchestrate_startup.return_value = True
+            mock_orch.get_service_state.return_value.value = "running"
+            return mock_orch
+
+        with (
+            patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("builtins.print"),
+        ):
+            _handle_up_command(mock_args)
+
+            # 验证配置对象中agent signal handlers被禁用
+            assert captured_config is not None
+            assert captured_config.agents.disable_signal_handlers is True
+
+    def test_default_mode_keeps_agent_signal_handlers_enabled(self, mock_args):
+        """测试默认模式下代理信号处理保持启用"""
+        from launcher.cli import _handle_up_command
+
+        mock_args.stay = False
+
+        # 捕获传递给Orchestrator的配置
+        captured_config = None
+
+        def capture_config(config):
+            nonlocal captured_config
+            captured_config = config
+            mock_orch = Mock()
+            mock_orch.orchestrate_startup.return_value = True
+            mock_orch.get_service_state.return_value.value = "running"
+            return mock_orch
+
+        with (
+            patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("builtins.print"),
+        ):
+            _handle_up_command(mock_args)
+
+            # 验证配置对象中agent signal handlers保持启用
+            assert captured_config is not None
+            assert captured_config.agents.disable_signal_handlers is False

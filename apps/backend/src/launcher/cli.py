@@ -103,6 +103,14 @@ def _handle_daemon_mode(orchestrator, service_names: list[str]) -> None:
         _asyncio.run(orchestrator.orchestrate_shutdown(service_names))
         print("✅ Services stopped gracefully")
 
+    except KeyboardInterrupt:
+        print("📡 Interrupted by user, stopping services...")
+        try:
+            _asyncio.run(orchestrator.orchestrate_shutdown(service_names))
+            print("✅ Services stopped gracefully")
+        except Exception as e:
+            print(f"❌ Error during shutdown: {e}")
+            raise
     except Exception as e:
         print(f"❌ Error during shutdown: {e}")
         # Re-raise to ensure proper exit code
@@ -132,11 +140,18 @@ def _handle_up_command(args: argparse.Namespace) -> None:
         from .config import LauncherAgentsConfig, LauncherApiConfig, LauncherConfigModel
         from .orchestrator import Orchestrator
 
+        # When --stay mode is enabled, CLI takes unified signal handling ownership
+        # so agent signal handlers should be disabled to prevent conflicts
+        disable_agent_signals = getattr(args, 'stay', False)
+        
         config = LauncherConfigModel(
             default_mode=mode,
             components=components,
             api=LauncherApiConfig(reload=bool(args.reload)),
-            agents=LauncherAgentsConfig(names=agent_names),
+            agents=LauncherAgentsConfig(
+                names=agent_names,
+                disable_signal_handlers=disable_agent_signals
+            ),
         )
         orch = Orchestrator(config)
         service_names = [c.value for c in components]

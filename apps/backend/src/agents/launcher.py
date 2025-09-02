@@ -138,8 +138,15 @@ class AgentLauncher:
         await asyncio.gather(*tasks, return_exceptions=True)
         logger.info("所有 agents 已停止")
 
-    def setup_signal_handlers(self) -> None:
-        """设置信号处理器"""
+    def setup_signal_handlers(self, enable: bool = True) -> None:
+        """
+        设置信号处理器
+
+        :param enable: 是否启用信号处理器。当被外部orchestrator管理时应设为False
+        """
+        if not enable:
+            logger.info("Signal handlers disabled - managed by external orchestrator")
+            return
 
         def signal_handler(sig, frame):
             logger.info(f"收到信号 {sig},正在停止 agents...")
@@ -149,6 +156,7 @@ class AgentLauncher:
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
+        logger.info("Agent signal handlers registered", signals="SIGINT,SIGTERM")
 
 
 async def main(agent_names: list[str] | None = None):

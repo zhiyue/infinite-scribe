@@ -24,6 +24,9 @@ class LauncherAgentsConfig(BaseModel):
     NAME_PATTERN: ClassVar[re.Pattern] = re.compile(r"^[a-zA-Z0-9_-]+$")
 
     names: list[str] | None = Field(default=None, description="List of agent names to start")
+    disable_signal_handlers: bool = Field(
+        default=False, description="Disable agent signal handlers when managed by external orchestrator"
+    )
 
     @field_validator("names")
     @classmethod

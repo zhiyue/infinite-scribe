@@ -21,6 +21,8 @@ class AgentsAdapter(BaseAdapter):
         self._agent_names = config.get("agents")
         self._launcher: AgentLauncher | None = None
         self._loaded_agents: list[str] = []
+        # When True, agent signal handlers are disabled (managed by external orchestrator)
+        self._disable_signal_handlers = config.get("disable_signal_handlers", False)
 
     def load(self, agent_names: list[str] | None = None) -> None:
         """
@@ -50,8 +52,12 @@ class AgentsAdapter(BaseAdapter):
             # Create AgentLauncher instance
             self._launcher = AgentLauncher()
 
-            # Setup signal handlers
-            self._launcher.setup_signal_handlers()
+            # Setup signal handlers (disable if managed by external orchestrator)
+            enable_signal_handlers = not self._disable_signal_handlers
+            self._launcher.setup_signal_handlers(enable=enable_signal_handlers)
+
+            if self._disable_signal_handlers:
+                logger.info("Agent signal handlers disabled - managed by external orchestrator")
 
             # Use agent names from config if not loaded explicitly
             agents_to_load = self._loaded_agents if self._loaded_agents else self._agent_names
