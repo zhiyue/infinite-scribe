@@ -50,6 +50,7 @@ class LauncherConfigModel(BaseModel):
         default_factory=lambda: [ComponentType.API, ComponentType.AGENTS], description="List of components to start"
     )
     health_interval: float = Field(default=1.0, ge=0.1, le=60.0, description="Health check interval in seconds")
+    startup_timeout: int = Field(default=30, ge=1, le=600, description="Per-service startup timeout in seconds")
     stop_grace: int = Field(default=10, ge=0, le=120, description="Graceful shutdown timeout in seconds")
     timeout: int = Field(default=30, ge=5, le=300, description="Operation timeout in seconds")
     api: LauncherApiConfig = Field(default_factory=LauncherApiConfig, description="API configuration")
