@@ -5,16 +5,21 @@
 ## P1 最小可用（MVP）
 
 - [x] 1. 目录与骨架
-  - 创建 `apps/backend/src/launcher/`：`__init__.py`, `cli.py`, `orchestrator.py`, `adapters/api.py`, `adapters/agents.py`, `health.py`, `types.py`, `errors.py`
-  - 在 `apps/backend/pyproject.toml` 注册 `console_scripts`: `is-launcher = src.launcher.cli:main`
+  - 创建 `apps/backend/src/launcher/`：`__init__.py`, `cli.py`,
+    `orchestrator.py`, `adapters/api.py`, `adapters/agents.py`, `health.py`,
+    `types.py`, `errors.py`
+  - 在 `apps/backend/pyproject.toml` 注册 `console_scripts`:
+    `is-launcher = src.launcher.cli:main`
   - 关联: 支撑项（为 FR-001/002/003/004/005/006 与 NFR 全部提供基础）
 
 - [x] 2. 配置示例
-  - 在 `apps/backend/config.toml.example` 新增 `[launcher]` 段（mode、components、health_interval、api、agents）
+  - 在 `apps/backend/config.toml.example` 新增 `[launcher]`
+    段（mode、components、health_interval、api、agents）
   - 关联: FR-006
 
 - [x] 3. 启动器配置模型
-  - 定义 `LauncherConfigModel`（`default_mode`, `components`, `health_interval`, `api`, `agents`）
+  - 定义 `LauncherConfigModel`（`default_mode`, `components`, `health_interval`,
+    `api`, `agents`）
   - 复用现有 TOML 加载器与 pydantic-settings 的多层合并与环境变量覆盖
   - 关联: FR-006, NFR-004
 
@@ -28,8 +33,10 @@
 - [x] 5. 适配器层
   - ApiAdapter：
     - single：同进程后台任务方式运行 uvicorn（或事件循环内启动）
-    - multi：`asyncio.create_subprocess_exec` 启动 uvicorn；实现停止（进程组/信号）与超时强杀
-  - AgentsAdapter：复用 `apps/backend/src/agents/launcher.py`（加载、start/stop、信号处理）
+    - multi：`asyncio.create_subprocess_exec`
+      启动 uvicorn；实现停止（进程组/信号）与超时强杀
+  - AgentsAdapter：复用
+    `apps/backend/src/agents/launcher.py`（加载、start/stop、信号处理）
   - 关联: FR-001, FR-002, FR-004, NFR-002
 
 - [x] 6. 轻量编排器
@@ -43,7 +50,8 @@
   - 关联: FR-003, NFR-003
 
 - [x] 8. 管理端点（开发默认启用）
-  - 在 API Gateway 新增只读端点：`GET /admin/launcher/status`、`GET /admin/launcher/health`
+  - 在 API
+    Gateway 新增只读端点：`GET /admin/launcher/status`、`GET /admin/launcher/health`
   - 生产禁用或强制鉴权，并仅绑定 127.0.0.1
   - 关联: FR-003, NFR-003
 
@@ -52,8 +60,9 @@
   - Windows：`CREATE_NEW_PROCESS_GROUP` + `CTRL_BREAK_EVENT`
   - 关联: FR-004, NFR-002, NFR-004
 
-- [ ] 10. 结构化日志
-  - 统一使用 `structlog`，字段：component、mode、state、elapsed_ms、attempt、error_type
+- [x] 10. 结构化日志
+  - 统一使用
+    `structlog`，字段：component、mode、state、elapsed_ms、attempt、error_type
   - 关联: NFR-005
 
 - [ ] 11. 单元与集成测试

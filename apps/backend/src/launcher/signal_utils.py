@@ -53,9 +53,18 @@ def _create_safe_callback_wrapper(callback: Callable[[], Awaitable[None]]) -> Ca
         try:
             loop = asyncio.get_running_loop()
 
+            # Create coroutine and hold reference to prevent garbage collection
+            coro = callback()
+
+            def create_task():
+                """Create task and hold reference to prevent GC"""
+                task = asyncio.create_task(coro)
+                # Hold reference to prevent premature garbage collection
+                task.add_done_callback(lambda t: logger.debug("Signal callback task completed"))
+                return task
+
             # Use call_soon_threadsafe to safely schedule async task
-            coro = callback()  # Get the coroutine
-            loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))  # type: ignore[arg-type]
+            loop.call_soon_threadsafe(create_task)
         except RuntimeError:
             logger.warning("No running event loop for signal callback")
 
