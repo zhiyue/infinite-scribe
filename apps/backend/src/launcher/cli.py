@@ -1,9 +1,10 @@
 """CLI entry point for the unified backend launcher"""
 
 import argparse
+import asyncio
 import json
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import NoReturn
 
 from .types import ComponentType, LaunchMode
@@ -118,7 +119,10 @@ def _handle_daemon_mode(orchestrator, service_names: list[str]) -> None:
 
 
 def _handle_daemon_mode_with_early_registration(
-    orchestrator, service_names: list[str], shutdown_event, cleanup_fn
+    orchestrator,
+    service_names: list[str],
+    shutdown_event: asyncio.Event | None,
+    cleanup_fn: Callable[[], None] | None,
 ) -> None:
     """
     Handle daemon mode with pre-registered signal handlers
