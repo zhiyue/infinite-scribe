@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import time
+from unittest.mock import Mock, patch, AsyncMock
 
 import pytest
 
@@ -367,3 +368,75 @@ class TestCLIValidation:
         # Invalid JSON should fail
         result2 = self._run_cli("up", "--components", "[not valid json", "--agents", "[]")
         assert result2.returncode == 2
+
+
+class TestCLIStayMode:
+    """Test CLI --stay daemon mode functionality"""
+
+    @pytest.fixture
+    def mock_args(self):
+        """Create mock args for testing"""
+        mock = Mock()
+        mock.apply = True
+        mock.json = False
+        mock.mode = None
+        mock.components = None
+        mock.agents = None
+        mock.reload = False
+        return mock
+
+    def test_parser_includes_stay_option(self):
+        """up子命令解析器应包含--stay选项"""
+        from launcher.cli import _create_parser
+        
+        parser = _create_parser()
+        
+        # 测试--stay参数存在
+        args = parser.parse_args(["up", "--stay"])
+        assert hasattr(args, 'stay')
+        assert args.stay is True
+        
+        # 测试默认行为（不stay）
+        args = parser.parse_args(["up"])
+        assert args.stay is False
+    
+    def test_stay_mode_waits_after_apply(self, mock_args):
+        """--stay模式在apply成功后应等待信号"""
+        from launcher.cli import _handle_up_command
+        
+        mock_args.stay = True
+        
+        with patch('launcher.orchestrator.Orchestrator') as mock_orch_class, \
+             patch('asyncio.run') as mock_asyncio_run, \
+             patch('builtins.print'), \
+             patch('launcher.signal_utils.wait_for_shutdown_signal', new_callable=AsyncMock) as mock_wait:
+            
+            mock_orch = Mock()
+            mock_orch.orchestrate_startup.return_value = True
+            mock_orch.get_service_state.return_value.value = 'running'
+            mock_orch_class.return_value = mock_orch
+            
+            _handle_up_command(mock_args)
+            
+            # 验证_asyncio.run被调用了至少2次：startup + wait_signal + shutdown
+            assert mock_asyncio_run.call_count >= 2
+    
+    def test_default_mode_exits_immediately(self, mock_args):
+        """默认模式在apply后应立即退出"""
+        from launcher.cli import _handle_up_command
+        
+        mock_args.stay = False
+        
+        with patch('launcher.orchestrator.Orchestrator') as mock_orch_class, \
+             patch('asyncio.run') as mock_asyncio_run, \
+             patch('builtins.print'):
+            
+            mock_orch = Mock()
+            mock_orch.orchestrate_startup.return_value = True
+            mock_orch.get_service_state.return_value.value = 'running'
+            mock_orch_class.return_value = mock_orch
+            
+            _handle_up_command(mock_args)
+            
+            # 验证只调用startup，不调用wait信号
+            assert mock_asyncio_run.call_count == 1

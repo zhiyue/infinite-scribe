@@ -60,6 +60,9 @@ def _create_parser() -> argparse.ArgumentParser:
     up_parser.add_argument("--reload", action="store_true", help="Enable hot-reload for development")
     up_parser.add_argument("--apply", action="store_true", help="Execute the plan (start services)")
     up_parser.add_argument("--json", action="store_true", help="Output structured JSON status")
+    up_parser.add_argument(
+        "--stay", action="store_true", help="Wait for shutdown signal after starting services (daemon mode)"
+    )
 
     # down command
     down_parser = subparsers.add_parser("down", help="Stop services")
@@ -76,6 +79,34 @@ def _create_parser() -> argparse.ArgumentParser:
     logs_parser.add_argument("component", choices=["api", "agents", "all"], help="Component to view logs for")
 
     return parser
+
+
+def _handle_daemon_mode(orchestrator, service_names: list[str]) -> None:
+    """
+    Handle daemon mode: wait for shutdown signal and gracefully stop services
+
+    :param orchestrator: The orchestrator instance to use for shutdown
+    :param service_names: List of service names to shutdown
+    """
+    import asyncio as _asyncio
+
+    from .signal_utils import wait_for_shutdown_signal
+
+    print("🔄 Stay mode enabled, waiting for shutdown signal (Ctrl+C)...")
+
+    try:
+        # Wait for shutdown signal
+        _asyncio.run(wait_for_shutdown_signal())
+        print("📡 Shutdown signal received, stopping services...")
+
+        # Gracefully shutdown services
+        _asyncio.run(orchestrator.orchestrate_shutdown(service_names))
+        print("✅ Services stopped gracefully")
+
+    except Exception as e:
+        print(f"❌ Error during shutdown: {e}")
+        # Re-raise to ensure proper exit code
+        raise
 
 
 def _handle_up_command(args: argparse.Namespace) -> None:
@@ -119,6 +150,13 @@ def _handle_up_command(args: argparse.Namespace) -> None:
             print(_json.dumps(result, ensure_ascii=False))
         else:
             print(f"Result => ok={ok}, services={status}")
+
+        # Handle daemon mode if requested
+        if getattr(args, "stay", False):
+            _handle_daemon_mode(orch, service_names)
+        else:
+            # Default behavior: exit immediately after startup
+            print("💡 Use --stay to wait for shutdown signal.")
 
 
 def _handle_down_command(args: argparse.Namespace) -> None:
