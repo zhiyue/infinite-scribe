@@ -42,7 +42,7 @@
   - 订阅通知机制；集群健康聚合（API + AgentsAdapter 内部状态）
   - 关联: FR-003, NFR-003
 
-- [ ] 8. 管理端点（开发默认启用）
+- [x] 8. 管理端点（开发默认启用）
   - 在 API Gateway 新增只读端点：`GET /admin/launcher/status`、`GET /admin/launcher/health`
   - 生产禁用或强制鉴权，并仅绑定 127.0.0.1
   - 关联: FR-003, NFR-003

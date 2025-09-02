@@ -34,6 +34,38 @@ class Orchestrator:
         """Get the current state of a service"""
         return self.service_states.get(service_name, ServiceStatus.STOPPED)
 
+    def get_all_service_states(self) -> dict[str, dict[str, Any]]:
+        """Get detailed state information for all services"""
+        result = {}
+        for service_name in self.service_states:
+            adapter = self.services.get(service_name)
+
+            # Get basic state
+            state = self.service_states[service_name]
+
+            # Get additional info from adapter if available
+            service_info = {"state": state, "uptime": 0, "started_at": None, "pid": None, "port": None}
+
+            if adapter:
+                # Get info from adapter's status method if available
+                try:
+                    # Use getattr with default to avoid type checker issues
+                    get_status_info = getattr(adapter, "get_status_info", None)
+                    if get_status_info:
+                        status_info = get_status_info()
+                        service_info.update(status_info)
+                    else:
+                        port = getattr(adapter, "port", None)
+                        if port is not None:
+                            service_info["port"] = port
+                except Exception:
+                    # If adapter info retrieval fails, use defaults
+                    pass
+
+            result[service_name] = service_info
+
+        return result
+
     async def set_service_state(self, service_name: str, state: ServiceStatus) -> None:
         """Set service state with validation and locking"""
         async with self._state_lock:

@@ -296,6 +296,16 @@ class Settings(BaseSettings):
         """Check if running in development environment"""
         return self.node_env == "development"
 
+    @property
+    def environment(self) -> str:
+        """Get current environment"""
+        return self.node_env
+
 
 # Global configuration instance
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get global settings instance."""
+    return settings

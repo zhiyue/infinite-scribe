@@ -89,3 +89,10 @@ app.add_middleware(
 app.include_router(docs.router, tags=["documentation"])
 app.include_router(health.router, tags=["health"])
 app.include_router(v1.router, prefix="/api/v1")
+
+# Include admin routes (conditionally based on environment)
+if settings.environment == "development" or (hasattr(settings, 'launcher') and 
+                                           hasattr(settings.launcher, 'admin_enabled') and 
+                                           settings.launcher.admin_enabled):
+    from src.api.routes.admin import launcher as launcher_admin
+    app.include_router(launcher_admin.router)
