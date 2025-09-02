@@ -58,10 +58,14 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Agent names (CSV or JSON list). Defaults to settings.launcher.agents.names",
     )
     up_parser.add_argument("--reload", action="store_true", help="Enable hot-reload for development")
+    up_parser.add_argument("--apply", action="store_true", help="Execute the plan (start services)")
+    up_parser.add_argument("--json", action="store_true", help="Output structured JSON status")
 
     # down command
     down_parser = subparsers.add_parser("down", help="Stop services")
     down_parser.add_argument("--grace", type=int, default=10, help="Grace period in seconds for graceful shutdown")
+    down_parser.add_argument("--apply", action="store_true", help="Execute the plan (stop services)")
+    down_parser.add_argument("--json", action="store_true", help="Output structured JSON status")
 
     # status command
     status_parser = subparsers.add_parser("status", help="Check service status")
@@ -90,6 +94,32 @@ def _handle_up_command(args: argparse.Namespace) -> None:
     # Format and display the launch plan
     _print_launch_plan(mode, components, agent_names, args.reload or base_api_reload)
 
+    if args.apply:
+        # Import heavy modules only when executing
+        import asyncio as _asyncio
+
+        from .config import LauncherAgentsConfig, LauncherApiConfig, LauncherConfigModel
+        from .orchestrator import Orchestrator
+
+        config = LauncherConfigModel(
+            default_mode=mode,
+            components=components,
+            api=LauncherApiConfig(reload=bool(args.reload)),
+            agents=LauncherAgentsConfig(names=agent_names),
+        )
+        orch = Orchestrator(config)
+        service_names = [c.value for c in components]
+        ok = _asyncio.run(orch.orchestrate_startup(service_names))
+
+        status = {name: orch.get_service_state(name).value for name in service_names}
+        result = {"ok": ok, "services": status}
+        if args.json:
+            import json as _json
+
+            print(_json.dumps(result, ensure_ascii=False))
+        else:
+            print(f"Result => ok={ok}, services={status}")
+
 
 def _handle_down_command(args: argparse.Namespace) -> None:
     """Handle the 'down' command"""
@@ -97,6 +127,26 @@ def _handle_down_command(args: argparse.Namespace) -> None:
         _error_exit(f"Invalid --grace value: {args.grace}. Grace period must be >= 0 seconds")
 
     print(f"Shutdown plan => grace={args.grace}s")
+    if args.apply:
+        import asyncio as _asyncio
+
+        from .config import LauncherConfigModel
+        from .orchestrator import Orchestrator
+
+        # Use defaults; stopping is idempotent
+        config = LauncherConfigModel()
+        orch = Orchestrator(config)
+        # Attempt to stop known components
+        service_names = [c.value for c in config.components]
+        ok = _asyncio.run(orch.orchestrate_shutdown(service_names))
+        status = {name: orch.get_service_state(name).value for name in service_names}
+        result = {"ok": ok, "services": status}
+        if args.json:
+            import json as _json
+
+            print(_json.dumps(result, ensure_ascii=False))
+        else:
+            print(f"Result => ok={ok}, services={status}")
 
 
 def _handle_status_command(args: argparse.Namespace) -> None:

@@ -55,6 +55,9 @@ class LauncherConfigModel(BaseModel):
     timeout: int = Field(default=30, ge=5, le=300, description="Operation timeout in seconds")
     api: LauncherApiConfig = Field(default_factory=LauncherApiConfig, description="API configuration")
     agents: LauncherAgentsConfig = Field(default_factory=LauncherAgentsConfig, description="Agents configuration")
+    dependencies: dict[str, list[str]] | None = Field(
+        default=None, description="Optional dependency graph mapping: service -> list of dependencies"
+    )
 
     @field_validator("components")
     @classmethod

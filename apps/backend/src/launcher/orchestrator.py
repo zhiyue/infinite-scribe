@@ -86,13 +86,22 @@ class Orchestrator:
         return self._dependency_graph_cache
 
     def _build_dependency_graph_internal(self) -> dict[str, set[str]]:
-        """Internal method to build the dependency graph"""
-        # For now, hardcode the basic dependencies
-        # In future, this should be loaded from configuration or service definitions
-        return {
-            "agents": {"api"},  # agents depend on api
-            "api": set(),  # api has no dependencies
-        }
+        """Internal method to build the dependency graph from config or defaults"""
+        # Prefer configured dependencies if provided
+        graph: dict[str, set[str]] = {}
+        if getattr(self.config, "dependencies", None):
+            for svc, deps in (self.config.dependencies or {}).items():
+                graph[svc] = set(deps)
+        # Ensure all configured components are present in graph
+        for comp in self.config.components:
+            graph.setdefault(comp.value, set())
+        # Fallback default if graph is empty
+        if not graph:
+            graph = {
+                "agents": {"api"},  # agents depend on api
+                "api": set(),  # api has no dependencies
+            }
+        return graph
 
     def get_startup_order(self, target_services: list[str]) -> list[list[str]]:
         """Get service startup order using topological sort"""
