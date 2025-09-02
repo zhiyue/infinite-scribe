@@ -1,3 +1,34 @@
+"""
+Cross-platform signal handling utilities for launcher daemon mode
+
+Signal Handling Responsibilities:
+=================================
+
+This module provides unified signal handling for the launcher's --stay daemon mode.
+It takes ownership of both SIGINT and SIGTERM signals to prevent conflicts with
+individual agent signal handlers.
+
+Architecture:
+- POSIX: Uses asyncio.loop.add_signal_handler() for both SIGINT and SIGTERM
+- Windows: Uses signal.signal() for SIGINT only (Windows limitation)
+- Agents: When managed by --stay mode, agent signal handlers are automatically disabled
+
+Usage Scenarios:
+- CLI --stay mode: This module handles all signals, agents handlers disabled
+- Direct agent usage: Agents handle their own signals independently
+- Container deployments: docker stop (SIGTERM) properly handled by this module
+
+Thread Safety:
+- Signal handlers must be registered from the main thread
+- Uses call_soon_threadsafe for safe async callback execution
+- Automatic cleanup of all registered handlers
+
+Error Handling:
+- Graceful fallback to KeyboardInterrupt when signal registration fails
+- Safe cleanup even when handlers fail to unregister
+- Comprehensive logging for debugging signal-related issues
+"""
+
 import asyncio
 import os
 import signal
