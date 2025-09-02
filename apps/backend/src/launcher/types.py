@@ -16,7 +16,7 @@ class LaunchMode(Enum):
 class ComponentType(Enum):
     """Component type enumeration"""
 
-    API = "api"        # API Gateway
+    API = "api"  # API Gateway
     AGENTS = "agents"  # AI Agents
 
 

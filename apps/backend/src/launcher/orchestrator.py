@@ -138,7 +138,7 @@ class Orchestrator:
             return levels
 
         except CycleError as e:
-            raise OrchestrationError(f"Circular dependency detected: {e}")
+            raise OrchestrationError(f"Circular dependency detected: {e}") from e
 
     async def orchestrate_startup(self, target_services: list[str] | None = None) -> bool:
         """Start services in dependency order with concurrent startup for same level"""

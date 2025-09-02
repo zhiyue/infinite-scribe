@@ -13,7 +13,9 @@ from .agent_config import AGENT_PRIORITY, AGENT_TOPICS
 
 class AgentsLoadError(Exception):
     """Exception raised when agents fail to load properly"""
+
     pass
+
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

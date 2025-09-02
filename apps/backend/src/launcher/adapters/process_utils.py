@@ -56,8 +56,7 @@ class ProcessManager:
     @staticmethod
     def build_uvicorn_command(host: str, port: int, reload: bool = False) -> list[str]:
         """Build uvicorn command arguments"""
-        args = [sys.executable, "-m", "uvicorn", "src.api.main:app",
-                "--host", host, "--port", str(port)]
+        args = [sys.executable, "-m", "uvicorn", "src.api.main:app", "--host", host, "--port", str(port)]
         if reload:
             args.append("--reload")
         return args

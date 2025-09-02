@@ -123,4 +123,6 @@ port = 8000
         with pytest.raises(ValidationError) as exc_info:
             Settings()
         # Error message should indicate empty list is not allowed
-        assert any("cannot be empty" in str(e) or "cannot be empty" in (e.get("msg") or "") for e in exc_info.value.errors())
+        assert any(
+            "cannot be empty" in str(e) or "cannot be empty" in (e.get("msg") or "") for e in exc_info.value.errors()
+        )

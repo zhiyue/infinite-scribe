@@ -83,7 +83,7 @@ class TestLauncherConfigModel:
         """Test model serialization"""
         config = LauncherConfigModel(default_mode=LaunchMode.MULTI, health_interval=2.0)
 
-        data = config.model_dump(mode='json')
+        data = config.model_dump(mode="json")
 
         assert data["default_mode"] == "multi"
         assert data["health_interval"] == 2.0
