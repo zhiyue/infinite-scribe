@@ -1,7 +1,7 @@
 {
   "feature_name": "unified-backend-launcher",
   "created_at": "2025-09-01T00:00:00Z",
-  "updated_at": "2025-09-02T16:20:00Z",
+  "updated_at": "2025-09-02T16:40:00Z",
   "language": "chinese",
   "phase": "impl-plan-generated",
   "documents": {
@@ -171,12 +171,19 @@
       "planned_at": "2025-09-02T16:00:00Z",
       "description": "健康监控（最小）- 实现API健康检查与状态聚合",
       "estimated_hours": 3.5
+    },
+    "8": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:30:00Z",
+      "description": "管理端点（开发默认启用）- API Gateway管理接口实现",
+      "estimated_hours": 2.5
     }
   },
   "test_scenarios": {
     "generated": true,
     "approved": true,
-    "generated_at": "2025-09-02T16:10:00Z",
+    "generated_at": "2025-09-02T16:40:00Z",
     "tasks": {
       "1": {
         "file": "task-plans/task-1-test-scenarios.md",
@@ -216,6 +223,17 @@
         "generated_at": "2025-09-02T16:10:00Z",
         "priority_distribution": {
           "P0": 9,
+          "P1": 12,
+          "P2": 4
+        }
+      },
+      "8": {
+        "file": "task-plans/task-8-test-scenarios.md",
+        "count": 24,
+        "approved": false,
+        "generated_at": "2025-09-02T16:40:00Z",
+        "priority_distribution": {
+          "P0": 8,
           "P1": 12,
           "P2": 4
         }

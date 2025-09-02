@@ -37,7 +37,7 @@
   - 组件状态：`INIT/STARTING/RUNNING/DEGRADED/STOPPING/STOPPED/ERROR`
   - 关联: FR-001, FR-002, FR-004, NFR-002
 
-- [ ] 7. 健康监控（最小）
+- [x] 7. 健康监控（最小）
   - 使用 `httpx` 实现 API 健康检查，默认 1Hz（可配 1–20Hz）
   - 订阅通知机制；集群健康聚合（API + AgentsAdapter 内部状态）
   - 关联: FR-003, NFR-003
