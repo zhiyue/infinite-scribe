@@ -126,6 +126,8 @@ default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
 components = ["api", "agents"]
 # 健康检查间隔（秒）：默认 1Hz
 health_interval = 1.0
+# 管理端点开关：生产环境默认关闭，仅限本地调试时开启
+admin_enabled = false
 
 [launcher.api]
 # API Gateway 启动参数（开发环境可开启 reload）

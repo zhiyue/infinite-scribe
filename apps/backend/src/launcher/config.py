@@ -53,6 +53,7 @@ class LauncherConfigModel(BaseModel):
     startup_timeout: int = Field(default=30, ge=1, le=600, description="Per-service startup timeout in seconds")
     stop_grace: int = Field(default=10, ge=0, le=120, description="Graceful shutdown timeout in seconds")
     timeout: int = Field(default=30, ge=5, le=300, description="Operation timeout in seconds")
+    admin_enabled: bool = Field(default=False, description="Enable admin endpoints in production environment")
     api: LauncherApiConfig = Field(default_factory=LauncherApiConfig, description="API configuration")
     agents: LauncherAgentsConfig = Field(default_factory=LauncherAgentsConfig, description="Agents configuration")
     dependencies: dict[str, list[str]] | None = Field(

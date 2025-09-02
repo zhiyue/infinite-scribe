@@ -14,46 +14,51 @@ from src.launcher.orchestrator import Orchestrator
 from src.launcher.types import ServiceStatus
 
 
+# Module-level fixtures for shared use across all test classes
+@pytest.fixture
+def mock_orchestrator():
+    """Mock orchestrator fixture."""
+    orchestrator = Mock(spec=Orchestrator)
+    return orchestrator
+
+
+@pytest.fixture
+def mock_health_monitor():
+    """Mock health monitor fixture."""
+    health_monitor = Mock(spec=HealthMonitor)
+    return health_monitor
+
+
+@pytest.fixture
+def mock_settings():
+    """Mock settings fixture."""
+    settings = Mock(spec=Settings)
+    settings.environment = "development"
+    settings.launcher = Mock()
+    settings.launcher.admin_enabled = True
+    return settings
+
+
+@pytest.fixture
+def test_client(mock_orchestrator, mock_health_monitor, mock_settings):
+    """Create test client with mocked dependencies."""
+    app = FastAPI()
+
+    # Override dependencies
+    app.dependency_overrides[require_admin_access] = lambda: True
+
+    # Mock the dependency injection functions
+    with (
+        patch("src.api.routes.admin.launcher.get_orchestrator", return_value=mock_orchestrator),
+        patch("src.api.routes.admin.launcher.get_health_monitor", return_value=mock_health_monitor),
+        patch("src.api.routes.admin.launcher.get_settings", return_value=mock_settings),
+    ):
+        app.include_router(router)
+        return TestClient(app)
+
+
 class TestAdminEndpoints:
     """Test admin launcher endpoints."""
-
-    @pytest.fixture
-    def mock_orchestrator(self):
-        """Mock orchestrator fixture."""
-        orchestrator = Mock(spec=Orchestrator)
-        return orchestrator
-
-    @pytest.fixture
-    def mock_health_monitor(self):
-        """Mock health monitor fixture."""
-        health_monitor = Mock(spec=HealthMonitor)
-        return health_monitor
-
-    @pytest.fixture
-    def mock_settings(self):
-        """Mock settings fixture."""
-        settings = Mock(spec=Settings)
-        settings.environment = "development"
-        settings.launcher = Mock()
-        settings.launcher.admin_enabled = True
-        return settings
-
-    @pytest.fixture
-    def test_client(self, mock_orchestrator, mock_health_monitor, mock_settings):
-        """Create test client with mocked dependencies."""
-        app = FastAPI()
-
-        # Override dependencies
-        app.dependency_overrides[require_admin_access] = lambda: True
-
-        # Mock the dependency injection functions
-        with (
-            patch("src.api.routes.admin.launcher.get_orchestrator", return_value=mock_orchestrator),
-            patch("src.api.routes.admin.launcher.get_health_monitor", return_value=mock_health_monitor),
-            patch("src.api.routes.admin.launcher.get_settings", return_value=mock_settings),
-        ):
-            app.include_router(router)
-            return TestClient(app)
 
     def test_get_launcher_status_success(self, test_client, mock_orchestrator):
         """Test getting launcher status successfully - Scenario 1"""

@@ -10,10 +10,6 @@ from src.launcher.health import HealthMonitor, HealthStatus
 from src.launcher.orchestrator import Orchestrator
 from src.launcher.types import ServiceStatus
 
-router = APIRouter(
-    prefix="/admin/launcher", tags=["launcher-admin"], dependencies=[Depends(lambda: require_admin_access())]
-)
-
 
 def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
     """Require admin access based on environment settings."""
@@ -22,6 +18,9 @@ def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
         if not getattr(settings, "launcher", None) or not getattr(settings.launcher, "admin_enabled", False):
             raise HTTPException(status_code=404, detail="Admin endpoints not available")
     return True
+
+
+router = APIRouter(prefix="/admin/launcher", tags=["launcher-admin"], dependencies=[Depends(require_admin_access)])
 
 
 # Global singletons for launcher components
@@ -51,9 +50,10 @@ def get_health_monitor() -> HealthMonitor:
 
 
 @router.get("/status", response_model=LauncherStatusResponse)
-async def get_launcher_status(orchestrator: Orchestrator = Depends(get_orchestrator)) -> LauncherStatusResponse:
+async def get_launcher_status() -> LauncherStatusResponse:
     """Get launcher and service status."""
     try:
+        orchestrator = get_orchestrator()
         # Get all service states from orchestrator
         service_states = orchestrator.get_all_service_states()
 
@@ -100,9 +100,10 @@ async def get_launcher_status(orchestrator: Orchestrator = Depends(get_orchestra
 
 
 @router.get("/health", response_model=HealthSummaryResponse)
-async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health_monitor)) -> HealthSummaryResponse:
+async def get_launcher_health() -> HealthSummaryResponse:
     """Get cluster health summary."""
     try:
+        health_monitor = get_health_monitor()
         # Get cluster health status
         cluster_health = health_monitor.get_cluster_health()
         cluster_status = health_monitor.get_cluster_status()
@@ -119,7 +120,7 @@ async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health
                 service_name=service_name,
                 status=health_result.status.value,
                 response_time_ms=health_result.response_time_ms,
-                last_check=datetime.fromtimestamp(health_result.timestamp, UTC).isoformat() + "Z",
+                last_check=datetime.fromtimestamp(health_result.timestamp, UTC).isoformat().replace("+00:00", "Z"),
                 error=health_result.error,
             )
             services.append(health_item)
