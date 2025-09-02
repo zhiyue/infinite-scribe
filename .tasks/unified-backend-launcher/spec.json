@@ -183,8 +183,16 @@
       "planned": true,
       "approved": false,
       "planned_at": "2025-09-02T16:50:00Z",
-      "description": "信号与跨平台停止 - 实现POSIX/Windows跨平台的优雅停止机制，支持信号处理和进程组管理",
-      "estimated_hours": 3.0
+      "revised_at": "2025-09-02T17:45:00Z", 
+      "description": "信号与跨平台停止 - 基于现有process_utils.py扩展，新增轻量信号工具支持CLI --stay模式",
+      "estimated_hours": 3.0,
+      "review_status": "technical_review_completed",
+      "key_changes": [
+        "复用现有terminate_process而非新增API",
+        "CLI最小化变更而非重写",
+        "只监听SIGINT避免agents冲突",
+        "测试基于实际存在的API方法"
+      ]
     }
   },
   "test_scenarios": {
