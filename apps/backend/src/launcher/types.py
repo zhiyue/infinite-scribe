@@ -18,10 +18,6 @@ class ComponentType(Enum):
 
     API = "api"  # API Gateway
     AGENTS = "agents"  # AI Agents
-    # Extended types for launcher components
-    HEALTH = "health"  # Health monitor
-    ORCHESTRATOR = "orchestrator"  # Service orchestrator
-    CLI = "cli"  # Command line interface
 
 
 class LauncherStatus(Enum):

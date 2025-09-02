@@ -128,7 +128,7 @@ def register_shutdown_handler(callback: Callable[[], Awaitable[None]]) -> Callab
     handlers (e.g., from AgentLauncher) to ensure unified signal management.
 
     :param callback: Async shutdown callback function
-    :return: Cleanup function to remove all registered signal handlers
+    :return: Cleanup function to remove all registered signal handlers or None if registration fails
     """
     callback_wrapper = _create_safe_callback_wrapper(callback)
 

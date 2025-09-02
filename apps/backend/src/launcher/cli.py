@@ -5,7 +5,8 @@ import os
 import sys
 import time
 
-from ..core.logging import bind_service_context, configure_logging, get_logger
+from src.core.logging import bind_service_context, configure_logging, get_logger
+
 from .commands import handle_down_command, handle_logs_command, handle_status_command, handle_up_command
 
 
