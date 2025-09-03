@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any
 
 # Pre-compiled regex pattern for better performance
+# Matches environment variable references in the form:
+#   - ${VAR} (simple variable)
+#   - ${VAR:-default} (variable with default value)
+# Captures the contents inside the curly braces for further processing.
 ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
 
