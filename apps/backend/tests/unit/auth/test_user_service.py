@@ -557,6 +557,113 @@ class TestUserService:
         )
 
     @pytest.mark.asyncio
+    @patch("src.common.services.user_service.email_tasks")
+    async def test_verify_email_welcome_email_failure_with_background_tasks(
+        self, mock_email_tasks, user_service, mock_db_session, sample_user
+    ):
+        """Welcome email failure (async) should not break verification success."""
+        from fastapi import BackgroundTasks
+
+        background_tasks = Mock(spec=BackgroundTasks)
+
+        verification = Mock()
+        verification.user_id = 1
+        verification.token = "valid_token"
+        verification.purpose = VerificationPurpose.EMAIL_VERIFY
+        verification.expires_at = datetime.utcnow() + timedelta(hours=1)
+        verification.email = "test@example.com"
+        verification.is_expired = False
+        verification.is_used = False
+        verification.is_valid = True
+        verification.mark_as_used = Mock()
+        sample_user.is_verified = False
+        sample_user.full_name = "Test User"
+
+        mock_db_session.execute = AsyncMock(
+            side_effect=[
+                Mock(scalar_one_or_none=Mock(return_value=verification)),
+                Mock(scalar_one_or_none=Mock(return_value=sample_user)),
+            ]
+        )
+
+        # Simulate failure when sending welcome email asynchronously
+        mock_email_tasks.send_welcome_email_async = AsyncMock(side_effect=Exception("SMTP error"))
+
+        # Act
+        result = await user_service.verify_email(mock_db_session, "valid_token", background_tasks)
+
+        # Assert - verification should still succeed
+        assert result["success"] is True
+        assert "verified successfully" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_verify_email_idempotent_behavior(self, user_service, mock_db_session, sample_user):
+        """Test that re-verifying with used token returns success if user already verified."""
+        # Arrange - token already used, user already verified
+        verification = Mock()
+        verification.user_id = 1
+        verification.token = "used_token"
+        verification.purpose = VerificationPurpose.EMAIL_VERIFY
+        verification.expires_at = datetime.utcnow() + timedelta(hours=1)
+        verification.email = "test@example.com"
+        verification.is_expired = False
+        verification.is_used = True  # Already used
+        verification.is_valid = False  # Not valid because already used
+
+        sample_user.is_verified = True  # Already verified
+        sample_user.email_verified_at = datetime.utcnow()
+
+        mock_db_session.execute = AsyncMock(
+            side_effect=[
+                Mock(scalar_one_or_none=Mock(return_value=verification)),
+                Mock(scalar_one_or_none=Mock(return_value=sample_user)),
+            ]
+        )
+
+        # Act
+        result = await user_service.verify_email(mock_db_session, "used_token")
+
+        # Assert - Should return success (idempotent behavior)
+        assert result["success"] is True
+        assert "already verified" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_verify_email_welcome_email_failure_without_background_tasks(
+        self, user_service, mock_db_session, sample_user, mock_email_service
+    ):
+        """Welcome email failure (sync) should not break verification success."""
+        verification = Mock()
+        verification.user_id = 1
+        verification.token = "valid_token"
+        verification.purpose = VerificationPurpose.EMAIL_VERIFY
+        verification.expires_at = datetime.utcnow() + timedelta(hours=1)
+        verification.email = "test@example.com"
+        verification.is_expired = False
+        verification.is_used = False
+        verification.is_valid = True
+        verification.mark_as_used = Mock()
+
+        sample_user.is_verified = False
+        sample_user.full_name = "Test User"
+
+        mock_db_session.execute = AsyncMock(
+            side_effect=[
+                Mock(scalar_one_or_none=Mock(return_value=verification)),
+                Mock(scalar_one_or_none=Mock(return_value=sample_user)),
+            ]
+        )
+
+        # Simulate failure in sync welcome email sending
+        mock_email_service.send_welcome_email = AsyncMock(side_effect=Exception("SMTP down"))
+
+        # Act (no background_tasks param - sync path)
+        result = await user_service.verify_email(mock_db_session, "valid_token")
+
+        # Assert
+        assert result["success"] is True
+        assert "verified successfully" in result["message"]
+
+    @pytest.mark.asyncio
     @patch("src.common.services.user_service.select")
     @patch("src.common.services.user_service.EmailVerification")
     @patch("src.common.services.user_service.User")

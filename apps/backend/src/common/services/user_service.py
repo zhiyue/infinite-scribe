@@ -269,19 +269,23 @@ class UserService:
             if not verification:
                 return {"success": False, "error": "Invalid verification token"}
 
-            # Check if token is valid
-            if not verification.is_valid:
-                if verification.is_expired:
-                    return {"success": False, "error": "Verification token has expired"}
-                else:
-                    return {"success": False, "error": "Verification token has already been used"}
-
-            # Get user
+            # Get user first to check current status
             result = await db.execute(select(User).where(User.id == verification.user_id))
             user = result.scalar_one_or_none()
 
             if not user:
                 return {"success": False, "error": "User not found"}
+
+            # Check if token is valid
+            if not verification.is_valid:
+                if verification.is_expired:
+                    return {"success": False, "error": "Verification token has expired"}
+                else:
+                    # Token already used - check if user is already verified (idempotent behavior)
+                    if user.is_verified:
+                        return {"success": True, "message": "Email already verified successfully"}
+                    else:
+                        return {"success": False, "error": "Verification token has already been used"}
 
             # Mark user as verified
             user.is_verified = True
@@ -292,20 +296,24 @@ class UserService:
 
             await db.commit()
 
-            # Send welcome email
-            if background_tasks:
-                # 使用异步任务发送邮件
-                await email_tasks.send_welcome_email_async(
-                    background_tasks,
-                    user.email,
-                    user.full_name,
-                )
-            else:
-                # 兼容旧代码，同步发送邮件
-                await self.email_service.send_welcome_email(
-                    user.email,
-                    user.full_name,
-                )
+            # Send welcome email - failures here should not affect verification success
+            try:
+                if background_tasks:
+                    # 使用异步任务发送邮件
+                    await email_tasks.send_welcome_email_async(
+                        background_tasks,
+                        user.email,
+                        user.full_name,
+                    )
+                else:
+                    # 兼容旧代码，同步发送邮件
+                    await self.email_service.send_welcome_email(
+                        user.email,
+                        user.full_name,
+                    )
+            except Exception as email_error:
+                # Log email error but don't fail the verification
+                logger.warning(f"Welcome email failed to send for user {user.email}: {email_error}")
 
             return {"success": True, "message": "Email verified successfully"}
 
