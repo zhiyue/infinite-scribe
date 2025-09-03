@@ -2,12 +2,12 @@
 
 import time
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from src.api.routes.admin.launcher import get_health_monitor, get_orchestrator, require_admin_access, router
+from src.api.routes.admin.launcher import require_admin_access, router
 from src.core.config import Settings
 from src.launcher.health import HealthCheckResult, HealthMonitor, HealthStatus
 from src.launcher.orchestrator import Orchestrator
@@ -46,7 +46,7 @@ def test_client(mock_orchestrator, mock_health_monitor, mock_settings):
 
     # Override dependencies using FastAPI's recommended approach
     app.dependency_overrides[require_admin_access] = lambda: True
-    
+
     # Set mock instances directly in app.state (new approach)
     app.state.orchestrator = mock_orchestrator
     app.state.health_monitor = mock_health_monitor

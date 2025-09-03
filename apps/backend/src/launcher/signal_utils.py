@@ -32,8 +32,8 @@ Error Handling:
 import asyncio
 import os
 import signal
-from collections.abc import Awaitable, Callable
-from typing import Protocol
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any, Protocol, cast
 
 import structlog
 
@@ -54,11 +54,11 @@ def _create_safe_callback_wrapper(callback: Callable[[], Awaitable[None]]) -> Ca
             loop = asyncio.get_running_loop()
 
             # Create coroutine and hold reference to prevent garbage collection
-            coro = callback()
+            coro = cast(Coroutine[Any, Any, None], callback())
 
             def create_task():
                 """Create task and hold reference to prevent GC"""
-                task = asyncio.create_task(coro)
+                task: asyncio.Task[None] = asyncio.create_task(coro)
                 # Hold reference to prevent premature garbage collection
                 task.add_done_callback(lambda t: logger.debug("Signal callback task completed"))
                 return task

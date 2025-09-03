@@ -16,10 +16,8 @@ logger = logging.getLogger(__name__)
 
 def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
     """Require admin access based on environment settings."""
-    if settings.environment == "production":
-        # Check if admin endpoints are explicitly enabled in production
-        if not getattr(settings, "launcher", None) or not getattr(settings.launcher, "admin_enabled", False):
-            raise HTTPException(status_code=404, detail="Admin endpoints not available")
+    if settings.environment == "production" and (not getattr(settings, "launcher", None) or not getattr(settings.launcher, "admin_enabled", False)):
+        raise HTTPException(status_code=404, detail="Admin endpoints not available")
     return True
 
 
@@ -32,7 +30,7 @@ def get_orchestrator(request: Request) -> Orchestrator:
     if orchestrator is None:
         logger.error("Orchestrator instance not available - launcher components not initialized")
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail="Launcher orchestrator service unavailable"
         )
     return orchestrator
@@ -44,7 +42,7 @@ def get_health_monitor(request: Request) -> HealthMonitor:
     if health_monitor is None:
         logger.error("Health monitor instance not available - launcher components not initialized")
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail="Launcher health monitor service unavailable"
         )
     return health_monitor
@@ -105,7 +103,7 @@ async def get_launcher_status(orchestrator: Orchestrator = Depends(get_orchestra
             },
             exc_info=True
         )
-        raise HTTPException(status_code=503, detail="Service unavailable")
+        raise HTTPException(status_code=503, detail="Service unavailable") from e
 
 
 @router.get("/health", response_model=HealthSummaryResponse)
@@ -149,7 +147,7 @@ async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health
             },
             exc_info=True
         )
-        raise HTTPException(status_code=503, detail="Service unavailable")
+        raise HTTPException(status_code=503, detail="Service unavailable") from e
 
 
 def _map_service_state(state: ServiceStatus) -> str:

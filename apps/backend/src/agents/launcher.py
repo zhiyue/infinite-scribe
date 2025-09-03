@@ -156,7 +156,7 @@ class AgentLauncher:
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
-        logger.info("Agent signal handlers registered", signals="SIGINT,SIGTERM")
+        logger.info("Agent signal handlers registered: SIGINT,SIGTERM")
 
 
 async def main(agent_names: list[str] | None = None):

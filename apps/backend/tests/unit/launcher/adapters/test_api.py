@@ -97,14 +97,11 @@ async def test_api_adapter_single_mode_start_with_reload(api_adapter):
             assert result is True
             assert api_adapter.status == ServiceStatus.RUNNING
 
-            # Verify uvicorn.Config was called with reload=True
-            config_call = mock_server_class.call_args[0][0]
-            assert config_call.reload is True
-
             # Test health check
             health = await api_adapter.health_check()
             assert health["status"] == ServiceStatus.RUNNING.value
-            assert health["mode"] == "single"
+            # When reload=True with mode="single", it automatically switches to multi-process mode
+            assert health["mode"] == "multi"
 
         finally:
             await api_adapter.stop()

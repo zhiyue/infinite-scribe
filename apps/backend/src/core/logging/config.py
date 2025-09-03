@@ -16,6 +16,10 @@ class LoggingConfigManager:
     _instance: Optional["LoggingConfigManager"] = None
     _lock = threading.Lock()
 
+    # Instance attributes (set in __new__)
+    _configured: bool
+    _config_lock: threading.Lock
+
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:

@@ -24,6 +24,7 @@ class ApiAdapter(BaseAdapter):
         self._server: uvicorn.Server | None = None
         self._host: str = self.config.get("host", "0.0.0.0")
         self._port: int = int(self.config.get("port", 8000))
+        self._runtime_mode: LaunchMode | None = None  # Track actual runtime mode
         # Use launcher-provided timeout if available (defaults to 10s previously)
         try:
             self._startup_timeout: float = float(self.config.get("startup_timeout", 10))
@@ -69,6 +70,7 @@ class ApiAdapter(BaseAdapter):
             else:
                 raise ValueError(f"Unsupported launch mode: {mode}")
 
+            self._runtime_mode = mode  # Store the actual runtime mode
             self.status = ServiceStatus.RUNNING
             logger.info("API Gateway started", host=self._host, port=self._port, mode=mode.value)
             return True
@@ -147,11 +149,13 @@ class ApiAdapter(BaseAdapter):
                 self.process = None
 
             self.status = ServiceStatus.STOPPED
+            self._runtime_mode = None  # Reset runtime mode
             logger.info("API Gateway stopped successfully")
             return True
         except Exception as e:
             logger.error("Error stopping API Gateway", error=str(e))
             self.status = ServiceStatus.STOPPED
+            self._runtime_mode = None  # Reset runtime mode even on error
             return True  # Force cleanup even on error
 
     async def _stop_single_process(self) -> None:
@@ -172,14 +176,17 @@ class ApiAdapter(BaseAdapter):
 
     async def health_check(self) -> dict[str, Any]:
         """Return adapter health information"""
-        # Get mode and ensure it's consistently a string value
-        mode_config = self.config.get("mode", LaunchMode.SINGLE)
-        if isinstance(mode_config, LaunchMode):
-            mode_value = mode_config.value
-        elif isinstance(mode_config, str):
-            mode_value = mode_config
+        # Use the actual runtime mode if available, otherwise fall back to configured mode
+        if self._runtime_mode is not None:
+            mode_value = self._runtime_mode.value
         else:
-            mode_value = LaunchMode.SINGLE.value
+            mode_config = self.config.get("mode", LaunchMode.SINGLE)
+            if isinstance(mode_config, LaunchMode):
+                mode_value = mode_config.value
+            elif isinstance(mode_config, str):
+                mode_value = mode_config
+            else:
+                mode_value = LaunchMode.SINGLE.value
 
         data: dict[str, Any] = {
             "status": self.status.value,
