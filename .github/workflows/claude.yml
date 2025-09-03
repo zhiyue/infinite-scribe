@@ -13,10 +13,10 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.sender.login == 'zhiyue')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,7 +44,7 @@ jobs:
           #   trigger_phrase: '/claude'
 
           # Optional: Trigger when specific user is assigned to an issue
-          assignee_trigger: "claude"
+          assignee_trigger: 'claude'
 
           # Optional: Allow Claude to run specific commands
           # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
