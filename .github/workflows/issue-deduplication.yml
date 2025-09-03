@@ -62,8 +62,8 @@ jobs:
                 - mcp__github__get_issue_comments: Read any discussion or additional context in comments
                 - mcp__github__search_issues: Search for similar existing issues using relevant keywords
                 - mcp__github__list_issues: List recent issues to understand patterns
-                - mcp__github__create_issue_comment: Add a comment if duplicate found
-                - mcp__github__update_issue: Apply labels to the issue
+                - mcp__github__add_issue_comment: Add a comment if duplicate found
+                - mcp__github__update_issue: Apply labels to the issue and close it if duplicate (by setting state to "closed")
 
             2. Start by using mcp__github__get_issue to get the issue details
 
@@ -80,7 +80,8 @@ jobs:
 
             5. If you find duplicates:
                 - Add a polite comment on the new issue linking to the original issue(s)
-                - Apply a "duplicate" label to the new issue
+                - Apply a "duplicate" label to the new issue using mcp__github__update_issue
+                - Close the duplicate issue by using mcp__github__update_issue with state: "closed"
                 - Explain why it's a duplicate in your comment
                 - Suggest the user follow the original issue for updates
                 - Use Chinese in your response
