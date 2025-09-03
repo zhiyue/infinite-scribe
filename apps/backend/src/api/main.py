@@ -124,4 +124,4 @@ app.include_router(v1.router, prefix="/api/v1")
 if settings.environment == "development" or settings.launcher.admin_enabled:
     from src.api.routes.admin import launcher as launcher_admin
 
-    app.include_router(launcher_admin.router)
+    app.include_router(launcher_admin.router, tags=["admin"])

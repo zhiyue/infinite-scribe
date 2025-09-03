@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 # Configuration constants
 SSE_SERVICE_VERSION = "1.0.0"
 HEALTH_CHECK_TIMEOUT = 5.0

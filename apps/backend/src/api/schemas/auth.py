@@ -42,6 +42,8 @@ class UserLoginRequest(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Refresh token request schema."""
 
+    model_config = ConfigDict(json_schema_extra={"examples": [{"refresh_token": "refresh_token"}]})
+
     refresh_token: str = Field(..., description="Refresh token")
 
 
