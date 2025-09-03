@@ -47,7 +47,7 @@ def parse_list_like(value: str) -> list[str]:
     """Parse a CLI list value which may be a JSON array or CSV string."""
     # Security: Limit input size to prevent DoS attacks
     max_input_size = 1024  # 1KB limit for CLI arguments
-    max_list_items = 100   # Maximum number of items in list
+    max_list_items = 100  # Maximum number of items in list
 
     value = value.strip()
 

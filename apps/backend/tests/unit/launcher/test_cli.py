@@ -518,8 +518,8 @@ class TestCLIStayMode:
 
         with (
             patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
-            patch("launcher.commands.asyncio.run") as mock_asyncio_run,
-            patch("launcher.commands._handle_stay_mode") as mock_stay_mode,
+            patch("launcher.commands.asyncio.run"),
+            patch("launcher.commands._handle_stay_mode"),
             patch("builtins.print"),
         ):
             handle_up_command(mock_args)
@@ -552,7 +552,7 @@ class TestCLIStayMode:
 
         with (
             patch("launcher.orchestrator.Orchestrator", side_effect=capture_config),
-            patch("launcher.commands.asyncio.run") as mock_asyncio_run,
+            patch("launcher.commands.asyncio.run"),
             patch("builtins.print"),
         ):
             handle_up_command(mock_args)

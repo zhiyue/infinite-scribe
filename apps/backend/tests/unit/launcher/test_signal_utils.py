@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import signal
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -101,10 +102,8 @@ class TestSignalUtils:
             except TimeoutError:
                 wait_task.cancel()
                 # 确保finally块执行
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await wait_task
-                except asyncio.CancelledError:
-                    pass
 
             # 验证清理被调用
             mock_cleanup.assert_called_once()
@@ -141,11 +140,9 @@ class TestSignalUtils:
             wait_task.cancel()
 
             # 等待任务完成（应该通过KeyboardInterrupt处理）
-            try:
-                await wait_task
-            except asyncio.CancelledError:
+            with contextlib.suppress(asyncio.CancelledError):
                 # 这是预期的，因为我们取消了任务
-                pass
+                await wait_task
 
     @pytest.mark.asyncio
     async def test_wait_for_shutdown_signal_cleanup_exception_handling(self):
@@ -176,10 +173,8 @@ class TestSignalUtils:
                 await asyncio.wait_for(wait_task, timeout=1.0)
             except TimeoutError:
                 wait_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await wait_task
-                except asyncio.CancelledError:
-                    pass
 
             # 验证cleanup被调用（即使失败了也应该被调用）
             mock_cleanup.assert_called_once()
@@ -212,10 +207,8 @@ class TestSignalUtils:
                 await asyncio.wait_for(wait_task, timeout=1.0)
             except TimeoutError:
                 wait_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await wait_task
-                except asyncio.CancelledError:
-                    pass
 
             # 验证信号处理完成
             mock_cleanup.assert_called_once()

@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 def require_admin_access(settings: Settings = Depends(get_settings)) -> bool:
     """Require admin access based on environment settings."""
-    if settings.environment == "production" and (not getattr(settings, "launcher", None) or not getattr(settings.launcher, "admin_enabled", False)):
+    if settings.environment == "production" and (
+        not getattr(settings, "launcher", None) or not getattr(settings.launcher, "admin_enabled", False)
+    ):
         raise HTTPException(status_code=404, detail="Admin endpoints not available")
     return True
 
@@ -26,25 +28,19 @@ router = APIRouter(prefix="/admin/launcher", tags=["launcher-admin"], dependenci
 
 def get_orchestrator(request: Request) -> Orchestrator:
     """Get orchestrator instance from application state."""
-    orchestrator = getattr(request.app.state, 'orchestrator', None)
+    orchestrator = getattr(request.app.state, "orchestrator", None)
     if orchestrator is None:
         logger.error("Orchestrator instance not available - launcher components not initialized")
-        raise HTTPException(
-            status_code=503,
-            detail="Launcher orchestrator service unavailable"
-        )
+        raise HTTPException(status_code=503, detail="Launcher orchestrator service unavailable")
     return orchestrator
 
 
 def get_health_monitor(request: Request) -> HealthMonitor:
     """Get health monitor instance from application state."""
-    health_monitor = getattr(request.app.state, 'health_monitor', None)
+    health_monitor = getattr(request.app.state, "health_monitor", None)
     if health_monitor is None:
         logger.error("Health monitor instance not available - launcher components not initialized")
-        raise HTTPException(
-            status_code=503,
-            detail="Launcher health monitor service unavailable"
-        )
+        raise HTTPException(status_code=503, detail="Launcher health monitor service unavailable")
     return health_monitor
 
 
@@ -96,12 +92,8 @@ async def get_launcher_status(orchestrator: Orchestrator = Depends(get_orchestra
     except Exception as e:
         logger.error(
             "Failed to retrieve launcher status",
-            extra={
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "endpoint": "/admin/launcher/status"
-            },
-            exc_info=True
+            extra={"error_type": type(e).__name__, "error_message": str(e), "endpoint": "/admin/launcher/status"},
+            exc_info=True,
         )
         raise HTTPException(status_code=503, detail="Service unavailable") from e
 
@@ -140,12 +132,8 @@ async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health
     except Exception as e:
         logger.error(
             "Failed to retrieve cluster health summary",
-            extra={
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "endpoint": "/admin/launcher/health"
-            },
-            exc_info=True
+            extra={"error_type": type(e).__name__, "error_message": str(e), "endpoint": "/admin/launcher/health"},
+            exc_info=True,
         )
         raise HTTPException(status_code=503, detail="Service unavailable") from e
 

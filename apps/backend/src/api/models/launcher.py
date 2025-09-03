@@ -23,7 +23,9 @@ class LauncherStatusResponse(BaseModel):
     services: list[ServiceStatusItem] = Field(description="List of service statuses")
     total_services: int = Field(description="Total number of services")
     running_services: int = Field(description="Number of running services")
-    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"), description="Query timestamp")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"), description="Query timestamp"
+    )
 
 
 class HealthSummaryItem(BaseModel):
@@ -43,4 +45,6 @@ class HealthSummaryResponse(BaseModel):
     services: list[HealthSummaryItem] = Field(description="Per-service health statuses")
     healthy_count: int = Field(description="Number of healthy services")
     total_count: int = Field(description="Total number of services")
-    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"), description="Query timestamp")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"), description="Query timestamp"
+    )

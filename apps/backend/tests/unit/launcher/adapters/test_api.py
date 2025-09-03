@@ -81,7 +81,7 @@ async def test_api_adapter_single_mode_start_with_reload(api_adapter):
     mock_server.started = True
     mock_server.serve = AsyncMock()
 
-    with patch("launcher.adapters.api.uvicorn.Server", return_value=mock_server) as mock_server_class:
+    with patch("launcher.adapters.api.uvicorn.Server", return_value=mock_server):
         api_adapter.config.update(
             {
                 "host": "127.0.0.1",
