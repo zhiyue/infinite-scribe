@@ -44,7 +44,24 @@ The error is from a linter enforcing the convention that exception classes shoul
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/rate_limit_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -11,5 +11,5 @@
+  
+  
+- class RateLimitExceeded(Exception):
++ class RateLimitExceededError(Exception):
+      """Exception raised when rate limit is exceeded."""
+  
+```
+
+</details>
 
 ---
 
@@ -52,7 +69,24 @@ The error is from a linter enforcing the convention that exception classes shoul
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/rate_limit_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -82,5 +82,5 @@
+  
+              if raise_exception:
+-                 raise RateLimitExceeded(
++                 raise RateLimitExceededError(
+                      f"Rate limit exceeded. Try again in {retry_after} seconds.", retry_after
+                  )
+```
+
+</details>
 
 ---
 
@@ -98,7 +132,30 @@ The error occurs because the type checker doesn't recognize `Base` as a valid ba
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/base.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 2, lines removed: 1
+
+```diff
+@@ -2,10 +2,11 @@
+  
+  from datetime import datetime
++ from typing import Any
+  
+  from sqlalchemy import Column, DateTime, Integer
+  from sqlalchemy.ext.declarative import declarative_base
+  
+  # Create the declarative base
+- Base = declarative_base()
++ Base: Any = declarative_base()
+  
+  
+```
+
+</details>
 
 ---
 

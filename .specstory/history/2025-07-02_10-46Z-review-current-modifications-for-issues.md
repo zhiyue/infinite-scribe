@@ -26,8 +26,8 @@ There are also foreign key relationships that aren’t enforced directly in the 
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L132 | `def validate_completed_chapters(cls, v, info):` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L132 | `def validate_completed_chapters(cls, v, info):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L133 | `def validate_completed_chapters(cls, v, info):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L133 | `def validate_completed_chapters(cls, v, info):` |
 
 </details>
 
@@ -54,8 +54,8 @@ Read file: packages/shared-types/src/models_db.py
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L517 | `MODEL_RELATIONSHIPS = {` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L517 | `MODEL_RELATIONSHIPS = {` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L518 | `MODEL_RELATIONSHIPS = {` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L518 | `MODEL_RELATIONSHIPS = {` |
 
 </details>
 
@@ -201,12 +201,12 @@ The file has now grown to 677 lines, up from 626, which shows that modifications
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L15 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L144 | `@model_validator(mode="after")` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L251 | `@model_validator(mode="after")` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L15 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L144 | `@model_validator(mode="after")` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L251 | `@model_validator(mode="after")` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L16 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L145 | `@model_validator(mode="after")` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L252 | `@model_validator(mode="after")` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L16 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L145 | `@model_validator(mode="after")` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L252 | `@model_validator(mode="after")` |
 
 </details>
 
@@ -229,56 +229,56 @@ Read file: packages/shared-types/src/models_db.py
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L9 | `from datetime import UTC, datetime` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L138 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L141 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L165 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L168 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L185 | `default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L204 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L207 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L224 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L227 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L245 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L248 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L279 | `default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L297 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L313 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L328 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L344 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L365 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L387 | `default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L403 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L406 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L424 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L427 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L443 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L459 | `default_factory=lambda: datetime.now(tz=UTC), description="变更发生时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L9 | `from datetime import UTC, datetime` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L138 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L141 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L165 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L168 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L185 | `default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L204 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L207 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L224 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L227 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L245 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L248 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L279 | `default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L297 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L313 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L328 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L344 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L365 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L387 | `default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L403 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L406 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L424 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L427 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L443 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L459 | `default_factory=lambda: datetime.now(tz=UTC), description="变更发生时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L10 | `from datetime import UTC, datetime` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L139 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L142 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L166 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L169 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L186 | `default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L205 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L208 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L225 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L228 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L246 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L249 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L280 | `default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L298 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L314 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L329 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L345 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L366 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L388 | `default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L404 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L407 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L425 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L428 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L444 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L460 | `default_factory=lambda: datetime.now(tz=UTC), description="变更发生时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L10 | `from datetime import UTC, datetime` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L139 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L142 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L166 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L169 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L186 | `default_factory=lambda: datetime.now(tz=UTC), description="版本创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L205 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L208 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L225 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L228 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L246 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L249 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L280 | `default_factory=lambda: datetime.now(tz=UTC), description="评审创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L298 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L314 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L329 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L345 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L366 | `default_factory=lambda: datetime.now(tz=UTC), description="开始时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L388 | `default_factory=lambda: datetime.now(tz=UTC), description="事件创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L404 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L407 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L425 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L428 | `default_factory=lambda: datetime.now(tz=UTC), description="最后更新时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L444 | `default_factory=lambda: datetime.now(tz=UTC), description="创建时间"` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L460 | `default_factory=lambda: datetime.now(tz=UTC), description="变更发生时间"` |
 
 </details>
 
@@ -406,12 +406,12 @@ Read file: packages/shared-types/src/models_db.py
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L15 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L293 | `score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L391 | `llm_cost_estimate: Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None = Field(` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L15 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L293 | `score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L391 | `llm_cost_estimate: Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None = Field(` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L16 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L294 | `score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L392 | `llm_cost_estimate: Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None = Field(` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L16 | `from pydantic import BaseModel, Field, condecimal, model_validator` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L294 | `score: Annotated[Decimal, condecimal(max_digits=3, decimal_places=1, ge=0, le=10)] | None = Field(` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/models_db.py` | L392 | `llm_cost_estimate: Annotated[Decimal, condecimal(max_digits=10, decimal_places=6, ge=0)] | None = Field(` |
 
 </details>
 

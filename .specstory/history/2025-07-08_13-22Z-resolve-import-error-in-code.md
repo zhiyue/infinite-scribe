@@ -5,30 +5,42 @@
 _**User**_
 
 For the code present, we get this error:
-
 ```
 Import "resend.emails.types" could not be resolved
 ```
-
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
+
+
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
+
+I will remove the unresolved SendParams import and build the send_params as a plain dict to avoid the missing module issue.
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
 ```diff
+@@ -8,5 +8,4 @@
   import resend
   from jinja2 import Environment, FileSystemLoader, select_autoescape
 - from resend.emails.types import SendParams
-
+  
   from src.core.auth_config import auth_config
 ```
 
-```diff
-                  headers_list.append("X-Entity-Ref-ID: development")
+**Chunk 2**
+Lines added: 14, lines removed: 10
 
+```diff
+@@ -90,14 +89,18 @@
+                  headers_list.append("X-Entity-Ref-ID: development")
+  
 -             # Construct SendParams object
 -             send_params = SendParams(
 -                 from_=from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
@@ -46,15 +58,18 @@ _**Assistant**_
 +                 "subject": subject,
 +                 "html": html_content,
 +             }
-+
++ 
 +             if text_content:
 +                 send_params["text"] = text_content
 +             if reply_to:
 +                 send_params["reply_to"] = reply_to
 +             if headers_list:
 +                 send_params["headers"] = headers_list
-
+  
               # Send email
 ```
 
+</details>
+
 ---
+

@@ -21,7 +21,15 @@ _**Assistant**_
 
 ---
 
+<details><summary>Edit file: apps/backend/src/db/graph/session.py</summary>
+
+I will wrap the Cypher string into a neo4j.Query object to satisfy the updated type stubs.
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -9,5 +9,5 @@
   from typing import Any
   
 - from neo4j import AsyncSession
@@ -30,7 +38,11 @@ _**Assistant**_
   from .driver import neo4j_driver
 ```
 
+**Chunk 2**
+Lines added: 5, lines removed: 1
+
 ```diff
+@@ -78,5 +78,9 @@
       """
       async with create_neo4j_session(database=database) as session:
 -         result = await session.run(query, parameters or {})
@@ -43,13 +55,23 @@ _**Assistant**_
   
 ```
 
----
-
-
+</details>
 
 ---
+
+
+
+---
+
+<details><summary>Edit file: apps/backend/src/db/graph/session.py</summary>
+
+I will cast the dynamic string to LiteralString to satisfy the type checker.
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
 
 ```diff
+@@ -7,5 +7,5 @@
   from collections.abc import AsyncGenerator
   from contextlib import asynccontextmanager
 - from typing import Any
@@ -58,7 +80,11 @@ _**Assistant**_
   from neo4j import AsyncSession, Query
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -81,5 +81,5 @@
           # the updated Neo4j type stubs that expect either a `LiteralString`
           # or a `neo4j.Query` instance.
 -         cypher_query = Query(query, parameters or {})
@@ -66,6 +92,8 @@ _**Assistant**_
           result = await session.run(cypher_query)
           return await result.data()
 ```
+
+</details>
 
 ---
 

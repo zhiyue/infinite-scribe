@@ -46,7 +46,37 @@ Here's the fix - convert the dictionary to the expected format:
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 7, lines removed: 4
+
+```diff
+@@ -96,12 +96,15 @@
+                  params["reply_to"] = reply_to
+  
++             # Prepare headers list
++             headers_list = []
+              if headers:
+-                 params["headers"] = headers
++                 headers_list.extend([f"{key}: {value}" for key, value in headers.items()])
+  
+              # Add sandbox header for development
+              if self.is_development:
+-                 if not headers:
+-                     params["headers"] = {}
+-                 params["headers"]["X-Entity-Ref-ID"] = "development"
++                 headers_list.append("X-Entity-Ref-ID: development")
++ 
++             if headers_list:
++                 params["headers"] = headers_list
+  
+              # Send email
+```
+
+</details>
 
 ---
 
@@ -102,7 +132,24 @@ The error indicates that the Resend API expects keyword arguments rather than a 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -109,5 +109,5 @@
+  
+              # Send email
+-             response = resend.Emails.send(params)
++             response = resend.Emails.send(**params)
+              logger.info(f"Email sent successfully via Resend: {response}")
+              return True
+```
+
+</details>
 
 ---
 
@@ -118,7 +165,24 @@ The issue is that `from` is a Python keyword. The Resend API likely expects `fro
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -84,5 +84,5 @@
+              # Prepare email parameters
+              params = {
+-                 "from": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
++                 "from_": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
+                  "to": to,
+                  "subject": subject,
+```
+
+</details>
 
 ---
 
@@ -164,7 +228,62 @@ The Resend API expects direct parameters, not a dictionary. Replace the dictiona
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: undefined, lines removed: 14
+
+```diff
+@@ -82,18 +82,4 @@
+          """Send email via Resend API."""
+          try:
+-             # Prepare email parameters
+-             params = {
+-                 "from_": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
+-                 "to": to,
+-                 "subject": subject,
+-                 "html": html_content,
+-             }
+- 
+-             if text_content:
+-                 params["text"] = text_content
+- 
+-             if reply_to:
+-                 params["reply_to"] = reply_to
+- 
+              # Prepare headers list
+              headers_list = []
+```
+
+**Chunk 2**
+Lines added: 10, lines removed: 5
+
+```diff
+@@ -105,9 +91,14 @@
+                  headers_list.append("X-Entity-Ref-ID: development")
+  
+-             if headers_list:
+-                 params["headers"] = headers_list
+- 
+-             # Send email
+-             response = resend.Emails.send(**params)
++             # Send email with direct parameters
++             response = resend.Emails.send(
++                 from_=from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
++                 to=to,
++                 subject=subject,
++                 html=html_content,
++                 text=text_content,
++                 reply_to=reply_to,
++                 headers=headers_list if headers_list else None,
++             )
+              logger.info(f"Email sent successfully via Resend: {response}")
+              return True
+```
+
+</details>
 
 ---
 
@@ -180,7 +299,62 @@ The API expects a `params` parameter. Let me revert to the original approach wit
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 14, lines removed: undefined
+
+```diff
+@@ -82,4 +82,18 @@
+          """Send email via Resend API."""
+          try:
++             # Prepare email parameters
++             params = {
++                 "from": from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
++                 "to": to,
++                 "subject": subject,
++                 "html": html_content,
++             }
++ 
++             if text_content:
++                 params["text"] = text_content
++ 
++             if reply_to:
++                 params["reply_to"] = reply_to
++ 
+              # Prepare headers list
+              headers_list = []
+```
+
+**Chunk 2**
+Lines added: 5, lines removed: 10
+
+```diff
+@@ -91,14 +105,9 @@
+                  headers_list.append("X-Entity-Ref-ID: development")
+  
+-             # Send email with direct parameters
+-             response = resend.Emails.send(
+-                 from_=from_email or f"Infinite Scribe <{auth_config.RESEND_FROM_EMAIL}>",
+-                 to=to,
+-                 subject=subject,
+-                 html=html_content,
+-                 text=text_content,
+-                 reply_to=reply_to,
+-                 headers=headers_list if headers_list else None,
+-             )
++             if headers_list:
++                 params["headers"] = headers_list
++ 
++             # Send email
++             response = resend.Emails.send(params)
+              logger.info(f"Email sent successfully via Resend: {response}")
+              return True
+```
+
+</details>
 
 ---
 
@@ -227,7 +401,24 @@ _**Assistant**_
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -109,5 +109,5 @@
+  
+              # Send email
+-             response = resend.Emails.send(params)
++             response = resend.Emails.send(params)  # type: ignore
+              logger.info(f"Email sent successfully via Resend: {response}")
+              return True
+```
+
+</details>
 
 ---
 
@@ -271,7 +462,15 @@ _**Assistant**_
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/email_service.py</summary>
+
+I need to import SendParams from resend and modify the _send_via_resend method to use proper typing instead of a generic dict. I'll add the import at the top and modify the method to construct a proper SendParams object.
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
 ```diff
+@@ -8,4 +8,5 @@
   import resend
   from jinja2 import Environment, FileSystemLoader, select_autoescape
 + from resend.emails.types import SendParams
@@ -279,7 +478,11 @@ _**Assistant**_
   from src.core.auth_config import auth_config
 ```
 
+**Chunk 2**
+Lines added: undefined, lines removed: 14
+
 ```diff
+@@ -82,18 +83,4 @@
           """Send email via Resend API."""
           try:
 -             # Prepare email parameters
@@ -300,7 +503,11 @@ _**Assistant**_
               headers_list = []
 ```
 
+**Chunk 3**
+Lines added: 11, lines removed: 3
+
 ```diff
+@@ -105,9 +92,17 @@
                   headers_list.append("X-Entity-Ref-ID: development")
   
 -             if headers_list:
@@ -322,6 +529,8 @@ _**Assistant**_
               logger.info(f"Email sent successfully via Resend: {response}")
               return True
 ```
+
+</details>
 
 ---
 

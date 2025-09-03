@@ -54,7 +54,62 @@ Here's a concise fix - add type annotations to tell the type checker the actual 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 16, lines removed: 16
+
+```diff
+@@ -15,28 +15,28 @@
+  
+      # Basic information
+-     username = Column(String(50), unique=True, nullable=False, index=True)
+-     email = Column(String(255), unique=True, nullable=False, index=True)
+-     password_hash = Column(String(255), nullable=False)
++     username: str = Column(String(50), unique=True, nullable=False, index=True)
++     email: str = Column(String(255), unique=True, nullable=False, index=True)
++     password_hash: str = Column(String(255), nullable=False)
+  
+      # Profile information
+-     first_name = Column(String(100), nullable=True)
+-     last_name = Column(String(100), nullable=True)
+-     avatar_url = Column(String(500), nullable=True)
+-     bio = Column(String(1000), nullable=True)
++     first_name: str | None = Column(String(100), nullable=True)
++     last_name: str | None = Column(String(100), nullable=True)
++     avatar_url: str | None = Column(String(500), nullable=True)
++     bio: str | None = Column(String(1000), nullable=True)
+  
+      # Account status
+-     is_active = Column(Boolean, default=True, nullable=False)
+-     is_verified = Column(Boolean, default=False, nullable=False)
+-     is_superuser = Column(Boolean, default=False, nullable=False)
++     is_active: bool = Column(Boolean, default=True, nullable=False)
++     is_verified: bool = Column(Boolean, default=False, nullable=False)
++     is_superuser: bool = Column(Boolean, default=False, nullable=False)
+  
+      # Security
+-     failed_login_attempts = Column(Integer, default=0, nullable=False)
+-     locked_until = Column(DateTime, nullable=True)
+-     last_login_at = Column(DateTime, nullable=True)
+-     last_login_ip = Column(String(45), nullable=True)  # Support IPv6
++     failed_login_attempts: int = Column(Integer, default=0, nullable=False)
++     locked_until: datetime | None = Column(DateTime, nullable=True)
++     last_login_at: datetime | None = Column(DateTime, nullable=True)
++     last_login_ip: str | None = Column(String(45), nullable=True)  # Support IPv6
+  
+      # Timestamps
+-     email_verified_at = Column(DateTime, nullable=True)
+-     password_changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
++     email_verified_at: datetime | None = Column(DateTime, nullable=True)
++     password_changed_at: datetime = Column(DateTime, default=datetime.utcnow, nullable=False)
+  
+      # Relationships
+```
+
+</details>
 
 ---
 
@@ -76,7 +131,7 @@ The type annotations approach isn't working because the type checker still sees 
 
 ---
 
-
+The string to replace was not found in the file.
 
 ---
 
@@ -104,7 +159,62 @@ Let me remove the problematic type annotations and add `# type: ignore` comments
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 16, lines removed: 16
+
+```diff
+@@ -15,28 +15,28 @@
+  
+      # Basic information
+-     username: str = Column(String(50), unique=True, nullable=False, index=True)
+-     email: str = Column(String(255), unique=True, nullable=False, index=True)
+-     password_hash: str = Column(String(255), nullable=False)
++     username = Column(String(50), unique=True, nullable=False, index=True)
++     email = Column(String(255), unique=True, nullable=False, index=True)
++     password_hash = Column(String(255), nullable=False)
+  
+      # Profile information
+-     first_name: str | None = Column(String(100), nullable=True)
+-     last_name: str | None = Column(String(100), nullable=True)
+-     avatar_url: str | None = Column(String(500), nullable=True)
+-     bio: str | None = Column(String(1000), nullable=True)
++     first_name = Column(String(100), nullable=True)
++     last_name = Column(String(100), nullable=True)
++     avatar_url = Column(String(500), nullable=True)
++     bio = Column(String(1000), nullable=True)
+  
+      # Account status
+-     is_active: bool = Column(Boolean, default=True, nullable=False)
+-     is_verified: bool = Column(Boolean, default=False, nullable=False)
+-     is_superuser: bool = Column(Boolean, default=False, nullable=False)
++     is_active = Column(Boolean, default=True, nullable=False)
++     is_verified = Column(Boolean, default=False, nullable=False)
++     is_superuser = Column(Boolean, default=False, nullable=False)
+  
+      # Security
+-     failed_login_attempts: int = Column(Integer, default=0, nullable=False)
+-     locked_until: datetime | None = Column(DateTime, nullable=True)
+-     last_login_at: datetime | None = Column(DateTime, nullable=True)
+-     last_login_ip: str | None = Column(String(45), nullable=True)  # Support IPv6
++     failed_login_attempts = Column(Integer, default=0, nullable=False)
++     locked_until = Column(DateTime, nullable=True)
++     last_login_at = Column(DateTime, nullable=True)
++     last_login_ip = Column(String(45), nullable=True)  # Support IPv6
+  
+      # Timestamps
+-     email_verified_at: datetime | None = Column(DateTime, nullable=True)
+-     password_changed_at: datetime = Column(DateTime, default=datetime.utcnow, nullable=False)
++     email_verified_at = Column(DateTime, nullable=True)
++     password_changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+  
+      # Relationships
+```
+
+</details>
 
 ---
 
@@ -121,7 +231,36 @@ Now I need to add `# type: ignore` comments to the specific lines that use these
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 4, lines removed: 4
+
+```diff
+@@ -60,14 +60,14 @@
+      def full_name(self) -> str:
+          """Get user's full name."""
+-         if self.first_name and self.last_name:
++         if self.first_name and self.last_name:  # type: ignore
+              return f"{self.first_name} {self.last_name}"
+-         return self.first_name or self.last_name or self.username
++         return self.first_name or self.last_name or self.username  # type: ignore
+  
+      @property
+      def is_locked(self) -> bool:
+          """Check if the account is currently locked."""
+-         if not self.locked_until:
++         if not self.locked_until:  # type: ignore
+              return False
+-         return datetime.utcnow() < self.locked_until
++         return datetime.utcnow() < self.locked_until  # type: ignore
+  
+      def to_dict(self, include_sensitive: bool = False) -> dict:
+```
+
+</details>
 
 ---
 
@@ -142,7 +281,36 @@ Let me remove the unused type ignore comments and add them to the `to_dict` meth
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 4, lines removed: 4
+
+```diff
+@@ -60,14 +60,14 @@
+      def full_name(self) -> str:
+          """Get user's full name."""
+-         if self.first_name and self.last_name:  # type: ignore
++         if self.first_name and self.last_name:
+              return f"{self.first_name} {self.last_name}"
+-         return self.first_name or self.last_name or self.username  # type: ignore
++         return self.first_name or self.last_name or self.username
+  
+      @property
+      def is_locked(self) -> bool:
+          """Check if the account is currently locked."""
+-         if not self.locked_until:  # type: ignore
++         if not self.locked_until:
+              return False
+-         return datetime.utcnow() < self.locked_until  # type: ignore
++         return datetime.utcnow() < self.locked_until
+  
+      def to_dict(self, include_sensitive: bool = False) -> dict:
+```
+
+</details>
 
 ---
 
@@ -156,7 +324,24 @@ Let me add `# type: ignore` comments to the specific lines that are still failin
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -62,5 +62,5 @@
+          if self.first_name and self.last_name:
+              return f"{self.first_name} {self.last_name}"
+-         return self.first_name or self.last_name or self.username
++         return self.first_name or self.last_name or self.username  # type: ignore
+  
+      @property
+```
+
+</details>
 
 ---
 
@@ -164,7 +349,24 @@ Let me add `# type: ignore` comments to the specific lines that are still failin
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -69,5 +69,5 @@
+          if not self.locked_until:
+              return False
+-         return datetime.utcnow() < self.locked_until
++         return datetime.utcnow() < self.locked_until  # type: ignore
+  
+      def to_dict(self, include_sensitive: bool = False) -> dict:
+```
+
+</details>
 
 ---
 
@@ -232,7 +434,24 @@ I need to add `# type: ignore` comments to the remaining lines that use SQLAlche
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -60,5 +60,5 @@
+      def full_name(self) -> str:
+          """Get user's full name."""
+-         if self.first_name and self.last_name:
++         if self.first_name and self.last_name:  # type: ignore
+              return f"{self.first_name} {self.last_name}"
+          return self.first_name or self.last_name or self.username  # type: ignore
+```
+
+</details>
 
 ---
 
@@ -240,7 +459,24 @@ I need to add `# type: ignore` comments to the remaining lines that use SQLAlche
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -67,5 +67,5 @@
+      def is_locked(self) -> bool:
+          """Check if the account is currently locked."""
+-         if not self.locked_until:
++         if not self.locked_until:  # type: ignore
+              return False
+          return datetime.utcnow() < self.locked_until  # type: ignore
+```
+
+</details>
 
 ---
 
@@ -254,7 +490,30 @@ Let me add `# type: ignore` to the remaining datetime conditional checks in the 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 4, lines removed: 4
+
+```diff
+@@ -92,8 +92,8 @@
+              "is_verified": self.is_verified,
+              "is_superuser": self.is_superuser,
+-             "created_at": self.created_at.isoformat() if self.created_at else None,
+-             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+-             "email_verified_at": self.email_verified_at.isoformat()
+-             if self.email_verified_at
++             "created_at": self.created_at.isoformat() if self.created_at else None,  # type: ignore
++             "updated_at": self.updated_at.isoformat() if self.updated_at else None,  # type: ignore
++             "email_verified_at": self.email_verified_at.isoformat()  # type: ignore
++             if self.email_verified_at  # type: ignore
+              else None,
+          }
+```
+
+</details>
 
 ---
 
@@ -321,7 +580,31 @@ I need to add `# type: ignore` comments to the remaining lines that still have c
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 4, lines removed: 4
+
+```diff
+@@ -104,9 +104,9 @@
+                      "failed_login_attempts": self.failed_login_attempts,
+                      "is_locked": self.is_locked,
+-                     "locked_until": self.locked_until.isoformat() if self.locked_until else None,
+-                     "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
++                     "locked_until": self.locked_until.isoformat() if self.locked_until else None,  # type: ignore
++                     "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,  # type: ignore
+                      "last_login_ip": self.last_login_ip,
+-                     "password_changed_at": self.password_changed_at.isoformat()
+-                     if self.password_changed_at
++                     "password_changed_at": self.password_changed_at.isoformat()  # type: ignore
++                     if self.password_changed_at  # type: ignore
+                      else None,
+                  }
+```
+
+</details>
 
 ---
 

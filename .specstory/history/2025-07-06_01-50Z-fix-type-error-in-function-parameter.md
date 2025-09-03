@@ -56,7 +56,24 @@ The most concise fix is to update the method signature to accept `Optional[str]`
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/jwt_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -138,5 +138,5 @@
+              self.redis_client.setex(f"blacklist:{jti}", ttl, "1")
+  
+-     def is_token_blacklisted(self, jti: str) -> bool:
++     def is_token_blacklisted(self, jti: str | None) -> bool:
+          """Check if a token is blacklisted.
+  
+```
+
+</details>
 
 ---
 

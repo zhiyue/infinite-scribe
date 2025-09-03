@@ -67,7 +67,24 @@ Looking at the linter error, you need to add a type annotation for the `purpose`
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -30,5 +30,5 @@
+      # Token information
+      token = Column(String(255), unique=True, nullable=False, index=True)
+-     purpose = Column(SQLEnum(VerificationPurpose), nullable=False)
++     purpose: Column[VerificationPurpose] = Column(SQLEnum(VerificationPurpose), nullable=False)
+  
+      # Email tracking
+```
+
+</details>
 
 ---
 

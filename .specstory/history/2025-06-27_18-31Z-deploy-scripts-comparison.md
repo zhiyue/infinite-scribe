@@ -10,13 +10,11 @@ _**User**_
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>用户问的是两个部署脚本的区别，
-我需要分析这两个脚本的不同之处。让我仔细查看两个脚本的内容和功能。
+<think><details><summary>Thought Process</summary>用户问的是两个部署脚本的区别，我需要分析这两个脚本的不同之处。让我仔细查看两个脚本的内容和功能。
 
 从文件内容来看：
 
 deploy-infrastructure.sh:
-
 1. 主要用于部署基础设施服务
 2. 检查 .env.infrastructure 文件
 3. 支持本地部署和远程部署
@@ -24,7 +22,6 @@ deploy-infrastructure.sh:
 5. 比较简单，重点在于启动基础设施服务
 
 deploy-to-dev.sh:
-
 1. 专門用于部署到开发服务器
 2. 更复杂的部署流程
 3. 包含文件同步功能
@@ -41,20 +38,17 @@ deploy-to-dev.sh:
 ## 1. 目的和范围
 
 ### `deploy-infrastructure.sh`
-
 - **专注于基础设施服务部署**
 - 主要用于启动 Docker Compose 定义的基础设施服务
 - 简单直接的部署流程
 
 ### `deploy-to-dev.sh`
-
 - **完整的开发环境部署解决方案**
 - 不仅部署服务，还包含文件同步、健康检查、服务监控等
 
 ## 2. 部署方式
 
 ### `deploy-infrastructure.sh`
-
 ```bash
 # 支持两种模式：
 # 1. 本地部署 (HOSTNAME = "dev-server" 或 --local 参数)
@@ -66,7 +60,6 @@ ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose -
 ```
 
 ### `deploy-to-dev.sh`
-
 ```bash
 # 专门针对开发服务器的完整部署流程：
 # 1. SSH 连接验证
@@ -80,12 +73,10 @@ ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose -
 ## 3. 环境配置处理
 
 ### `deploy-infrastructure.sh`
-
 - 只检查 `.env.infrastructure` 是否存在
 - 如果不存在，从 `.env.example` 复制并退出
 
 ### `deploy-to-dev.sh`
-
 - 检查多个环境文件的存在性
 - 自动创建 `.env` 软链接到 `.env.infrastructure`
 - 更智能的环境配置管理
@@ -93,13 +84,11 @@ ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose -
 ## 4. 错误处理和用户体验
 
 ### `deploy-infrastructure.sh`
-
 - 基本的错误处理
 - 简单的彩色输出
 - 最后提示使用健康检查脚本
 
 ### `deploy-to-dev.sh`
-
 - 更详细的错误处理（SSH 连接测试）
 - 丰富的用户反馈和进度提示
 - 自动健康检查
@@ -108,7 +97,6 @@ ssh zhiyue@192.168.2.201 "cd ~/workspace/mvp/infinite-scribe && docker compose -
 ## 5. 文件同步差异
 
 ### `deploy-infrastructure.sh`
-
 ```bash
 rsync -avz --exclude 'node_modules' --exclude '.git' \
     --exclude '*.log' --exclude '.env.local' \
@@ -116,7 +104,6 @@ rsync -avz --exclude 'node_modules' --exclude '.git' \
 ```
 
 ### `deploy-to-dev.sh`
-
 ```bash
 rsync -avz --delete \
     --exclude '.git/' \
@@ -143,13 +130,11 @@ rsync -avz --delete \
 ## 6. 使用场景建议
 
 ### 使用 `deploy-infrastructure.sh` 当：
-
 - 只需要快速启动基础设施服务
 - 进行本地开发测试
 - 需要简单的一键部署
 
 ### 使用 `deploy-to-dev.sh` 当：
-
 - 需要完整的开发环境部署
 - 需要文件同步功能
 - 需要健康检查和服务监控
@@ -157,14 +142,11 @@ rsync -avz --delete \
 
 ## 总结
 
-`deploy-infrastructure.sh` 是一个轻量级的基础设施部署脚本，而 `deploy-to-dev.sh`
-是一个功能完整的开发环境部署解决方案。选择哪个脚本取决于您的具体需求和部署场景。
+`deploy-infrastructure.sh` 是一个轻量级的基础设施部署脚本，而 `deploy-to-dev.sh` 是一个功能完整的开发环境部署解决方案。选择哪个脚本取决于您的具体需求和部署场景。
 
 ---
 
-<think><details><summary>Thought Process</summary>我已经详细分析了两个脚本的区
-别，从目的、部署方式、环境配置、错误处理、文件同步等多个方面进行了比较。总结起
-来：
+<think><details><summary>Thought Process</summary>我已经详细分析了两个脚本的区别，从目的、部署方式、环境配置、错误处理、文件同步等多个方面进行了比较。总结起来：
 
 - deploy-infrastructure.sh: 简单、轻量、专注于基础设施服务部署
 - deploy-to-dev.sh: 完整、复杂、提供全面的开发环境部署解决方案
@@ -172,3 +154,4 @@ rsync -avz --delete \
 这个分析应该能帮助用户理解两个脚本的不同用途和使用场景。</details></think>
 
 ---
+

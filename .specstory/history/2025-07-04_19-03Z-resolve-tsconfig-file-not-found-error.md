@@ -52,7 +52,15 @@ The error occurs because the referenced packages don't exist yet. Here's a conci
 
 ---
 
+<details><summary>Edit file: tsconfig.json</summary>
+
+Remove the non-existent package references from the references array, keeping only the frontend app reference
+
+**Chunk 1**
+Lines added: 1, lines removed: 3
+
 ```diff
+@@ -8,7 +8,5 @@
     },
     "references": [
 -     { "path": "./apps/frontend" },
@@ -62,6 +70,8 @@ The error occurs because the referenced packages don't exist yet. Here's a conci
     ]
   }
 ```
+
+</details>
 
 ---
 
@@ -79,7 +89,15 @@ Read file: apps/frontend/tsconfig.json
 
 ---
 
+<details><summary>Edit file: apps/frontend/tsconfig.json</summary>
+
+Add composite: true to the compilerOptions to fix the TypeScript project reference error
+
+**Chunk 1**
+Lines added: 10, lines removed: 3
+
 ```diff
+@@ -1,13 +1,20 @@
   {
     "compilerOptions": {
 +     "composite": true,
@@ -104,6 +122,8 @@ Read file: apps/frontend/tsconfig.json
     ]
   }
 ```
+
+</details>
 
 ---
 

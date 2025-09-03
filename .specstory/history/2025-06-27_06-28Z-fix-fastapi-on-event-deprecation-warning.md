@@ -5,7 +5,6 @@
 _**User**_
 
 For the code present, we get this error:
-
 ```
 The method "on_event" in class "FastAPI" is deprecated
   on_event is deprecated, use lifespan event handlers instead.
@@ -13,28 +12,21 @@ The method "on_event" in class "FastAPI" is deprecated
 Read more about it in the
 [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
 ```
-
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>The user is getting a
-deprecation warning for using `@app.on_event("startup")` and
-`@app.on_event("shutdown")` in their FastAPI application. FastAPI has deprecated
-the `on_event` decorator in favor of the lifespan event handlers.
+<think><details><summary>Thought Process</summary>The user is getting a deprecation warning for using `@app.on_event("startup")` and `@app.on_event("shutdown")` in their FastAPI application. FastAPI has deprecated the `on_event` decorator in favor of the lifespan event handlers.
 
 Looking at the code, they have:
-
 1. A startup event that initializes database connections
 2. A shutdown event that cleans up database connections
 
-The modern way to handle this in FastAPI is to use a lifespan context manager. I
-need to convert their current startup/shutdown events into a lifespan function.
+The modern way to handle this in FastAPI is to use a lifespan context manager. I need to convert their current startup/shutdown events into a lifespan function.
 
 The pattern is:
-
 ```python
 from contextlib import asynccontextmanager
 
@@ -47,33 +39,172 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-Let me provide a concise fix that converts their existing
-code.</details></think>
+Let me provide a concise fix that converts their existing code.</details></think>
 
 ---
 
-I'll help you fix the deprecated `on_event` usage by converting to the modern
-lifespan pattern.
+I'll help you fix the deprecated `on_event` usage by converting to the modern lifespan pattern.
 
 ---
 
----
+<details><summary>Edit file: apps/backend/src/api/main.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 48, lines removed: undefined
+
+```diff
+@@ -1,13 +1,61 @@
+  """API Gateway main entry point."""
++ from contextlib import asynccontextmanager
++ 
+  from fastapi import FastAPI
+  from fastapi.middleware.cors import CORSMiddleware
+  
+  from ..core.config import settings
+  from .routes import health, v1
++ 
++ 
++ @asynccontextmanager
++ async def lifespan(app: FastAPI):
++     """Manage application lifespan events."""
++     import logging
++ 
++     from ..common.services.neo4j_service import neo4j_service
++     from ..common.services.postgres_service import postgres_service
++ 
++     logger = logging.getLogger(__name__)
++ 
++     # Startup
++     try:
++         logger.info("Initializing database connections...")
++         await postgres_service.connect()
++         await neo4j_service.connect()
++ 
++         postgres_ok = await postgres_service.check_connection()
++         neo4j_ok = await neo4j_service.check_connection()
++ 
++         if postgres_ok:
++             logger.info("PostgreSQL connection established successfully")
++         else:
++             logger.error("Failed to establish PostgreSQL connection")
++ 
++         if neo4j_ok:
++             logger.info("Neo4j connection established successfully")
++         else:
++             logger.error("Failed to establish Neo4j connection")
++ 
++     except Exception as e:
++         logger.error(f"Failed to initialize services: {e}")
++ 
++     yield
++ 
++     # Shutdown
++     try:
++         logger.info("Shutting down database connections...")
++         await postgres_service.disconnect()
++         await neo4j_service.disconnect()
++         logger.info("Database connections closed successfully")
++     except Exception as e:
++         logger.error(f"Error during shutdown: {e}")
++ 
+  
+  app = FastAPI(
+      title="Infinite Scribe API Gateway",
+      description="API Gateway for the Infinite Scribe platform",
+      version="0.1.0",
++     lifespan=lifespan,
+  )
+  
+```
+
+</details>
 
 ---
 
-The deprecation warning is now resolved! I've converted your code from the
-deprecated `@app.on_event()` decorators to the modern **lifespan pattern**.
+<details><summary>Edit file: apps/backend/src/api/main.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: undefined, lines removed: 54
+
+```diff
+@@ -72,57 +72,3 @@
+  app.include_router(health.router, tags=["health"])
+  app.include_router(v1.router, prefix="/api/v1")
+- 
+- 
+- @app.on_event("startup")
+- async def startup_event():
+-     """Initialize services on startup."""
+-     import logging
+- 
+-     from ..common.services.neo4j_service import neo4j_service
+-     from ..common.services.postgres_service import postgres_service
+- 
+-     logger = logging.getLogger(__name__)
+- 
+-     try:
+-         # Initialize database connections
+-         logger.info("Initializing database connections...")
+-         await postgres_service.connect()
+-         await neo4j_service.connect()
+- 
+-         # Verify connections
+-         postgres_ok = await postgres_service.check_connection()
+-         neo4j_ok = await neo4j_service.check_connection()
+- 
+-         if postgres_ok:
+-             logger.info("PostgreSQL connection established successfully")
+-         else:
+-             logger.error("Failed to establish PostgreSQL connection")
+- 
+-         if neo4j_ok:
+-             logger.info("Neo4j connection established successfully")
+-         else:
+-             logger.error("Failed to establish Neo4j connection")
+- 
+-     except Exception as e:
+-         logger.error(f"Failed to initialize services: {e}")
+-         # Don't prevent startup, let health checks handle it
+- 
+- 
+- @app.on_event("shutdown")
+- async def shutdown_event():
+-     """Cleanup on shutdown."""
+-     import logging
+- 
+-     from ..common.services.neo4j_service import neo4j_service
+-     from ..common.services.postgres_service import postgres_service
+- 
+-     logger = logging.getLogger(__name__)
+- 
+-     try:
+-         logger.info("Shutting down database connections...")
+-         await postgres_service.disconnect()
+-         await neo4j_service.disconnect()
+-         logger.info("Database connections closed successfully")
+-     except Exception as e:
+-         logger.error(f"Error during shutdown: {e}")
+  
+```
+
+</details>
+
+---
+
+The deprecation warning is now resolved! I've converted your code from the deprecated `@app.on_event()` decorators to the modern **lifespan pattern**.
 
 **Key changes:**
-
 1. **Added** `contextlib.asynccontextmanager` import
-2. **Created** a `lifespan()` context manager that handles both startup and
-   shutdown
+2. **Created** a `lifespan()` context manager that handles both startup and shutdown
 3. **Moved** your startup code before `yield` and shutdown code after `yield`
 4. **Added** `lifespan=lifespan` parameter to the FastAPI constructor
 5. **Removed** the deprecated `@app.on_event()` handlers
 
-The lifespan pattern is cleaner and more reliable, ensuring proper resource
-management throughout your application's lifecycle.
+The lifespan pattern is cleaner and more reliable, ensuring proper resource management throughout your application's lifecycle.
 
 ---
+

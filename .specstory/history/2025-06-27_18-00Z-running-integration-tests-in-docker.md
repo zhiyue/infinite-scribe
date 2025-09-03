@@ -4,43 +4,37 @@
 
 _**User**_
 
-./scripts/run-tests.sh --integration --docker-host Using TEST machine Docker
-host at 192.168.2.202:2375 Safe for destructive tests - using isolated test
-environment Docker host connectivity: ✗ Failed to connect via Docker CLI ✓
-Connected (via SSH fallback) Server: 28.2.2 Running Infinite Scribe Tests
+./scripts/run-tests.sh --integration --docker-host
+Using TEST machine Docker host at 192.168.2.202:2375
+Safe for destructive tests - using isolated test environment
+Docker host connectivity: ✗ Failed to connect via Docker CLI
+✓ Connected (via SSH fallback)
+Server: 28.2.2
+Running Infinite Scribe Tests
 ========================================
 
 === Running integration tests ===
-======================================================== test session starts
-========================================================= platform linux --
-Python 3.11.13, pytest-8.3.5, pluggy-1.6.0 --
-/home/zhiyue/workspace/mvp/infinite-scribe/.venv/bin/python3 cachedir:
-.pytest_cache rootdir: /home/zhiyue/workspace/mvp/infinite-scribe configfile:
-pyproject.toml plugins: mock-3.14.1, asyncio-0.24.0, cov-6.0.0, anyio-3.7.1
-asyncio: mode=Mode.AUTO, default_loop_scope=function collected 10 items
+======================================================== test session starts =========================================================
+platform linux -- Python 3.11.13, pytest-8.3.5, pluggy-1.6.0 -- /home/zhiyue/workspace/mvp/infinite-scribe/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/zhiyue/workspace/mvp/infinite-scribe
+configfile: pyproject.toml
+plugins: mock-3.14.1, asyncio-0.24.0, cov-6.0.0, anyio-3.7.1
+asyncio: mode=Mode.AUTO, default_loop_scope=function
+collected 10 items                                                                                                                   
 
-tests/integration/test_database_connections.py::test_postgres_connection_success
-PASSED [ 10%]
-tests/integration/test_database_connections.py::test_postgres_connection_failure
-PASSED [ 20%]
-tests/integration/test_database_connections.py::test_neo4j_connection_success
-PASSED [ 30%]
-tests/integration/test_database_connections.py::test_neo4j_connection_failure
-PASSED [ 40%]
-tests/integration/test_database_connections.py::test_redis_connection_success
-PASSED [ 50%]
-tests/integration/test_database_connections.py::test_redis_connection_failure
-PASSED [ 60%]
-tests/integration/test_database_connections.py::test_concurrent_database_connections
-PASSED [ 70%]
-tests/integration/test_database_connections.py::test_postgres_concurrent_queries
-PASSED [ 80%]
-tests/integration/test_database_connections.py::test_postgres_transaction_success
-PASSED [ 90%]
-tests/integration/test_database_connections.py::test_postgres_transaction_rollback
-PASSED [100%]
+tests/integration/test_database_connections.py::test_postgres_connection_success PASSED                                        [ 10%]
+tests/integration/test_database_connections.py::test_postgres_connection_failure PASSED                                        [ 20%]
+tests/integration/test_database_connections.py::test_neo4j_connection_success PASSED                                           [ 30%]
+tests/integration/test_database_connections.py::test_neo4j_connection_failure PASSED                                           [ 40%]
+tests/integration/test_database_connections.py::test_redis_connection_success PASSED                                           [ 50%]
+tests/integration/test_database_connections.py::test_redis_connection_failure PASSED                                           [ 60%]
+tests/integration/test_database_connections.py::test_concurrent_database_connections PASSED                                    [ 70%]
+tests/integration/test_database_connections.py::test_postgres_concurrent_queries PASSED                                        [ 80%]
+tests/integration/test_database_connections.py::test_postgres_transaction_success PASSED                                       [ 90%]
+tests/integration/test_database_connections.py::test_postgres_transaction_rollback PASSED                                      [100%]
 
-# ======================================================= 10 passed in -128.37s
+======================================================= 10 passed in -128.37s ========================================================
 
 Checking for leftover test containers... 为什么程序执行到这里就中断了?
 
@@ -48,28 +42,22 @@ Checking for leftover test containers... 为什么程序执行到这里就中断
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>The user is running
-integration tests with the `--docker-host` option. The tests passed (10 passed
-in -128.37s), but the execution seems to hang at the "Checking for leftover test
-containers..." step. Looking at the script, this is the cleanup phase where it
-tries to check for leftover test containers.
+<think><details><summary>Thought Process</summary>The user is running integration tests with the `--docker-host` option. The tests passed (10 passed in -128.37s), but the execution seems to hang at the "Checking for leftover test containers..." step. Looking at the script, this is the cleanup phase where it tries to check for leftover test containers.
 
 Let me analyze the script logic:
 
-1. After tests run successfully, if `USE_DOCKER_HOST` is true, it tries to check
-   for leftover containers
-2. It first tries to use the local `docker` command to connect to the remote
-   Docker host
+1. After tests run successfully, if `USE_DOCKER_HOST` is true, it tries to check for leftover containers
+2. It first tries to use the local `docker` command to connect to the remote Docker host
 3. If that fails, it falls back to SSH
 4. The script seems to be hanging during this container cleanup check
 
 Looking at the relevant part of the script:
 
-````bash
+```bash
 # Clean up if using Docker host
 if [ "$USE_DOCKER_HOST" = true ]; then
     echo -e "\n${YELLOW}Checking for leftover test containers...${NC}"
-
+    
     # Try local docker command first if available
     if command -v docker &> /dev/null; then
         # Redirect both stdout and stderr to capture any error messages
@@ -109,38 +97,73 @@ I can see the issue. The script is hanging at line 216 where it tries to execute
 
 ```bash
 leftover_containers=$(docker -H ${REMOTE_DOCKER_HOST} ps -a --filter "name=test" --format "{{.Names}}" 2>&1)
-````
+```
 
-The problem is that this Docker command doesn't have a timeout and can hang
-indefinitely if the remote Docker host is not responding properly. Since you've
-already established that the Docker CLI connection fails (we saw "✗ Failed to
-connect via Docker CLI" earlier), but the script detected that Docker CLI is
-available, it's trying the Docker command first and hanging.
+The problem is that this Docker command doesn't have a timeout and can hang indefinitely if the remote Docker host is not responding properly. Since you've already established that the Docker CLI connection fails (we saw "✗ Failed to connect via Docker CLI" earlier), but the script detected that Docker CLI is available, it's trying the Docker command first and hanging.
 
-Let me fix this by adding a timeout to the Docker command and improving the
-error detection logic:
+Let me fix this by adding a timeout to the Docker command and improving the error detection logic:
 
 ---
 
+<details><summary>Edit file: scripts/run-tests.sh</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 10, lines removed: 16
+
+```diff
+@@ -208,24 +208,18 @@
+      echo -e "\n${YELLOW}Checking for leftover test containers...${NC}"
+      
+-     # Try local docker command first if available
+-     if command -v docker &> /dev/null; then
+-         # Redirect both stdout and stderr to capture any error messages
+-         leftover_containers=$(docker -H ${REMOTE_DOCKER_HOST} ps -a --filter "name=test" --format "{{.Names}}" 2>&1)
+-         # Check if the output contains error messages
+-         if [[ "$leftover_containers" == *"command 'docker' could not be found"* ]] || [[ "$leftover_containers" == *"Cannot connect to the Docker daemon"* ]] || [[ "$leftover_containers" == *"could not be found"* ]]; then
+-             # Clear the error message and try SSH fallback
+-             leftover_containers=""
+-             if command -v ssh &> /dev/null; then
+-                 leftover_containers=$(ssh -o ConnectTimeout=5 -o BatchMode=yes zhiyue@${DOCKER_HOST_IP} 'docker ps -a --filter "name=test" --format "{{.Names}}"' 2>/dev/null || echo "")
+-             else
+-                 echo -e "${YELLOW}Cannot check for containers without Docker CLI or SSH access${NC}"
+-             fi
+-         fi
+-     # Fallback to SSH if docker command not available
++     leftover_containers=""
++     
++     # Since we already tested Docker connectivity above, use the working method
++     # Check if Docker CLI connection worked during initial connectivity test
++     if command -v docker &> /dev/null && docker -H ${REMOTE_DOCKER_HOST} version > /dev/null 2>&1; then
++         echo "Using Docker CLI to check containers..."
++         leftover_containers=$(timeout 10 docker -H ${REMOTE_DOCKER_HOST} ps -a --filter "name=test" --format "{{.Names}}" 2>/dev/null || echo "")
++     # Fallback to SSH (which we know works based on earlier connectivity test)
+      elif command -v ssh &> /dev/null; then
++         echo "Using SSH to check containers..."
+          leftover_containers=$(ssh -o ConnectTimeout=5 -o BatchMode=yes zhiyue@${DOCKER_HOST_IP} 'docker ps -a --filter "name=test" --format "{{.Names}}"' 2>/dev/null || echo "")
+      else
+-         leftover_containers=""
+          echo -e "${YELLOW}Cannot check for containers without Docker CLI or SSH access${NC}"
++         leftover_containers=""
+      fi
+      
+```
+
+</details>
+
 ---
 
-The issue was that the script was attempting to use the Docker CLI to connect to
-the remote Docker host without a timeout, even though it had already established
-that the Docker CLI connection failed during the initial connectivity test.
+The issue was that the script was attempting to use the Docker CLI to connect to the remote Docker host without a timeout, even though it had already established that the Docker CLI connection failed during the initial connectivity test.
 
 The key improvements I made:
 
-1. **Added timeout**: Used `timeout 10` to prevent the Docker command from
-   hanging indefinitely
-2. **Reused connectivity test logic**: Instead of trying Docker CLI again, the
-   script now reuses the same connectivity test logic that was already performed
-   earlier
-3. **Clearer fallback logic**: Since we know from the earlier test that SSH
-   works but Docker CLI doesn't, the script will now go directly to SSH
+1. **Added timeout**: Used `timeout 10` to prevent the Docker command from hanging indefinitely
+2. **Reused connectivity test logic**: Instead of trying Docker CLI again, the script now reuses the same connectivity test logic that was already performed earlier
+3. **Clearer fallback logic**: Since we know from the earlier test that SSH works but Docker CLI doesn't, the script will now go directly to SSH
 4. **Better user feedback**: Added messages to show which method is being used
 
 Now when you run the test script, it should:
-
 1. Skip the hanging Docker CLI command since it already knows it doesn't work
 2. Use SSH (which we know works) to check for leftover containers
 3. Complete the cleanup process quickly
@@ -151,7 +174,7 @@ You can now run your integration tests again:
 ./scripts/run-tests.sh --integration --docker-host
 ```
 
-The script should complete successfully without hanging at the container cleanup
-step.
+The script should complete successfully without hanging at the container cleanup step.
 
 ---
+

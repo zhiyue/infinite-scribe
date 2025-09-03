@@ -48,7 +48,24 @@ Looking at the error, `user.locked_until` might be `None` when you try to call `
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/user_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -176,5 +176,5 @@
+                          "success": False,
+                          "error": f"Account is locked due to too many failed login attempts. Please try again after {settings.auth.account_lockout_duration_minutes} minutes.",
+-                         "locked_until": user.locked_until.isoformat(),
++                         "locked_until": user.locked_until.isoformat() if user.locked_until else None,
+                      }
+  
+```
+
+</details>
 
 ---
 

@@ -5,55 +5,68 @@
 _**User**_
 
 For the code present, we get this error:
-
 ```
 Item "None" of "Any | None" has no attribute "acquire"
 ```
-
 How can I resolve this? If you propose a fix, please make it concise.
 
 ---
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>Looking at the linter error,
-the issue is that `self._pool` is typed as `Pool | None`, but at line 68 where
-we try to use `self._pool.acquire()`, the type checker is complaining that
-`None` doesn't have an `acquire` attribute.
+<think><details><summary>Thought Process</summary>Looking at the linter error, the issue is that `self._pool` is typed as `Pool | None`, but at line 68 where we try to use `self._pool.acquire()`, the type checker is complaining that `None` doesn't have an `acquire` attribute.
 
 Looking at the code:
-
 1. `self._pool` is initialized as `None` in `__init__`
-2. In the `acquire` method, there's a check `if self._pool is None:` followed by
-   `await self.connect()`
-3. But after `await self.connect()`, the type checker still thinks `self._pool`
-   could be `None`
+2. In the `acquire` method, there's a check `if self._pool is None:` followed by `await self.connect()`
+3. But after `await self.connect()`, the type checker still thinks `self._pool` could be `None`
 
-The issue is that even though `connect()` should set `self._pool` to a valid
-Pool object, the type checker doesn't know this. The `connect()` method could
-potentially fail or not set the pool.
+The issue is that even though `connect()` should set `self._pool` to a valid Pool object, the type checker doesn't know this. The `connect()` method could potentially fail or not set the pool.
 
-The fix is to add a check after `await self.connect()` to ensure the pool is not
-None, or use an assertion.
+The fix is to add a check after `await self.connect()` to ensure the pool is not None, or use an assertion.
 
-Looking at the `connect()` method, it does set `self._pool` to a Pool object on
-success, but if there's an exception, it raises. So after `await self.connect()`
-is called successfully, `self._pool` should not be None.
+Looking at the `connect()` method, it does set `self._pool` to a Pool object on success, but if there's an exception, it raises. So after `await self.connect()` is called successfully, `self._pool` should not be None.
 
-A simple fix would be to add an assertion or a more explicit
-check.</details></think>
+A simple fix would be to add an assertion or a more explicit check.</details></think>
 
 ---
 
-The error occurs because the type checker doesn't know that `self._pool` is
-guaranteed to be non-None after `await self.connect()`. Here's a concise fix:
+The error occurs because the type checker doesn't know that `self._pool` is guaranteed to be non-None after `await self.connect()`. Here's a concise fix:
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/postgres_service.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -1,3 +1,4 @@
+  """PostgreSQL database connection service."""
++ 
+  import asyncio
+  import logging
+```
+
+**Chunk 2**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -66,4 +67,5 @@
+              await self.connect()
+  
++         assert self._pool is not None, "Pool should be initialized after connect()"
+          async with self._pool.acquire() as conn:
+              yield conn
+```
+
+</details>
+
 ---
 
-The assertion tells the type checker that `self._pool` cannot be `None` at that
-point, since `connect()` either successfully creates the pool or raises an
-exception.
+The assertion tells the type checker that `self._pool` cannot be `None` at that point, since `connect()` either successfully creates the pool or raises an exception.
 
 ---
+

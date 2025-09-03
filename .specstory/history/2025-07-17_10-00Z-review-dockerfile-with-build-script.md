@@ -26,7 +26,7 @@ I could summarize these points in a mix of Chinese and English, given the user's
 
 ---
 
-以下是对 `scripts/deploy/build.sh` 与 `apps/backend/Dockerfile` 的快速 Review，侧重可维护性、可移植性以及与实现方案的一致性。未必每条都需立即修改，供你取舍。  
+以下是对 `scripts/docker/build.sh` 与 `apps/backend/Dockerfile` 的快速 Review，侧重可维护性、可移植性以及与实现方案的一致性。未必每条都需立即修改，供你取舍。  
 
 ====================================================================  
 1. build.sh（本地镜像构建脚本）  
@@ -120,7 +120,7 @@ _**Assistant**_
 
 ---
 
-Read file: scripts/deploy/build.sh
+Read file: scripts/docker/build.sh
 
 ---
 
@@ -132,7 +132,7 @@ Read file: apps/backend/Dockerfile
 
 ---
 
-Read file: scripts/deploy/build.sh
+Read file: scripts/docker/build.sh
 
 ---
 
@@ -152,7 +152,7 @@ In get_image_size, the awk usage is good along with potentially adding `--progre
 二次 Review 重点放在「增量改动是否生效」及「仍可优化的细节」，供参考。
 
 ====================================================================
-1. scripts/deploy/build.sh  
+1. scripts/docker/build.sh  
 --------------------------------------------------------------------
 ✅ 已采纳  
 • `set -e -u -o pipefail` → 安全性 ok  
@@ -343,11 +343,11 @@ _**Assistant**_
 
 ---
 
-Read file: scripts/deploy/build.sh
+Read file: scripts/docker/build.sh
 
 ---
 
-Read file: scripts/deploy/build.sh
+Read file: scripts/docker/build.sh
 
 ---
 
@@ -368,7 +368,7 @@ I’m looking at the updates in the build.sh, which now includes an else block f
 二次修改基本把上轮反馈的核心点都补齐了，进步明显。下面给出 Upgrade 后的 Review 以及仍可微调的细节，供你酌情采纳。  
 
 ====================================================================
-1. scripts/deploy/build.sh  
+1. scripts/docker/build.sh  
 --------------------------------------------------------------------
 ✅ 已改进  
 • `--no-cache` 分支现在真正追加 `--no-cache`，逻辑正确。  

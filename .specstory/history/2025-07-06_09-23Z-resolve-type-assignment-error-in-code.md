@@ -52,7 +52,37 @@ Here's the concise fix:
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -2,5 +2,5 @@
+  
+  import secrets
+- from datetime import datetime, timedelta
++ from datetime import UTC, datetime, timedelta
+  from enum import Enum
+  
+```
+
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -94,5 +94,5 @@
+      def is_expired(self) -> bool:
+          """Check if the token is expired."""
+-         return datetime.now(timezone.utc) > self.expires_at
++         return datetime.now(UTC) > self.expires_at
+  
+      @property
+```
+
+</details>
 
 ---
 
@@ -68,7 +98,24 @@ Let me fix this by ensuring we're working with actual datetime values:</details>
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 2, lines removed: undefined
+
+```diff
+@@ -94,4 +94,6 @@
+      def is_expired(self) -> bool:
+          """Check if the token is expired."""
++         if self.expires_at is None:
++             return True
+          return datetime.now(UTC) > self.expires_at
+  
+```
+
+</details>
 
 ---
 
@@ -95,7 +142,15 @@ Let me try a cast approach:</details></think>
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
+
+Add typing import and fix the is_expired property to cast the datetime value
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
 ```diff
+@@ -4,4 +4,5 @@
   from datetime import UTC, datetime, timedelta
   from enum import Enum
 + from typing import cast
@@ -103,7 +158,11 @@ Let me try a cast approach:</details></think>
   from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 ```
 
+**Chunk 2**
+Lines added: 2, lines removed: 1
+
 ```diff
+@@ -96,5 +97,6 @@
           if self.expires_at is None:
               return True
 -         return datetime.now(UTC) > self.expires_at
@@ -112,6 +171,8 @@ Let me try a cast approach:</details></think>
   
       @property
 ```
+
+</details>
 
 ---
 
@@ -133,7 +194,15 @@ These are in the `to_dict` method and have the same issue - the type checker thi
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
+
+Fix the to_dict method by casting the datetime values to avoid ColumnElement type errors
+
+**Chunk 1**
+Lines added: 4, lines removed: undefined
+
 ```diff
+@@ -116,4 +116,8 @@
       def to_dict(self) -> dict:
           """Convert verification to dictionary."""
 +         expires_at = cast(datetime, self.expires_at) if self.expires_at else None
@@ -144,7 +213,11 @@ These are in the `to_dict` method and have the same issue - the type checker thi
               "id": self.id,
 ```
 
+**Chunk 2**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -124,7 +128,7 @@
               "is_expired": self.is_expired,
               "is_used": self.is_used,
 -             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
@@ -157,13 +230,23 @@ These are in the `to_dict` method and have the same issue - the type checker thi
   
 ```
 
+</details>
+
 ---
 
 <think><details><summary>Thought Process</summary>The issue is still happening because the conditional check `if self.expires_at` is still being interpreted as checking a Column object. I need to be more explicit about checking for None values instead of relying on truthiness. Let me fix this by being more explicit about the None checks.</details></think>
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
+
+Fix the conditional checks by explicitly checking for None instead of relying on truthiness
+
+**Chunk 1**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -116,7 +116,7 @@
       def to_dict(self) -> dict:
           """Convert verification to dictionary."""
 -         expires_at = cast(datetime, self.expires_at) if self.expires_at else None
@@ -176,7 +259,11 @@ These are in the `to_dict` method and have the same issue - the type checker thi
           return {
 ```
 
+**Chunk 2**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -128,7 +128,7 @@
               "is_expired": self.is_expired,
               "is_used": self.is_used,
 -             "expires_at": expires_at.isoformat() if expires_at else None,
@@ -188,6 +275,8 @@ These are in the `to_dict` method and have the same issue - the type checker thi
           }
   
 ```
+
+</details>
 
 ---
 
@@ -245,7 +334,24 @@ Fix:
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -35,5 +35,5 @@
+  
+      # Email tracking
+-     email: Column[datetime] = Column(String(255), nullable=False)  # Store email in case user changes it
++     email: Column[str] = Column(String(255), nullable=False)  # Store email in case user changes it
+  
+      # Token lifecycle
+```
+
+</details>
 
 ---
 
@@ -255,7 +361,7 @@ The issue is likely that `used_at` also needs a proper type annotation. Let me f
 
 ---
 
-
+The string to replace was not found in the file.
 
 ---
 
@@ -273,7 +379,30 @@ Also, I notice some other issues in the annotations. Let me fix the nullable col
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 3, lines removed: 3
+
+```diff
+@@ -39,9 +39,9 @@
+      # Token lifecycle
+      expires_at: Column[datetime] = Column(DateTime, nullable=False)
+-     used_at: Column[datetime] = Column(DateTime, nullable=True)
++     used_at: Column[datetime | None] = Column(DateTime, nullable=True)
+  
+      # Request metadata
+-     requested_from_ip: Column[str] = Column(String(45), nullable=True)
+-     user_agent: Column[str] = Column(String(500), nullable=True)
++     requested_from_ip: Column[str | None] = Column(String(45), nullable=True)
++     user_agent: Column[str | None] = Column(String(500), nullable=True)
+  
+      # Indexes for performance
+```
+
+</details>
 
 ---
 
@@ -283,7 +412,30 @@ Let me revert the nullable annotations back to their original types and instead 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 3, lines removed: 3
+
+```diff
+@@ -39,9 +39,9 @@
+      # Token lifecycle
+      expires_at: Column[datetime] = Column(DateTime, nullable=False)
+-     used_at: Column[datetime | None] = Column(DateTime, nullable=True)
++     used_at = Column(DateTime, nullable=True)
+  
+      # Request metadata
+-     requested_from_ip: Column[str | None] = Column(String(45), nullable=True)
+-     user_agent: Column[str | None] = Column(String(500), nullable=True)
++     requested_from_ip = Column(String(45), nullable=True)
++     user_agent = Column(String(500), nullable=True)
+  
+      # Indexes for performance
+```
+
+</details>
 
 ---
 
@@ -325,7 +477,24 @@ The deprecation warning is about `datetime.utcnow()`. Replace it with the timezo
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -89,5 +89,5 @@
+              token=cls.generate_token(),
+              purpose=purpose,
+-             expires_at=datetime.utcnow() + timedelta(hours=expires_in_hours),
++             expires_at=datetime.now(UTC) + timedelta(hours=expires_in_hours),
+              requested_from_ip=requested_from_ip,
+              user_agent=user_agent,
+```
+
+</details>
 
 ---
 
@@ -335,7 +504,24 @@ The solution is to remove the explicit type annotation for `used_at` since it's 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/email_verification.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -39,5 +39,5 @@
+      # Token lifecycle
+      expires_at: Column[datetime] = Column(DateTime, nullable=False)
+-     used_at: Column[datetime] = Column(DateTime, nullable=True)
++     used_at = Column(DateTime, nullable=True)
+  
+      # Request metadata
+```
+
+</details>
 
 ---
 

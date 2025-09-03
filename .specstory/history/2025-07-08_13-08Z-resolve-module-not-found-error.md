@@ -68,21 +68,21 @@ The user is facing an issue where the static type checker can't find a module na
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/database.py` | L6 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L13 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py` | L8 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/redis_service.py` | L5 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/middleware/cors.py` | L4 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L8 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/neo4j_service.py` | L5 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L9 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/email_service.py` | L11 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/agents/worldsmith/main.py` | L5 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/embedding_service.py` | L3 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L7 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/email_service.py` | L11 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/redis_service.py` | L5 | `from src.core.config import settings` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L8 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/database.py` | L7 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L14 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py` | L9 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/redis_service.py` | L6 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/middleware/cors.py` | L5 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L9 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/neo4j_service.py` | L6 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L10 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/email_service.py` | L12 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/agents/worldsmith/main.py` | L6 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/embedding_service.py` | L4 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L8 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/email_service.py` | L12 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/redis_service.py` | L6 | `from src.core.config import settings` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L9 | `from src.core.config import settings` |
 
 </details>
 

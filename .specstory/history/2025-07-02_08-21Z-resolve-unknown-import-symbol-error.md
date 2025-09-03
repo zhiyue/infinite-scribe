@@ -40,7 +40,7 @@ I need to check if the `redis_service` module exists and what it exports. Let me
         
 | File |
 |------|
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\src\common\services\redis_service.py` |
 
 </details>
 
@@ -82,13 +82,23 @@ The issue is that `redis_service.py` defines the `RedisService` class but doesn'
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/redis_service.py</summary>
+
+Add an instance of RedisService at the end of the file to match the pattern used by other services
+
+**Chunk 1**
+Lines added: 2, lines removed: undefined
+
 ```diff
+@@ -75,3 +75,5 @@
           finally:
               pass  # Keep connection open for reuse
 + 
 + redis_service = RedisService()
   
 ```
+
+</details>
 
 ---
 
@@ -114,7 +124,198 @@ How can I resolve this? If you propose a fix, please make it concise.
 
 _**Assistant**_
 
+<think><details><summary>Thought Process</summary>The error is happening because the type checker is warning that `self._client` could be `None` even after the check. Looking at the code:
 
+```python
+async def check_connection(self) -> bool:
+    """Check if embedding API is accessible."""
+    try:
+        if not self._client:
+            await self.connect()
+
+        # 发送健康检查请求
+        response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
+        return response.status_code == 200
+    except Exception:
+        return False
+```
+
+The issue is that even though we call `await self.connect()` if `self._client` is None, the type checker doesn't know that `connect()` will definitely set `self._client` to a non-None value. Looking at the `connect()` method:
+
+```python
+async def connect(self) -> None:
+    """Establish HTTP client for embedding API."""
+    if not self._client:
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
+```
+
+So the `connect()` method does set `self._client` to a non-None value, but the type checker can't guarantee this.
+
+The fix is to add an assertion or additional check after calling `connect()` to ensure `self._client` is not None.</details></think>
+
+---
+
+The error occurs because the type checker can't guarantee that `self._client` is non-None after calling `connect()`. 
+
+**Fix:** Add an assertion after the `connect()` call:
+
+---
+
+<details><summary>Edit file: apps/backend/src/common/services/embedding_service.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 6, lines removed: 4
+
+```diff
+@@ -30,9 +30,11 @@
+          """Check if embedding API is accessible."""
+          try:
+-             if not self._client:
+-                 await self.connect()
++                     if not self._client:
++             await self.connect()
+  
+-             # 发送健康检查请求
+-             response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
++         assert self._client is not None, "Client should be initialized after connect()"
++ 
++         # 发送健康检查请求
++         response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
+              return response.status_code == 200
+          except Exception:
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>The search and replace went wrong - the indentation got messed up. Let me fix this by reading the current state of the file and making a proper replacement.</details></think>
+
+---
+
+Read file: apps/backend/src/common/services/embedding_service.py
+
+---
+
+<think><details><summary>Thought Process</summary>I can see the indentation is completely messed up. Let me fix the `check_connection` method properly:
+
+```python
+    async def check_connection(self) -> bool:
+        """Check if embedding API is accessible."""
+        try:
+            if not self._client:
+                await self.connect()
+
+            assert self._client is not None, "Client should be initialized after connect()"
+
+            # 发送健康检查请求
+            response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
+            return response.status_code == 200
+        except Exception:
+            return False
+```
+
+Let me use search_replace to fix this properly.</details></think>
+
+---
+
+<details><summary>Edit file: apps/backend/src/common/services/embedding_service.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 3, lines removed: 1
+
+```diff
+@@ -67,5 +67,7 @@
+  
+          except httpx.HTTPStatusError as e:
+-             raise RuntimeError(f"Embedding API error: {e.response.status_code} - {e.response.text}") from e
++             raise RuntimeError(
++                 f"Embedding API error: {e.response.status_code} - {e.response.text}"
++             ) from e
+          except Exception as e:
+              raise RuntimeError(f"Failed to get embedding: {e!s}") from e
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>It seems the search_replace didn't work correctly - it matched a different part of the file. Let me try a more precise fix by targeting just the problematic lines.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Let me rewrite this specific section with the correct indentation.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>The search and replace didn't work. Let me just rewrite the entire method with proper indentation. Let me see the exact line range where the method is defined and use edit_file.</details></think>
+
+---
+
+Read file: apps/backend/src/common/services/embedding_service.py
+
+---
+
+<think><details><summary>Thought Process</summary>Now I can see the issue - line 31 has an extra indentation level. I need to fix the entire check_connection method. Let me replace it correctly.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Let me delete the corrupted file and create a new one from scratch, or just use a more targeted approach. Since the line 31 has wrong indentation, let me directly correct it.</details></think>
+
+---
+
+Read file: apps/backend/src/common/services/embedding_service.py
+
+---
+
+<think><details><summary>Thought Process</summary>The file looks correct now! It appears the previous issue was resolved. Looking at the file, the check_connection method now has proper indentation and includes the assertion I added:
+
+```python
+async def check_connection(self) -> bool:
+    """Check if embedding API is accessible."""
+    try:
+        if not self._client:
+            await self.connect()
+
+        assert self._client is not None, "Client should be initialized after connect()"
+
+        # 发送健康检查请求
+        response = await self._client.get(f"{settings.EMBEDDING_API_URL}/api/tags")
+        return response.status_code == 200
+    except Exception:
+        return False
+```
+
+This should resolve the type checker error. The assertion tells the type checker that `self._client` is definitely not None after the `connect()` call.</details></think>
+
+---
+
+Perfect! The file has been fixed. The issue was resolved by adding an assertion after the `connect()` call:
+
+```python
+assert self._client is not None, "Client should be initialized after connect()"
+```
+
+This tells the type checker that `self._client` is guaranteed to be non-None after calling `connect()`, which resolves the "Item 'None' of 'AsyncClient | None' has no attribute 'get'" error. The assertion is safe because the `connect()` method always initializes `self._client` when it's None.
 
 ---
 

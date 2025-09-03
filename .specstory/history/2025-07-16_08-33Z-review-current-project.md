@@ -71,12 +71,12 @@ The user is asking to review the current project, which seems to refer to the "i
         
 | File |
 |------|
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\frontend\package.json` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\package.json` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\packages\tsconfig-custom\package.json` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\packages\eslint-config-custom\package.json` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\frontend\package-lock.json` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\packages\tsconfig-custom\base.json` |
 
 </details>
 
@@ -87,7 +87,7 @@ The user is asking to review the current project, which seems to refer to the "i
         
 | File |
 |------|
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\pyproject.toml` |
 
 </details>
 

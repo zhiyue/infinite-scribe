@@ -56,7 +56,23 @@ The same fix applies to the other `CommandInboxModel` instance on line 142. Add 
 
 ---
 
+<details><summary>Edit file: apps/backend/tests/unit/test_event_sourcing_models.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -113,4 +113,5 @@
+              idempotency_key=str(uuid4()),
+              payload={"title": "新小说"},
++             error_message=None,
+          )
+  
+```
+
+</details>
 
 ---
 
@@ -68,7 +84,23 @@ Let me fix the second CommandInboxModel instance first.</details></think>
 
 ---
 
+<details><summary>Edit file: apps/backend/tests/unit/test_event_sourcing_models.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -149,4 +149,5 @@
+              status=CommandStatus.COMPLETED,
+              updated_at=now,  # 使用 updated_at 而不是 processed_at
++             error_message=None,
+          )
+  
+```
+
+</details>
 
 ---
 

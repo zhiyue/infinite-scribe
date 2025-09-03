@@ -54,7 +54,15 @@ Looking at the deprecation warning, you need to replace `datetime.utcnow()` with
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/health.py</summary>
+
+Update the import to include timezone and replace all occurrences of datetime.utcnow() with datetime.now(timezone.utc) to fix the deprecation warning.
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -2,5 +2,5 @@
   
   import logging
 - from datetime import datetime
@@ -63,7 +71,11 @@ Looking at the deprecation warning, you need to replace `datetime.utcnow()` with
   from fastapi import APIRouter, HTTPException
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -26,5 +26,5 @@
           # Return healthy only if both databases are connected
           if postgres_healthy and neo4j_healthy:
 -             return {"status": "healthy", "timestamp": datetime.utcnow().isoformat() + "Z"}
@@ -72,7 +84,11 @@ Looking at the deprecation warning, you need to replace `datetime.utcnow()` with
               # Log specific failures
 ```
 
+**Chunk 3**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -39,5 +39,5 @@
                   content={
                       "status": "unhealthy",
 -                     "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -80,6 +96,8 @@ Looking at the deprecation warning, you need to replace `datetime.utcnow()` with
                       "services": {
                           "database": "healthy" if postgres_healthy else "unhealthy",
 ```
+
+</details>
 
 ---
 

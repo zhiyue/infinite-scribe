@@ -185,9 +185,9 @@ Read file: infrastructure/docker/init/postgres/07-migration-indexes-constraints.
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L169 | `CREATE OR REPLACE FUNCTION ensure_latest_outline_only()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L191 | `CREATE TRIGGER trigger_ensure_latest_outline_only` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L194 | `EXECUTE FUNCTION ensure_latest_outline_only();` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L170 | `CREATE OR REPLACE FUNCTION ensure_latest_outline_only()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L192 | `CREATE TRIGGER trigger_ensure_latest_outline_only` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/infrastructure/docker/init/postgres/08-migration-triggers.sql` | L195 | `EXECUTE FUNCTION ensure_latest_outline_only();` |
 
 </details>
 

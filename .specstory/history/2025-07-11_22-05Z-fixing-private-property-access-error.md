@@ -39,12 +39,12 @@ I need to see the AuthService implementation to understand what public methods a
         
 | File |
 |------|
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\auth\test_jwt_service.py` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\auth\test_jwt_service_refresh.py` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\auth\test_jwt_service_redis_fault_tolerance.py` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\auth\test_user_service.py` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\auth\test_password_service.py` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\tests\unit\schemas\test_worldview_create.py` |
 
 </details>
 
@@ -59,8 +59,8 @@ I need to see the AuthService implementation to understand what public methods a
         
 | File |
 |------|
-| `undefined` |
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\frontend\src\services\auth.ts` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\frontend\src\services\authExtensions.ts` |
 
 </details>
 
@@ -100,7 +100,24 @@ Looking at the AuthService, I can see that `clearTokens()` is indeed private. Th
 
 ---
 
+<details><summary>Edit file: apps/frontend/src/services/auth.ts</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -139,5 +139,5 @@
+    }
+  
+-   private clearTokens() {
++   clearTokens() {
+      this.accessToken = null
+      this.refreshToken = null
+```
+
+</details>
 
 ---
 

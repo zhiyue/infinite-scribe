@@ -19,8 +19,8 @@ _**Assistant**_
         
 | File |
 |------|
-| `undefined` |
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\backend\Dockerfile` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\apps\frontend\Dockerfile` |
 
 </details>
 
@@ -55,10 +55,10 @@ I see that there’s already a Dockerfile, but it has only one stage, while the 
         
 | File |
 |------|
-| `undefined` |
-| `undefined` |
-| `undefined` |
-| `undefined` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\docs\development\tasks\api-gateway-docker-build\README.md` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\docs\development\tasks\api-gateway-docker-build\progress.md` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\docs\development\tasks\api-gateway-docker-build\todo-list.md` |
+| `\home\zhiyue\workspace\mvp\infinite-scribe\docs\development\tasks\api-gateway-docker-build\implementation-plan.md` |
 
 </details>
 

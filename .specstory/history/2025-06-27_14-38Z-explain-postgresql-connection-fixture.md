@@ -56,11 +56,9 @@ def postgres_service(use_external_services):
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>用户想要我解释这个 pytest
-fixture 的作用。让我仔细分析这个代码片段：
+<think><details><summary>Thought Process</summary>用户想要我解释这个 pytest fixture 的作用。让我仔细分析这个代码片段：
 
 这是一个 pytest fixture，名为 `postgres_service`，有以下特点：
-
 1. 作用域是 "session"，意味着在整个测试会话中只会创建一次
 2. 它依赖于另一个 fixture `use_external_services`
 3. 根据 `use_external_services` 的值，它会提供不同的 PostgreSQL 连接配置
@@ -69,28 +67,23 @@ fixture 的作用。让我仔细分析这个代码片段：
 
 ---
 
-这个 `postgres_service` fixture 的作用是为测试提供 PostgreSQL 数据库连接配置，它
-实现了**测试环境的灵活配置**，可以根据不同的运行环境自动选择使用外部服务或测试容
-器。
+这个 `postgres_service` fixture 的作用是为测试提供 PostgreSQL 数据库连接配置，它实现了**测试环境的灵活配置**，可以根据不同的运行环境自动选择使用外部服务或测试容器。
 
 ## 主要作用
 
 ### 1. **环境适配**
-
 根据 `use_external_services` 参数决定使用哪种数据库配置方式：
 
 - **外部服务模式**：使用已存在的 PostgreSQL 实例（如 CI/CD 环境或开发服务器）
 - **测试容器模式**：使用 testcontainers 自动创建临时的 PostgreSQL 容器
 
 ### 2. **配置统一化**
-
 无论使用哪种模式，都返回统一的配置字典格式：
-
 ```python
 {
     "host": "主机地址",
     "port": 端口号,
-    "user": "用户名",
+    "user": "用户名", 
     "password": "密码",
     "database": "数据库名"
 }
@@ -99,7 +92,6 @@ fixture 的作用。让我仔细分析这个代码片段：
 ## 工作流程
 
 ### 外部服务模式 (`use_external_services=True`)
-
 ```python
 yield {
     "host": os.environ.get("POSTGRES_HOST", "localhost"),
@@ -109,12 +101,10 @@ yield {
     "database": os.environ.get("POSTGRES_DB", "test_db"),
 }
 ```
-
 - 从环境变量读取现有 PostgreSQL 服务的连接信息
 - 适用于 CI/CD 环境或团队共享的测试数据库
 
 ### 测试容器模式 (`use_external_services=False`)
-
 ```python
 from testcontainers.postgres import PostgresContainer
 
@@ -127,7 +117,6 @@ with PostgresContainer("postgres:16") as postgres:
         "database": postgres.dbname,
     }
 ```
-
 - 自动启动一个 PostgreSQL 16 容器
 - 测试结束后自动清理容器
 - 适用于本地开发和隔离测试
@@ -145,7 +134,7 @@ with PostgresContainer("postgres:16") as postgres:
 def test_database_operation(postgres_service):
     """使用 postgres_service fixture 进行数据库测试"""
     import psycopg2
-
+    
     # 使用 fixture 提供的配置连接数据库
     conn = psycopg2.connect(
         host=postgres_service["host"],
@@ -154,12 +143,11 @@ def test_database_operation(postgres_service):
         password=postgres_service["password"],
         database=postgres_service["database"]
     )
-
+    
     # 执行测试逻辑...
 ```
 
-这种设计模式在现代测试架构中非常常见，既保证了测试的可靠性，又提供了部署的灵活
-性。
+这种设计模式在现代测试架构中非常常见，既保证了测试的可靠性，又提供了部署的灵活性。
 
 ---
 
@@ -171,9 +159,7 @@ _**User**_
 
 _**Assistant**_
 
-<think><details><summary>Thought Process</summary>用户想知道哪个地方调用了
-`postgres_service` fixture。我需要搜索项目中哪里使用了这个 fixture。让我先搜索一
-下整个项目中对 `postgres_service` 的引用。
+<think><details><summary>Thought Process</summary>用户想知道哪个地方调用了 `postgres_service` fixture。我需要搜索项目中哪里使用了这个 fixture。让我先搜索一下整个项目中对 `postgres_service` 的引用。
 
 首先，我应该搜索项目中使用 `postgres_service` 的地方。</details></think>
 
@@ -185,84 +171,84 @@ _**Assistant**_
 
 <details>
             <summary>Grep search for "postgres_service" • **21** files</summary>
-
-| File                                                                                                                                 | Line | Match                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------- |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L16  | `from src.common.services.postgres_service import postgres_service`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L23  | `await postgres_service.connect()`                                                            |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L26  | `postgres_ok = await postgres_service.check_connection()`                                     |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L47  | `await postgres_service.disconnect()`                                                         |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L7   | `from src.common.services.postgres_service import postgres_service`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L18  | `postgres_healthy = await postgres_service.check_connection()`                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L52  | `postgres_connected = await postgres_service.check_connection()`                              |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L62  | `postgres_schema_ok = await postgres_service.verify_schema()`                                 |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/conftest.py`                                    | L8   | `def postgres_service():`                                                                     |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py`        | L109 | `postgres_service = PostgreSQLService()`                                                      |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/conftest.py`                              | L40  | `def postgres_service(use_external_services):`                                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L7   | `from src.common.services.postgres_service import PostgreSQLService`                          |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L74  | `postgres_service = PostgreSQLService()`                                                      |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L79  | `await postgres_service.connect()`                                                            |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L85  | `async with postgres_service.acquire() as conn:`                                              |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L104 | `await postgres_service.disconnect()`                                                         |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py`        | L15  | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py`        | L32  | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py`        | L52  | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py`        | L72  | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py`        | L92  | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L8   | `from src.common.services.postgres_service import PostgreSQLService`                          |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L13  | `async def test_postgres_connection_success(postgres_service):`                               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L16  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L20  | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L43  | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L109 | `async def test_concurrent_database_connections(postgres_service):`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L111 | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L115 | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L139 | `async def test_database_transaction_rollback(postgres_service):`                             |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L141 | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L145 | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L68  | `async def test_postgres_connection(postgres_service):`                                       |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L69  | `"""Test uses postgres_service fixture for configuration."""`                                 |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L70  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L78  | `- `postgres_service` - PostgreSQL connection configuration`                                  |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/development/python-import-best-practices.md`            | L92  | `from src.common.services.postgres_service import postgres_service`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md`                              | L40  | `def postgres_service(use_external_services):`                                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md`                              | L64  | `async def test_postgres_connection(postgres_service):`                                       |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md`                              | L66  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/development/local-development-guide.md`                 | L177 | `result = await postgres_service.fetch_one(...)`                                              |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/stories/1.3.story.md`                                   | L80  | `- [x] Subtask 2.1: 在 `src/common/services/` 创建PostgreSQL连接服务 (`postgres_service.py`)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md`                           | L45  | `def postgres_service(use_external_services):`                                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md`                           | L67  | `async def test_postgres_connection(postgres_service):`                                       |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md`                           | L69  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py`        | L109 | `postgres_service = PostgreSQLService()`                                                      |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L16  | `from src.common.services.postgres_service import postgres_service`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L23  | `await postgres_service.connect()`                                                            |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L26  | `postgres_ok = await postgres_service.check_connection()`                                     |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py`                                | L47  | `await postgres_service.disconnect()`                                                         |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L7   | `from src.common.services.postgres_service import postgres_service`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L18  | `postgres_healthy = await postgres_service.check_connection()`                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L52  | `postgres_connected = await postgres_service.check_connection()`                              |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py`                       | L62  | `postgres_schema_ok = await postgres_service.verify_schema()`                                 |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L8   | `from src.common.services.postgres_service import PostgreSQLService`                          |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L13  | `async def test_postgres_connection_success(postgres_service):`                               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L16  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L20  | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L43  | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L109 | `async def test_concurrent_database_connections(postgres_service):`                           |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L111 | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L115 | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L139 | `async def test_database_transaction_rollback(postgres_service):`                             |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L141 | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L145 | `with patch("src.common.services.postgres_service.settings") as mock_settings:`               |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L7   | `from src.common.services.postgres_service import PostgreSQLService`                          |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L74  | `postgres_service = PostgreSQLService()`                                                      |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L79  | `await postgres_service.connect()`                                                            |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L85  | `async with postgres_service.acquire() as conn:`                                              |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py`     | L104 | `await postgres_service.disconnect()`                                                         |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/conftest.py`                              | L40  | `def postgres_service(use_external_services):`                                                |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L68  | `async def test_postgres_connection(postgres_service):`                                       |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L69  | `"""Test uses postgres_service fixture for configuration."""`                                 |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L70  | `config = postgres_service`                                                                   |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md`                                | L78  | `- `postgres_service` - PostgreSQL connection configuration`                                  |
+        
+| File | Line | Match |
+|------|------|-------|
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L17 | `from src.common.services.postgres_service import postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L24 | `await postgres_service.connect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L27 | `postgres_ok = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L48 | `await postgres_service.disconnect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L8 | `from src.common.services.postgres_service import postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L19 | `postgres_healthy = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L53 | `postgres_connected = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L63 | `postgres_schema_ok = await postgres_service.verify_schema()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/conftest.py` | L9 | `def postgres_service():` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py` | L110 | `postgres_service = PostgreSQLService()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/conftest.py` | L41 | `def postgres_service(use_external_services):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L8 | `from src.common.services.postgres_service import PostgreSQLService` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L75 | `postgres_service = PostgreSQLService()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L80 | `await postgres_service.connect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L86 | `async with postgres_service.acquire() as conn:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L105 | `await postgres_service.disconnect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py` | L16 | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py` | L33 | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py` | L53 | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py` | L73 | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/api/routes/v1/test_health.py` | L93 | `patch("src.common.services.postgres_service.postgres_service.check_connection") as mock_pg,` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L9 | `from src.common.services.postgres_service import PostgreSQLService` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L14 | `async def test_postgres_connection_success(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L17 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L21 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L44 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L110 | `async def test_concurrent_database_connections(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L112 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L116 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L140 | `async def test_database_transaction_rollback(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L142 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L146 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L69 | `async def test_postgres_connection(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L70 | `"""Test uses postgres_service fixture for configuration."""` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L71 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L79 | `- `postgres_service` - PostgreSQL connection configuration` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/development/python-import-best-practices.md` | L93 | `from src.common.services.postgres_service import postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md` | L41 | `def postgres_service(use_external_services):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md` | L65 | `async def test_postgres_connection(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-best-practices.md` | L67 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/development/local-development-guide.md` | L178 | `result = await postgres_service.fetch_one(...)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/stories/1.3.story.md` | L81 | `- [x] Subtask 2.1: 在 `src/common/services/` 创建PostgreSQL连接服务 (`postgres_service.py`)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md` | L46 | `def postgres_service(use_external_services):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md` | L68 | `async def test_postgres_connection(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/docs/testing-migration-example.md` | L70 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/postgres_service.py` | L110 | `postgres_service = PostgreSQLService()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L17 | `from src.common.services.postgres_service import postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L24 | `await postgres_service.connect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L27 | `postgres_ok = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/main.py` | L48 | `await postgres_service.disconnect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L8 | `from src.common.services.postgres_service import postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L19 | `postgres_healthy = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L53 | `postgres_connected = await postgres_service.check_connection()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/api/routes/health.py` | L63 | `postgres_schema_ok = await postgres_service.verify_schema()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L9 | `from src.common.services.postgres_service import PostgreSQLService` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L14 | `async def test_postgres_connection_success(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L17 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L21 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L44 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L110 | `async def test_concurrent_database_connections(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L112 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L116 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L140 | `async def test_database_transaction_rollback(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L142 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_database_connections.py` | L146 | `with patch("src.common.services.postgres_service.settings") as mock_settings:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L8 | `from src.common.services.postgres_service import PostgreSQLService` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L75 | `postgres_service = PostgreSQLService()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L80 | `await postgres_service.connect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L86 | `async with postgres_service.acquire() as conn:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/integration/test_remote_databases.py` | L105 | `await postgres_service.disconnect()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/conftest.py` | L41 | `def postgres_service(use_external_services):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L69 | `async def test_postgres_connection(postgres_service):` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L70 | `"""Test uses postgres_service fixture for configuration."""` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L71 | `config = postgres_service` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/README.md` | L79 | `- `postgres_service` - PostgreSQL connection configuration` |
 
 </details>
 
@@ -281,23 +267,21 @@ Read file: apps/backend/tests/integration/test_database_connections.py
 ## 测试文件中的调用
 
 ### 1. **集成测试** (`test_database_connections.py`)
-
 ```python
 async def test_postgres_connection_success(postgres_service):
     """测试成功的 PostgreSQL 连接"""
     config = postgres_service  # 使用 fixture 提供的配置
-
+    
 async def test_concurrent_database_connections(postgres_service):
     """测试并发数据库连接"""
     config = postgres_service
-
+    
 async def test_database_transaction_rollback(postgres_service):
     """测试数据库事务回滚"""
     config = postgres_service
 ```
 
 ### 2. **README 示例** (`tests/README.md`)
-
 ```python
 async def test_postgres_connection(postgres_service):
     """测试使用 postgres_service fixture 进行配置"""
@@ -306,31 +290,27 @@ async def test_postgres_connection(postgres_service):
 
 ## 实际使用模式
 
-在测试函数中，`postgres_service` fixture 通过 **pytest 的依赖注入机制** 被自动调
-用：
+在测试函数中，`postgres_service` fixture 通过 **pytest 的依赖注入机制** 被自动调用：
 
-1.  **测试函数参数**：当测试函数的参数列表中包含 `postgres_service` 时，pytest会
-    自动：
+1. **测试函数参数**：当测试函数的参数列表中包含 `postgres_service` 时，pytest 会自动：
+   - 查找名为 `postgres_service` 的 fixture
+   - 执行 fixture 函数
+   - 将返回值作为参数传递给测试函数
 
-    - 查找名为 `postgres_service` 的 fixture
-    - 执行 fixture 函数
-    - 将返回值作为参数传递给测试函数
-
-2.  **使用场景**：
-    `python`40:50:apps/backend/tests/integration/test_database_connections.py
-    @pytest.mark.asyncio @pytest.mark.integration async def
-    test_postgres_connection_success(postgres_service): """Test successful
-    PostgreSQL connection.""" # Create PostgreSQL URL from service config config
-    = postgres_service postgres_url =
-    f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
-
-        # Mock settings to use test configuration
-        with patch("src.common.services.postgres_service.settings") as mock_settings:
-            mock_settings.POSTGRES_URL = postgres_url
-
-    ```
-
-    ```
+2. **使用场景**：
+   ```python```40:50:apps/backend/tests/integration/test_database_connections.py
+   @pytest.mark.asyncio
+   @pytest.mark.integration
+   async def test_postgres_connection_success(postgres_service):
+       """Test successful PostgreSQL connection."""
+       # Create PostgreSQL URL from service config
+       config = postgres_service
+       postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+   
+       # Mock settings to use test configuration
+       with patch("src.common.services.postgres_service.settings") as mock_settings:
+           mock_settings.POSTGRES_URL = postgres_url
+   ```
 
 ## 关键特点
 
@@ -339,7 +319,7 @@ async def test_postgres_connection(postgres_service):
 - **依赖链**：`postgres_service` 依赖于 `use_external_services` fixture
 - **配置提供**：为测试提供数据库连接配置，而不是实际的数据库服务实例
 
-总结：`postgres_service` fixture 主要在集成测试中被调用，用于提供 PostgreSQL 数
-据库的连接配置信息。
+总结：`postgres_service` fixture 主要在集成测试中被调用，用于提供 PostgreSQL 数据库的连接配置信息。
 
 ---
+

@@ -56,7 +56,26 @@ The error occurs because SQLAlchemy's `Column[datetime]` type doesn't support tr
 
 ---
 
+<details><summary>Edit file: apps/backend/src/models/user.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
+```diff
+@@ -102,6 +102,6 @@
+              "is_verified": self.is_verified,
+              "is_superuser": self.is_superuser,
+-             "created_at": self.created_at.isoformat() if self.created_at else None,
+-             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
++             "created_at": self.created_at.isoformat() if self.created_at is not None else None,
++             "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
+              "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
+          }
+```
+
+</details>
 
 ---
 

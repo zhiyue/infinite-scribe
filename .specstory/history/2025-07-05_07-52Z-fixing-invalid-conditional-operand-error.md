@@ -63,7 +63,24 @@ The error occurs because SQLAlchemy's type checker sees `user.is_verified` as a 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/user_service.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -142,5 +142,5 @@
+  
+              # Check if account is verified
+-             if not user.is_verified:
++             if not getattr(user, "is_verified", False):
+                  return {"success": False, "error": "Please verify your email before logging in"}
+  
+```
+
+</details>
 
 ---
 
@@ -141,7 +158,15 @@ The same SQLAlchemy type issue is occurring here. Use `getattr()` to access the 
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_password.py</summary>
+
+Fix the two password_hash attribute access issues by using getattr() to get the actual string value instead of the Column type
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -148,5 +148,5 @@
           # Verify current password
           if not password_service.verify_password(
 -             request.current_password, current_user.password_hash
@@ -150,7 +175,11 @@ The same SQLAlchemy type issue is occurring here. Use `getattr()` to access the 
               raise HTTPException(
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -155,5 +155,5 @@
   
           # Check if new password is the same as current
 -         if password_service.verify_password(request.new_password, current_user.password_hash):
@@ -158,6 +187,8 @@ The same SQLAlchemy type issue is occurring here. Use `getattr()` to access the 
               raise HTTPException(
                   status_code=status.HTTP_400_BAD_REQUEST,
 ```
+
+</details>
 
 ---
 
@@ -173,7 +204,15 @@ The `getattr()` approach didn't resolve the type checker issue. Let me try a typ
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_password.py</summary>
+
+Fix the password_hash type issues by casting to str explicitly
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -148,5 +148,5 @@
           # Verify current password
           if not password_service.verify_password(
 -             request.current_password, current_user.password_hash
@@ -182,7 +221,11 @@ The `getattr()` approach didn't resolve the type checker issue. Let me try a typ
               raise HTTPException(
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -155,5 +155,5 @@
   
           # Check if new password is the same as current
 -         if password_service.verify_password(request.new_password, current_user.password_hash):
@@ -190,6 +233,8 @@ The `getattr()` approach didn't resolve the type checker issue. Let me try a typ
               raise HTTPException(
                   status_code=status.HTTP_400_BAD_REQUEST,
 ```
+
+</details>
 
 ---
 
@@ -716,7 +761,15 @@ Here's a concise fix for the most critical errors:
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/user_service.py</summary>
+
+Fix the SQLAlchemy type errors by adding appropriate type casts for function arguments and using getattr for conditionals
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -81,6 +81,6 @@
               # Create email verification token
               verification = EmailVerification.create_for_user(
 -                 user_id=user.id,
@@ -727,7 +780,11 @@ Here's a concise fix for the most critical errors:
                   expires_in_hours=auth_config.EMAIL_VERIFICATION_EXPIRE_HOURS,
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -92,5 +92,5 @@
               verification_url = f"{self.frontend_url}/auth/verify-email?token={verification.token}"
               await self.email_service.send_verification_email(
 -                 user.email, user.full_name, verification_url
@@ -736,7 +793,11 @@ Here's a concise fix for the most critical errors:
   
 ```
 
+**Chunk 3**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -146,10 +146,10 @@
   
               # Verify password
 -             if not self.password_service.verify_password(password, user.password_hash):
@@ -751,7 +812,11 @@ Here's a concise fix for the most critical errors:
                           minutes=auth_config.ACCOUNT_LOCKOUT_DURATION_MINUTES
 ```
 
+**Chunk 4**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -247,5 +247,5 @@
   
               # Send welcome email
 -             await self.email_service.send_welcome_email(user.email, user.full_name)
@@ -760,7 +825,11 @@ Here's a concise fix for the most critical errors:
               return {"success": True, "message": "Email verified successfully"}
 ```
 
+**Chunk 5**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -280,6 +280,6 @@
               # Create password reset token
               verification = EmailVerification.create_for_user(
 -                 user_id=user.id,
@@ -771,7 +840,11 @@ Here's a concise fix for the most critical errors:
                   expires_in_hours=auth_config.PASSWORD_RESET_EXPIRE_HOURS,
 ```
 
+**Chunk 6**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -291,5 +291,5 @@
               reset_url = f"{self.frontend_url}/auth/reset-password?token={verification.token}"
               await self.email_service.send_password_reset_email(
 -                 user.email, user.full_name, reset_url
@@ -780,7 +853,11 @@ Here's a concise fix for the most critical errors:
   
 ```
 
+**Chunk 7**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -347,5 +347,5 @@
               # Invalidate all user sessions
               sessions_result = await db.execute(
 -                 select(Session).where(Session.user_id == user.id, Session.is_active == True)
@@ -789,7 +866,11 @@ Here's a concise fix for the most critical errors:
               sessions = sessions_result.scalars().all()
 ```
 
+**Chunk 8**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -382,5 +382,5 @@
   
                   # Blacklist token
 -                 self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
@@ -797,6 +878,8 @@ Here's a concise fix for the most critical errors:
   
                   await db.commit()
 ```
+
+</details>
 
 ---
 
@@ -815,7 +898,15 @@ The type casting approach isn't working because the type checker still sees Colu
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/user_service.py</summary>
+
+Fix the remaining type errors by using getattr() for all User attribute access instead of direct access
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -81,6 +81,6 @@
               # Create email verification token
               verification = EmailVerification.create_for_user(
 -                 user_id=int(user.id),
@@ -826,7 +917,11 @@ The type casting approach isn't working because the type checker still sees Colu
                   expires_in_hours=auth_config.EMAIL_VERIFICATION_EXPIRE_HOURS,
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -92,5 +92,5 @@
               verification_url = f"{self.frontend_url}/auth/verify-email?token={verification.token}"
               await self.email_service.send_verification_email(
 -                 str(user.email), user.full_name, verification_url
@@ -835,7 +930,11 @@ The type casting approach isn't working because the type checker still sees Colu
   
 ```
 
+**Chunk 3**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -138,6 +138,6 @@
   
               # Check if account is locked
 -             if user.is_locked:
@@ -846,7 +945,11 @@ The type casting approach isn't working because the type checker still sees Colu
               # Check if account is verified
 ```
 
+**Chunk 4**
+Lines added: 2, lines removed: 5
+
 ```diff
+@@ -146,13 +146,10 @@
   
               # Verify password
 -             if not self.password_service.verify_password(password, str(user.password_hash)):
@@ -864,7 +967,11 @@ The type casting approach isn't working because the type checker still sees Colu
                           minutes=auth_config.ACCOUNT_LOCKOUT_DURATION_MINUTES
 ```
 
+**Chunk 5**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -174,11 +171,11 @@
               # Create tokens
               access_token, jti, access_expires = self.jwt_service.create_access_token(
 -                 str(user.id), {"email": user.email, "username": user.username}
@@ -881,7 +988,11 @@ The type casting approach isn't working because the type checker still sees Colu
                   refresh_token=refresh_token,
 ```
 
+**Chunk 6**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -250,5 +247,5 @@
   
               # Send welcome email
 -             await self.email_service.send_welcome_email(str(user.email), user.full_name)
@@ -890,7 +1001,11 @@ The type casting approach isn't working because the type checker still sees Colu
               return {"success": True, "message": "Email verified successfully"}
 ```
 
+**Chunk 7**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -283,6 +280,6 @@
               # Create password reset token
               verification = EmailVerification.create_for_user(
 -                 user_id=int(user.id),
@@ -901,7 +1016,11 @@ The type casting approach isn't working because the type checker still sees Colu
                   expires_in_hours=auth_config.PASSWORD_RESET_EXPIRE_HOURS,
 ```
 
+**Chunk 8**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -294,5 +291,5 @@
               reset_url = f"{self.frontend_url}/auth/reset-password?token={verification.token}"
               await self.email_service.send_password_reset_email(
 -                 str(user.email), user.full_name, reset_url
@@ -910,7 +1029,11 @@ The type casting approach isn't working because the type checker still sees Colu
   
 ```
 
+**Chunk 9**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -350,5 +347,5 @@
               # Invalidate all user sessions
               sessions_result = await db.execute(
 -                 select(Session).where(Session.user_id == user.id, Session.is_active.is_(True))
@@ -918,6 +1041,8 @@ The type casting approach isn't working because the type checker still sees Colu
               )
               sessions = sessions_result.scalars().all()
 ```
+
+</details>
 
 ---
 
@@ -1409,7 +1534,15 @@ I'll fix these in one comprehensive edit.</details></think>
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/user_service.py</summary>
+
+Fix all remaining SQLAlchemy type errors by using getattr() for reading attributes and setattr() for writing attributes, plus fixing the SQLAlchemy query syntax
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -81,6 +81,6 @@
               # Create email verification token
               verification = EmailVerification.create_for_user(
 -                 user_id=user.id,
@@ -1420,7 +1553,11 @@ I'll fix these in one comprehensive edit.</details></think>
                   expires_in_hours=auth_config.EMAIL_VERIFICATION_EXPIRE_HOURS,
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -92,5 +92,5 @@
               verification_url = f"{self.frontend_url}/auth/verify-email?token={verification.token}"
               await self.email_service.send_verification_email(
 -                 user.email, user.full_name, verification_url
@@ -1429,7 +1566,11 @@ I'll fix these in one comprehensive edit.</details></think>
   
 ```
 
+**Chunk 3**
+Lines added: 8, lines removed: 16
+
 ```diff
+@@ -146,29 +146,21 @@
   
               # Verify password
 -             if not self.password_service.verify_password(password, user.password_hash):
@@ -1469,7 +1610,11 @@ I'll fix these in one comprehensive edit.</details></think>
               # Create tokens
 ```
 
+**Chunk 4**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -241,6 +233,6 @@
   
               # Mark user as verified
 -             user.is_verified = True
@@ -1480,7 +1625,11 @@ I'll fix these in one comprehensive edit.</details></think>
               # Mark token as used
 ```
 
+**Chunk 5**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -250,5 +242,5 @@
   
               # Send welcome email
 -             await self.email_service.send_welcome_email(user.email, user.full_name)
@@ -1489,7 +1638,11 @@ I'll fix these in one comprehensive edit.</details></think>
               return {"success": True, "message": "Email verified successfully"}
 ```
 
+**Chunk 6**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -283,6 +275,6 @@
               # Create password reset token
               verification = EmailVerification.create_for_user(
 -                 user_id=user.id,
@@ -1500,7 +1653,11 @@ I'll fix these in one comprehensive edit.</details></think>
                   expires_in_hours=auth_config.PASSWORD_RESET_EXPIRE_HOURS,
 ```
 
+**Chunk 7**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -294,5 +286,5 @@
               reset_url = f"{self.frontend_url}/auth/reset-password?token={verification.token}"
               await self.email_service.send_password_reset_email(
 -                 user.email, user.full_name, reset_url
@@ -1509,7 +1666,11 @@ I'll fix these in one comprehensive edit.</details></think>
   
 ```
 
+**Chunk 8**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -342,6 +334,6 @@
   
               # Update password
 -             user.password_hash = self.password_service.hash_password(new_password)
@@ -1520,7 +1681,11 @@ I'll fix these in one comprehensive edit.</details></think>
               # Mark token as used
 ```
 
+**Chunk 9**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -350,5 +342,5 @@
               # Invalidate all user sessions
               sessions_result = await db.execute(
 -                 select(Session).where(Session.user_id == user.id, Session.is_active.is_(True))
@@ -1529,7 +1694,11 @@ I'll fix these in one comprehensive edit.</details></think>
               sessions = sessions_result.scalars().all()
 ```
 
+**Chunk 10**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -385,5 +377,5 @@
   
                   # Blacklist token
 -                 self.jwt_service.blacklist_token(str(session.jti), session.access_token_expires_at)
@@ -1537,6 +1706,8 @@ I'll fix these in one comprehensive edit.</details></think>
   
                   await db.commit()
 ```
+
+</details>
 
 ---
 

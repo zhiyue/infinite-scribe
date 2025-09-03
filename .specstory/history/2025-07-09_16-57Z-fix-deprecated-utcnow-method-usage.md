@@ -29,92 +29,92 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L32 | `last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L54 | `return datetime.utcnow() > self.access_token_expires_at` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L59 | `return datetime.utcnow() > self.refresh_token_expires_at` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L73 | `self.revoked_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L102 | `datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L137 | `datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/audit_service.py` | L67 | `"timestamp": datetime.utcnow().isoformat(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L69 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L100 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L120 | `await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L143 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L153 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L186 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L196 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L230 | `datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L15 | `created_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L16 | `updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L51 | `expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L56 | `"iat": datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L79 | `expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L84 | `"iat": datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L135 | `ttl = int((expires_at - datetime.utcnow()).total_seconds())` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L147 | `user.locked_until = datetime.utcnow() + timedelta(` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L156 | `user.last_login_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L229 | `user.email_verified_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L326 | `user.password_changed_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L44 | `password_changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L75 | `return datetime.utcnow() < self.locked_until` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/services/test_rate_limit_service.py` | L39 | `assert result["reset_time"] > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L25 | `assert expires_at > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L77 | `past_time = datetime.utcnow() - timedelta(days=31)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L78 | `mock_datetime.utcnow.return_value = past_time` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L40 | `assert expires_at > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L64 | `assert expires_at > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L127 | `"exp": datetime.utcnow() + timedelta(minutes=15),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L141 | `expires_at = datetime.utcnow() + timedelta(minutes=15)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L155 | `expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L226 | `expected_expire = datetime.utcnow() + timedelta(minutes=jwt_service.access_token_expire_minutes)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L46 | `datetime.utcnow() + timedelta(minutes=15),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L48 | `mock.create_refresh_token.return_value = ("refresh_token", datetime.utcnow() + timedelta(days=7))` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L77 | `user.created_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L78 | `user.email_verified_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L236 | `sample_user.locked_until = datetime.utcnow() + timedelta(minutes=30)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L273 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L317 | `verification.expires_at = datetime.utcnow() - timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L363 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L395 | `session.access_token_expires_at = datetime.utcnow() + timedelta(minutes=15)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L396 | `session.refresh_token_expires_at = datetime.utcnow() + timedelta(days=7)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L32 | `last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L54 | `return datetime.utcnow() > self.access_token_expires_at` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L59 | `return datetime.utcnow() > self.refresh_token_expires_at` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L73 | `self.revoked_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L44 | `password_changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L75 | `return datetime.utcnow() < self.locked_until` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L46 | `datetime.utcnow() + timedelta(minutes=15),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L48 | `mock.create_refresh_token.return_value = ("refresh_token", datetime.utcnow() + timedelta(days=7))` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L77 | `user.created_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L78 | `user.email_verified_at = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L236 | `sample_user.locked_until = datetime.utcnow() + timedelta(minutes=30)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L273 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L317 | `verification.expires_at = datetime.utcnow() - timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L363 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L395 | `session.access_token_expires_at = datetime.utcnow() + timedelta(minutes=15)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L396 | `session.refresh_token_expires_at = datetime.utcnow() + timedelta(days=7)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L15 | `created_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L16 | `updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L69 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L100 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L120 | `await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L143 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L153 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L186 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L196 | `now = datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L230 | `datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/services/test_rate_limit_service.py` | L39 | `assert result["reset_time"] > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L40 | `assert expires_at > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L64 | `assert expires_at > datetime.utcnow()` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L127 | `"exp": datetime.utcnow() + timedelta(minutes=15),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L141 | `expires_at = datetime.utcnow() + timedelta(minutes=15)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L155 | `expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L226 | `expected_expire = datetime.utcnow() + timedelta(minutes=jwt_service.access_token_expire_minutes)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L51 | `expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L56 | `"iat": datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L79 | `expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L84 | `"iat": datetime.utcnow(),` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L135 | `ttl = int((expires_at - datetime.utcnow()).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L33 | `last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L55 | `return datetime.utcnow() > self.access_token_expires_at` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L60 | `return datetime.utcnow() > self.refresh_token_expires_at` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L74 | `self.revoked_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L103 | `datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/rate_limit_service.py` | L138 | `datetime.fromtimestamp(requests[0] + window) if requests else datetime.utcnow() + timedelta(seconds=window)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/audit_service.py` | L68 | `"timestamp": datetime.utcnow().isoformat(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L70 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L101 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L121 | `await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L144 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L154 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L187 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L197 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L231 | `datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L16 | `created_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L17 | `updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L52 | `expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L57 | `"iat": datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L80 | `expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L85 | `"iat": datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L136 | `ttl = int((expires_at - datetime.utcnow()).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L148 | `user.locked_until = datetime.utcnow() + timedelta(` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L157 | `user.last_login_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L230 | `user.email_verified_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/user_service.py` | L327 | `user.password_changed_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L45 | `password_changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L76 | `return datetime.utcnow() < self.locked_until` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/services/test_rate_limit_service.py` | L40 | `assert result["reset_time"] > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L26 | `assert expires_at > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L78 | `past_time = datetime.utcnow() - timedelta(days=31)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service_refresh.py` | L79 | `mock_datetime.utcnow.return_value = past_time` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L41 | `assert expires_at > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L65 | `assert expires_at > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L128 | `"exp": datetime.utcnow() + timedelta(minutes=15),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L142 | `expires_at = datetime.utcnow() + timedelta(minutes=15)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L156 | `expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L227 | `expected_expire = datetime.utcnow() + timedelta(minutes=jwt_service.access_token_expire_minutes)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L47 | `datetime.utcnow() + timedelta(minutes=15),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L49 | `mock.create_refresh_token.return_value = ("refresh_token", datetime.utcnow() + timedelta(days=7))` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L78 | `user.created_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L79 | `user.email_verified_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L237 | `sample_user.locked_until = datetime.utcnow() + timedelta(minutes=30)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L274 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L318 | `verification.expires_at = datetime.utcnow() - timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L364 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L396 | `session.access_token_expires_at = datetime.utcnow() + timedelta(minutes=15)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L397 | `session.refresh_token_expires_at = datetime.utcnow() + timedelta(days=7)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L33 | `last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L55 | `return datetime.utcnow() > self.access_token_expires_at` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L60 | `return datetime.utcnow() > self.refresh_token_expires_at` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/session.py` | L74 | `self.revoked_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L45 | `password_changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/user.py` | L76 | `return datetime.utcnow() < self.locked_until` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L47 | `datetime.utcnow() + timedelta(minutes=15),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L49 | `mock.create_refresh_token.return_value = ("refresh_token", datetime.utcnow() + timedelta(days=7))` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L78 | `user.created_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L79 | `user.email_verified_at = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L237 | `sample_user.locked_until = datetime.utcnow() + timedelta(minutes=30)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L274 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L318 | `verification.expires_at = datetime.utcnow() - timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L364 | `verification.expires_at = datetime.utcnow() + timedelta(hours=1)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L396 | `session.access_token_expires_at = datetime.utcnow() + timedelta(minutes=15)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_user_service.py` | L397 | `session.refresh_token_expires_at = datetime.utcnow() + timedelta(days=7)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L16 | `created_at = Column(DateTime, default=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/models/base.py` | L17 | `updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L70 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L101 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L121 | `await postgres_service.execute(query, (progress, stage, message, datetime.utcnow(), task_id))` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L144 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L154 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L187 | `actual_duration = int((datetime.utcnow() - started_at).total_seconds())` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L197 | `now = datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/task_service.py` | L231 | `datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/services/test_rate_limit_service.py` | L40 | `assert result["reset_time"] > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L41 | `assert expires_at > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L65 | `assert expires_at > datetime.utcnow()` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L128 | `"exp": datetime.utcnow() + timedelta(minutes=15),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L142 | `expires_at = datetime.utcnow() + timedelta(minutes=15)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L156 | `expires_at = datetime.utcnow() - timedelta(minutes=1)  # Already expired` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/tests/unit/auth/test_jwt_service.py` | L227 | `expected_expire = datetime.utcnow() + timedelta(minutes=jwt_service.access_token_expire_minutes)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L52 | `expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L57 | `"iat": datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L80 | `expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L85 | `"iat": datetime.utcnow(),` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/apps/backend/src/common/services/jwt_service.py` | L136 | `ttl = int((expires_at - datetime.utcnow()).total_seconds())` |
 
 </details>
 
@@ -124,7 +124,15 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/jwt_service.py</summary>
+
+I will switch deprecated datetime.utcnow() usages to timezone-aware datetime.now(timezone.utc) and adjust related imports.
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -2,5 +2,5 @@
   
   import secrets
 - from datetime import datetime, timedelta
@@ -133,7 +141,11 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
   
 ```
 
+**Chunk 2**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -50,10 +50,10 @@
           """
           jti = secrets.token_urlsafe(16)
 -         expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
@@ -148,7 +160,11 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
               "token_type": "access",
 ```
 
+**Chunk 3**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -78,10 +78,10 @@
               Tuple of (token, expires_at)
           """
 -         expires_at = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)
@@ -163,7 +179,11 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
               "token_type": "refresh",
 ```
 
+**Chunk 4**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -134,5 +134,5 @@
   
           # Calculate TTL for Redis
 -         ttl = int((expires_at - datetime.utcnow()).total_seconds())
@@ -172,7 +192,11 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
               self.redis_client.setex(f"blacklist:{jti}", ttl, "1")
 ```
 
+**Chunk 5**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -201,5 +201,5 @@
                       if old_jti:
                           # Calculate expiration from old token
 -                         old_exp = datetime.fromtimestamp(old_payload.get("exp", 0))
@@ -180,6 +204,8 @@ It looks like `datetime.fromtimestamp(timestamp)` returns a naive datetime in th
                           self.blacklist_token(old_jti, old_exp)
                   except JWTError:
 ```
+
+</details>
 
 ---
 

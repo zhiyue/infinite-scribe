@@ -40,7 +40,49 @@ The `React.ElementRef` type has been deprecated in favor of `React.ComponentRef`
 
 ---
 
+<details><summary>Edit file: apps/frontend/src/components/ui/label.tsx</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 2, lines removed: 2
+
+```diff
+@@ -1,6 +1,6 @@
+- import * as React from "react"
++ import { cn } from "@/lib/utils"
+  import * as LabelPrimitive from "@radix-ui/react-label"
+  import { cva, type VariantProps } from "class-variance-authority"
+- import { cn } from "@/lib/utils"
++ import * as React from "react"
+  
+  const labelVariants = cva(
+```
+
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -9,5 +9,5 @@
+  
+  const Label = React.forwardRef<
+-   React.ElementRef<typeof LabelPrimitive.Root>,
++   React.ComponentRef<typeof LabelPrimitive.Root>,
+    React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> &
+    VariantProps<typeof labelVariants>
+```
+
+**Chunk 3**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -22,2 +22,3 @@
+  
+  export { Label }
++ 
+```
+
+</details>
 
 ---
 

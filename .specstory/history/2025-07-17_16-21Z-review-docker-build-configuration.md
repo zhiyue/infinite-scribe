@@ -259,8 +259,8 @@ Read file: .github/workflows/docker-build.yml
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L517 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L517 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L518 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L518 | `group: cleanup-${{ matrix.service }}-${{ github.ref_name }}` |
 
 </details>
 
@@ -275,11 +275,11 @@ Read file: .github/workflows/docker-build.yml
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L233 | `build:` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L45 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L234 | `build:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L45 | `force_rebuild:
         description: 'Force rebuild without cache'` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L233 | `build:
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L234 | `build:
     name: Build (${{ matrix.service }})` |
 
 </details>
@@ -303,18 +303,18 @@ Read file: .github/workflows/docker-build.yml
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L66 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L363 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L366 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L44 | `force_rebuild:` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L66 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L363 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L366 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L45 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L67 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L365 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L368 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L45 | `force_rebuild:` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L67 | `FORCE_REBUILD: ${{ (github.event.inputs.force_rebuild || 'false') == 'true' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L364 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0}', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L365 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L367 | `${{ env.FORCE_REBUILD != 'true' && format('type=gha,scope={0},mode=max', matrix.service) || '' }}` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/.github/workflows/docker-build.yml` | L368 | `${{ env.FORCE_REBUILD != 'true' && format('type=registry,ref={0}/{1}:cache,mode=max', env.REGISTRY, steps.config.outputs.image_name) || '' }}` |
 
 </details>
 

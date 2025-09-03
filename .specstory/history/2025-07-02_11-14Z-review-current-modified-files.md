@@ -143,13 +143,13 @@ Read file: packages/shared-types/src/index.ts
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L120 | `export type ISODateString = string;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L151 | `readonly created_at: ISODateString;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L153 | `updated_at: ISODateString;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L174 | `timestamp: ISODateString;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L243 | `readonly created_at: ISODateString;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L327 | `readonly created_at: ISODateString;` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L558 | `readonly created_at: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L121 | `export type ISODateString = string;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L152 | `readonly created_at: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L154 | `updated_at: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L175 | `timestamp: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L244 | `readonly created_at: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L328 | `readonly created_at: ISODateString;` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L559 | `readonly created_at: ISODateString;` |
 
 </details>
 
@@ -252,8 +252,8 @@ No results found
         
 | File | Line | Match |
 |------|------|-------|
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L346 | `export interface Outline extends BaseDBModel, AuditFields {` |
-| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L346 | `export interface Outline extends BaseDBModel, AuditFields {` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L347 | `export interface Outline extends BaseDBModel, AuditFields {` |
+| `vscode-remote://wsl%2Bubuntu/home/zhiyue/workspace/mvp/infinite-scribe/packages/shared-types/src/index.ts` | L347 | `export interface Outline extends BaseDBModel, AuditFields {` |
 
 </details>
 

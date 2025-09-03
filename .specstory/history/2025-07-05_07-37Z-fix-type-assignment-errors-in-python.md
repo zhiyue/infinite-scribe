@@ -187,7 +187,15 @@ RESEND_DOMAIN: str = Field(
 
 ---
 
+<details><summary>Edit file: apps/backend/src/core/auth_config.py</summary>
+
+修复类型错误：将使用条件表达式与Ellipsis的字段改为使用适当的默认值处理方式，确保类型一致性
+
+**Chunk 1**
+Lines added: 2, lines removed: 1
+
 ```diff
+@@ -2,6 +2,7 @@
   
   import os
 + from typing import Optional
@@ -198,7 +206,11 @@ RESEND_DOMAIN: str = Field(
   
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 3
+
 ```diff
+@@ -12,7 +13,5 @@
       # JWT Settings
       JWT_SECRET_KEY: str = Field(
 -         default="test_jwt_secret_key_for_development_only_32_chars"
@@ -209,7 +221,11 @@ RESEND_DOMAIN: str = Field(
       )
 ```
 
+**Chunk 3**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -27,9 +26,9 @@
       # Email Service
       RESEND_API_KEY: str = Field(
 -         default="test_api_key" if os.getenv("NODE_ENV") == "test" else ...,
@@ -223,7 +239,11 @@ RESEND_DOMAIN: str = Field(
       )
 ```
 
+**Chunk 4**
+Lines added: 35, lines removed: undefined
+
 ```diff
+@@ -67,4 +66,39 @@
       MAILDEV_PORT: int = Field(default=1025, description="Maildev SMTP port")
   
 +     @field_validator('JWT_SECRET_KEY')
@@ -264,6 +284,8 @@ RESEND_DOMAIN: str = Field(
       class Config:
           """Pydantic config."""
 ```
+
+</details>
 
 ---
 
@@ -362,7 +384,24 @@ The error occurs because you're raising new exceptions inside `except` blocks wi
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -52,5 +52,5 @@
+              status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+              detail="An error occurred while retrieving user profile",
+-         )
++         ) from None
+  
+  
+```
+
+</details>
 
 ---
 
@@ -370,7 +409,24 @@ The error occurs because you're raising new exceptions inside `except` blocks wi
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -94,5 +94,5 @@
+              status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+              detail="An error occurred while updating profile",
+-         )
++         ) from None
+  
+  
+```
+
+</details>
 
 ---
 
@@ -378,7 +434,23 @@ The error occurs because you're raising new exceptions inside `except` blocks wi
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -135,4 +135,4 @@
+              status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+              detail="An error occurred while deleting account",
+-         )
++         ) from None
+  
+```
+
+</details>
 
 ---
 
@@ -435,7 +507,23 @@ The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I n
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: undefined, lines removed: 1
+
+```diff
+@@ -2,5 +2,4 @@
+  
+  import logging
+- from typing import Union
+  
+  from fastapi import APIRouter, Depends, HTTPException, status
+```
+
+</details>
 
 ---
 
@@ -443,7 +531,7 @@ The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I n
 
 ---
 
-
+The model provided an ambiguous search string to replace.
 
 ---
 
@@ -451,7 +539,24 @@ The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I n
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -25,5 +25,5 @@
+  @router.get(
+      "/me",
+-     response_model=Union[UserResponse, ErrorResponse],
++     response_model=UserResponse | ErrorResponse,
+      summary="Get current user",
+      description="Get current authenticated user's profile information",
+```
+
+</details>
 
 ---
 
@@ -459,7 +564,24 @@ The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I n
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -56,5 +56,5 @@
+  @router.put(
+      "/me",
+-     response_model=Union[UserResponse, ErrorResponse],
++     response_model=UserResponse | ErrorResponse,
+      summary="Update current user profile",
+      description="Update current authenticated user's profile information",
+```
+
+</details>
 
 ---
 
@@ -467,7 +589,24 @@ The error is about using `Union[X, Y]` instead of the modern `X | Y` syntax. I n
 
 ---
 
+<details><summary>Edit file: apps/backend/src/api/routes/v1/auth_profile.py</summary>
 
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -98,5 +98,5 @@
+  @router.delete(
+      "/me",
+-     response_model=Union[MessageResponse, ErrorResponse],
++     response_model=MessageResponse | ErrorResponse,
+      summary="Delete current user account",
+      description="Delete current authenticated user's account (soft delete)",
+```
+
+</details>
 
 ---
 

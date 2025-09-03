@@ -31,8 +31,8 @@ I need to check the PostgreSQLService class to understand its actual interface. 
 ---
 
 <details>
-            <summary>Searched codebase "PostgreSQLService class definition and methods" • **21** results</summary>
-        
+                <summary>Searched codebase "PostgreSQLService class definition and methods" • **21** results</summary>
+            
 | File | Lines |
 |------|-------|
 | `apps/backend/src/common/services/postgres_service.py` | L1-62 |
@@ -98,7 +98,15 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
 
 ---
 
+<details><summary>Edit file: apps/backend/src/common/services/task_service.py</summary>
+
+I need to fix the PostgreSQL service calls to match the actual interface. The execute method expects parameters as a tuple/list, and fetchrow/fetch methods don't exist.
+
+**Chunk 1**
+Lines added: 13, lines removed: 11
+
 ```diff
+@@ -71,15 +71,17 @@
           await postgres_service.execute(
               query,
 -             task_id,
@@ -129,7 +137,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
   
 ```
 
+**Chunk 2**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -98,5 +100,5 @@
   
           now = datetime.utcnow()
 -         await postgres_service.execute(query, TaskStatus.RUNNING, now, now, message, task_id)
@@ -138,7 +150,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
           # 获取任务信息用于SSE推送
 ```
 
+**Chunk 3**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -117,5 +119,5 @@
           """
   
 -         await postgres_service.execute(query, progress, stage, message, datetime.utcnow(), task_id)
@@ -147,7 +163,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
           # 获取任务信息用于SSE推送
 ```
 
+**Chunk 4**
+Lines added: 10, lines removed: 8
+
 ```diff
+@@ -155,12 +157,14 @@
           await postgres_service.execute(
               query,
 -             TaskStatus.COMPLETED,
@@ -172,7 +192,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
   
 ```
 
+**Chunk 5**
+Lines added: 1, lines removed: 1
+
 ```diff
+@@ -197,5 +201,5 @@
           now = datetime.utcnow()
           await postgres_service.execute(
 -             query, TaskStatus.FAILED, json.dumps(error_data), now, now, actual_duration, task_id
@@ -181,7 +205,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
   
 ```
 
+**Chunk 6**
+Lines added: 7, lines removed: 5
+
 ```diff
+@@ -227,9 +231,11 @@
           await postgres_service.execute(
               query,
 -             TaskStatus.CANCELLED,
@@ -200,7 +228,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
   
 ```
 
+**Chunk 7**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -248,9 +254,9 @@
           """
   
 -         row = await postgres_service.fetchrow(query, task_id)
@@ -215,7 +247,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
       async def get_session_active_tasks(self, session_id: UUID) -> list[dict[str, Any]]:
 ```
 
+**Chunk 8**
+Lines added: 3, lines removed: 3
+
 ```diff
+@@ -265,9 +271,9 @@
           """
   
 -         rows = await postgres_service.fetch(
@@ -230,7 +266,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
       async def cleanup_old_tasks(self, days: int = 30):
 ```
 
+**Chunk 9**
+Lines added: 2, lines removed: 2
+
 ```diff
+@@ -284,8 +290,8 @@
   
           result = await postgres_service.execute(
 -             query, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED
@@ -243,7 +283,11 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
       async def get_task_performance_stats(self, days: int = 7) -> dict[str, Any]:
 ```
 
+**Chunk 10**
+Lines added: 5, lines removed: 5
+
 ```diff
+@@ -310,13 +316,13 @@
           )
   
 -         rows = await postgres_service.fetch(query)
@@ -263,6 +307,8 @@ I can see the issue. The `PostgreSQLService.execute()` method expects parameters
               },
           }
 ```
+
+</details>
 
 ---
 
