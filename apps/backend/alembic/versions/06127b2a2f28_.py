@@ -1,4 +1,4 @@
-"""empty message
+"""Make email_verifications.expires_at nullable
 
 Revision ID: 06127b2a2f28
 Revises: ede76b653bb9
