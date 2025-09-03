@@ -31,6 +31,18 @@ config.set_main_option("sqlalchemy.url", database_url)
 # ... etc.
 
 
+def process_revision_directives(context, revision, directives):
+    """在 autogenerate 时跳过空迁移脚本。
+
+    当没有任何 schema 变化产生时，不写入新的迁移文件，避免产生空的 revision。
+    """
+    if getattr(config.cmd_opts, "autogenerate", False):
+        script = directives[0]
+        if script.upgrade_ops.is_empty():
+            directives[:] = []
+            print("No changes in schema detected; skipping empty migration.")
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -49,6 +61,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
+        process_revision_directives=process_revision_directives,
     )
 
     with context.begin_transaction():
@@ -72,6 +87,9 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+            process_revision_directives=process_revision_directives,
         )
 
         with context.begin_transaction():
