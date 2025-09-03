@@ -13,7 +13,7 @@ volumes:
   milvus-data:
   minio-data:
   kafka-data:
-  zookeeper-data:
+  # zookeeper-data:
   etcd-data:
 
 services:
@@ -231,21 +231,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       # 显式指定日志目录，配合数据卷
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
       - infinite-scribe-network
-    # 首次启动自动格式化（仅 meta.properties 不存在时）
-    command:
-      - bash
-      - -lc
-      - |
-        STORAGE_TOOL=$(command -v kafka-storage || command -v kafka-storage.sh)
-        if [ ! -f /var/lib/kafka/data/meta.properties ]; then
-          CLUSTER_ID=$($STORAGE_TOOL random-uuid)
-          $STORAGE_TOOL format --ignore-formatted -t "$CLUSTER_ID" -c /etc/kafka/kafka.properties
-        fi
-        exec /etc/confluent/docker/run
     healthcheck:
       test: ['CMD-SHELL', 'kafka-broker-api-versions --bootstrap-server localhost:29092']
       interval: 30s
