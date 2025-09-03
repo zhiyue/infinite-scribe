@@ -98,7 +98,7 @@ jobs:
 
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --allowedTools "Read,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__list_issues,mcp__github__create_issue_comment,mcp__github__update_issue"
+            --allowedTools "Read,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__list_issues,mcp__github__update_issue,mcp__github__add_issue_comment"
             --mcp-config "/tmp/mcp-config/mcp-servers.json"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
