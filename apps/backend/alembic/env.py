@@ -1,36 +1,12 @@
-import sys
 from logging.config import fileConfig
-from pathlib import Path
-
-from alembic import context
-from sqlalchemy import engine_from_config, pool
-
-# 添加项目路径到系统路径
-backend_path = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_path))
 
 # 导入项目配置和模型
-from src.core.config import settings  # noqa: E402
-from src.db.sql.base import Base  # noqa: E402
-from src.models.chapter import Chapter, ChapterVersion, Review  # noqa: F401, E402
-from src.models.character import Character  # noqa: F401, E402
-
-# 导入认证相关模型
-from src.models.email_verification import EmailVerification  # noqa: F401, E402
-from src.models.event import DomainEvent  # noqa: F401, E402
-from src.models.genesis import ConceptTemplate, GenesisSession  # noqa: F401, E402
-
-# 导入核心业务模型
-from src.models.novel import Novel  # noqa: F401, E402
-from src.models.session import Session  # noqa: F401, E402
-from src.models.user import User  # noqa: F401, E402
-from src.models.workflow import (  # noqa: F401, E402
-    AsyncTask,
-    CommandInbox,
-    EventOutbox,
-    FlowResumeHandle,
-)
-from src.models.worldview import StoryArc, WorldviewEntry  # noqa: F401, E402
+# 导入所有模型 (通过 __init__.py 统一管理)
+import src.models  # noqa: F401
+from alembic import context
+from sqlalchemy import engine_from_config, pool
+from src.core.config import settings
+from src.db.sql.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -55,50 +31,16 @@ config.set_main_option("sqlalchemy.url", database_url)
 # ... etc.
 
 
-def include_object(object, name, type_, reflected, compare_to):
-    """决定是否在自动生成中包含对象
+def process_revision_directives(context, revision, directives):
+    """在 autogenerate 时跳过空迁移脚本。
 
-    这个函数用于过滤掉通过 SQL 文件创建的表,
-    只让 Alembic 管理新创建的表。
+    当没有任何 schema 变化产生时，不写入新的迁移文件，避免产生空的 revision。
     """
-    # 通过 SQL 文件创建的表列表
-    sql_managed_tables = {
-        # # 核心业务表
-        # "novels",
-        # "chapters",
-        # "chapter_versions",
-        # "characters",
-        # "story_arcs",
-        # "worldview_entries",
-        # "reviews",
-        # # 创世会话
-        # "genesis_sessions",
-        # "concept_templates",
-        # # 事件源和任务
-        # "domain_events",
-        # "async_tasks",
-        # "command_inbox",
-        # "event_outbox",
-        # "flow_resume_handles",
-    }
-
-    # 如果是表，检查是否在 SQL 管理的列表中
-    if type_ == "table" and name in sql_managed_tables:
-        return False
-
-    # 如果是索引或其他对象，检查其关联的表
-    if type_ in ["index", "unique_constraint", "foreign_key_constraint"]:
-        # 获取表名
-        table_name = None
-        if hasattr(object, "table"):
-            table_name = object.table.name
-        elif hasattr(object, "table_name"):
-            table_name = object.table_name
-
-        if table_name and table_name in sql_managed_tables:
-            return False
-
-    return True
+    if getattr(config.cmd_opts, "autogenerate", False):
+        script = directives[0]
+        if script.upgrade_ops.is_empty():
+            directives[:] = []
+            print("No changes in schema detected; skipping empty migration.")
 
 
 def run_migrations_offline() -> None:
@@ -119,7 +61,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_object=include_object,
+        compare_type=True,
+        compare_server_default=True,
+        process_revision_directives=process_revision_directives,
     )
 
     with context.begin_transaction():
@@ -143,7 +87,9 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            include_object=include_object,
+            compare_type=True,
+            compare_server_default=True,
+            process_revision_directives=process_revision_directives,
         )
 
         with context.begin_transaction():

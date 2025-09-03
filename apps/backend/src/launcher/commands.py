@@ -1,0 +1,156 @@
+"""Command handlers for CLI launcher"""
+
+import argparse
+import asyncio
+import json
+from typing import Any
+
+from .arg_resolver import resolve_agents, resolve_components, resolve_mode
+from .daemon import handle_daemon_mode, handle_daemon_mode_with_early_registration
+from .types import ComponentType, LaunchMode
+
+
+def handle_up_command(args: argparse.Namespace) -> None:
+    """Handle the 'up' command"""
+    # Lightweight defaults to avoid importing Settings/Pydantic on perf-sensitive code paths
+    base_default_mode = LaunchMode.SINGLE
+    base_components = [ComponentType.API, ComponentType.AGENTS]
+    base_agents_names: list[str] | None = None
+    base_api_reload = False
+
+    # Resolve parameters with error handling
+    mode = resolve_mode(args.mode, base_default_mode)
+    components = resolve_components(args.components, base_components)
+    agent_names = resolve_agents(args.agents, base_agents_names)
+
+    # Format and display the launch plan
+    _print_launch_plan(mode, components, agent_names, args.reload or base_api_reload)
+
+    if args.apply:
+        _execute_startup(args, mode, components, agent_names)
+
+
+def handle_down_command(args: argparse.Namespace) -> None:
+    """Handle the 'down' command"""
+    from .arg_resolver import error_exit
+
+    if args.grace < 0:
+        error_exit(f"Invalid --grace value: {args.grace}. Grace period must be >= 0 seconds")
+
+    print(f"Shutdown plan => grace={args.grace}s")
+    if args.apply:
+        _execute_shutdown(args)
+
+
+def handle_status_command(args: argparse.Namespace) -> None:
+    """Handle the 'status' command"""
+    watch_mode = " (watch mode)" if args.watch else ""
+    print(f"Status check{watch_mode}")
+
+
+def handle_logs_command(args: argparse.Namespace) -> None:
+    """Handle the 'logs' command"""
+    print(f"Viewing logs for component: {args.component}")
+
+
+def _execute_startup(
+    args: argparse.Namespace, mode: LaunchMode, components: list[ComponentType], agent_names: list[str] | None
+) -> None:
+    """Execute the startup process"""
+    # Import heavy modules only when executing
+    from .config import LauncherAgentsConfig, LauncherApiConfig, LauncherConfigModel
+    from .orchestrator import Orchestrator
+
+    # When --stay mode is enabled, CLI takes unified signal handling ownership
+    disable_agent_signals = getattr(args, "stay", False)
+
+    # Early signal registration for --stay mode (before service startup)
+    shutdown_event, signal_cleanup = _setup_signal_handling(disable_agent_signals)
+
+    config = LauncherConfigModel(
+        default_mode=mode,
+        components=components,
+        api=LauncherApiConfig(reload=bool(args.reload)),
+        agents=LauncherAgentsConfig(names=agent_names, disable_signal_handlers=disable_agent_signals),
+    )
+
+    orch = Orchestrator(config)
+    service_names = [c.value for c in components]
+    ok = asyncio.run(orch.orchestrate_startup(service_names))
+
+    _output_startup_result(args, orch, service_names, ok)
+
+    if getattr(args, "stay", False):
+        _handle_stay_mode(orch, service_names, signal_cleanup, shutdown_event)
+    else:
+        print("💡 Use --stay to wait for shutdown signal.")
+
+
+def _execute_shutdown(args: argparse.Namespace) -> None:
+    """Execute the shutdown process"""
+    from .config import LauncherConfigModel
+    from .orchestrator import Orchestrator
+
+    # Use defaults; stopping is idempotent
+    config = LauncherConfigModel()
+    orch = Orchestrator(config)
+    # Attempt to stop known components
+    service_names = [c.value for c in config.components]
+    ok = asyncio.run(orch.orchestrate_shutdown(service_names))
+
+    _output_shutdown_result(args, orch, service_names, ok)
+
+
+def _setup_signal_handling(disable_agent_signals: bool) -> tuple[Any, Any]:
+    """Setup signal handling for daemon mode"""
+    shutdown_event = None
+    signal_cleanup = None
+
+    if disable_agent_signals:
+        from .signal_utils import create_shutdown_signal_handler
+
+        shutdown_event, signal_cleanup = create_shutdown_signal_handler()
+
+    return shutdown_event, signal_cleanup
+
+
+def _handle_stay_mode(orch, service_names: list[str], signal_cleanup, shutdown_event) -> None:
+    """Handle daemon mode based on signal registration success"""
+    if signal_cleanup is not None:
+        print("✅ Using early signal registration for daemon mode")
+        handle_daemon_mode_with_early_registration(orch, service_names, shutdown_event, signal_cleanup)
+    else:
+        print("⚠️  Early signal registration failed (no event loop), using proven fallback method")
+        print("   → SIGTERM handling guaranteed via fallback path")
+        handle_daemon_mode(orch, service_names)
+
+
+def _output_startup_result(args: argparse.Namespace, orch, service_names: list[str], ok: bool) -> None:
+    """Output startup result in requested format"""
+    status = {name: orch.get_service_state(name).value for name in service_names}
+    result = {"ok": ok, "services": status}
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(f"Result => ok={ok}, services={status}")
+
+
+def _output_shutdown_result(args: argparse.Namespace, orch, service_names: list[str], ok: bool) -> None:
+    """Output shutdown result in requested format"""
+    status = {name: orch.get_service_state(name).value for name in service_names}
+    result = {"ok": ok, "services": status}
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(f"Result => ok={ok}, services={status}")
+
+
+def _print_launch_plan(
+    mode: LaunchMode, components: list[ComponentType], agent_names: list[str] | None, reload: bool
+) -> None:
+    """Print the launch plan in a consistent format"""
+    components_str = ",".join([c.value for c in components])
+    agent_str = ",".join(agent_names) if agent_names else "<auto>"
+    print(f"Launcher plan => mode={mode.value}, components=[{components_str}], agents={agent_str}, api.reload={reload}")

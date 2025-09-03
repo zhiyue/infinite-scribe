@@ -8,11 +8,12 @@ Infinite Scribe 后端使用分层配置系统，支持多种配置源和灵活�
 
 配置按以下优先级加载（从高到低）：
 
-1. **初始化参数** - 代码中直接传递的参数
+1. **初始化参数** - 代码中直接提供的配置
 2. **环境变量** - 系统环境变量
 3. **.env 文件** - 本地环境变量文件
 4. **config.toml 文件** - TOML 配置文件（支持环境变量插值）
-5. **默认值** - 代码中定义的默认值
+5. **密钥文件** - Docker secrets等文件形式的密钥
+6. **模型定义的默认值** - 代码中定义的默认值（当以上所有源都没有提供配置时使用）
 
 ## TOML 配置文件
 
@@ -73,6 +74,21 @@ name = "${SERVICE_NAME:-my-service}"
 - `AUTH__JWT_SECRET_KEY`
 - `DATABASE__POSTGRES_HOST`
 - `DATABASE__REDIS_PASSWORD`
+
+### Launcher 配置（统一后端启动器）
+Launcher 为 `Settings` 中的嵌套配置（键名 `launcher`）。常用环境变量：
+
+```bash
+LAUNCHER__DEFAULT_MODE=single            # single|multi（预留 auto）
+LAUNCHER__COMPONENTS='["api","agents"]' # 列表字段建议使用 JSON 字符串
+LAUNCHER__HEALTH_INTERVAL=1.0
+LAUNCHER__API__HOST=0.0.0.0
+LAUNCHER__API__PORT=8000
+LAUNCHER__API__RELOAD=true
+LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
+```
+
+更多细节（字段说明、示例与注意事项）参见：`apps/backend/docs/launcher-configuration.md`。
 
 ## 配置示例
 

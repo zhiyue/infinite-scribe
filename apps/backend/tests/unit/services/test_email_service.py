@@ -260,7 +260,7 @@ class TestEmailService:
                 html_render_call = mock_html_template.render.call_args[1]
                 assert html_render_call["user_name"] == "Test User"
                 assert html_render_call["app_name"] == "Infinite Scribe"
-                assert html_render_call["app_url"] == "http://localhost:3000"
+                assert html_render_call["app_url"] == "http://localhost:5173"
 
     @pytest.mark.asyncio
     async def test_send_email_exception_handling(self, email_service):

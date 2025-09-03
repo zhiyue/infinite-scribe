@@ -2,14 +2,13 @@ name: Python Backend CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
     paths:
       - 'apps/backend/**/*.py'
       - 'apps/backend/pyproject.toml'
       - 'apps/backend/uv.lock'
       - '.github/workflows/python-backend-ci.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
       - 'apps/backend/**/*.py'
       - 'apps/backend/pyproject.toml'
@@ -33,23 +32,23 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Run Ruff
-      uses: astral-sh/ruff-action@v3
-      with:
-        src: "./apps/backend"
-        args: "check --output-format=github"
-    
-    - name: Run Ruff format check
-      uses: astral-sh/ruff-action@v3
-      with:
-        src: "./apps/backend"
-        args: "format --check --diff"
-    
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: './apps/backend'
+          args: 'check --output-format=github'
+
+      - name: Run Ruff format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: './apps/backend'
+          args: 'format --check --diff'
+
   type-check:
     name: Type Checking (MyPy)
     runs-on: ubuntu-latest
@@ -57,25 +56,25 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        python-version: "3.11"
-        enable-cache: true
-    
-    - name: Install dependencies
-      run: |
-        uv sync --all-extras
-    
-    - name: Type check with mypy
-      run: |
-        uv run mypy src/ --ignore-missing-imports
-    
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.11'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Type check with mypy
+        run: |
+          uv run mypy src/ --ignore-missing-imports
+
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -83,34 +82,34 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        python-version: "3.11"
-        enable-cache: true
-    
-    - name: Install dependencies
-      run: |
-        uv sync --all-extras
-    
-    - name: Run unit tests
-      env:
-        USE_EXTERNAL_SERVICES: false
-      run: |
-        uv run python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: backend-unit
-        name: backend-unit-coverage
-  
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.11'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run unit tests
+        env:
+          USE_EXTERNAL_SERVICES: false
+        run: |
+          uv run python -m pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: backend-unit
+          name: backend-unit-coverage
+
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -118,30 +117,30 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        python-version: "3.11"
-        enable-cache: true
-    
-    - name: Install dependencies
-      run: |
-        uv sync --all-extras
-    
-    - name: Run integration tests
-      env:
-        USE_EXTERNAL_SERVICES: false
-      run: |
-        uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: backend-integration
-        name: backend-integration-coverage
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.11'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run integration tests
+        env:
+          USE_EXTERNAL_SERVICES: false
+        run: |
+          uv run python -m pytest tests/integration/ -v --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: backend-integration
+          name: backend-integration-coverage

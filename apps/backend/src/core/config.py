@@ -1,4 +1,4 @@
-"""统一的配置管理系统"""
+"""Unified configuration management system"""
 
 import os
 from pathlib import Path
@@ -7,48 +7,69 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from .toml_loader import flatten_config, load_toml_config
+# Import launcher configuration models
+from ..launcher.config import LauncherConfigModel
+from .toml_loader import load_toml_config
+
+
+# Validation constants
+class ValidationConstants:
+    """Configuration validation constants"""
+
+    JWT_MIN_LENGTH = 32
+    DEFAULT_JWT_KEY = "test_jwt_secret_key_for_development_only_32_chars"
+    DEFAULT_RESEND_API_KEY = "test_api_key"
+    DEFAULT_RESEND_DOMAIN = "test.example.com"
+    NON_PROD_ENVS = {"test", "development"}
+
+
+def _is_production_env() -> bool:
+    """Check if running in production environment"""
+    return os.getenv("NODE_ENV", "development") not in ValidationConstants.NON_PROD_ENVS
+
+
+def _validate_required_in_prod(value: str, default: str, field_name: str) -> str:
+    """Validate that a field is not using default value in production"""
+    if _is_production_env() and value == default:
+        raise ValueError(f"{field_name} must be set to a valid value in production")
+    return value
 
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
-    """从 TOML 配置文件加载设置的自定义源"""
+    """Custom settings source that loads from TOML config with environment variable interpolation"""
 
     def __init__(self, settings_cls: type[BaseSettings], config_path: Path = Path("config.toml")):
         super().__init__(settings_cls)
         self.config_path = config_path
 
-    def _read_file(self, file_path: Path) -> dict[str, Any]:
-        """读取并解析 TOML 文件"""
-        if not file_path.exists():
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        """Get field value from TOML config"""
+        config = self._load_config()
+        field_value = config.get(field_name)
+        return field_value, field_name, field_value is not None
+
+    def __call__(self) -> dict[str, Any]:
+        """Return all settings from TOML file"""
+        return self._load_config()
+
+    def _load_config(self) -> dict[str, Any]:
+        """Load and parse TOML file with error handling"""
+        if not self.config_path.exists():
             return {}
 
         try:
-            # 加载 TOML 配置并进行环境变量插值
-            config = load_toml_config(file_path)
-            # 将嵌套配置扁平化以匹配 pydantic 的期望格式
-            flattened = flatten_config(config)
-            return flattened
+            return load_toml_config(self.config_path)
         except Exception as e:
-            print(f"加载 TOML 配置失败: {e}")
+            print(f"Failed to load TOML config: {e}")
             return {}
-
-    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
-        """获取字段值"""
-        file_content = self._read_file(self.config_path)
-        field_value = file_content.get(field_name)
-        return field_value, field_name, False
-
-    def __call__(self) -> dict[str, Any]:
-        """返回从 TOML 文件加载的所有设置"""
-        return self._read_file(self.config_path)
 
 
 class AuthSettings(BaseModel):
-    """认证相关设置"""
+    """Authentication related settings"""
 
     # JWT Settings
     jwt_secret_key: str = Field(
-        default="test_jwt_secret_key_for_development_only_32_chars",
+        default=ValidationConstants.DEFAULT_JWT_KEY,
         description="Secret key for JWT signing (min 32 chars)",
     )
     jwt_algorithm: str = Field(default="HS256")
@@ -57,8 +78,8 @@ class AuthSettings(BaseModel):
     sse_token_expire_seconds: int = Field(default=60, description="SSE token expiration in seconds")
 
     # Email Service
-    resend_api_key: str = Field(default="test_api_key")
-    resend_domain: str = Field(default="test.example.com")
+    resend_api_key: str = Field(default=ValidationConstants.DEFAULT_RESEND_API_KEY)
+    resend_domain: str = Field(default=ValidationConstants.DEFAULT_RESEND_DOMAIN)
     resend_from_email: str = Field(default="noreply@example.com")
 
     # Security Settings
@@ -87,32 +108,31 @@ class AuthSettings(BaseModel):
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, v: str) -> str:
-        """验证 JWT 密钥"""
-        node_env = os.getenv("NODE_ENV", "development")
-        if node_env not in ["test", "development"]:
-            if not v or v == "test_jwt_secret_key_for_development_only_32_chars":
+        """Validate JWT secret key"""
+        if _is_production_env():
+            if not v or v == ValidationConstants.DEFAULT_JWT_KEY:
                 raise ValueError("JWT_SECRET_KEY must be set to a secure value in production")
-            if len(v) < 32:
-                raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+            if len(v) < ValidationConstants.JWT_MIN_LENGTH:
+                raise ValueError(
+                    f"JWT_SECRET_KEY must be at least {ValidationConstants.JWT_MIN_LENGTH} characters long"
+                )
         return v
 
-    @field_validator("resend_api_key", "resend_domain")
+    @field_validator("resend_api_key")
     @classmethod
-    def validate_resend_config(cls, v: str, info) -> str:
-        """验证 Resend 配置"""
-        node_env = os.getenv("NODE_ENV", "development")
-        field_name = info.field_name
+    def validate_resend_api_key(cls, v: str) -> str:
+        """Validate Resend API key"""
+        return _validate_required_in_prod(v, ValidationConstants.DEFAULT_RESEND_API_KEY, "RESEND_API_KEY")
 
-        if node_env not in ["test", "development"]:
-            if field_name == "resend_api_key" and v == "test_api_key":
-                raise ValueError("RESEND_API_KEY must be set to a valid value in production")
-            elif field_name == "resend_domain" and v == "test.example.com":
-                raise ValueError("RESEND_DOMAIN must be set to a valid domain in production")
-        return v
+    @field_validator("resend_domain")
+    @classmethod
+    def validate_resend_domain(cls, v: str) -> str:
+        """Validate Resend domain"""
+        return _validate_required_in_prod(v, ValidationConstants.DEFAULT_RESEND_DOMAIN, "RESEND_DOMAIN")
 
 
 class DatabaseSettings(BaseModel):
-    """数据库相关设置"""
+    """Database configuration settings"""
 
     # PostgreSQL
     postgres_host: str = Field(default="localhost")
@@ -132,29 +152,24 @@ class DatabaseSettings(BaseModel):
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
     redis_password: str = Field(default="")
-
-    # Redis SSE Settings
     redis_sse_stream_maxlen: int = Field(
         default=1000, description="Maximum length for Redis SSE event streams (XADD maxlen parameter)"
     )
 
     @property
     def postgres_url(self) -> str:
-        """计算 PostgreSQL 连接 URL"""
+        """Get PostgreSQL connection URL"""
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     @property
     def neo4j_url(self) -> str:
-        """计算 Neo4j 连接 URL"""
-        if self.neo4j_uri:
-            return self.neo4j_uri
-        return f"bolt://{self.neo4j_host}:{self.neo4j_port}"
+        """Get Neo4j connection URL"""
+        return self.neo4j_uri if self.neo4j_uri else f"bolt://{self.neo4j_host}:{self.neo4j_port}"
 
     @property
     def redis_url(self) -> str:
-        """计算 Redis 连接 URL"""
+        """Get Redis connection URL with password handling"""
         if self.redis_password:
-            # URL 编码密码以处理特殊字符
             from urllib.parse import quote
 
             encoded_password = quote(self.redis_password, safe="")
@@ -165,19 +180,23 @@ class DatabaseSettings(BaseModel):
 class Settings(BaseSettings):
     """应用主配置
 
-    配置优先级（从高到低）：
-    1. 环境变量
-    2. .env 文件
-    3. config.toml 文件（支持环境变量插值）
-    4. 默认值
+    配置加载优先级（从高到低）：
+    1. 初始化参数 (代码中直接提供)
+    2. 环境变量
+    3. .env 文件
+    4. config.toml 文件（支持环境变量插值）
+    5. 密钥文件 (例如 Docker Secrets)
+    6. 模型定义的默认值
 
     环境变量命名规则：
     - 顶层配置：直接使用变量名（如 NODE_ENV, API_PORT）
-    - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST）
+    - 嵌套配置：使用双下划线分隔（如 AUTH__JWT_SECRET_KEY, DATABASE__POSTGRES_HOST, LAUNCHER__DEFAULT_MODE）
 
     配置文件位置：
-    - TOML 配置：apps/backend/config.toml
-    - 环境变量：apps/backend/.env
+    - TOML 配置：默认从运行目录读取 `config.toml`。在本项目中，后端服务以 `apps/backend` 为工作目录运行，
+      因此建议将实际配置文件放置在 `apps/backend/config.toml`（不纳入版本控制）。
+    - 模板文件：`apps/backend/config.toml.example`，可复制为 `config.toml` 并按需修改。
+    - 环境变量：`apps/backend/.env`（开发环境）
     """
 
     # Service identification
@@ -191,11 +210,12 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:3000")
     allowed_origins: list[str] = Field(default=["*"])
 
-    # 嵌套配置
+    # Nested configuration
     auth: AuthSettings = Field(default_factory=AuthSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    launcher: LauncherConfigModel = Field(default_factory=LauncherConfigModel, description="Launcher configuration")
 
-    # 其他服务配置
+    # External services
     milvus_host: str = Field(default="localhost")
     milvus_port: int = Field(default=19530)
 
@@ -230,12 +250,11 @@ class Settings(BaseSettings):
     log_format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     model_config = SettingsConfigDict(
-        # 使用 backend 目录下的 .env 文件
-        env_file=".env",  # 相对于 backend 目录（运行位置）
+        env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False,  # 不区分大小写
-        env_nested_delimiter="__",  # 支持嵌套环境变量
-        extra="ignore",  # 忽略额外的环境变量
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        extra="ignore",
     )
 
     @classmethod
@@ -247,16 +266,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """自定义配置源的优先级
-
-        优先级从高到低：
-        1. init_settings: 初始化参数
-        2. env_settings: 环境变量
-        3. dotenv_settings: .env 文件
-        4. toml_settings: config.toml 文件
-        5. file_secret_settings: 密钥文件
-        """
-        # 创建 TOML 配置源
+        """Custom configuration source priority order"""
         toml_settings = TomlConfigSettingsSource(settings_cls)
 
         return (
@@ -267,30 +277,37 @@ class Settings(BaseSettings):
             file_secret_settings,
         )
 
-    # 便捷的计算属性
+    # Computed properties
     @property
     def kafka_bootstrap_servers(self) -> str:
-        """计算 Kafka bootstrap servers"""
+        """Get Kafka bootstrap servers"""
         return f"{self.kafka_host}:{self.kafka_port}"
 
     @property
     def embedding_api_url(self) -> str:
-        """计算 Embedding API URL"""
+        """Get embedding API URL"""
         return f"http://{self.embedding_api_host}:{self.embedding_api_port}"
 
     @property
     def litellm_api_url(self) -> str:
-        """计算 LiteLLM API URL"""
-        if self.litellm_api_host:
-            host = self.litellm_api_host.rstrip("/")
-            return f"{host}/"
-        return ""
+        """Get LiteLLM API URL"""
+        return f"{self.litellm_api_host.rstrip('/')}/" if self.litellm_api_host else ""
 
     @property
     def is_dev(self) -> bool:
-        """检查是否为开发环境"""
+        """Check if running in development environment"""
         return self.node_env == "development"
 
+    @property
+    def environment(self) -> str:
+        """Get current environment"""
+        return self.node_env
 
-# 创建全局配置实例
+
+# Global configuration instance
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get global settings instance."""
+    return settings

@@ -1,6 +1,8 @@
 ---
 description: Generate comprehensive requirements for a specification
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch
+allowed-tools:
+  Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch,
+  WebFetch
 argument-hint: <feature-name>
 ---
 
@@ -21,7 +23,8 @@ argument-hint: <feature-name>
 
 基于已批准的 PRD 用户故事，生成一组系统需求（使用 EARS 格式）。每个用户故事都应派生出相应的功能需求（FR）和非功能需求（NFR）。
 
-**重要**：首先验证 PRD 已经生成并批准。如果 PRD 尚未生成，提示用户先运行 `/spec-task:prd {feature-name}`。
+**重要**：首先验证 PRD 已经生成并批准。如果 PRD 尚未生成，提示用户先运行
+`/spec-task:prd {feature-name}`。
 
 在这个阶段不要专注于代码探索。相反，专注于从 PRD 推导出可验证的系统需求。
 
@@ -51,7 +54,8 @@ argument-hint: <feature-name>
 
 ### 2. 需求文档结构
 
-根据 spec.json 中指定的语言生成 requirements.md（检查 `@.tasks/$ARGUMENTS/spec.json` 中的 "language" 字段）：
+根据 spec.json 中指定的语言生成 requirements.md（检查
+`@.tasks/$ARGUMENTS/spec.json` 中的 "language" 字段）：
 
 ```markdown
 # Requirements Document
@@ -60,12 +64,11 @@ argument-hint: <feature-name>
 
 [清晰的介绍，总结功能及其业务价值]
 
-## Requirements
+## Functional Requirements
 
-### Requirement 1: [主要功能区域]
+### FR-001: [主要功能区域]
 
 **源自 Story:** STORY-XXX
-**需求 ID:** FR-001
 
 #### Acceptance Criteria
 
@@ -76,38 +79,41 @@ argument-hint: <feature-name>
 3. WHILE [持续条件] THE [系统] SHALL [持续行为]
 4. WHERE [位置/上下文/触发器] THE [系统] SHALL [上下文行为]
 
-### Requirement 2: [下一个主要功能区域]
+### FR-002: [下一个主要功能区域]
 
 **源自 Story:** STORY-XXX
-**需求 ID:** FR-002
 
 1. WHEN [事件] THEN [系统] SHALL [响应]
 2. WHEN [事件] AND [条件] THEN [系统] SHALL [响应]
 
-### Requirement 3: [其他主要区域]
+### FR-003: [其他主要区域]
 
 [为所有主要功能区域继续此模式]
 
 ## Non-Functional Requirements (NFR)
 
 ### NFR-001: 性能需求
+
 **源自 Story:** STORY-XXX
+
 - **延迟**: P95 < Xs
 - **吞吐量**: >= X req/s
 - **并发**: >= X 并发用户
 
 ### NFR-002: 可靠性需求
+
 **源自 Story:** STORY-XXX
+
 - **可用性**: >= X%
 - **恢复时间**: < X 分钟
 
 ## Traceability Matrix
 
-| Story ID | Requirements | Priority |
-|----------|-------------|----------|
-| STORY-001 | FR-001, NFR-001 | P1 |
-| STORY-002 | FR-002, FR-003 | P2 |
-| STORY-003 | NFR-002 | P1 |
+| Story ID  | Requirements    | Priority |
+| --------- | --------------- | -------- |
+| STORY-001 | FR-001, NFR-001 | P1       |
+| STORY-002 | FR-002, FR-003  | P2       |
+| STORY-003 | NFR-002         | P1       |
 
 ## ADR Candidates (Placeholder)
 
@@ -127,8 +133,7 @@ argument-hint: <feature-name>
       "generated": true,
       "approved": false
     }
-  },
-  "updated_at": "current_timestamp"
+  }
 }
 ```
 
@@ -143,12 +148,13 @@ argument-hint: <feature-name>
 生成 requirements.md 后，审查需求并选择：
 
 **如果需求看起来不错：**
+
 1. 运行 `/spec-task:adr-draft $ARGUMENTS` 生成 ADR 草稿
 2. 运行 `/spec-task:adr-review $ARGUMENTS` 评审并决策 ADR
-3. 所有关键 ADR 接受后，运行 `/spec-task:design-hld $ARGUMENTS -y` 继续到高层设计阶段
+3. 所有关键 ADR 接受后，运行 `/spec-task:design-hld $ARGUMENTS -y`
+   继续到高层设计阶段
 
-**如果需求需要修改：**
-请求更改，然后在修改后重新运行此命令
+**如果需求需要修改：** 请求更改，然后在修改后重新运行此命令
 
 `-y` 标志自动批准需求并直接生成设计，在保持审查强制执行的同时简化工作流程。
 

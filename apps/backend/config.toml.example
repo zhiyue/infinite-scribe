@@ -5,23 +5,66 @@
 # - ${VAR_NAME} - 使用环境变量，如果不存在则报错
 # - ${VAR_NAME:-default_value} - 使用环境变量，如果不存在则使用默认值
 
-[service]
-name = "infinite-scribe-backend"
-type = "api-gateway"
+# ========================================
+# 根级别配置 (顶层字段，被 Settings 类直接读取)
+# ========================================
+
+# Service Configuration
+service_name = "infinite-scribe-backend"
+service_type = "api-gateway"
 node_env = "${NODE_ENV:-development}"
 
-[api]
-host = "${API_HOST:-0.0.0.0}"
-port = "${API_PORT:-8000}"
+# API Settings
+api_host = "${API_HOST:-0.0.0.0}"
+api_port = "${API_PORT:-8000}"
 frontend_url = "${FRONTEND_URL:-http://localhost:3000}"
 allowed_origins = ["*"]
+
+# Kafka
+kafka_host = "${KAFKA_HOST:-localhost}"
+kafka_port = "${KAFKA_PORT:-9092}"
+kafka_auto_offset_reset = "${KAFKA_AUTO_OFFSET_RESET:-earliest}"
+kafka_group_id_prefix = "${KAFKA_GROUP_ID_PREFIX:-infinite-scribe}"
+
+# Milvus
+milvus_host = "${MILVUS_HOST:-localhost}"
+milvus_port = "${MILVUS_PORT:-19530}"
+
+# MinIO
+minio_endpoint = "${MINIO_ENDPOINT:-localhost:9000}"
+minio_access_key = "${MINIO_ACCESS_KEY:-minioadmin}"
+minio_secret_key = "${MINIO_SECRET_KEY:-minioadmin}"
+
+# Prefect
+prefect_api_url = "${PREFECT_API_URL:-http://localhost:4200/api}"
+
+# AI Providers - 根据需要填写
+openai_api_key = "${OPENAI_API_KEY:-}"
+anthropic_api_key = "${ANTHROPIC_API_KEY:-}"
+
+# LiteLLM Proxy
+litellm_api_host = "${LITELLM_API_HOST:-}"
+litellm_api_key = "${LITELLM_API_KEY:-}"
+
+# Embedding API
+embedding_api_host = "${EMBEDDING_API_HOST:-localhost}"
+embedding_api_port = "${EMBEDDING_API_PORT:-11434}"
+embedding_api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
+
+# Logging
+log_level = "${LOG_LEVEL:-INFO}"
+log_format = "${LOG_FORMAT:-%(asctime)s - %(name)s - %(levelname)s - %(message)s}"
+
+# ========================================
+# 嵌套段配置 (对应 Settings 类的嵌套模型)
+# ========================================
 
 [auth]
 # JWT 配置 - 生产环境必须设置安全的密钥！
 jwt_secret_key = "${AUTH__JWT_SECRET_KEY:-your-very-secure-jwt-secret-key-minimum-32-chars}"
-jwt_algorithm = "HS256"
-access_token_expire_minutes = 15
-refresh_token_expire_days = 7
+jwt_algorithm = "${AUTH__JWT_ALGORITHM:-HS256}"
+access_token_expire_minutes = "${AUTH__ACCESS_TOKEN_EXPIRE_MINUTES:-15}"
+refresh_token_expire_days = "${AUTH__REFRESH_TOKEN_EXPIRE_DAYS:-7}"
 
 # 邮件服务配置
 resend_api_key = "${AUTH__RESEND_API_KEY:-re_your_actual_api_key}"
@@ -29,27 +72,27 @@ resend_domain = "${AUTH__RESEND_DOMAIN:-yourdomain.com}"
 resend_from_email = "${AUTH__RESEND_FROM_EMAIL:-noreply@yourdomain.com}"
 
 # 开发环境可以使用 Maildev
-use_maildev = false
-maildev_host = "localhost"
-maildev_port = 1025
+use_maildev = "${AUTH__USE_MAILDEV:-false}"
+maildev_host = "${AUTH__MAILDEV_HOST:-localhost}"
+maildev_port = "${AUTH__MAILDEV_PORT:-1025}"
 
 # 安全设置
-password_min_length = 8
-account_lockout_attempts = 5
-account_lockout_duration_minutes = 30
+password_min_length = "${AUTH__PASSWORD_MIN_LENGTH:-8}"
+account_lockout_attempts = "${AUTH__ACCOUNT_LOCKOUT_ATTEMPTS:-5}"
+account_lockout_duration_minutes = "${AUTH__ACCOUNT_LOCKOUT_DURATION_MINUTES:-30}"
 
 # 限流设置
-rate_limit_login_per_minute = 5
-rate_limit_register_per_hour = 10
-rate_limit_password_reset_per_hour = 3
+rate_limit_login_per_minute = "${AUTH__RATE_LIMIT_LOGIN_PER_MINUTE:-5}"
+rate_limit_register_per_hour = "${AUTH__RATE_LIMIT_REGISTER_PER_HOUR:-10}"
+rate_limit_password_reset_per_hour = "${AUTH__RATE_LIMIT_PASSWORD_RESET_PER_HOUR:-3}"
 
 # 验证设置
-email_verification_expire_hours = 24
-password_reset_expire_hours = 1
+email_verification_expire_hours = "${AUTH__EMAIL_VERIFICATION_EXPIRE_HOURS:-24}"
+password_reset_expire_hours = "${AUTH__PASSWORD_RESET_EXPIRE_HOURS:-1}"
 
 # 会话管理
-session_strategy = "multi_device"  # multi_device, single_device, max_sessions
-max_sessions_per_user = 10
+session_strategy = "${AUTH__SESSION_STRATEGY:-multi_device}"  # multi_device, single_device, max_sessions
+max_sessions_per_user = "${AUTH__MAX_SESSIONS_PER_USER:-10}"
 
 [database]
 # PostgreSQL
@@ -71,40 +114,43 @@ redis_host = "${DATABASE__REDIS_HOST:-localhost}"
 redis_port = "${DATABASE__REDIS_PORT:-6379}"
 redis_password = "${DATABASE__REDIS_PASSWORD:-}"
 
-[kafka]
-host = "${KAFKA_HOST:-localhost}"
-port = "${KAFKA_PORT:-9092}"
-auto_offset_reset = "earliest"
-group_id_prefix = "infinite-scribe"
+# ----------------------------------------
+# Launcher (统一后端启动器) 配置示例
+# 说明：
+# - P1 仅聚焦 API + Agents；不直接编排外部基础设施（Kafka/Postgres/Redis/Neo4j/MinIO/Prefect），
+#   由 `pnpm infra` 负责。启动器仅进行就绪性检测与提示。
+# - 管理端点（如 /admin/launcher/status）建议仅在开发环境启用；生产需鉴权并仅绑定 127.0.0.1。
+# ----------------------------------------
 
-[milvus]
-host = "${MILVUS_HOST:-localhost}"
-port = "${MILVUS_PORT:-19530}"
+[launcher]
+# 运行模式：single|multi（P3 可选 auto）
+default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
+# 启动组件：可选 api、agents（逗号分隔数组）
+components = ["api", "agents"]
+# 健康检查间隔（秒）：默认 1Hz
+health_interval = 1.0
+# 管理端点开关：生产环境默认关闭，仅限本地调试时开启
+admin_enabled = false
 
-[minio]
-endpoint = "${MINIO_ENDPOINT:-localhost:9000}"
-access_key = "${MINIO_ACCESS_KEY:-minioadmin}"
-secret_key = "${MINIO_SECRET_KEY:-minioadmin}"
+[launcher.api]
+# API Gateway 启动参数（开发环境可开启 reload）
+host = "${LAUNCHER__API__HOST:-0.0.0.0}"
+port = "${LAUNCHER__API__PORT:-8000}"
+reload = true
 
-[prefect]
-api_url = "${PREFECT_API_URL:-http://localhost:4200/api}"
+[launcher.agents]
+# 启动的 agents 列表；留空表示使用内置可用列表
+# names = ["worldsmith", "plotmaster"]
 
-[ai_providers]
-# AI 服务密钥 - 根据需要填写
-openai_api_key = "${OPENAI_API_KEY:-}"
-anthropic_api_key = "${ANTHROPIC_API_KEY:-}"
+# 环境变量覆盖（数组）：建议使用 JSON 字符串表示，Pydantic 会自动解析
+# 例如：
+#   LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
+# 也可以在 .env 中设置同名键，效果等同。
 
-[litellm]
-# LiteLLM 代理配置
-api_host = "${LITELLM_API_HOST:-}"
-api_key = "${LITELLM_API_KEY:-}"
-
-[embedding]
-# 嵌入模型服务配置
-api_host = "${EMBEDDING_API_HOST:-localhost}"
-api_port = "${EMBEDDING_API_PORT:-11434}"
-api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
-
-[logging]
-level = "${LOG_LEVEL:-INFO}"
-format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# 可选：容量与并发（按需启用）
+# [launcher.capacity]
+# max_memory_mb = 2048
+# max_cpu_percent = 80
+# [launcher.capacity.concurrency]
+# max_concurrent_startups = 5
+# max_concurrent_health_checks = 10

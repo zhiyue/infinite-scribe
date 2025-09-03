@@ -132,3 +132,4 @@ apps/frontend/test-results/.last-run.json
 .serena/cache/python/document_symbols_cache_v23-06-25.pkl
 .serena/cache/
 .specstory/.what-is-this.md
+deploy/data/

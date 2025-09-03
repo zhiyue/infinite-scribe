@@ -92,7 +92,7 @@ const services = [
         `bolt://${host}:${port}`,
         neo4j.auth.basic(
           process.env.NEO4J_USER || 'neo4j',
-          process.env.NEO4J_PASSWORD || 'neo4j'
+          process.env.NEO4J_PASSWORD || 'password'
         )
       );
 
@@ -256,7 +256,7 @@ const services = [
         const port = process.env.API_GATEWAY_PORT || 8000;
         const response = await fetch(`http://${host}:${port}/health`);
         const data = await response.json();
-        if (response.ok && data.status === 'ok') {
+        if (response.ok && (data.status === 'ok' || data.status === 'healthy')) {
           return {
             success: true,
             info: 'API Gateway healthy, all database connections OK'

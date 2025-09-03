@@ -1,6 +1,9 @@
 ---
-description: Generate implementation plan with technical research and API documentation
-allowed-tools: Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch, WebFetch, TodoWrite, Task, Agent
+description:
+  Generate implementation plan with technical research and API documentation
+allowed-tools:
+  Bash, Glob, Grep, LS, Read, Write, Edit, MultiEdit, Update, WebSearch,
+  WebFetch, TodoWrite, Task, Agent
 argument-hint: <feature-name> [-y] [--refresh]
 ---
 
@@ -30,7 +33,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 
 ### 现有规划检查
 
-- 检查是否已存在：!`ls -la .tasks/$ARGUMENTS/impl-plan.md 2>/dev/null && echo "Implementation plan exists"`
+- 检查是否已存在：@.tasks/$ARGUMENTS/impl-plan.md
 - 如果存在且未使用 --refresh，提示选项：
   - **[o] 覆盖**：重新生成全新的规划
   - **[u] 更新**：基于现有内容更新
@@ -45,6 +48,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 #### 1.1 扫描技术组件
 
 从 `.tasks/$ARGUMENTS/design-lld.md` 中识别：
+
 - 编程语言和版本要求
 - 框架和主要库（FastAPI、SQLAlchemy、React、Vue等）
 - 数据库和存储系统（PostgreSQL、Redis、Neo4j等）
@@ -54,6 +58,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 #### 1.2 依赖关系映射
 
 创建依赖矩阵：
+
 - 直接依赖（项目直接使用）
 - 传递依赖（库的依赖）
 - 版本兼容性要求
@@ -66,6 +71,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 对每个识别的库执行深度研究：
 
 **使用 context7 工具获取准确的库文档**：
+
 - 通过 context7 查询库的最新接口和方法签名
 - 获取官方文档中的使用示例和最佳实践
 - 收集库的错误处理模式和异常类型
@@ -73,12 +79,14 @@ argument-hint: <feature-name> [-y] [--refresh]
 - 检查版本兼容性和破坏性变更历史
 
 **补充使用 WebFetch 和 Task 代理**：
+
 - 当 context7 未覆盖某些库时，使用 WebFetch 获取官方文档
 - 对于复杂的研究任务，使用 Task 代理并行收集信息
 
 #### 2.2 创建技术参考缓存
 
 建立参考文档目录结构：
+
 ```
 .tasks/{feature-name}/references/
 ├── libraries/
@@ -97,6 +105,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 #### 3.1 技术可行性验证
 
 验证每个任务的技术可行性：
+
 - API 可用性确认
 - 性能要求可达性
 - 安全要求满足度
@@ -106,12 +115,10 @@ argument-hint: <feature-name> [-y] [--refresh]
 
 创建结构化的实施规划文档：
 
-```markdown
+````markdown
 # 实施规划与研究手册
 
-生成时间：{timestamp}
-功能名称：{feature-name}
-状态：{approved/pending}
+生成时间：{timestamp} 功能名称：{feature-name} 状态：{approved/pending}
 
 ## 执行摘要
 
@@ -122,32 +129,38 @@ argument-hint: <feature-name> [-y] [--refresh]
 ## 技术栈清单
 
 ### 核心依赖
-| 库/框架 | 版本 | 用途 | 文档链接 | 稳定性 |
-|---------|------|------|---------|--------|
-| {lib} | {version} | {purpose} | {docs_url} | {stability} |
+
+| 库/框架 | 版本      | 用途      | 文档链接   | 稳定性      |
+| ------- | --------- | --------- | ---------- | ----------- |
+| {lib}   | {version} | {purpose} | {docs_url} | {stability} |
 
 ### API 兼容性矩阵
-| 库组合 | 兼容性 | 注意事项 |
-|--------|--------|---------|
-| {lib1} + {lib2} | ✅ 兼容 | {notes} |
+
+| 库组合          | 兼容性  | 注意事项 |
+| --------------- | ------- | -------- |
+| {lib1} + {lib2} | ✅ 兼容 | {notes}  |
 
 ## API 速查表
 
 ### {Library Name}
 
 #### 核心模块
+
 ```{language}
 // 导入方式
 import { Module } from '{library}'
 ```
+````
 
 #### 关键接口
+
 ```{language}
 // 方法签名
 function methodName(param1: Type1, param2?: Type2): ReturnType
 ```
 
 #### 典型用法
+
 ```{language}
 // 初始化
 const instance = new Module({
@@ -160,6 +173,7 @@ instance.method(args)
 ```
 
 #### 错误处理
+
 ```{language}
 try {
   // 操作
@@ -175,6 +189,7 @@ try {
 **关联库**：{libraries}
 
 **Context7 查询结果**：
+
 - 接口签名：{从context7获取的准确签名}
 - 版本信息：{context7确认的稳定版本}
 - 最佳实践：{context7推荐的使用模式}
@@ -182,6 +197,7 @@ try {
 **TDD 实施计划**：
 
 1. **红灯阶段（测试先行）**：
+
    ```{language}
    // 测试：{test_description}
    test('{test_name}', () => {
@@ -190,6 +206,7 @@ try {
    ```
 
 2. **绿灯阶段（最小实现）**：
+
    ```{language}
    // 最小代码使测试通过
    {minimal_implementation}
@@ -201,12 +218,14 @@ try {
    - 优化性能
 
 **验收断言清单**：
+
 - [ ] 正常路径：{description}
 - [ ] 边界条件：{description}
 - [ ] 错误处理：{description}
 - [ ] 性能要求：{description}
 
 **依赖前置**：
+
 - 需要任务 {prerequisite_task} 完成的 {output}
 
 [继续其他任务...]
@@ -229,6 +248,7 @@ try {
 ## 实施顺序优化
 
 基于技术依赖的建议顺序：
+
 1. {task} - 原因：{无外部依赖，可独立完成}
 2. {task} - 原因：{依赖task1的输出}
 3. {task} - 原因：{需要task2的基础设施}
@@ -236,11 +256,13 @@ try {
 ## 测试策略
 
 ### 单元测试
+
 - 覆盖率目标：>80%
 - 测试框架：{framework}
 - Mock策略：{approach}
 
 ### 集成测试
+
 - 关键路径：{paths}
 - 测试环境：{environment}
 - 数据准备：{approach}
@@ -248,19 +270,23 @@ try {
 ## 参考文档索引
 
 ### 库文档缓存
+
 - [{library}] API文档：`references/libraries/{library}/api.md`
 - [{library}] 示例代码：`references/libraries/{library}/examples.md`
 - [{library}] 常见问题：`references/libraries/{library}/gotchas.md`
 
 ### 设计模式
+
 - [{pattern}]：`references/patterns/{pattern}.md`
 
 ### 代码片段
+
 - [{functionality}]：`references/snippets/{functionality}.md`
 
 ## 版本锁定建议
 
 ### package.json (前端)
+
 ```json
 {
   "dependencies": {
@@ -270,6 +296,7 @@ try {
 ```
 
 ### pyproject.toml (后端)
+
 ```toml
 [tool.poetry.dependencies]
 {package} = "^{version}"
@@ -278,6 +305,7 @@ try {
 ## 环境配置要求
 
 ### 环境变量
+
 ```bash
 # 必需配置
 {ENV_VAR}={description}
@@ -287,6 +315,7 @@ try {
 ```
 
 ### 外部服务
+
 - {service}: {endpoint_url}
 - 认证方式：{auth_method}
 - 速率限制：{rate_limit}
@@ -294,6 +323,7 @@ try {
 ## 质量门控
 
 实施前检查清单：
+
 - [ ] 所有库版本已确定
 - [ ] API文档已收集完整
 - [ ] 测试策略已明确
@@ -309,8 +339,10 @@ try {
 - [ ] 准备进入实施
 
 ---
-*此文档由 spec-task:impl-plan 生成，作为实施阶段的技术参考*
-```
+
+_此文档由 spec-task:impl-plan 生成，作为实施阶段的技术参考_
+
+````
 
 ### 4. 更新元数据
 
@@ -330,11 +362,12 @@ try {
     "cached_references": {count}
   }
 }
-```
+````
 
 #### 4.2 生成执行摘要
 
 输出简洁的状态报告：
+
 ```
 ✅ 实施规划已生成
 
@@ -366,6 +399,7 @@ try {
 ### 1. 增量更新模式
 
 如果规划已存在且选择更新：
+
 - 保留已验证的API信息
 - 仅更新变更的依赖
 - 追加新识别的风险
@@ -374,6 +408,7 @@ try {
 ### 2. 智能缓存策略
 
 优化API查询：
+
 - 优先使用本地缓存的 context7 查询结果（除非使用--refresh）
 - 批量向 context7 查询相关库的API
 - 并行获取多个库文档（context7 + WebFetch 组合）
@@ -383,6 +418,7 @@ try {
 ### 3. 依赖版本检查
 
 自动检查：
+
 - 最新稳定版本
 - 安全漏洞警告（通过CVE数据库）
 - 废弃API警告
@@ -391,6 +427,7 @@ try {
 ### 4. Spike建议生成
 
 对高风险或不确定的技术点：
+
 - 自动生成Spike任务建议
 - 估算验证时间
 - 提供验证方案
@@ -415,12 +452,14 @@ try {
 ### 常见问题
 
 1. **任务未批准**：
+
    ```
    ❌ 任务尚未批准
    请先运行：/spec-task:tasks {feature} -y
    ```
 
 2. **API文档不可用**：
+
    ```
    ⚠️ 无法获取 {library} 文档
    - 已标记为待研究

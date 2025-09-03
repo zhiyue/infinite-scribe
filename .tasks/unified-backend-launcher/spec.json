@@ -1,0 +1,338 @@
+{
+  "feature_name": "unified-backend-launcher",
+  "created_at": "2025-09-01T00:00:00Z",
+  "updated_at": "2025-09-02T16:40:00Z",
+  "language": "chinese",
+  "phase": "impl-plan-generated",
+  "documents": {
+    "prd": {
+      "generated": true,
+      "approved": false,
+      "story_count": 7
+    },
+    "adr": {
+      "generated": true,
+      "approved": false,
+      "total_count": 6
+    }
+  },
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "adr": {
+      "generated": true,
+      "approved": true
+    },
+    "hld": {
+      "generated": true,
+      "approved": true
+    },
+    "lld": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "adr": {
+    "total_count": 6,
+    "proposed": 0,
+    "accepted": 6,
+    "superseded": 0,
+    "candidates": [
+      {
+        "key": "ADR-20250901-process-management-architecture",
+        "title": "统一后端启动器进程管理架构选型",
+        "status": "Accepted",
+        "priority": "P1",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合架构（组件化FastAPI + 动态路由）",
+        "related_requirements": ["FR-001", "NFR-001", "NFR-004"],
+        "owners": ["platform-arch", "backend-lead", "tech-lead-reviewer"]
+      },
+      {
+        "key": "ADR-20250901-service-orchestration-framework",
+        "title": "服务编排框架选型与依赖管理策略", 
+        "status": "Accepted",
+        "priority": "P1",
+        "decision_date": "2025-09-01",
+        "decision": "Option 2 - 状态机服务编排器（分阶段实施）",
+        "related_requirements": ["FR-002", "FR-004", "NFR-002"],
+        "owners": ["platform-arch", "backend-lead", "devops"]
+      },
+      {
+        "key": "ADR-20250901-configuration-management-system",
+        "title": "配置管理系统设计与模板化策略",
+        "status": "Accepted", 
+        "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 1 - 扩展现有TOML系统（多层配置合并）",
+        "related_requirements": ["FR-006", "NFR-004", "NFR-005"],
+        "owners": ["backend-lead", "platform-arch"]
+      },
+      {
+        "key": "ADR-20250901-health-monitoring-strategy",
+        "title": "健康监控策略与状态管理设计",
+        "status": "Accepted",
+        "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合监控模式（推拉结合）",
+        "related_requirements": ["FR-003", "NFR-002", "NFR-003"],
+        "owners": ["platform-arch", "backend-lead", "sre"]
+      },
+      {
+        "key": "ADR-20250901-cli-architecture-design",
+        "title": "CLI架构设计与用户交互模式",
+        "status": "Accepted",
+        "priority": "P2",
+        "decision_date": "2025-09-01",
+        "decision": "Option 3 - 混合架构（argparse核心 + 交互增强）",
+        "related_requirements": ["FR-007", "NFR-003", "NFR-004"],
+        "owners": ["backend-lead", "ux-lead", "tech-lead-reviewer"]
+      },
+      {
+        "key": "ADR-20250901-development-mode-enhancement",
+        "title": "开发模式增强与热重载机制设计",
+        "status": "Accepted", 
+        "priority": "P3",
+        "decision_date": "2025-09-01",
+        "decision": "Option 1 - 扩展uvicorn reload（多服务文件监控）",
+        "related_requirements": ["FR-005", "NFR-003", "NFR-005"],
+        "owners": ["backend-lead", "devex-lead"]
+      }
+    ]
+  },
+  "ready_for_implementation": false,
+  "impl_plan": {
+    "generated": true,
+    "approved": false,
+    "generated_at": "2025-09-01T22:45:00Z",
+    "libraries": [
+      "FastAPI",
+      "python-statemachine",
+      "aiohttp",
+      "psutil",
+      "toml",
+      "pydantic",
+      "prometheus-client",
+      "PyJWT",
+      "watchdog",
+      "click"
+    ],
+    "dependencies_count": 10,
+    "risks_identified": 4,
+    "cached_references": 3
+  },
+  "task_plans": {
+    "1": {
+      "planned": true,
+      "approved": true,
+      "planned_at": "2025-09-01T23:00:00Z",
+      "description": "目录与骨架 - 创建launcher模块的目录结构与骨架文件",
+      "estimated_hours": 1.5
+    },
+    "3": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-01T23:15:00Z",
+      "description": "启动器配置模型 - 定义LauncherConfigModel并集成现有配置系统",
+      "estimated_hours": 2.5
+    },
+    "4": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-01T23:50:00Z",
+      "description": "CLI（最小集）- 实现is-launcher命令行接口",
+      "estimated_hours": 3.0
+    },
+    "5": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-01-09T22:00:00Z",
+      "description": "适配器层 - 实现ApiAdapter和AgentsAdapter，支持单进程和多进程运行模式",
+      "estimated_hours": 6.0
+    },
+    "6": {
+      "planned": true,
+      "approved": true,
+      "planned_at": "2025-09-02T13:15:00Z",
+      "reviewed_at": "2025-09-02T13:45:00Z",
+      "description": "轻量编排器 - 基于手写状态表与拓扑分层，按依赖启动/逆序停止，失败回滚",
+      "estimated_hours": 5.5,
+      "enhancements": ["并发启动优化", "状态锁保护", "超时控制", "循环依赖检测", "分层停止"]
+    },
+    "7": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:00:00Z",
+      "description": "健康监控（最小）- 实现API健康检查与状态聚合",
+      "estimated_hours": 3.5
+    },
+    "8": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:30:00Z",
+      "description": "管理端点（开发默认启用）- API Gateway管理接口实现",
+      "estimated_hours": 2.5
+    },
+    "9": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T16:50:00Z",
+      "revised_at": "2025-09-02T17:45:00Z", 
+      "description": "信号与跨平台停止 - 基于现有process_utils.py扩展，新增轻量信号工具支持CLI --stay模式",
+      "estimated_hours": 3.0,
+      "review_status": "technical_review_completed",
+      "key_changes": [
+        "复用现有terminate_process而非新增API",
+        "CLI最小化变更而非重写",
+        "只监听SIGINT避免agents冲突",
+        "测试基于实际存在的API方法"
+      ]
+    },
+    "10": {
+      "planned": true,
+      "approved": false,
+      "planned_at": "2025-09-02T17:00:00Z",
+      "description": "结构化日志 - 统一使用structlog，标准化日志字段：component、mode、state、elapsed_ms、attempt、error_type",
+      "estimated_hours": 4.0,
+      "related_requirements": ["NFR-005"],
+      "key_features": [
+        "配置structlog与标准字段格式",
+        "创建日志配置模块和类型定义",
+        "更新所有启动器组件使用标准化日志",
+        "支持开发/生产环境不同输出格式",
+        "实现错误类型自动分类"
+      ]
+    }
+  },
+  "test_scenarios": {
+    "generated": true,
+    "approved": true,
+    "generated_at": "2025-09-02T16:40:00Z",
+    "tasks": {
+      "1": {
+        "file": "task-plans/task-1-test-scenarios.md",
+        "count": 15,
+        "approved": true
+      },
+      "3": {
+        "file": "task-plans/task-3-test-scenarios.md",
+        "count": 30,
+        "approved": false
+      },
+      "4": {
+        "file": "task-plans/task-4-test-scenarios.md",
+        "count": 28,
+        "approved": false
+      },
+      "5": {
+        "file": "task-plans/task-5-test-scenarios.md",
+        "count": 30,
+        "approved": true
+      },
+      "6": {
+        "file": "task-plans/task-6-test-scenarios.md",
+        "count": 32,
+        "approved": true,
+        "updated_at": "2025-09-02T14:00:00Z",
+        "priority_distribution": {
+          "P0": 18,
+          "P1": 10,
+          "P2": 4
+        }
+      },
+      "7": {
+        "file": "task-plans/task-7-test-scenarios.md",
+        "count": 25,
+        "approved": false,
+        "generated_at": "2025-09-02T16:10:00Z",
+        "priority_distribution": {
+          "P0": 9,
+          "P1": 12,
+          "P2": 4
+        }
+      },
+      "8": {
+        "file": "task-plans/task-8-test-scenarios.md",
+        "count": 24,
+        "approved": false,
+        "generated_at": "2025-09-02T16:40:00Z",
+        "priority_distribution": {
+          "P0": 8,
+          "P1": 12,
+          "P2": 4
+        }
+      }
+    }
+  },
+  "test_details": {
+    "1": {
+      "generated": true,
+      "approved": true,
+      "generated_at": "2025-09-01T23:10:00Z",
+      "sut_class": "launcher module structure",
+      "core_methods": ["main", "orchestrate_startup", "orchestrate_shutdown", "check_health", "start", "stop", "load"],
+      "test_classes": 7
+    },
+    "3": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-01T23:35:00Z",
+      "sut_class": "LauncherConfigModel",
+      "core_methods": ["__init__", "model_validate", "model_dump", "validate_agent_names", "validate_components"],
+      "test_classes": 6
+    },
+    "4": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-01T23:58:00Z",
+      "sut_class": "LauncherCLI",
+      "core_methods": ["__init__", "setup_parser", "run", "_handle_up_command", "_handle_down_command", "_handle_status_command", "_handle_logs_command"],
+      "test_classes": 3
+    },
+    "5": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-01-09T22:15:00Z",
+      "sut_class": "BaseAdapter, ApiAdapter, AgentsAdapter",
+      "core_methods": ["__init__", "start", "stop", "health_check", "get_status", "_start_single_mode", "_start_multi_mode", "_stop_process"],
+      "test_classes": 3
+    },
+    "6": {
+      "generated": true,
+      "approved": true,
+      "generated_at": "2025-09-02T13:20:00Z",
+      "updated_at": "2025-09-02T14:00:00Z",
+      "sut_class": "Orchestrator",
+      "core_methods": ["__init__", "orchestrate_startup", "orchestrate_shutdown", "get_startup_order", "set_service_state", "get_service_state", "build_dependency_graph", "is_valid_state_transition", "update_service_health", "collect_error_context"],
+      "test_classes": 7,
+      "test_scenarios": 32,
+      "coverage_target": 90
+    },
+    "7": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-02T16:20:00Z",
+      "sut_class": "HealthMonitor",
+      "core_methods": ["__init__", "check_health", "start_monitoring", "stop_monitoring", "get_cluster_health", "get_cluster_status", "subscribe", "unsubscribe", "add_service", "check_agents_health"],
+      "test_classes": 1,
+      "test_scenarios": 26,
+      "coverage_target": 85
+    },
+    "8": {
+      "generated": true,
+      "approved": false,
+      "generated_at": "2025-09-02T16:45:00Z",
+      "sut_class": "AdminRouter",
+      "core_methods": ["get_launcher_status", "get_health_summary"],
+      "test_classes": 1,
+      "test_scenarios": 24,
+      "coverage_target": 90
+    }
+  }
+}
