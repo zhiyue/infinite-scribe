@@ -140,12 +140,12 @@ async def get_launcher_health(health_monitor: HealthMonitor = Depends(get_health
 
 def _map_service_state(state: ServiceStatus) -> str:
     """Map internal service state to API response format."""
-    mapping = {
-        ServiceStatus.RUNNING: "running",
-        ServiceStatus.STARTING: "starting",
-        ServiceStatus.STOPPING: "stopping",
-        ServiceStatus.STOPPED: "stopped",
-        ServiceStatus.FAILED: "error",
-        ServiceStatus.DEGRADED: "degraded",
-    }
-    return mapping.get(state, "unknown")
+    # Handle special cases where API presentation differs from internal enum values
+    if state == ServiceStatus.FAILED:
+        return "error"
+
+    # For most cases, use the enum's string value directly
+    if isinstance(state, ServiceStatus):
+        return state.value
+
+    return "unknown"
