@@ -45,7 +45,7 @@ jobs:
           EOF
 
       - name: Run Claude Code for Issue Deduplication
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1-dev
         with:
           use_sticky_comment: false
           prompt: |
