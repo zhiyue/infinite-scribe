@@ -180,11 +180,13 @@ class DatabaseSettings(BaseModel):
 class Settings(BaseSettings):
     """应用主配置
 
-    配置优先级（从高到低）：
-    1. 环境变量
-    2. .env 文件
-    3. config.toml 文件（支持环境变量插值）
-    4. 默认值
+    配置加载优先级（从高到低）：
+    1. 初始化参数 (代码中直接提供)
+    2. 环境变量
+    3. .env 文件
+    4. config.toml 文件（支持环境变量插值）
+    5. 密钥文件 (例如 Docker Secrets)
+    6. 模型定义的默认值
 
     环境变量命名规则：
     - 顶层配置：直接使用变量名（如 NODE_ENV, API_PORT）
