@@ -44,65 +44,61 @@ jobs:
           }
           EOF
 
-      - name: Create deduplication prompt
-        run: |
-          mkdir -p /tmp/claude-prompts
-          cat > /tmp/claude-prompts/deduplication-prompt.txt << 'EOF'
-          You're an issue deduplication assistant for GitHub issues. Your task is to analyze new issues and identify if they are duplicates of existing issues.
-
-          Issue Information:
-          - REPO: ${{ github.repository }}
-          - ISSUE_NUMBER: ${{ github.event.issue.number }}
-
-          TASK OVERVIEW:
-
-          1. Use the GitHub tools to get context about the issue:
-             - mcp__github__get_issue: Get the current issue's details including title, description, and existing labels
-             - mcp__github__get_issue_comments: Read any discussion or additional context in comments
-             - mcp__github__search_issues: Search for similar existing issues using relevant keywords
-             - mcp__github__list_issues: List recent issues to understand patterns
-             - mcp__github__create_issue_comment: Add a comment if duplicate found
-             - mcp__github__update_issue: Apply labels to the issue
-
-          2. Start by using mcp__github__get_issue to get the issue details
-
-          3. Search for potential duplicates using mcp__github__search_issues with:
-             - Keywords from the issue title
-             - Key terms from the issue description
-             - Error messages or specific technical terms mentioned
-
-          4. Analyze for duplicates using these criteria:
-             - Same bug or error being reported
-             - Same feature request (even if worded differently)
-             - Same question being asked
-             - Issues describing the same root problem
-
-          5. If you find duplicates:
-             - Add a polite comment on the new issue linking to the original issue(s)
-             - Apply a "duplicate" label to the new issue
-             - Explain why it's a duplicate in your comment
-             - Suggest the user follow the original issue for updates
-             - Use Chinese in your response
-
-          6. If it's NOT a duplicate:
-             - Don't add any comments
-             - You may apply appropriate topic labels based on the issue content
-
-          IMPORTANT GUIDELINES:
-          - Be thorough but efficient in your analysis
-          - Focus on finding true duplicates, not just similar issues
-          - Only mark as duplicate if you're confident it's the same core issue
-          - Be polite and helpful in your communication
-          - Reply using Chinese when commenting
-          EOF
-
       - name: Run Claude Code for Issue Deduplication
-        uses: anthropics/claude-code-action@v1-dev
+        uses: anthropics/claude-code-action@v1
         with:
-          prompt: $(cat /tmp/claude-prompts/deduplication-prompt.txt)
+          use_sticky_comment: false
+          prompt: |
+            You're an issue deduplication assistant for GitHub issues. Your task is to analyze new issues and identify if they are duplicates of existing issues.
+
+            Issue Information:
+            - REPO: ${{ github.repository }}
+            - ISSUE_NUMBER: ${{ github.event.issue.number }}
+
+            TASK OVERVIEW:
+
+            1. Use the GitHub tools to get context about the issue:
+                - mcp__github__get_issue: Get the current issue's details including title, description, and existing labels
+                - mcp__github__get_issue_comments: Read any discussion or additional context in comments
+                - mcp__github__search_issues: Search for similar existing issues using relevant keywords
+                - mcp__github__list_issues: List recent issues to understand patterns
+                - mcp__github__create_issue_comment: Add a comment if duplicate found
+                - mcp__github__update_issue: Apply labels to the issue
+
+            2. Start by using mcp__github__get_issue to get the issue details
+
+            3. Search for potential duplicates using mcp__github__search_issues with:
+                - Keywords from the issue title
+                - Key terms from the issue description
+                - Error messages or specific technical terms mentioned
+
+            4. Analyze for duplicates using these criteria:
+                - Same bug or error being reported
+                - Same feature request (even if worded differently)
+                - Same question being asked
+                - Issues describing the same root problem
+
+            5. If you find duplicates:
+                - Add a polite comment on the new issue linking to the original issue(s)
+                - Apply a "duplicate" label to the new issue
+                - Explain why it's a duplicate in your comment
+                - Suggest the user follow the original issue for updates
+                - Use Chinese in your response
+
+            6. If it's NOT a duplicate:
+                - Don't add any comments
+                - You may apply appropriate topic labels based on the issue content
+
+            IMPORTANT GUIDELINES:
+            - Be thorough but efficient in your analysis
+            - Focus on finding true duplicates, not just similar issues
+            - Only mark as duplicate if you're confident it's the same core issue
+            - Be polite and helpful in your communication
+            - Reply using Chinese when commenting
+
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --allowedTools "mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__list_issues,mcp__github__create_issue_comment,mcp__github__update_issue"
+            --allowedTools "Read,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__list_issues,mcp__github__create_issue_comment,mcp__github__update_issue"
             --mcp-config "/tmp/mcp-config/mcp-servers.json"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
