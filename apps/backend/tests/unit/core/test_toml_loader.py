@@ -112,7 +112,7 @@ class TestInterpolateEnvVars:
 
     def test_partial_substitution(self):
         """测试部分替换（字符串中包含变量）"""
-        with patch.dict(os.environ, {"USER": "alice", "DOMAIN": "example.com"}):
+        with patch.dict(os.environ, {"USER": "alice", "DOMAIN": "example.com"}, clear=True):
             result = _interpolate_env_vars("${USER}@${DOMAIN}")
             assert result == "alice@example.com"
 

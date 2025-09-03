@@ -90,7 +90,11 @@ async def test_api_adapter_single_mode_start_with_reload(api_adapter):
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("asyncio.create_subprocess_exec", return_value=mock_process),
+        patch(
+            "launcher.adapters.api.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=mock_process,
+        ),
         patch("httpx.AsyncClient", return_value=mock_client),
     ):
         api_adapter.config.update(
