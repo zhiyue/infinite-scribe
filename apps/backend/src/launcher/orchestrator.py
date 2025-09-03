@@ -349,6 +349,8 @@ class Orchestrator:
                 "port": self.config.api.port,
                 "reload": self.config.api.reload,
                 "mode": self.config.default_mode,
+                # Pass launcher timeout down so adapter can show better errors within same window
+                "startup_timeout": getattr(self.config, "startup_timeout", 30),
             }
             return ApiAdapter(cfg)
         if name == ComponentType.AGENTS.value:

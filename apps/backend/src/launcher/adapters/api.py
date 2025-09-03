@@ -24,6 +24,11 @@ class ApiAdapter(BaseAdapter):
         self._server: uvicorn.Server | None = None
         self._host: str = self.config.get("host", "0.0.0.0")
         self._port: int = int(self.config.get("port", 8000))
+        # Use launcher-provided timeout if available (defaults to 10s previously)
+        try:
+            self._startup_timeout: float = float(self.config.get("startup_timeout", 10))
+        except Exception:
+            self._startup_timeout = 10.0
 
     async def start(self) -> bool:
         """Start the API Gateway service using config values"""
@@ -48,6 +53,15 @@ class ApiAdapter(BaseAdapter):
         self.status = ServiceStatus.STARTING
 
         try:
+            # In practice, uvicorn reload works best under a subprocess supervisor.
+            # When reload=True and mode=SINGLE, automatically switch to MULTI for stability.
+            if mode == LaunchMode.SINGLE and reload_cfg:
+                logger.info(
+                    "reload_requested_in_single_mode_switching_to_multi",
+                    reason="uvicorn reload is more reliable under subprocess",
+                )
+                mode = LaunchMode.MULTI
+
             if mode == LaunchMode.SINGLE:
                 await self._start_single_process(reload_cfg)
             elif mode == LaunchMode.MULTI:
@@ -70,14 +84,17 @@ class ApiAdapter(BaseAdapter):
         self._task = asyncio.create_task(self._server.serve())
 
         # Wait for server to be ready
-        max_wait = 10  # Max 10 seconds
+        max_wait = self._startup_timeout  # configurable (default 10s, usually 30s from launcher)
         wait_time = 0.0
         while not self._server.started and wait_time < max_wait:
             await asyncio.sleep(0.1)
             wait_time += 0.1
 
         if not self._server.started:
-            raise RuntimeError(f"API server failed to start within {max_wait} seconds")
+            # Try to diagnose common root causes to provide actionable hints
+            reasons = await self._diagnose_dependencies()
+            hint = self._format_diagnostic_hint(reasons)
+            raise RuntimeError(f"API server failed to start within {max_wait:.0f} seconds. {hint}")
 
     async def _start_multi_process(self, reload: bool) -> None:
         """Start API Gateway in multi-process mode using subprocess"""
@@ -110,7 +127,9 @@ class ApiAdapter(BaseAdapter):
             wait_time += 0.5
 
         if wait_time >= max_wait:
-            raise RuntimeError(f"API server failed to respond within {max_wait} seconds")
+            reasons = await self._diagnose_dependencies()
+            hint = self._format_diagnostic_hint(reasons)
+            raise RuntimeError(f"API server failed to respond within {max_wait:.0f} seconds. {hint}")
 
     async def stop(self, timeout: int = 10) -> bool:
         """Stop the API Gateway service (idempotent)"""
@@ -177,3 +196,62 @@ class ApiAdapter(BaseAdapter):
     def get_status_str(self) -> str:
         """Return current status as string (for compatibility with older checks)"""
         return self.get_status().value
+
+    async def _tcp_check(self, host: str, port: int, timeout: float = 1.5) -> tuple[bool, str | None]:
+        """Lightweight TCP connectivity check to a host/port."""
+        try:
+            await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    async def _diagnose_dependencies(self) -> dict[str, dict[str, Any]]:
+        """Best-effort diagnostics for common dependencies when startup is slow/failing.
+
+        Returns a dict like:
+        {
+          "postgres": {"ok": False, "host": "localhost", "port": 5432, "error": "..."},
+          "neo4j": {"ok": True, ...},
+          "redis": {"ok": False, ...}
+        }
+        """
+        reasons: dict[str, dict[str, Any]] = {}
+        try:
+            # Lazy import to avoid heavy config cost on happy path
+            from src.core.config import settings
+
+            checks = {
+                "postgres": (settings.database.postgres_host, int(settings.database.postgres_port)),
+                "neo4j": (settings.database.neo4j_host, int(settings.database.neo4j_port)),
+                "redis": (settings.database.redis_host, int(settings.database.redis_port)),
+            }
+
+            # Run checks concurrently
+            tasks = {name: asyncio.create_task(self._tcp_check(host, port)) for name, (host, port) in checks.items()}
+            for name, (host, port) in checks.items():
+                ok, err = await tasks[name]
+                reasons[name] = {"ok": ok, "host": host, "port": port}
+                if not ok:
+                    reasons[name]["error"] = err
+        except Exception as e:  # Diagnostics should never break startup flow
+            logger.warning("dependency_diagnostics_failed", error=str(e))
+        return reasons
+
+    def _format_diagnostic_hint(self, reasons: dict[str, dict[str, Any]]) -> str:
+        """Format a short, user-friendly hint from diagnostics."""
+        if not reasons:
+            return "Possible cause: slow dependency initialization. Try 'pnpm infra up' and retry."
+
+        unreachable = [
+            f"{name} ({info.get('host')}:{info.get('port')})" for name, info in reasons.items() if not info.get("ok")
+        ]
+        if unreachable:
+            return (
+                "Dependencies unreachable: "
+                + ", ".join(unreachable)
+                + ". Ensure services are running (e.g., 'pnpm infra up') and configuration in apps/backend/.env matches your setup."
+            )
+        # All reachable but still slow
+        return (
+            "Dependencies reachable but startup took too long. Increase launcher startup_timeout or check service logs."
+        )
