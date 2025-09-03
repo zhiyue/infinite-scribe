@@ -77,11 +77,22 @@ async def test_api_adapter_single_mode_start(api_adapter):
 @pytest.mark.timeout(10)  # Quick timeout for unit test
 async def test_api_adapter_single_mode_start_with_reload(api_adapter):
     """Test single-process mode with reload configuration"""
-    mock_server = Mock()
-    mock_server.started = True
-    mock_server.serve = AsyncMock()
+    mock_process = Mock()
+    mock_process.pid = 12345
+    mock_process.returncode = None  # Process is running
 
-    with patch("launcher.adapters.api.uvicorn.Server", return_value=mock_server):
+    mock_response = Mock()
+    mock_response.status_code = 200
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch("asyncio.create_subprocess_exec", return_value=mock_process),
+        patch("httpx.AsyncClient", return_value=mock_client),
+    ):
         api_adapter.config.update(
             {
                 "host": "127.0.0.1",
