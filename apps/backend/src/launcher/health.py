@@ -52,10 +52,10 @@ class HealthMonitor:
 
     def __init__(self, check_interval: float = 1.0):
         """Initialize the health monitor
-        :param check_interval: Health check interval (seconds), 1-20Hz range
+        :param check_interval: Health check interval (seconds), 0.1-60.0s range
         """
-        if not 0.05 <= check_interval <= 1.0:
-            raise ValueError("check_interval must be between 0.05 (20Hz) and 1.0 (1Hz)")
+        if not 0.1 <= check_interval <= 60.0:
+            raise ValueError("check_interval must be between 0.1 and 60.0 seconds")
 
         self.check_interval = check_interval
         self.services: dict[str, Any] = {}  # ServiceDefinition objects

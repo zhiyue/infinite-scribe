@@ -108,7 +108,7 @@ class ApiAdapter(BaseAdapter):
         logger.info("Started API Gateway subprocess", pid=self.process.pid if self.process else None)
 
         # Wait for process to be ready by checking if it's accepting connections
-        max_wait = 10  # Max 10 seconds
+        max_wait = self._startup_timeout  # configurable (default 30s from launcher)
         wait_time = 0.0
         import httpx
 

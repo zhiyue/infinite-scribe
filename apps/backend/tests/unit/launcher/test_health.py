@@ -57,23 +57,23 @@ class TestHealthMonitor:
         monitor1 = HealthMonitor()
         assert monitor1.check_interval == 1.0
 
-        # Maximum 20Hz
-        monitor2 = HealthMonitor(check_interval=0.05)
-        assert monitor2.check_interval == 0.05
+        # Minimum allowed (0.1s)
+        monitor2 = HealthMonitor(check_interval=0.1)
+        assert monitor2.check_interval == 0.1
 
-        # Boundary value
-        monitor3 = HealthMonitor(check_interval=1.0)
-        assert monitor3.check_interval == 1.0
+        # Maximum allowed (60.0s)
+        monitor3 = HealthMonitor(check_interval=60.0)
+        assert monitor3.check_interval == 60.0
 
     def test_invalid_check_intervals(self):
         """Test invalid check intervals are rejected"""
-        # Too high frequency (>20Hz)
+        # Too small interval (<0.1s)
         with pytest.raises(ValueError, match="check_interval must be between"):
-            HealthMonitor(check_interval=0.04)
+            HealthMonitor(check_interval=0.05)
 
-        # Too low frequency (<1Hz)
+        # Too large interval (>60.0s)
         with pytest.raises(ValueError, match="check_interval must be between"):
-            HealthMonitor(check_interval=1.5)
+            HealthMonitor(check_interval=61.0)
 
     @pytest.mark.asyncio
     async def test_http_health_check_success(self):
