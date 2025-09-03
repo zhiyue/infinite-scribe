@@ -2,7 +2,7 @@
 name = "infinite-scribe-backend"
 version = "0.1.0"
 description = "Infinite Scribe - AI-powered collaborative novel creation platform"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
     # Core Web Framework
@@ -82,7 +82,7 @@ packages = ["src"]
 # Ruff configuration
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".venv",
     "build",
@@ -134,7 +134,7 @@ line-ending = "auto"
 # Black configuration
 [tool.black]
 line-length = 120                      # 与 Ruff 保持一致
-target-version = ["py311"]             # 目标 Python 版本 3.11
+target-version = ["py312"]             # 目标 Python 版本 3.12
 extend-exclude = '''
 /(
     \.git
@@ -175,7 +175,7 @@ markers = [
 # Mypy configuration
 [tool.mypy]
 mypy_path = "$MYPY_CONFIG_FILE_DIR"
-python_version = "3.11"
+python_version = "3.12"
 ignore_missing_imports = true
 strict_optional = true
 warn_redundant_casts = true
@@ -246,7 +246,7 @@ exclude = [
     "build",
     "dist",
 ]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "basic"                            # 类型检查模式: basic(基础)、standard(标准)、strict(严格)
@@ -278,6 +278,6 @@ reportUnnecessaryTypeIgnoreComment = false            # 是否报告不必要的
 
 [[tool.pyright.executionEnvironments]]
 root = "."
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 pythonPlatform = "Linux"
 extraPaths = ["src"]
