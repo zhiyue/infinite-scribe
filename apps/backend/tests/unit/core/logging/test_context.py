@@ -1,6 +1,5 @@
 """Tests for context binding functionality"""
 
-
 from src.core.logging.config import get_logger
 from src.core.logging.context import bind_request_context, bind_service_context, clear_context, get_current_context
 
