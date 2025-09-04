@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from ..agent_config import get_agent_topics
 from ..base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -12,16 +13,8 @@ class WriterAgent(BaseAgent):
     """Writer Agent - 负责生成文本内容"""
 
     def __init__(self):
-        # 定义消费和生产的 Kafka 主题
-        consume_topics = [
-            "story.write.request",  # 写作请求
-            "story.rewrite.request",  # 重写请求
-        ]
-        produce_topics = [
-            "story.write.response",  # 写作响应
-            "story.review.request",  # 发送给评审的请求
-        ]
-
+        # 从集中配置读取主题映射（单一真相源）
+        consume_topics, produce_topics = get_agent_topics("writer")
         super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
 
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:

@@ -176,18 +176,30 @@ class AgentsAdapter(BaseAdapter):
 
         # Optional: include per-agent details when available
         details: dict[str, Any] = {}
+        states: dict[str, str] = {}
+        errors: dict[str, Any] = {}
         for name, agent in self._launcher.agents.items():
             try:
-                details[name] = agent.get_status()
+                status = agent.get_status()
+                details[name] = status
+                states[name] = status.get("state", "unknown")
+                if status.get("last_error"):
+                    errors[name] = {
+                        "error": status.get("last_error"),
+                        "at": status.get("last_error_at"),
+                    }
             except Exception:
                 # Fallback if agent doesn't implement get_status()
                 details[name] = {"running": getattr(agent, "is_running", False)}
+                states[name] = "running" if getattr(agent, "is_running", False) else "stopped"
 
         return {
             "status": "healthy" if self._launcher.running else "stopped",
             "agents": agent_status,
             "total_agents": len(self._launcher.agents) if self._launcher.agents else 0,
             "details": details,
+            "states": states,
+            "errors": errors,
         }
 
     def get_loaded_agents(self) -> list[str]:

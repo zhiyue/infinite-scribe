@@ -1,6 +1,7 @@
 """Unit tests for AgentsAdapter"""
 
 from unittest.mock import AsyncMock, Mock, patch
+from typing import Any
 
 import pytest
 
@@ -170,6 +171,41 @@ async def test_agents_adapter_health_check_stopped(agents_adapter, mock_agent_la
 
     assert health["status"] == "stopped"
     assert health["agents"]["worldsmith"] == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_agents_adapter_health_check_states_and_errors(agents_adapter):
+    """health_check returns states/errors with per-agent summaries"""
+    class DummyAgent:
+        def __init__(self, state: str, err: str | None = None):
+            self._state = state
+            self._err = err
+
+        def get_status(self) -> dict[str, Any]:  # type: ignore[name-defined]
+            s: dict[str, Any] = {"running": self._state in {"RUNNING", "DEGRADED", "STARTING"}, "state": self._state}
+            if self._err:
+                s["last_error"] = self._err
+                s["last_error_at"] = "2024-01-01T00:00:00Z"
+            return s
+
+    launcher = Mock()
+    launcher.running = True
+    launcher.agents = {
+        "writer": DummyAgent("RUNNING"),
+        "director": DummyAgent("DEGRADED", "recent failure"),
+    }
+
+    agents_adapter._launcher = launcher
+    agents_adapter._loaded_agents = ["writer", "director"]
+
+    health = await agents_adapter.health_check()
+
+    assert "states" in health and isinstance(health["states"], dict)
+    assert health["states"]["writer"] == "RUNNING"
+    assert health["states"]["director"] == "DEGRADED"
+    assert "errors" in health and isinstance(health["errors"], dict)
+    assert "director" in health["errors"] and health["errors"]["director"]["error"] == "recent failure"
+    assert "writer" not in health["errors"]
 
 
 def test_agents_adapter_get_loaded_agents(agents_adapter):

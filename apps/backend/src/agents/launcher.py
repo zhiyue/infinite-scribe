@@ -6,10 +6,18 @@ import logging
 import signal
 import sys
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from ..agents.base import BaseAgent
-from .agent_config import AGENT_PRIORITY, AGENT_TOPICS
+from .agent_config import (
+    AGENT_PRIORITY,
+    AGENT_TOPICS,
+    canonicalize_agent_id,
+    list_available_agents,
+    to_config_key,
+    validate_agent_config,
+)
+from .registry import get_registered_agent
 
 
 class AgentsLoadError(Exception):
@@ -20,8 +28,8 @@ class AgentsLoadError(Exception):
 
 logger = logging.getLogger(__name__)
 
-# 从配置中获取所有可用的 agents
-AVAILABLE_AGENTS = list(AGENT_TOPICS.keys())
+# 从配置中获取所有可用的 agents（返回 canonical snake_case ids）
+AVAILABLE_AGENTS = list_available_agents()
 
 
 class AgentLauncher:
@@ -35,17 +43,25 @@ class AgentLauncher:
     def load_agent(self, agent_name: str) -> BaseAgent | None:
         """动态加载指定的 agent"""
         try:
+            canonical_name = canonicalize_agent_id(agent_name)
+            module_key = to_config_key(agent_name)
+            # 优先使用显式注册表
+            reg_cls = get_registered_agent(canonical_name)
+            if reg_cls is not None and issubclass(reg_cls, BaseAgent):
+                instance = reg_cls()  # No cast needed
+                logger.info(f"成功从注册表加载 agent: {canonical_name}")
+                return instance
             # 尝试从 agent 模块导入
             try:
-                module = importlib.import_module(f"..agents.{agent_name}", package=__name__)
+                module = importlib.import_module(f"..agents.{module_key}", package=__name__)
 
                 # 生成候选类名，兼容 snake_case 和单词形式
                 def snake_to_pascal(name: str) -> str:
                     return "".join(part.capitalize() for part in name.split("_"))
 
                 candidates = [
-                    f"{snake_to_pascal(agent_name)}Agent",
-                    f"{agent_name.capitalize()}Agent",
+                    f"{snake_to_pascal(canonical_name)}Agent",
+                    f"{canonical_name.capitalize()}Agent",
                 ]
 
                 agent_class: type[Any] | None = None
@@ -54,9 +70,20 @@ class AgentLauncher:
                     if agent_class is not None:
                         break
 
+                # Fallback: scan module for first BaseAgent subclass if naming doesn't match
+                if agent_class is None:
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name, None)
+                        try:
+                            if isinstance(attr, type) and issubclass(attr, BaseAgent) and attr is not BaseAgent:
+                                agent_class = attr
+                                break
+                        except Exception:
+                            continue
+
                 if agent_class and issubclass(agent_class, BaseAgent):
                     # 创建 agent 实例
-                    agent_instance = cast(Any, agent_class)()
+                    agent_instance = agent_class()
                     logger.info(f"成功加载 agent: {agent_name}")
                     return agent_instance
                 elif agent_class is not None:
@@ -68,7 +95,7 @@ class AgentLauncher:
             logger.info(f"使用通用 Agent 实现: {agent_name}")
 
             # 获取主题配置
-            topics = AGENT_TOPICS.get(agent_name, {})
+            topics = AGENT_TOPICS.get(module_key, {})
             consume_topics = topics.get("consume", [])
             produce_topics = topics.get("produce", [])
 
@@ -86,7 +113,7 @@ class AgentLauncher:
                         "message_type": message.get("type"),
                     }
 
-            return GenericAgent(name=agent_name, consume_topics=consume_topics, produce_topics=produce_topics)
+            return GenericAgent(name=canonical_name, consume_topics=consume_topics, produce_topics=produce_topics)
 
         except Exception as e:
             logger.error(f"加载 agent {agent_name} 时出错: {e}")
@@ -94,24 +121,29 @@ class AgentLauncher:
 
     def load_agents(self, agent_names: list[str] | None = None) -> None:
         """加载指定的 agents,如果未指定则加载所有 agents"""
+        # Validate agent configuration at startup
+        validate_agent_config()
+        
         if agent_names is None:
             agent_names = AVAILABLE_AGENTS
 
         # 验证 agent 名称
-        invalid_agents = [name for name in agent_names if name not in AVAILABLE_AGENTS]
+        canon = [canonicalize_agent_id(n) for n in agent_names]
+        invalid_agents = [name for name in canon if name not in AVAILABLE_AGENTS]
         if invalid_agents:
             logger.error(f"无效的 agent 名称: {invalid_agents}")
             logger.info(f"可用的 agents: {AVAILABLE_AGENTS}")
             raise AgentsLoadError(f"Invalid agent names: {invalid_agents}. Available agents: {AVAILABLE_AGENTS}")
 
         # 按优先级排序 agents
-        sorted_agents = sorted(agent_names, key=lambda x: AGENT_PRIORITY.get(x, 999))
+        sorted_agents = sorted(canon, key=lambda x: AGENT_PRIORITY.get(to_config_key(x), 999))
 
         # 加载每个 agent
         for agent_name in sorted_agents:
             agent = self.load_agent(agent_name)
             if agent:
-                self.agents[agent_name] = agent
+                # 存储使用 canonical 名称
+                self.agents[canonicalize_agent_id(agent_name)] = agent
 
         if not self.agents:
             logger.error("没有成功加载任何 agent")

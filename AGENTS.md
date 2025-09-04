@@ -193,6 +193,34 @@ return {
 注意：发送失败将抛异常触发重试/ DLT；请为关键路径添加 `correlation_id`
 以便跨服务追踪。
 
+### Canonical Agent IDs 与注册表（Registry）
+
+- 命名规范：
+  - Agent ID 使用 `snake_case`（canonical id），例如：`writer`、`director`、`character_expert`、`fact_checker`。
+  - 目录/模块名与 ID 一致（推荐），类名使用 `PascalCase + Agent`，例如：`WriterAgent`、`DirectorAgent`。
+
+- 兼容别名（alias）：
+  - 项目提供 `AGENT_ALIASES` 与 `CANONICAL_IDS`（见 `src/agents/agent_config.py`）进行 ID 与现有目录键的兼容映射。
+  - CLI/对外文档与健康输出统一展示 canonical id；内部仍可兼容历史命名（如 `characterexpert`）。
+
+- 注册表优先：
+  - 显式注册表位于 `src/agents/registry.py`。在具体 Agent 包的 `__init__.py` 中注册：
+
+```python
+from ..registry import register_agent
+from .agent import WriterAgent
+
+register_agent("writer", WriterAgent)
+```
+
+- 动态加载策略：
+  - `AgentLauncher` 优先从注册表加载；若未注册，则按 `{snake_to_pascal(id)}Agent` 反射加载；
+  - 如仍未找到，会扫描模块中的第一个 `BaseAgent` 子类作为兜底，最后才降级为 `GenericAgent`。
+
+- 主题配置的单一真相源：
+  - 统一从 `get_agent_topics(id)` 读取，避免在 Agent 类中硬编码主题；
+  - 后续可迁移至 Settings/TOML（Pydantic 类型化配置），`AGENT_TOPICS` 作为默认值。
+
 ### Error Classification（错误分类钩子）
 
 - 默认策略（BaseAgent.classify_error）：

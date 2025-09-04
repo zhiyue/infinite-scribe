@@ -139,6 +139,22 @@ agent_commit_interval_ms = "${AGENT_COMMIT_INTERVAL_MS:-1000}"
 
 更多关于这些字段的说明，参见 `apps/backend/docs/configuration-guide.md` 的“Agent 处理参数”章节。
 
+## Agent 命名（Canonical ID）与注册表
+
+- Canonical Agent ID：对外统一使用 `snake_case`（如 `writer`、`director`、`character_expert`）。
+- 兼容映射：内部通过 `AGENT_ALIASES`/`CANONICAL_IDS` 适配历史目录键（如 `characterexpert`）。
+- CLI 与健康输出：统一展示 canonical id；`AgentLauncher` 会在加载时进行规范化。
+- 注册表：建议在各 Agent 包的 `__init__.py` 中显式注册。
+
+```python
+from ..registry import register_agent
+from .agent import DirectorAgent
+
+register_agent("director", DirectorAgent)
+```
+
+> 加载顺序：注册表 → 约定命名反射（`{PascalCase}Agent`）→ 模块内扫描 BaseAgent 子类 → GenericAgent。
+
 ## 常见问题（FAQ）
 
 - Q: 我设置了 `port=9000`，但服务启动失败说端口被占用？

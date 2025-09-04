@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from ..agent_config import get_agent_topics
 from ..base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -12,18 +13,8 @@ class DirectorAgent(BaseAgent):
     """Director Agent - 负责协调和指导创作流程"""
 
     def __init__(self):
-        # 定义消费和生产的 Kafka 主题
-        consume_topics = [
-            "project.start.request",  # 项目启动请求
-            "project.status.request",  # 项目状态查询
-            "agent.coordination.request",  # Agent 协调请求
-        ]
-        produce_topics = [
-            "agent.task.assignment",  # 任务分配
-            "project.status.update",  # 项目状态更新
-            "story.outline.request",  # 大纲请求(发给 outliner)
-        ]
-
+        # 从集中配置读取主题映射（单一真相源）
+        consume_topics, produce_topics = get_agent_topics("director")
         super().__init__(name="director", consume_topics=consume_topics, produce_topics=produce_topics)
 
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:

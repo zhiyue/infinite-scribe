@@ -120,6 +120,25 @@ agent_commit_batch_size = "${AGENT_COMMIT_BATCH_SIZE:-20}"
 agent_commit_interval_ms = "${AGENT_COMMIT_INTERVAL_MS:-1000}"
 ```
 
+### Agent 命名（Canonical 与别名）
+
+- 对外规范：Agent ID 使用 `snake_case`（canonical）。例如：`writer`、`director`、`character_expert`、`fact_checker`。
+- 兼容别名：内部提供 `AGENT_ALIASES`/`CANONICAL_IDS` 进行键的互转，保障对历史目录键的兼容（如 `characterexpert`）。
+- 建议：配置文件与 CLI 统一使用 canonical id；后续可按计划迁移目录/模块名与配置键。
+
+### Agent 注册表（Registry）
+
+- 为提升发现可靠性，建议在每个 Agent 包的 `__init__.py` 中显式注册：
+
+```python
+from ..registry import register_agent
+from .agent import WriterAgent
+
+register_agent("writer", WriterAgent)
+```
+
+- 发现顺序：注册表 > 约定命名反射（`{PascalCase}Agent`）> 模块内扫描 `BaseAgent` 子类 > `GenericAgent`。
+
 ## 配置示例
 
 ### 1. 开发环境

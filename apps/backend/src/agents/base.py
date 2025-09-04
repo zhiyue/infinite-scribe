@@ -16,6 +16,7 @@ from ..core.config import settings
 from ..core.logging.config import get_logger
 from .errors import NonRetriableError
 from .message import decode_message, encode_message
+from .metrics import inc_dlt, inc_error, record_latency
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,12 @@ class BaseAgent(ABC):
             self.assigned_partitions = [f"{tp.topic}:{tp.partition}" for tp in assignment] if assignment else []
         except Exception:
             self.assigned_partitions = []
-        self.log.info("consumer_started", topics=self.consume_topics, connected=self.connected, assignment=self.assigned_partitions)
+        self.log.info(
+            "consumer_started",
+            topics=self.consume_topics,
+            connected=self.connected,
+            assignment=self.assigned_partitions,
+        )
         return consumer
 
     async def _create_producer(self) -> AIOKafkaProducer:
@@ -178,7 +184,9 @@ class BaseAgent(ABC):
                         try:
                             result: dict[str, Any] | None = await self.process_message(safe_message)
                             if result:
-                                await self._send_result(result, retries=attempt, correlation_id=correlation_id, message_id=message_id)
+                                await self._send_result(
+                                    result, retries=attempt, correlation_id=correlation_id, message_id=message_id
+                                )
                             # 处理成功，记录 offset 并根据阈值批量提交
                             await self._record_offset_and_maybe_commit(msg)
                             self.metrics["processed"] = int(self.metrics.get("processed", 0)) + 1
@@ -191,12 +199,26 @@ class BaseAgent(ABC):
                             if classification == "non_retriable":
                                 # 直接 DLT，不做重试
                                 try:
-                                    await self._send_to_dlt(msg, safe_message, e, attempts=attempt, correlation_id=correlation_id, message_id=message_id)
+                                    await self._send_to_dlt(
+                                        msg,
+                                        safe_message,
+                                        e,
+                                        attempts=attempt,
+                                        correlation_id=correlation_id,
+                                        message_id=message_id,
+                                    )
                                 except Exception:
                                     self.log.error("dlt_send_failed", exc_info=True)
                                 await self._record_offset_and_maybe_commit(msg)
                                 self.metrics["failed"] = int(self.metrics.get("failed", 0)) + 1
                                 self.metrics["dlt"] = int(self.metrics.get("dlt", 0)) + 1
+                                self.last_error = str(e)
+                                self.last_error_at = datetime.now(UTC)
+                                try:
+                                    inc_error(self.name, "non_retriable")
+                                    inc_dlt(self.name)
+                                except Exception:
+                                    pass
                                 break
                             else:
                                 attempt += 1
@@ -216,18 +238,37 @@ class BaseAgent(ABC):
                                     continue
                                 # 超过重试次数，发送到 DLT 并提交偏移
                                 try:
-                                    await self._send_to_dlt(msg, safe_message, e, attempts=attempt, correlation_id=correlation_id, message_id=message_id)
+                                    await self._send_to_dlt(
+                                        msg,
+                                        safe_message,
+                                        e,
+                                        attempts=attempt,
+                                        correlation_id=correlation_id,
+                                        message_id=message_id,
+                                    )
                                 except Exception:
                                     self.log.error("dlt_send_failed", exc_info=True)
                                 # 无论 DLT 成功与否，均记录偏移并触发批量提交
                                 await self._record_offset_and_maybe_commit(msg)
                                 self.metrics["failed"] = int(self.metrics.get("failed", 0)) + 1
                                 self.metrics["dlt"] = int(self.metrics.get("dlt", 0)) + 1
+                                self.last_error = str(e)
+                                self.last_error_at = datetime.now(UTC)
+                                try:
+                                    inc_error(self.name, "exhausted")
+                                    inc_dlt(self.name)
+                                except Exception:
+                                    pass
                                 break
                     end = asyncio.get_event_loop().time()
-                    self.metrics["processing_latency_ms_sum"] = float(
-                        self.metrics.get("processing_latency_ms_sum", 0.0)
-                    ) + (end - start) * 1000.0
+                    self.metrics["processing_latency_ms_sum"] = (
+                        float(self.metrics.get("processing_latency_ms_sum", 0.0)) + (end - start) * 1000.0
+                    )
+                    # Record latency metric (seconds) - optional
+                    from contextlib import suppress
+
+                    with suppress(Exception):
+                        record_latency(self.name, end - start)
 
                 except Exception as e:
                     self.log.error("message_loop_error", error=str(e), exc_info=True)
@@ -268,12 +309,23 @@ class BaseAgent(ABC):
         if force or interval_exceeded or size_exceeded:
             offsets = {tp: OffsetAndMetadata(offset, None) for tp, offset in self._pending_offsets.items()}
             await consumer.commit(offsets=offsets)
-            self.log.debug("offsets_batch_committed", offsets={f"{tp.topic}:{tp.partition}": off for tp, off in offsets.items()})
+            self.log.debug(
+                "offsets_batch_committed", offsets={f"{tp.topic}:{tp.partition}": off for tp, off in offsets.items()}
+            )
             self._pending_offsets.clear()
             self._since_last_commit = 0
             self._last_commit_monotonic = now
 
-    async def _send_to_dlt(self, msg: Any, payload: dict[str, Any], error: Exception, *, attempts: int, correlation_id: str | None, message_id: str | None) -> None:
+    async def _send_to_dlt(
+        self,
+        msg: Any,
+        payload: dict[str, Any],
+        error: Exception,
+        *,
+        attempts: int,
+        correlation_id: str | None,
+        message_id: str | None,
+    ) -> None:
         """发送失败消息到 DLT 主题（简单骨架）。"""
         # 确保 producer 可用
         if self.producer is None:
@@ -306,9 +358,13 @@ class BaseAgent(ABC):
         if correlation_id is not None:
             key_bytes = str(correlation_id).encode("utf-8")
         await self.producer.send_and_wait(dlt_topic, body, key=key_bytes)
-        self.log.warning("sent_to_dlt", dlt_topic=dlt_topic, correlation_id=correlation_id, message_id=message_id, retries=attempts)
+        self.log.warning(
+            "sent_to_dlt", dlt_topic=dlt_topic, correlation_id=correlation_id, message_id=message_id, retries=attempts
+        )
 
-    async def _send_result(self, result: dict[str, Any], *, retries: int, correlation_id: str | None, message_id: str | None) -> None:
+    async def _send_result(
+        self, result: dict[str, Any], *, retries: int, correlation_id: str | None, message_id: str | None
+    ) -> None:
         """发送处理结果"""
         # 从结果中获取目标主题,或使用默认主题
         topic = result.pop("_topic", None)
@@ -330,7 +386,14 @@ class BaseAgent(ABC):
                 # Encode envelope
                 encoded = encode_message(self.name, result, correlation_id=correlation_id, retries=retries)
                 await producer.send_and_wait(topic, encoded, key=key_bytes)
-                self.log.debug("result_sent", topic=topic, key=key_value, retries=retries, correlation_id=correlation_id, message_id=message_id)
+                self.log.debug(
+                    "result_sent",
+                    topic=topic,
+                    key=key_value,
+                    retries=retries,
+                    correlation_id=correlation_id,
+                    message_id=message_id,
+                )
             except KafkaError as e:
                 self.log.error("result_send_failed", error=str(e))
                 # 抛出异常以触发上层重试/ DLT 逻辑
@@ -430,6 +493,7 @@ class BaseAgent(ABC):
 
     def get_status(self) -> dict[str, Any]:
         """Return per-agent status for health reporting."""
+        state = self._compute_state()
         return {
             "running": self.is_running,
             "ready": self.ready,
@@ -438,7 +502,19 @@ class BaseAgent(ABC):
             "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
             "lag": self.lag,
             "metrics": self.metrics,
+            "state": state,
+            "last_error": self.last_error,
+            "last_error_at": self.last_error_at.isoformat() if self.last_error_at else None,
         }
+
+    def _compute_state(self) -> str:
+        if self.is_running and not self.ready:
+            return "STARTING"
+        if self.is_running and self.ready:
+            return "DEGRADED" if self.last_error else "RUNNING"
+        if self.last_error:
+            return "FAILED"
+        return "STOPPED"
 
     async def on_start(self):
         """启动时的钩子方法,子类可以重写"""
