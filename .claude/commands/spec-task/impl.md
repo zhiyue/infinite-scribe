@@ -33,7 +33,7 @@ argument-hint: <feature-name> <task-numbers>
 
 - 需求：检查 `.tasks/<功能名称>/requirements.md` 是否存在
 - 高层设计：检查 `.tasks/<功能名称>/design-hld.md` 是否存在
-- 低层设计：检查 `.tasks/<功能名称>/design-lld.md` 是否存在
+- 低层设计：检查 `.tasks/<功能名称>/lld/` 目录是否存在
 - 任务：检查 `.tasks/<功能名称>/tasks.md` 是否存在
 - 元数据：检查 `.tasks/<功能名称>/spec.json` 是否存在
 
@@ -48,7 +48,7 @@ argument-hint: <feature-name> <task-numbers>
 
 - 需求：`.tasks/<功能名称>/requirements.md`
 - 高层设计：`.tasks/<功能名称>/design-hld.md`
-- 低层设计：`.tasks/<功能名称>/design-lld.md`
+- 低层设计：`.tasks/<功能名称>/lld/` (目录)
 - 任务：`.tasks/<功能名称>/tasks.md`
 
 **注意**：<功能名称> 将在执行期间替换为实际的功能名称
@@ -101,7 +101,7 @@ argument-hint: <feature-name> <task-numbers>
    - 规范元数据：`.tasks/<功能名称>/spec.json`
    - 需求：`.tasks/<功能名称>/requirements.md`
    - 高层设计：`.tasks/<功能名称>/design-hld.md`
-   - 低层设计：`.tasks/<功能名称>/design-lld.md`
+   - 低层设计：`.tasks/<功能名称>/lld/` (目录)
    - 所有任务：`.tasks/<功能名称>/tasks.md`
    - 任务计划（如果存在）：`.tasks/<功能名称>/task-plans/<任务编号>.md`
    - 测试细节（如果存在）：`.tasks/<功能名称>/task-plans/test-details-<任务编号>.md`
@@ -142,7 +142,7 @@ argument-hint: <feature-name> <task-numbers>
 
 2. **验证**：
    - 规范目录存在
-   - 必需文件（requirements.md、design-hld.md、design-lld.md、tasks.md、spec.json）存在
+   - 必需文件（requirements.md、design-hld.md、lld/目录、tasks.md、spec.json）存在
    - 规范已批准可以实施
 
 3. **执行**：

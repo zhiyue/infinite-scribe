@@ -15,7 +15,7 @@ allowed-tools: Bash, Read, Glob, Write, Edit, MultiEdit, Update
 - 规范元数据：`.tasks/$ARGUMENTS/spec.json`
 - 需求文档：`.tasks/$ARGUMENTS/requirements.md`
 - 高层设计：`.tasks/$ARGUMENTS/design-hld.md`
-- 低层设计：`.tasks/$ARGUMENTS/design-lld.md`
+- 低层设计：`.tasks/$ARGUMENTS/lld/` (目录)
 - 任务文档：`.tasks/$ARGUMENTS/tasks.md`
 
 ## 任务：生成状态报告

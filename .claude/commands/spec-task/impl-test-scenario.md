@@ -21,7 +21,7 @@ argument-hint: <feature-name> [--task <id>] [-y] [--overwrite]
 - 用于提取上下文（至少存在其一）：
   - 任务：`.tasks/$ARGUMENTS/tasks.md`
   - 需求：`.tasks/$ARGUMENTS/requirements.md`
-  - 低层设计：`.tasks/$ARGUMENTS/design-lld.md`
+  - 低层设计：`.tasks/$ARGUMENTS/lld/` (目录)
 
 ## 输出路径与命名
 
@@ -67,7 +67,7 @@ argument-hint: <feature-name> [--task <id>] [-y] [--overwrite]
 
 ## 生成步骤
 
-1. 载入 `.tasks/{feature}/tasks.md`（若存在），识别所选任务或功能域的关键行为；无则回退 `requirements.md`/`design-lld.md`
+1. 载入 `.tasks/{feature}/tasks.md`（若存在），识别所选任务或功能域的关键行为；无则回退 `requirements.md`/`lld/`目录
 2. 为每个关键行为生成 3–7 个精炼场景（正向、边界、错误、空值/默认、组合）
 3. 为每个场景补充最小可运行的测试数据与可断言的预期结果
 4. 将内容写入上述输出路径

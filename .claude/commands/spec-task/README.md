@@ -54,7 +54,7 @@ graph LR
 │   ├── README.md      # ADR index and relationships
 │   └── *.md           # Individual ADR documents
 ├── design-hld.md      # High-Level Design (系统架构和边界)
-├── design-lld.md      # Low-Level Design (详细实现设计)  
+├── lld/               # Low-Level Design (详细实现设计文档集)  
 ├── tasks.md           # Implementation plan and task breakdown
 └── impl.md            # Implementation tracking and progress
 ```

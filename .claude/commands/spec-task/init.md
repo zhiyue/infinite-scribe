@@ -27,7 +27,7 @@ allowed-tools: Bash, Read, Write, Glob
 - `prd.md` - 产品需求文档的空模板
 - `requirements.md` - 系统需求的空模板
 - `design-hld.md` - 高层设计的空模板
-- `design-lld.md` - 低层设计的空模板
+- `lld/` - 低层设计目录结构
 - `tasks.md` - 实施任务的空模板
 - `spec.json` - 元数据和审批追踪
 
@@ -130,14 +130,23 @@ $ARGUMENTS
 <!-- 高层设计将在需求审批后生成 -->
 ```
 
-#### design-lld.md（空模板）
+#### lld/ 目录（低层设计文档集）
+
+创建 `lld/` 目录，包含：
+
+- `README.md` - 空的文档导航模板：
 
 ```markdown
-# Low-Level Design Document
+# 低层设计文档集
 
-## Overview
+本目录将包含详细的低层设计文档，按功能模块分割为多个独立文档。
 
-<!-- 低层设计将在HLD审批后生成 -->
+## 文档结构
+
+<!-- LLD 文档结构将在 /spec-task:design-lld 阶段生成 -->
+
+文档版本: 1.0  
+对应 HLD: [design-hld.md](../design-hld.md)
 ```
 
 #### tasks.md（空模板）
@@ -185,7 +194,7 @@ graph TD
 - [PRD](../prd.md)
 - [Requirements](../requirements.md)
 - [High-Level Design](../design-hld.md)
-- [Low-Level Design](../design-lld.md)
+- [Low-Level Design](../lld/)
 ```
 
 #### adr/templates/adr-template.md（ADR 模板）
@@ -386,7 +395,7 @@ Proposed
         ├── prd.md           # 产品需求文档
         ├── requirements.md  # 系统需求文档
         ├── design-hld.md    # 高层设计文档
-        ├── design-lld.md    # 低层设计文档
+        ├── lld/             # 低层设计文档集
         ├── tasks.md         # 任务计划
         ├── spec.json        # 元数据和状态追踪
         └── adr/             # 架构决策记录

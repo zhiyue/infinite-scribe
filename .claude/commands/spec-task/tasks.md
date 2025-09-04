@@ -31,7 +31,7 @@ argument-hint: <feature-name> [-y]
     - **[o] 覆盖**：生成全新的任务文档
     - **[m] 合并**：使用现有内容作为参考上下文生成新任务文档
     - **[c] 取消**：停止执行以进行手动审查
-- **上下文加载**：读取 `.tasks/$ARGUMENTS/requirements.md`、`.tasks/$ARGUMENTS/design-hld.md`、`.tasks/$ARGUMENTS/design-lld.md` 中的指导文档，以及现有的 tasks.md（如果是合并模式）
+- **上下文加载**：读取 `.tasks/$ARGUMENTS/requirements.md`、`.tasks/$ARGUMENTS/design-hld.md`、`.tasks/$ARGUMENTS/lld/` 目录中的所有LLD文档，以及现有的 tasks.md（如果是合并模式）
 
 ### 任务分析与规划
 
@@ -180,7 +180,7 @@ argument-hint: <feature-name> [-y]
 
 1. **检查 spec.json 中的语言** - 使用元数据中指定的语言
 2. **将设计转换为代码生成提示** - 每个任务必须是特定的编码指令
-3. **假设上下文可用** - 实施期间所有上下文文档（requirements.md、design-hld.md、design-lld.md）都将可用
+3. **假设上下文可用** - 实施期间所有上下文文档（requirements.md、design-hld.md、lld/ 目录）都将可用
 4. **指定确切的文件和组件** - 定义在哪些文件中编写/修改什么代码
 5. **增量构建** - 每个任务使用前面任务的输出，没有孤立的代码
 6. **映射到需求** - 以 _需求：X.X, Y.Y_ 或 _需求：[描述]_ 格式结束每个任务
