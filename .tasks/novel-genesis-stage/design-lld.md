@@ -387,6 +387,288 @@ class EventSerializer:
 - 外部（Kafka/数据库）一律点式命名；内部可用枚举但其 value 必须是点式字符串。
 - 边界（序列化/反序列化）负责统一转换；保留对历史枚举名称的兼容。
 
+## 事件设计详细实现（基于事件命名规范）
+
+### 事件命名契约
+
+**统一标准**：所有事件名称使用点式命名（dot notation），遵循
+`docs/architecture/event-naming-conventions.md` 规范。
+
+#### 命名格式
+
+```
+<Domain>.<AggregateRoot>.<OptionalSubAggregate>.<ActionInPastTense>
+```
+
+#### 实施要求
+
+1. **Kafka Envelope**：`event_type` 字段必须使用点式命名
+   - ✅ 正确：`Genesis.Session.Theme.Proposed`
+   - ❌ 错误：`GENESIS_SESSION_THEME_PROPOSED`
+
+2. **数据库存储**：
+   - `domain_events` 表的 `event_type` 字段使用点式命名
+   - `event_outbox` 表的 headers 中 `event_type` 使用点式命名
+
+3. **代码实现与序列化**：
+   - 实现细节已包含在上方"事件命名与序列化实现"章节
+
+### 核心领域事件
+
+创世阶段以 `Genesis.Session`
+为聚合根，动作动词严格使用受控词表（Requested/Proposed/Confirmed/Updated/Completed/Finished/Failed/Branched 等）。
+
+#### 领域事件列表（Genesis.Session.\*）
+
+```yaml
+# Stage 0 - 创意种子
+Genesis.Session.Started                    # 创世会话开始（此时即创建 Novel 记录，status=GENESIS）
+Genesis.Session.SeedRequested              # 请求生成创意种子
+Genesis.Session.ConceptProposed            # AI提出高概念方案
+Genesis.Session.ConceptConfirmed           # 用户确认高概念
+Genesis.Session.StageCompleted             # 阶段完成
+
+# Stage 1 - 立意主题
+Genesis.Session.Theme.Requested            # 请求生成主题
+Genesis.Session.Theme.Proposed             # AI提出主题方案
+Genesis.Session.Theme.Revised              # 主题被修订
+Genesis.Session.Theme.Confirmed            # 主题确认
+
+# Stage 2 - 世界观
+Genesis.Session.World.Requested            # 请求构建世界观
+Genesis.Session.World.Proposed             # AI提出世界观设定
+Genesis.Session.World.Updated              # 世界观更新
+Genesis.Session.World.Confirmed            # 世界观确认
+
+# Stage 3 - 人物
+Genesis.Session.Character.Requested        # 请求设计人物
+Genesis.Session.Character.Proposed         # AI提出人物设定
+Genesis.Session.Character.Updated          # 人物更新
+Genesis.Session.Character.Confirmed        # 人物确认
+Genesis.Session.CharacterNetwork.Created   # 关系网络生成
+
+# Stage 4 - 情节
+Genesis.Session.Plot.Requested             # 请求构建情节
+Genesis.Session.Plot.Proposed              # AI提出情节框架
+Genesis.Session.Plot.Updated               # 情节更新
+Genesis.Session.Plot.Confirmed             # 情节确认
+
+# Stage 5 - 细节
+Genesis.Session.Details.Requested          # 请求批量生成
+Genesis.Session.Details.Generated          # 细节生成完成
+Genesis.Session.Details.Confirmed          # 细节确认
+
+# 通用事件
+Genesis.Session.Finished                   # 创世完成
+Genesis.Session.Failed                     # 创世失败
+Genesis.Session.BranchCreated              # 版本分支创建
+```
+
+#### 能力事件命名规范（内部使用）
+
+各能力Agent使用独立命名空间，格式：`<Capability>.<Entity>.<Action>`
+
+```yaml
+# Outliner Agent
+Outliner.Theme.GenerationRequested
+Outliner.Theme.Generated
+Outliner.Concept.GenerationRequested
+Outliner.Concept.Generated
+
+# Worldbuilder Agent
+Worldbuilder.World.GenerationRequested
+Worldbuilder.World.Generated
+Worldbuilder.Rule.ValidationRequested
+Worldbuilder.Rule.Validated
+
+# Character Agent
+Character.Design.GenerationRequested
+Character.Design.Generated
+Character.Relationship.AnalysisRequested
+Character.Relationship.Generated
+
+# Plot Agent
+Plot.Structure.GenerationRequested
+Plot.Structure.Generated
+Plot.Node.GenerationRequested
+Plot.Node.Generated
+
+# Writer Agent
+Writer.Content.GenerationRequested
+Writer.Content.Generated
+Writer.Content.RevisionRequested
+Writer.Content.Revised
+
+# Review Agent
+Review.Quality.EvaluationRequested
+Review.Quality.Evaluated
+Review.Consistency.CheckRequested
+Review.Consistency.Checked
+```
+
+### 事件负载结构
+
+```python
+{
+    "event_id": "uuid",
+    "event_type": "Genesis.Session.Theme.Proposed",  # 点式命名
+    "aggregate_id": "session_id",
+    "aggregate_type": "GenesisSession",
+    "correlation_id": "flow_id",
+    "causation_id": "previous_event_id",
+    "payload": {
+        "session_id": "uuid",
+        "novel_id": "uuid",          # 创世开始即创建并返回 novel_id
+        "stage": "Stage_0",
+        "user_id": "uuid",
+        "content": {},  # 具体内容
+        "quality_score": 8.5,
+        "timestamp": "ISO-8601"
+    },
+    "metadata": {
+        "version": 1,
+        "source": "genesis-agent",
+        "trace_id": "uuid"
+    }
+}
+```
+
+### 事件与 Topic 映射（领域总线 + 能力总线）
+
+#### 命名一致性保证
+
+- **事件类型**：始终使用点式命名，作为 Envelope/DomainEvent 的 `event_type` 字段
+- **传输格式**：统一使用 JSON Envelope（已在 Agents 落地），Avro 作为 P2 选项
+- **唯一真相源**：点式命名是事件类型的唯一标准格式
+- **命名空间分离**：
+  - 领域事件：`Genesis.Session.*` - 表示业务事实，对外可见
+  - 能力事件：`Outliner.*`, `Worldbuilder.*`, `Character.*`
+    等 - 内部处理，不对外暴露
+
+#### Topic 架构
+
+领域总线（Facts，对外暴露）：
+
+- `genesis.session.events`（仅承载 Genesis.Session.\* 等领域事实；UI/SSE/审计只订阅此总线）
+
+能力总线（Capabilities，内部）：
+
+- Outliner：`genesis.outline.tasks` / `genesis.outline.events`
+- Writer：`genesis.writer.tasks` / `genesis.writer.events`
+- Review（评论家）：`genesis.review.tasks` / `genesis.review.events`
+- Worldbuilder：`genesis.world.tasks` / `genesis.world.events`
+- Character：`genesis.character.tasks` / `genesis.character.events`
+- Plot：`genesis.plot.tasks` / `genesis.plot.events`
+- FactCheck：`genesis.factcheck.tasks` / `genesis.factcheck.events`
+- Rewriter：`genesis.rewriter.tasks` / `genesis.rewriter.events`
+- Worldsmith：`genesis.worldsmith.tasks` / `genesis.worldsmith.events`
+
+#### 路由职责（中央协调者/Orchestrator）
+
+**映射原则**：
+
+- 领域事件（Facts）：始终使用 `Genesis.Session.*` 命名空间，表示业务事实
+- 能力事件（Capabilities）：使用各能力的命名空间（`Outliner.*`,
+  `Worldbuilder.*`, `Character.*` 等），表示内部处理
+
+**Orchestrator职责**：
+
+1. **领域→能力映射**：
+   - 消费 `genesis.session.events` 中的领域请求（如
+     `Genesis.Session.Theme.Requested`）
+   - 转换为能力任务（如 `Outliner.Theme.GenerationRequested`）
+   - 发布到对应能力的 `*.tasks` topic
+
+2. **能力→领域归并**：
+   - 消费各 `*.events` 的能力结果（如 `Outliner.Theme.Generated`）
+   - 转换为领域事实（如 `Genesis.Session.Theme.Proposed`）
+   - 发布回 `genesis.session.events`
+
+3. **关联维护**：
+   - 通过 `correlation_id` 关联领域事件与能力事件
+   - 确保事件链路完整可追踪
+
+#### 示例映射（注意点式命名）
+
+##### 领域事件 → 能力任务（Orchestrator负责映射）
+
+```json
+// 输入：领域请求事件
+{
+  "event_type": "Genesis.Session.Theme.Requested",    // 领域事件
+  "topic": "genesis.session.events"
+}
+
+// Orchestrator映射输出：能力任务
+{
+  "event_type": "Outliner.Theme.GenerationRequested",  // 能力任务
+  "topic": "genesis.outline.tasks",
+  "correlation_id": "xxx"                              // 关联领域请求
+}
+```
+
+##### 能力结果 → 领域事实（Orchestrator负责归并）
+
+```json
+// 输入：能力完成事件
+{
+  "event_type": "Outliner.Theme.Generated",            // 能力结果
+  "topic": "genesis.outline.events"
+}
+
+// Orchestrator归并输出：领域事实
+{
+  "event_type": "Genesis.Session.Theme.Proposed",     // 领域事实
+  "topic": "genesis.session.events"
+}
+```
+
+##### 完整映射表
+
+```yaml
+# Stage 0: 创意种子
+Genesis.Session.SeedRequested → Outliner.Concept.GenerationRequested
+Outliner.Concept.Generated → Genesis.Session.ConceptProposed
+
+# Stage 1: 立意主题
+Genesis.Session.Theme.Requested → Outliner.Theme.GenerationRequested
+Outliner.Theme.Generated → Genesis.Session.Theme.Proposed
+
+# Stage 2: 世界观构建
+Genesis.Session.World.Requested → Worldbuilder.World.GenerationRequested
+Worldbuilder.World.Generated → Genesis.Session.World.Proposed
+Worldbuilder.Rule.Validated → Genesis.Session.World.Updated
+
+# Stage 3: 人物设计
+Genesis.Session.Character.Requested → Character.Design.GenerationRequested
+Character.Design.Generated → Genesis.Session.Character.Proposed
+Character.Relationship.Generated → Genesis.Session.CharacterNetwork.Created
+
+# Stage 4: 情节框架
+Genesis.Session.Plot.Requested → Plot.Structure.GenerationRequested
+Plot.Structure.Generated → Genesis.Session.Plot.Proposed
+Plot.Node.Generated → Genesis.Session.Plot.Updated
+
+# Stage 5: 细节生成
+Genesis.Session.Details.Requested → Writer.Content.GenerationRequested
+Writer.Content.Generated → Genesis.Session.Details.Generated
+
+# 质量控制（跨阶段）
+Review.Quality.Evaluated → Genesis.Session.*.Updated (根据上下文)
+Review.Consistency.Checked → Genesis.Session.*.ValidationCompleted
+```
+
+**注意事项**：
+
+1. 所有 `Genesis.Session.*` 事件仅在 `genesis.session.events` topic
+2. 所有能力事件分布在各自的 topic（如 `genesis.outline.tasks/events`）
+3. Orchestrator维护映射表，确保双向转换的一致性
+4. correlation_id贯穿整个事件链，保证可追踪性
+
+注意：DLT 使用统一后缀 `.DLT`（如
+`genesis.writer.events.DLT`）。分区键：会话级事件用 `session_id`，章节类能力用
+`chapter_id` 保序。
+
 ## 前端组件设计
 
 #### 组件表格
@@ -1196,9 +1478,39 @@ class QualityRetryPolicy:
             }
         }
         return strategies.get(attempt, strategies[3])
+
+### 采纳率监控
+
+```yaml
+metrics:
+  # 实时指标
+  acceptance_rate:
+    formula: confirmed_events / proposed_events
+    window: 1_hour
+    alert_threshold: < 0.6
+
+  # 阶段指标
+  stage_acceptance:
+    stage_0: 0.75 # 创意阶段容忍度高
+    stage_1: 0.70 # 主题阶段标准
+    stage_2: 0.65 # 世界观复杂度高
+    stage_3: 0.70 # 人物设计标准
+    stage_4: 0.60 # 情节框架挑战大
+    stage_5: 0.80 # 细节生成规范化
+
+  # 改进触发
+  improvement_triggers:
+    - acceptance_rate < 0.5 for 30_minutes
+    - stage_failures > 5 in 1_hour
+    - user_rejections > 3 consecutive
 ```
 
-##### 采纳率监控
+### 质量反馈循环
+
+1. **即时反馈**：每次生成后立即评分
+2. **用户反馈**：记录接受/拒绝/修改行为
+3. **模型调优**：基于历史数据调整prompt模板
+4. **知识库更新**：高分内容入库作为示例
 
 ```yaml
 metrics:
@@ -1357,6 +1669,74 @@ class ConsistencyValidator:
         )
 
         return max(0, 10.0 - total_penalty)
+
+### 自动修复策略
+
+```yaml
+auto_fix_strategies:
+  relationship_closure:
+    action: 'infer_weak_relationship'
+    parameters:
+      default_strength: 2
+      relationship_type: 'knows_of'
+
+  timeline_consistency:
+    action: 'adjust_timestamps'
+    parameters:
+      method: 'shift_forward'
+      maintain_relative_order: true
+
+  character_continuity:
+    action: 'interpolate_states'
+    parameters:
+      method: 'linear'
+      add_explanation: true
+
+  spatial_consistency:
+    action: 'add_transportation'
+    parameters:
+      infer_type: true
+      calculate_min_time: true
+```
+
+### 一致性报告示例
+
+```json
+{
+  "novel_id": "uuid",
+  "validation_time": "2025-01-15T10:30:00Z",
+  "overall_score": 7.5,
+  "violations": [
+    {
+      "rule": "relationship_closure",
+      "severity": "warning",
+      "count": 3,
+      "examples": [
+        {
+          "character1": "张三",
+          "character2": "王五",
+          "issue": "Missing transitive relationship via 李四",
+          "suggested_fix": "Add 'knows_of' relationship with strength=2"
+        }
+      ]
+    },
+    {
+      "rule": "timeline_consistency",
+      "severity": "error",
+      "count": 1,
+      "examples": [
+        {
+          "event1": "Battle of Dawn",
+          "event2": "King's coronation",
+          "issue": "Cause happens 10 years after effect",
+          "suggested_fix": "Move Battle of Dawn to year 1020"
+        }
+      ]
+    }
+  ],
+  "auto_fixes_applied": 2,
+  "manual_review_required": 1
+}
 ```
 
 #### 批量任务调度实现
@@ -1887,17 +2267,19 @@ retention_policy:
 
 ### 连接管理配置
 
-- **并发限制**：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）
-- **心跳与超时**：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理
-- **重连语义**：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）
-- **健康检查**：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503
-- **响应头**：`Cache-Control: no-cache`、`Connection: keep-alive`
+- **并发限制**：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）。
+- **心跳与超时**：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理。
+- **重连语义**：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）。
+- **健康检查**：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503。
+- **响应头**：`Cache-Control: no-cache`、`Connection: keep-alive`。
 - **鉴权**：`POST /api/v1/auth/sse-token` 获取短时效
   `sse_token`（**默认 TTL=60秒**），`GET /api/v1/events/stream?sse_token=...`
-  建立连接
-- **SLO 口径**：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时
+  建立连接。
+- **SLO 口径**：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时。
 
-### Redis Stream 配置
+### SSE历史窗口与保留策略
+
+#### Redis Stream配置
 
 ```yaml
 历史事件保留:
@@ -1917,7 +2299,15 @@ retention_policy:
     timeout_ms: 5000 # 补发超时时间
 ```
 
-### Token 管理实现
+#### 裁剪策略
+
+- **Stream裁剪**：使用 `XADD ... MAXLEN ~` 近似裁剪，避免精确裁剪的性能开销
+- **定期清理**：每小时清理超过TTL的历史记录
+- **用户隔离**：按 `user_id:session_id` 维度独立管理历史
+
+### SSE Token管理与续签策略
+
+#### Token生命周期
 
 ```yaml
 token_config:
@@ -1937,9 +2327,10 @@ token_config:
      - 开始推送事件流
 ```
 
-### 客户端续签实现
+#### 客户端续签策略
 
 ```javascript
+// 前端续签示例时序
 class SSETokenManager {
   constructor() {
     this.token = null
@@ -2004,7 +2395,7 @@ class SSETokenManager {
 }
 ```
 
-### 服务端验证实现
+#### 服务端验证流程
 
 ```python
 async def validate_sse_token(token: str) -> dict:
@@ -2026,7 +2417,9 @@ async def validate_sse_token(token: str) -> dict:
     return token_data
 ```
 
-### SSE 事件格式规范
+### SSE 事件格式
+
+推送到SSE的事件（仅领域Facts）：
 
 ```json
 {
@@ -2065,7 +2458,9 @@ async def validate_sse_token(token: str) -> dict:
 - `Genesis.Session.Finished` - 创世完成
 - `Genesis.Session.Failed` - 处理失败
 
-**注意**：能力事件（`*.tasks/events`）不推送到SSE，仅用于内部协调。
+注意：能力事件（`*.tasks/events`）不推送到SSE，仅用于内部协调。
+
+以上与当前 sse-starlette + Redis 实现一致。
 
 #### 迁移策略
 
