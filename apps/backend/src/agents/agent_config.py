@@ -174,6 +174,7 @@ AGENT_ALIASES: dict[str, str] = {
     # canonical -> config key
     "character_expert": "characterexpert",
     "fact_checker": "factchecker",
+    "world_builder": "worldbuilder",
 }
 
 CANONICAL_IDS: dict[str, str] = {

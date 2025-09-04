@@ -671,12 +671,17 @@
 }
 ```
 
-### 7.2 上下文管理
+### 7.2 上下文管理（基于ADR-001）
 
 - **上下文窗口**: 32K tokens
-- **历史保留**: 最近10轮完整记录
-- **摘要压缩**: 超过10轮时自动摘要
+- **历史保留**: 最近10轮完整记录（存储于`conversation_rounds`表）
+- **摘要压缩**: 超过10轮时自动摘要（存储于`conversation_sessions.state`）
 - **关键信息**: 永久保留已锁定内容
+- **会话管理**: 
+  - 使用通用`conversation_sessions`表
+  - 支持GENESIS/CHAPTER/REVIEW等作用域
+  - Redis写透缓存，30天TTL
+  - 乐观并发控制（version字段）
 
 ### 7.3 质量控制机制
 
@@ -724,12 +729,13 @@ def consistency_check(content, context, neo4j_client):
         errors.append(Error(level=2, type="时间线错误",
                           message=f"时序矛盾: {conflict.description}"))
     
-    # 规则冲突检测(等级3) - 基于Neo4j图谱
+    # 规则冲突检测(等级3) - 基于Neo4j图谱（ADR-005）
+    # 使用WorldRule节点和VIOLATES关系
     rule_conflicts = neo4j_client.query("""
-        MATCH (n:Rule)-[:CONFLICTS_WITH]-(m:Rule)
-        WHERE n.id IN $rule_ids AND m.id IN $existing_rules
-        RETURN n, m, conflict.reason
-    """, rule_ids=content.rules, existing_rules=context.rules)
+        MATCH (n:WorldRule)-[:VIOLATES]-(c:Constraint)
+        WHERE n.app_id IN $rule_ids AND n.novel_id = $novel_id
+        RETURN n, c, c.description as reason
+    """, rule_ids=content.rules, novel_id=context.novel_id, existing_rules=context.rules)
     
     for conflict in rule_conflicts:
         errors.append(Error(level=3, type="规则冲突",
@@ -766,11 +772,12 @@ def consistency_check(content, context, neo4j_client):
 ### 9.2 评分算法
 
 ```python
-def calculate_quality_score(content, embeddings_model):
-    """量化评分算法，所有指标有明确计算口径"""
+def calculate_quality_score(content, qwen_embedding_service):
+    """量化评分算法（基于ADR-002: Qwen3-Embedding）"""
     
     # 1. 高概念强度: 独特性+吸引力+记忆度
     def evaluate_concept_strength(content):
+        # 使用Qwen3-Embedding 768维向量计算独特性
         uniqueness = 1 - cosine_similarity(content.embedding, 
                                           existing_concepts_embeddings).max()
         hook_score = len(content.hook) / 30  # 钟子简洁度
@@ -779,8 +786,14 @@ def calculate_quality_score(content, embeddings_model):
     
     # 2. 新颖度: 与现有作品的语义距离
     def evaluate_novelty(content):
-        # 使用向量嵌入计算与知识库的最小相似度
-        similarities = embeddings_model.similarity_search(content.embedding, top_k=100)
+        # 使用Qwen3-Embedding通过Milvus向量库进行相似度搜索
+        # API endpoint: http://192.168.1.191:11434/api/embed
+        similarities = qwen_embedding_service.similarity_search(
+            content.embedding,  # 768维向量
+            collection="novel_concepts",
+            metric="COSINE",  # ADR-002指定的度量方式
+            top_k=100
+        )
         novelty_score = 1 - np.mean(similarities)  # 平均不相似度
         return min(10, novelty_score * 10)
     
@@ -835,33 +848,43 @@ def calculate_quality_score(content, embeddings_model):
 - **Stage 4（情节）**: 总分≥7.0
 - **Stage 5（细节）**: 一致性≥9.0
 
-## 10. 版本控制策略
+## 10. 版本控制策略（基于ADR-004）
 
-### 10.1 版本树结构
+### 10.1 版本树结构（DAG版本图）
 
 ```
 main (主线)
-├── v1.0 (Stage 0 locked)
-│   ├── v1.1 (Stage 1 locked)
-│   │   ├── v1.1.1 (Stage 2 working)
-│   │   └── v1.1.2-branch (探索分支)
-│   └── v1.2-branch (备选主题分支)
-└── checkpoint-20240901 (检查点快照)
+├── v1.0 (Stage 0 locked) [Snapshot in MinIO]
+│   ├── v1.1 (Stage 1 locked) [Delta in PostgreSQL]
+│   │   ├── v1.1.1 (Stage 2 working) [Delta]
+│   │   └── v1.1.2-branch (探索分支) [Delta]
+│   └── v1.2-branch (备选主题分支) [Delta]
+└── checkpoint-20240901 (检查点快照) [Snapshot]
 ```
 
-### 10.2 分支策略
+### 10.2 分支策略（ADR-004实现）
 
-- **主线(main)**: 当前工作版本
-- **探索分支(exploration)**: 尝试不同方向
-- **检查点(checkpoint)**: 定期自动快照
-- **发布版本(release)**: 完成的创世版本
+- **主线(main)**: 当前工作版本，HEAD版本ID存储在`branches`表
+- **探索分支(exploration)**: 尝试不同方向，支持CAS更新
+- **检查点(checkpoint)**: 定期自动快照存储在MinIO
+- **发布版本(release)**: 完成的创世版本（快照）
 
-### 10.3 合并规则
+### 10.3 存储策略
 
-1. **自动合并**: 无冲突内容直接合并
+- **快照存储**: MinIO对象存储，使用SHA256内容寻址
+  - 路径格式: `/snapshots/{project_id}/{hash[:2]}/{hash}`
+  - 压缩算法: zstd
+- **增量存储**: PostgreSQL `content_deltas`表
+  - 补丁格式: DMP (Diff-Match-Patch) 或 JSON Patch
+  - JSON Pointer路径: `/chapters/5/content`
+
+### 10.4 合并规则（三路合并）
+
+1. **自动合并**: 无冲突内容直接合并（章节粒度）
 2. **手动解决**: 冲突内容需用户选择
 3. **智能建议**: AI提供合并方案建议
 4. **验证检查**: 合并后自动一致性校验
+5. **CAS保证**: 使用预期HEAD防止并发冲突
 
 ## 11. 可追踪性矩阵
 
@@ -964,28 +987,77 @@ Feature: 创意种子生成
 
 | ADR ID | 标题 | 状态 | 决策方案 | 文档链接 |
 |--------|------|------|----------|---------|
-| ADR-001 | 对话状态管理方案 | Proposed | Redis Session + PostgreSQL持久化 | [查看详情](./adr/20250904-dialogue-state-management.md) |
-| ADR-002 | 向量嵌入模型选择 | Proposed | BGE-M3本地部署 | [查看详情](./adr/20250904-vector-embedding-model.md) |
+| ADR-001 | 对话状态管理方案 | **Accepted** | 通用会话管理 + Redis缓存 + PostgreSQL持久化 | [查看详情](./adr/20250904-dialogue-state-management.md) |
+| ADR-002 | 向量嵌入模型选择 | **Accepted** | Qwen3-Embedding 0.6B自托管(Ollama) | [查看详情](./adr/20250904-vector-embedding-model.md) |
 | ADR-003 | 提示词模板管理 | Proposed | 集中式模板仓库+版本化 | [查看详情](./adr/20250904-prompt-template-management.md) |
-| ADR-004 | 内容版本控制实现 | Proposed | 快照+增量混合方案 | [查看详情](./adr/20250904-content-version-control.md) |
-| ADR-005 | 知识图谱Schema设计 | Proposed | 层级+网状混合模型 | [查看详情](./adr/20250904-knowledge-graph-schema.md) |
-| ADR-006 | 批量任务调度策略 | Proposed | Prefect+Kafka+优先级队列 | [查看详情](./adr/20250904-batch-task-scheduling.md) |
+| ADR-004 | 内容版本控制实现 | **Accepted** | 快照(MinIO) + 增量(PostgreSQL)混合方案 | [查看详情](./adr/20250904-content-version-control.md) |
+| ADR-005 | 知识图谱Schema设计 | **Accepted** | 层级+网状混合模型，8维度角色设计 | [查看详情](./adr/20250904-knowledge-graph-schema.md) |
+| ADR-006 | 批量任务调度策略 | **Accepted** | Prefect编排+Outbox→Kafka+Redis优先级队列 | [查看详情](./adr/20250904-batch-task-scheduling.md) |
 
 ### 14.3 ADR实施计划
 
-#### Phase 1: MVP核心（Week 1）
-- **ADR-001**: 对话状态管理 - 支撑多轮对话的基础设施
-- **ADR-003**: 提示词模板管理 - AI交互的核心管理
-- **ADR-006**: 批量任务调度 - 批量生成功能的基础
+#### Phase 1: MVP核心（已完成架构设计）
+- **ADR-001** ✅ **[Accepted]**: 对话状态管理 - 通用会话架构，支持多轮对话和状态持久化
+  - 实现`conversation_sessions`和`conversation_rounds`表
+  - Redis缓存层（写透策略）
+  - 支持乐观并发控制
+- **ADR-003** 🔄 **[Proposed]**: 提示词模板管理 - AI交互的核心管理（待决策）
+- **ADR-006** ✅ **[Accepted]**: 批量任务调度 - Prefect编排+Outbox模式
+  - 事务性发件箱保证可靠投递
+  - Redis优先级队列（ZSET + 老化机制）
+  - Token Bucket限流（Lua脚本）
+  - 首批响应≤2秒，全量≤5秒
 
-#### Phase 2: 质量提升（Week 2）
-- **ADR-002**: 向量嵌入模型 - 提升语义检索质量
-- **ADR-005**: 知识图谱Schema - 管理复杂关系网络
+#### Phase 2: 质量提升（已完成架构设计）
+- **ADR-002** ✅ **[Accepted]**: 向量嵌入模型 - Qwen3-Embedding 0.6B本地部署
+  - Ollama API集成：`http://192.168.1.191:11434/api/embed`
+  - Milvus向量库配置（HNSW索引，COSINE相似度）
+  - 768维向量，支持8192 tokens输入
+- **ADR-005** ✅ **[Accepted]**: 知识图谱Schema - 层级+网络混合模型
+  - Neo4j节点类型：Novel、Character(8维度)、Location、Chapter、Scene等
+  - 关系类型：RELATES_TO(-10到+10强度)、PARTICIPATES_IN、TRIGGERS等
+  - 支持10万+节点、50万+关系
 
-#### Phase 3: 完善功能（Week 3+）
-- **ADR-004**: 内容版本控制 - 支持历史回溯和分支管理
+#### Phase 3: 完善功能（已完成架构设计）
+- **ADR-004** ✅ **[Accepted]**: 内容版本控制 - 快照+增量混合方案
+  - MinIO存储快照（内容寻址）
+  - PostgreSQL存储增量（DMP/JSON Patch）
+  - 支持DAG版本图和三路合并
+  - CAS更新保证分支一致性
+
+#### 实施说明
+- ✅ **Accepted**: 架构决策已确定，可立即实施
+- 🔄 **Proposed**: 待进一步评审和决策
+- 所有Accepted的ADR已更新相应的schema定义于`apps/backend/src/schemas/novel/`
 
 详细的ADR文档请参考 [ADR目录](./adr/README.md)
+
+### 14.4 数据库迁移需求（基于已接受的ADR）
+
+#### PostgreSQL表创建
+- **ADR-001 对话管理**: `conversation_sessions`, `conversation_rounds`
+- **ADR-004 版本控制**: `content_versions`, `content_version_parents`, `content_deltas`, `branches`
+- **ADR-006 批量调度**: `event_outbox`, `flow_resume_handles`
+
+#### PostgreSQL表删除
+- `genesis_sessions` (被`conversation_sessions`替代)
+
+#### Neo4j图数据库（ADR-005）
+- 节点类型: Novel, Character(8维度), Location, Chapter, Scene, Event等
+- 关系类型: RELATES_TO, PARTICIPATES_IN, TRIGGERS, AFFECTS等
+- 约束: 所有节点`app_id`唯一，按`novel_id`隔离
+
+#### Milvus向量库（ADR-002）
+- 集合: `novel_embeddings`
+- 维度: 768 (Qwen3-Embedding)
+- 索引: HNSW (M=32, efConstruction=200)
+- 度量: COSINE
+
+#### Redis缓存键（ADR-001, ADR-006）
+- 对话: `dialogue:session:{session_id}` (TTL 30天)
+- 版本: `version:content:{version_id}`
+- 任务队列: `q:genesis:detail_batch` (ZSET)
+- 限流: `ratelimit:{bucket_key}` (Token Bucket)
 
 ## 15. 风险与缓解措施
 

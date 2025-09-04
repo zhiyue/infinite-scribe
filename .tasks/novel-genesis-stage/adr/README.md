@@ -16,12 +16,12 @@
 
 | ID | 标题 | 状态 | 相关需求 | 决策要点 | 更新日期 |
 |----|------|------|----------|----------|----------|
-| [ADR-001](./20250904-dialogue-state-management.md) | 对话状态管理方案 | Proposed | FR-001/002/003/004/005/009, NFR-001/002 | Redis Session + PostgreSQL持久化 | 2025-09-04 |
-| [ADR-002](./20250904-vector-embedding-model.md) | 向量嵌入模型选择 | Proposed | FR-008, NFR-001/003/005 | BGE-M3本地部署方案 | 2025-09-04 |
+| [ADR-001](./20250904-dialogue-state-management.md) | 对话状态管理方案 | **Accepted** | FR-001/002/003/004/005/009, NFR-001/002 | 通用会话架构 + Redis缓存 + PostgreSQL持久化 | 2025-09-04 |
+| [ADR-002](./20250904-vector-embedding-model.md) | 向量嵌入模型选择 | **Accepted** | FR-008, NFR-001/003/005 | Qwen3-Embedding 0.6B自托管(Ollama) | 2025-09-04 |
 | [ADR-003](./20250904-prompt-template-management.md) | 提示词模板管理 | Proposed | FR-001至006, NFR-005 | 集中式模板仓库+版本化 | 2025-09-04 |
-| [ADR-004](./20250904-content-version-control.md) | 内容版本控制实现 | Proposed | FR-007/009, NFR-002/004 | 快照+增量混合方案 | 2025-09-04 |
-| [ADR-005](./20250904-knowledge-graph-schema.md) | 知识图谱Schema设计 | Proposed | FR-003/004/008, NFR-003 | 层级+网状混合模型 | 2025-09-04 |
-| [ADR-006](./20250904-batch-task-scheduling.md) | 批量任务调度策略 | Proposed | FR-006, NFR-001/003 | Prefect+Kafka+优先级队列 | 2025-09-04 |
+| [ADR-004](./20250904-content-version-control.md) | 内容版本控制实现 | **Accepted** | FR-007/009, NFR-002/004 | 快照(MinIO) + 增量(PostgreSQL)混合方案 | 2025-09-04 |
+| [ADR-005](./20250904-knowledge-graph-schema.md) | 知识图谱Schema设计 | **Accepted** | FR-003/004/008, NFR-003 | 层级+网状混合模型，8维度角色设计 | 2025-09-04 |
+| [ADR-006](./20250904-batch-task-scheduling.md) | 批量任务调度策略 | **Accepted** | FR-006, NFR-001/003 | Prefect编排+Outbox→Kafka+Redis优先级队列 | 2025-09-04 |
 
 ## 决策流程
 
@@ -66,27 +66,27 @@ graph LR
 - **对象存储**: MinIO
 - **AI接口**: LiteLLM
 
-### ADR确定的方案
-1. **对话状态**: Redis（快速访问） + PostgreSQL（持久化）
-2. **向量模型**: BGE-M3（中文优化，本地部署）
-3. **提示词管理**: Git仓库 + Jinja2模板 + 热更新
-4. **版本控制**: 快照 + 增量差异存储
-5. **知识图谱**: Neo4j混合模型（层级+网状）
-6. **批量调度**: Prefect编排 + Kafka分发 + Redis优先级队列
+### ADR确定的方案（5个已接受，1个待定）
+1. **对话状态** ✅ [Accepted]: 通用会话架构 + Redis缓存（写透） + PostgreSQL持久化
+2. **向量模型** ✅ [Accepted]: Qwen3-Embedding 0.6B（768维，Ollama API）
+3. **提示词管理** 🔄 [Proposed]: Git仓库 + Jinja2模板 + 热更新
+4. **版本控制** ✅ [Accepted]: MinIO快照（内容寻址） + PostgreSQL增量（DMP/JSON Patch）
+5. **知识图谱** ✅ [Accepted]: Neo4j混合模型（层级+网状，8维度角色设计）
+6. **批量调度** ✅ [Accepted]: Prefect编排 + Outbox模式 + Kafka分发 + Redis优先级队列
 
 ## 实施优先级
 
 ### Phase 1: MVP核心（Week 1）
-- ✅ ADR-001: 对话状态管理 - **必需**，支撑多轮对话
-- ✅ ADR-003: 提示词模板管理 - **必需**，管理AI交互
-- ✅ ADR-006: 批量任务调度 - **必需**，支持批量生成
+- ✅ ADR-001: 对话状态管理 - **[Accepted]** 支撑多轮对话，schemas已生成
+- 🔄 ADR-003: 提示词模板管理 - **[Proposed]** 管理AI交互，待决策
+- ✅ ADR-006: 批量任务调度 - **[Accepted]** 支持批量生成，Prefect+Outbox实现
 
 ### Phase 2: 质量提升（Week 2）
-- ⏳ ADR-002: 向量嵌入模型 - 提升检索质量
-- ⏳ ADR-005: 知识图谱Schema - 管理复杂关系
+- ✅ ADR-002: 向量嵌入模型 - **[Accepted]** Qwen3-Embedding集成完成
+- ✅ ADR-005: 知识图谱Schema - **[Accepted]** Neo4j模型设计完成
 
 ### Phase 3: 完善功能（Week 3+）
-- ⏳ ADR-004: 内容版本控制 - 支持历史回溯
+- ✅ ADR-004: 内容版本控制 - **[Accepted]** 快照+增量方案确定
 
 ## 风险与缓解
 

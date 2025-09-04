@@ -1,7 +1,7 @@
 ---
 id: ADR-006-batch-task-scheduling
 title: 批量任务调度策略
-status: Proposed
+status: Accepted
 date: 2025-09-04
 decision_makers: [platform-arch, devops-lead]
 related_requirements: [FR-006, NFR-001, NFR-003]
@@ -11,675 +11,369 @@ superseded_by: null
 tags: [architecture, scheduling, performance, scalability]
 ---
 
-# 批量任务调度策略
+# 批量任务调度策略（与 docs/architecture 对齐）
 
 ## Status
-Proposed
+
+Accepted
 
 ## Context
 
 ### Business Context
-根据PRD中的批量细节生成需求：
-- 相关用户故事：STORY-006（AI批量生成细节）
-- 业务价值：批量生成地名、人名、物品等细节，大幅提高内容生成效率
-- 业务约束：需要在5秒内生成10-50个高质量项目，支持风格控制
 
-### Technical Context
-基于现有架构：
-- 当前架构：
-  - Prefect作为工作流编排器
-  - Kafka作为事件总线
-  - 多Agent微服务架构
-- 现有技术栈：Python、FastAPI、Prefect、Kafka、Redis
-- 现有约定：所有任务通过事件驱动，异步执行
-- 集成点：需要与Agent服务、LLM调用、结果存储集成
+根据 PRD 的“批量细节生成”需求：
+
+- 相关用户故事：STORY-006（AI 批量生成细节）
+- 业务价值：批量生成地名、人名、物品等细节，大幅提高内容生成效率
+- 业务约束：需在 5 秒内返回 10–50 个高质量项目，支持风格控制
+
+### Technical Context（与 docs/architecture 对齐）
+
+- 事件驱动微服务：FastAPI(API 网关) + Prefect(编排) +
+  Kafka(事件总线)；业务事实持久化在 PostgreSQL。
+- 事务性发件箱（Transactional Outbox）与 Message
+  Relay：所有对 Kafka 的发布先写入 `event_outbox`，由 Relay 可靠投递。
+- Prefect 暂停/恢复：通过回调句柄（`flow_resume_handles` +
+  Redis 缓存），由 Callback Service 基于结果事件唤醒 Flow（无忙等轮询）。
+- Agents：统一继承
+  `BaseAgent`，采用“至少一次”语义（手动提交 offset、DLT、指数退避重试与错误分类钩子），通过 Registry 以 canonical
+  id 注册；生产者默认 `acks=all`、`enable_idempotence=true`。
+- Redis：仅用于“优先级与限流”的短暂调度结构及回调句柄缓存；领域事件以数据库为单一真相源。
+- LLM：经由 LiteLLM；观测采用 Langfuse/Prometheus；前端通过 SSE 订阅进度与结果。
 
 ### Requirements Driving This Decision
+
 - FR-006: 批量生成引擎
-  - 单批10-50个项目
-  - 生成时间<5秒
+  - 单批 10–50 个项目
+  - P95 首批可用结果 ≤ 2 秒；全量补齐 ≤ 5 秒
   - 支持去重（相似度阈值）
-- NFR-001: 并发批量任务≥20个
-- NFR-003: 系统需要支持水平扩展
+- NFR-001: 并发批量任务 ≥ 20 个
+- NFR-003: 系统支持水平扩展
 
 ### Constraints
-- 技术约束：LLM API有速率限制
-- 业务约束：需要保证生成质量，避免重复
-- 成本约束：需要优化API调用次数，控制成本
+
+- 技术约束：LLM API 速率与并发配额（需速率限制与背压）。
+- 一致性约束：跨服务通信遵循 Outbox + 事件溯源；消费者“至少一次”。
+- 业务约束：生成质量与去重；需“快速首响”（First Response）。
+- 成本约束：减少 LLM 调用次数，控制 token 消耗。
 
 ## Decision Drivers
-- **吞吐量**：支持大批量并发生成
-- **响应时间**：满足5秒内完成的要求
-- **资源利用**：充分利用计算资源
-- **优先级控制**：支持不同优先级的任务
-- **容错性**：任务失败不影响其他任务
+
+- 吞吐量：支持大批量并发生成
+- 响应时间：满足“快速首响 + 全量补齐”目标
+- 资源利用：充分利用计算与配额
+- 优先级控制：支持不同优先级与老化（aging）
+- 容错性：失败隔离、DLT 与可观测性
 
 ## Considered Options
 
-### Option 1: Prefect编排 + Kafka分发 + 优先级队列（推荐）
-- **描述**：使用Prefect编排批量任务流程，Kafka进行任务分发，Redis实现优先级队列
-- **与现有架构的一致性**：高 - 充分利用现有组件
-- **实现复杂度**：中
-- **优点**：
-  - 利用现有基础设施
-  - Prefect提供可视化和监控
-  - Kafka保证任务不丢失
-  - 支持优先级和速率限制
-  - 易于水平扩展
-- **缺点**：
-  - 需要协调多个组件
-  - 延迟可能略高
-- **风险**：组件间协调复杂
+### Option 1: Prefect 编排 + Outbox→Kafka 分发 + Redis 优先级队列（推荐）
 
-### Option 2: Celery任务队列
-- **描述**：使用Celery作为分布式任务队列
-- **与现有架构的一致性**：低 - 引入新组件
-- **实现复杂度**：低
-- **优点**：
-  - 成熟的任务队列方案
-  - 内置重试和错误处理
-  - 支持多种调度策略
-- **缺点**：
-  - 与现有Prefect重复
-  - 需要额外的消息队列（RabbitMQ）
-  - 增加运维复杂度
-- **风险**：架构不一致
+- 描述：使用 Prefect 编排批量流程，子任务入队时写入 PostgreSQL
+  `event_outbox`，由 Message
+  Relay 发布到 Kafka；Redis 提供“优先级 + 老化(aging)”的短暂队列；Callback
+  Service 基于结果事件唤醒 Flow（Pause/Resume），无主动轮询。
+- 与现有架构一致性：高（完全对齐 docs/architecture）
+- 实现复杂度：中
+- 优点：
+  - 对齐 Outbox/回调唤醒；消除直连 Kafka 与忙等。
+  - Prefect 可视化 + 暂停/恢复；结果由事件触发。
+  - Kafka/Agents 路径具备“至少一次”与 DLT 保障。
+  - 支持优先级、老化、限流与背压；易水平扩展。
+- 缺点：
+  - 需协调 DB/Relay/Redis/Kafka/Prefect/Callback 多组件。
+  - 首次集成复杂度高于直连实现。
+- 风险：组件间协调复杂
+
+### Option 2: Celery 任务队列
+
+- 描述：使用 Celery 作为分布式任务队列
+- 与现有架构一致性：低（引入新组件，与 Prefect 重叠）
+- 实现复杂度：低
+- 优点：成熟方案，内置重试/错误处理
+- 缺点：引入 RabbitMQ/Redis；与现有编排重复；运维复杂
+- 风险：架构不一致
 
 ### Option 3: 简单线程池
-- **描述**：使用Python的ThreadPoolExecutor
-- **与现有架构的一致性**：低 - 不符合分布式架构
-- **实现复杂度**：低
-- **优点**：
-  - 实现简单
-  - 无额外依赖
-  - 低延迟
-- **缺点**：
-  - 不支持分布式
-  - 缺少监控和管理
-  - 单点故障
-- **风险**：无法扩展，不适合生产
+
+- 描述：Python ThreadPoolExecutor
+- 一致性：低（不符合分布式）
+- 优点：实现简单、低延迟；缺点：无监控、不可扩展、单点
 
 ### Option 4: Kubernetes Job + CronJob
-- **描述**：使用K8s原生的任务调度
-- **与现有架构的一致性**：中
-- **实现复杂度**：高
-- **优点**：
-  - 云原生方案
-  - 自动扩缩容
-  - 资源隔离
-- **缺点**：
-  - 需要K8s环境
-  - 调度粒度较粗
-  - MVP时间紧张
-- **风险**：过度工程化
+
+- 描述：K8s 原生任务调度
+- 一致性：中；实现复杂度：高；风险：过度工程化（MVP 不宜）
 
 ## Decision
-建议采用 **Option 1: Prefect编排 + Kafka分发 + 优先级队列**
+
+采用 **Option 1: Prefect 编排 + Outbox→Kafka 分发 + Redis 优先级队列**。
 
 理由：
-1. 最大化利用现有基础设施
-2. 符合事件驱动架构
-3. 支持复杂的调度策略
-4. 易于监控和调试
-5. 可以渐进式优化
+
+1. 最大化复用现有基础设施
+2. 完全符合 Outbox、暂停/恢复 与 领域事件命名规范
+3. 支持优先级、老化、限流与背压等调度策略
+4. Prefect + Metrics + SSE 提供端到端可观察性
+5. 可按“快速首响 + 增量补齐”策略渐进优化
 
 ## Consequences
 
 ### Positive
-- 统一的任务管理平台
-- 可视化的执行流程
-- 可靠的任务分发
-- 灵活的优先级控制
-- 良好的可扩展性
+
+- 统一任务管理与观测（Prefect + Prometheus + SSE）
+- 可靠任务分发（Outbox + Kafka）
+- 灵活优先级与限流策略
+- 水平扩展能力强
 
 ### Negative
-- 系统复杂度增加
-- 需要维护多个组件
-- 可能有轻微的延迟开销
+
+- 系统组件增多，集成复杂度上升
+- 需要维护 Redis 脚本与优先级公平性策略
 
 ### Risks
-- **风险1：任务堆积**
-  - 缓解：实施背压和限流机制
-- **风险2：优先级饿死**
-  - 缓解：使用公平调度算法
+
+- 风险1：任务堆积
+  - 缓解：限流与背压，动态调节并发，分批派发
+- 风险2：优先级饿死
+  - 缓解：分层队列 + 老化（aging）或加权轮询（WRR）
+- 风险3：5 秒内全量完成不可达
+  - 缓解：定义“首批可用(First
+    Response) + 后台补齐”的交付语义，并以 SSE 实时推送进度
 
 ## Implementation Plan
 
 ### Integration with Existing Architecture
-- **代码位置**：
-  - 调度器：`apps/backend/src/core/scheduler/`
-  - 任务定义：`apps/backend/src/tasks/batch/`
-  - 队列管理：`apps/backend/src/infrastructure/queue/`
-- **模块边界**：
-  - BatchScheduler: 批量任务调度器
-  - TaskQueue: 优先级队列实现
-  - RateLimiter: 速率限制器
-  - TaskExecutor: 任务执行器
-- **依赖管理**：使用现有的Prefect、Kafka、Redis客户端
 
-### Implementation Design
+- 代码位置（建议）：
+  - 调度与队列：`apps/backend/src/services/scheduling/`（`batch_scheduler.py`,
+    `priority_queue.py`, `rate_limiter.py`）
+  - Outbox 访问：`apps/backend/src/services/outbox/`（若无则内聚于 scheduling 模块）
+  - 执行侧 Agent：复用 `worldbuilder` 与 `character_expert`（按 Registry/别名映射注册）
+- 模块边界：
+  - BatchScheduler（Prefect Flow + 调度 API，仅写入 Outbox，不直连 Kafka）
+  - PriorityQueue（Redis ZSET + Aging）
+  - RateLimiter（Redis + Lua Token Bucket）
+  - 执行代理：由 `worldbuilder` 或 `character_expert` 消费请求并产出结果领域事件
+- 关键契约：
+  - 事件命名与 Envelope 遵循 docs/architecture（见下）
+  - Outbox +
+    Relay 保障可靠投递，消费者手动提交 offset；DLT 后缀与重试对齐全局配置
+
+### Event Model & Naming（严格遵循事件命名规范）
+
+- 请求事件：`Genesis.Session.DetailBatchGenerationRequested`
+  - `aggregate_type=GenesisSession`，`aggregate_id=session_id`
+  - `payload`: `{ session_id, task_id, type, count, style, priority }`
+  - `correlation_id`: 来自 API 网关命令 ID（因果链路）
+- 结果事件：`Genesis.Session.DetailBatchCreated`
+  - `payload`: `{ session_id, task_id, items: [...] }`
+  - 由 Agent 产出，经 Outbox 发布
+
+### Implementation Design（伪代码：Prefect/Outbox/回调唤醒）
+
 ```python
-# apps/backend/src/core/scheduler/batch_scheduler.py
-from prefect import flow, task, get_run_logger
-from prefect.tasks import task_input_hash
-from typing import List, Dict, Any
-import asyncio
+# apps/backend/src/services/scheduling/batch_scheduler.py
+from typing import Any, Dict, List
 from datetime import timedelta
+from prefect import flow, task, get_run_logger
 
-class BatchTaskScheduler:
-    """批量任务调度器"""
-    
-    def __init__(
-        self,
-        kafka_producer,
-        redis_client,
-        rate_limiter
-    ):
-        self.kafka = kafka_producer
-        self.redis = redis_client
-        self.rate_limiter = rate_limiter
-        self.logger = get_run_logger()
-    
-    @flow(name="batch_generation_flow")
-    async def schedule_batch_generation(
-        self,
-        task_type: str,  # 地名、人名、物品等
-        count: int,
-        style: Dict[str, Any],
-        priority: int = 5  # 1-10，10最高
-    ) -> List[Dict[str, Any]]:
-        """批量生成任务的主流程"""
-        
-        # 1. 任务分解
-        subtasks = await self.decompose_task(task_type, count, style)
-        
-        # 2. 优先级队列入队
-        task_ids = await self.enqueue_tasks(subtasks, priority)
-        
-        # 3. 分发任务到Kafka
-        await self.distribute_tasks(task_ids)
-        
-        # 4. 等待结果（带超时）
-        results = await self.wait_for_results(task_ids, timeout=5)
-        
-        # 5. 去重和后处理
-        final_results = await self.post_process(results, task_type)
-        
-        return final_results
-    
-    @task(cache_key_fn=task_input_hash, cache_expiration=timedelta(hours=1))
-    async def decompose_task(
-        self,
-        task_type: str,
-        count: int,
-        style: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """任务分解策略"""
-        
-        # 批大小优化（平衡API调用和并发）
-        optimal_batch_size = self._calculate_batch_size(task_type, count)
-        
-        subtasks = []
-        for i in range(0, count, optimal_batch_size):
-            batch_count = min(optimal_batch_size, count - i)
-            subtask = {
-                "id": f"{task_type}_{i}_{batch_count}",
-                "type": task_type,
-                "count": batch_count,
-                "style": style,
-                "batch_index": i // optimal_batch_size
-            }
-            subtasks.append(subtask)
-        
-        return subtasks
-    
-    def _calculate_batch_size(self, task_type: str, total_count: int) -> int:
-        """计算最优批大小"""
-        # 基于任务类型的经验值
-        batch_sizes = {
-            "character_name": 10,  # 人名一次生成10个
-            "location_name": 15,    # 地名一次生成15个
-            "item": 8,              # 物品一次生成8个
-            "skill": 5,             # 技能复杂，一次5个
-            "organization": 5       # 组织一次5个
-        }
-        
-        base_size = batch_sizes.get(task_type, 10)
-        
-        # 根据总数调整
-        if total_count < base_size:
-            return total_count
-        elif total_count > base_size * 10:
-            return base_size * 2  # 大批量时增加批大小
-        else:
-            return base_size
-    
-    async def enqueue_tasks(
-        self,
-        subtasks: List[Dict[str, Any]],
-        priority: int
-    ) -> List[str]:
-        """将任务加入优先级队列"""
-        
-        task_ids = []
-        
-        for subtask in subtasks:
-            task_id = subtask["id"]
-            
-            # 存储任务详情
-            await self.redis.hset(
-                f"task:{task_id}",
-                mapping={
-                    "data": json.dumps(subtask),
-                    "status": "pending",
-                    "priority": priority,
-                    "created_at": datetime.utcnow().isoformat()
-                }
-            )
-            
-            # 加入优先级队列（使用sorted set）
-            score = self._calculate_priority_score(priority)
-            await self.redis.zadd(
-                "task:queue:batch_generation",
-                {task_id: score}
-            )
-            
-            task_ids.append(task_id)
-        
-        return task_ids
-    
-    def _calculate_priority_score(self, priority: int) -> float:
-        """计算优先级分数（考虑优先级和时间）"""
-        # 分数越小优先级越高
-        # 格式：(10-priority)*10000000 + timestamp
-        return (10 - priority) * 10000000 + time.time()
-    
-    async def distribute_tasks(self, task_ids: List[str]):
-        """分发任务到Kafka"""
-        
-        for task_id in task_ids:
-            # 速率限制
-            await self.rate_limiter.acquire()
-            
-            # 发送到Kafka
-            event = {
-                "event_type": "BatchGeneration.Requested",
-                "task_id": task_id,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            await self.kafka.send_and_wait(
-                "generation-tasks",
-                value=json.dumps(event).encode('utf-8'),
-                key=task_id.encode('utf-8')
-            )
-            
-            # 更新任务状态
-            await self.redis.hset(f"task:{task_id}", "status", "dispatched")
-    
-    @task(retries=3, retry_delay_seconds=1)
-    async def wait_for_results(
-        self,
-        task_ids: List[str],
-        timeout: int = 5
-    ) -> List[Dict[str, Any]]:
-        """等待并收集结果"""
-        
-        results = []
-        start_time = time.time()
-        
-        while len(results) < len(task_ids):
-            # 检查超时
-            if time.time() - start_time > timeout:
-                self.logger.warning(
-                    f"Timeout waiting for results. Got {len(results)}/{len(task_ids)}"
-                )
-                break
-            
-            # 批量检查任务状态
-            for task_id in task_ids:
-                if task_id in [r["task_id"] for r in results]:
-                    continue  # 已收集
-                
-                task_data = await self.redis.hgetall(f"task:{task_id}")
-                
-                if task_data.get("status") == "completed":
-                    result = json.loads(task_data.get("result", "{}"))
-                    results.append({
-                        "task_id": task_id,
-                        "result": result
-                    })
-                elif task_data.get("status") == "failed":
-                    self.logger.error(f"Task {task_id} failed")
-                    # 可以选择重试或跳过
-            
-            await asyncio.sleep(0.1)  # 避免忙等待
-        
-        return results
-    
-    @task
-    async def post_process(
-        self,
-        results: List[Dict[str, Any]],
-        task_type: str
-    ) -> List[Dict[str, Any]]:
-        """后处理：去重、验证、格式化"""
-        
-        all_items = []
-        
-        # 合并所有结果
-        for result in results:
-            items = result.get("result", {}).get("items", [])
-            all_items.extend(items)
-        
-        # 去重（基于相似度）
-        unique_items = await self._deduplicate(all_items, task_type)
-        
-        # 验证和格式化
-        validated_items = await self._validate_items(unique_items, task_type)
-        
-        return validated_items
-    
-    async def _deduplicate(
-        self,
-        items: List[Dict[str, Any]],
-        task_type: str
-    ) -> List[Dict[str, Any]]:
-        """基于相似度去重"""
-        
-        # 获取去重阈值
-        thresholds = {
-            "character_name": 1.0,     # 人名完全不重复
-            "location_name": 0.8,      # 地名相似度<0.8
-            "item": 0.7,              # 物品相似度<0.7
-            "skill": 0.7,
-            "organization": 0.6
-        }
-        
-        threshold = thresholds.get(task_type, 0.7)
-        
-        unique_items = []
-        seen_embeddings = []
-        
-        for item in items:
-            # 计算嵌入（假设有嵌入服务）
-            embedding = await self.get_embedding(item.get("name", ""))
-            
-            # 检查相似度
-            is_unique = True
-            for seen_emb in seen_embeddings:
-                similarity = self._cosine_similarity(embedding, seen_emb)
-                if similarity > threshold:
-                    is_unique = False
-                    break
-            
-            if is_unique:
-                unique_items.append(item)
-                seen_embeddings.append(embedding)
-        
-        return unique_items
+@task(cache_expiration=timedelta(hours=1))
+def calculate_batch_size(task_type: str, total_count: int) -> int:
+    batch_sizes = {"character_name": 20, "location_name": 20, "item": 16, "skill": 10, "organization": 10}
+    base = batch_sizes.get(task_type, 20)
+    if total_count <= base: return total_count
+    if total_count > base * 8: return min(base * 2, 50)
+    return base
+
+@task
+def decompose_subtasks(task_type: str, count: int, style: Dict[str, Any]) -> List[Dict[str, Any]]:
+    size = calculate_batch_size.fn(task_type, count)
+    subs: List[Dict[str, Any]] = []
+    for i in range(0, count, size):
+        subs.append({"subtask_id": f"{task_type}:{i}:{min(size, count - i)}", "type": task_type, "count": min(size, count - i), "style": style, "batch_index": i // size})
+    return subs
+
+@task
+def enqueue_priority(redis, subtasks: List[Dict[str, Any]], priority: int) -> List[str]:
+    # ZSET 分数：优先级(大权重) + 时间(aging)
+    # score = (10 - priority) * 1e12 + current_ms
+    import time, json
+    now_ms = int(time.time() * 1000)
+    ids: List[str] = []
+    for s in subtasks:
+        tid = s["subtask_id"]; ids.append(tid)
+        redis.hset(f"task:{tid}", mapping={"data": json.dumps(s), "status": "pending", "priority": priority})
+        score = (10 - priority) * 10**12 + now_ms
+        redis.zadd("q:genesis:detail_batch", {tid: score})
+    return ids
+
+@task
+def dispatch_via_outbox(db, redis, rate_limiter, queue_name: str, correlation_id: str) -> int:
+    # 原子 zpopmin 出队（生产实现用 Lua），令牌桶限流，写入 Outbox
+    import json
+    n = 0
+    while True:
+        item = redis.execute_command("ZPOPMIN", queue_name, 1)
+        if not item: break
+        task_id = item[0][0].decode("utf-8") if isinstance(item[0][0], bytes) else item[0][0]
+        rate_limiter.acquire(1)  # Lua 令牌桶
+        data = json.loads(redis.hget(f"task:{task_id}", "data"))
+        db.insert_outbox(
+            event_type="Genesis.Session.DetailBatchGenerationRequested",
+            aggregate_type="GenesisSession",
+            aggregate_id=data.get("session_id"),
+            correlation_id=correlation_id,
+            payload={"task_id": task_id, **data},
+        )
+        redis.hset(f"task:{task_id}", "status", "dispatched")
+        n += 1
+    return n
+
+@task
+def register_resume_handle(db, redis, correlation_id: str, expect: List[str]) -> str:
+    handle = db.create_resume_handle(correlation_id=correlation_id, expect_types=expect)
+    redis.setex(f"resume:{correlation_id}", 3600, handle)
+    return handle
+
+@flow(name="genesis_detail_batch_flow")
+def schedule_detail_batch(db, redis, rate_limiter, session_id: str, task_type: str, count: int, style: Dict[str, Any], priority: int = 5) -> None:
+    log = get_run_logger()
+    subtasks = decompose_subtasks(task_type, count, style)
+    ids = enqueue_priority(redis, subtasks, priority)
+    expect = ["Genesis.Session.DetailBatchCreated"]
+    correlation_id = db.current_command_id()  # API 网关命令 ID
+    handle = register_resume_handle(db, redis, correlation_id, expect)
+    dispatched = dispatch_via_outbox(db, redis, rate_limiter, "q:genesis:detail_batch", correlation_id)
+    log.info(f"dispatched={dispatched}, handle={handle}, first_response_target=<=5s")
+    # 暂停等待 Callback Service 基于结果事件唤醒
+    prefect.runtime.pause(handle=handle)
 ```
 
-### Task Executor Implementation
+### Post-processing（去重/校验）
+
 ```python
-# apps/backend/src/tasks/batch/executor.py
-from aiokafka import AIOKafkaConsumer
-import asyncio
-
-class BatchTaskExecutor:
-    """批量任务执行器（Agent端）"""
-    
-    def __init__(self, llm_client, redis_client):
-        self.llm = llm_client
-        self.redis = redis_client
-        self.consumer = None
-    
-    async def start(self):
-        """启动任务消费者"""
-        self.consumer = AIOKafkaConsumer(
-            'generation-tasks',
-            bootstrap_servers=['localhost:9092'],
-            group_id='batch_generation_group'
-        )
-        
-        await self.consumer.start()
-        
-        try:
-            async for msg in self.consumer:
-                asyncio.create_task(self.process_task(msg))
-        finally:
-            await self.consumer.stop()
-    
-    async def process_task(self, message):
-        """处理单个批量生成任务"""
-        
-        event = json.loads(message.value)
-        task_id = event['task_id']
-        
-        try:
-            # 获取任务详情
-            task_data = await self.redis.hget(f"task:{task_id}", "data")
-            task = json.loads(task_data)
-            
-            # 更新状态
-            await self.redis.hset(f"task:{task_id}", "status", "processing")
-            
-            # 执行生成
-            result = await self.generate_batch(
-                task['type'],
-                task['count'],
-                task['style']
-            )
-            
-            # 存储结果
-            await self.redis.hset(
-                f"task:{task_id}",
-                mapping={
-                    "status": "completed",
-                    "result": json.dumps(result),
-                    "completed_at": datetime.utcnow().isoformat()
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"Task {task_id} failed: {e}")
-            await self.redis.hset(
-                f"task:{task_id}",
-                mapping={
-                    "status": "failed",
-                    "error": str(e)
-                }
-            )
-    
-    async def generate_batch(
-        self,
-        item_type: str,
-        count: int,
-        style: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """调用LLM生成批量内容"""
-        
-        # 构建提示词
-        prompt = self._build_prompt(item_type, count, style)
-        
-        # 调用LLM
-        response = await self.llm.generate(
-            prompt=prompt,
-            temperature=0.8,  # 增加多样性
-            max_tokens=count * 100  # 根据数量调整
-        )
-        
-        # 解析结果
-        items = self._parse_response(response, item_type)
-        
-        return {"items": items}
+def post_process(items: List[dict], task_type: str) -> List[dict]:
+    # 1) 精确去重（名称规范化）
+    seen, uniq = set(), []
+    for x in items:
+        key = (x.get("name", "").strip().lower())
+        if key and key not in seen:
+            seen.add(key); uniq.append(x)
+    # 2) 相似度去重（高阈值 0.92–0.97，视类型配置）
+    return uniq
 ```
 
-### Rate Limiting and Priority Management
-```python
-# apps/backend/src/infrastructure/queue/rate_limiter.py
-import asyncio
-from datetime import datetime, timedelta
+### Task Executor Implementation（复用既有 Agents）
 
-class TokenBucketRateLimiter:
-    """令牌桶速率限制器"""
-    
-    def __init__(
-        self,
-        rate: int,  # 每秒生成的令牌数
-        capacity: int,  # 桶容量
-        redis_client
-    ):
-        self.rate = rate
-        self.capacity = capacity
-        self.redis = redis_client
-        self.key = "rate_limiter:tokens"
-    
-    async def acquire(self, tokens: int = 1) -> bool:
-        """获取令牌"""
-        while True:
-            # 更新令牌数
-            await self._refill()
-            
-            # 尝试获取
-            current = await self.redis.get(self.key)
-            current = float(current) if current else self.capacity
-            
-            if current >= tokens:
-                # 扣除令牌
-                await self.redis.set(self.key, current - tokens)
-                return True
-            
-            # 等待令牌
-            wait_time = (tokens - current) / self.rate
-            await asyncio.sleep(wait_time)
-    
-    async def _refill(self):
-        """补充令牌"""
-        last_refill = await self.redis.get(f"{self.key}:last_refill")
-        now = datetime.utcnow()
-        
-        if last_refill:
-            last_refill = datetime.fromisoformat(last_refill)
-            elapsed = (now - last_refill).total_seconds()
-            
-            # 计算新增令牌
-            new_tokens = elapsed * self.rate
-            
-            # 更新令牌数（不超过容量）
-            current = await self.redis.get(self.key)
-            current = float(current) if current else 0
-            new_total = min(current + new_tokens, self.capacity)
-            
-            await self.redis.set(self.key, new_total)
-        
-        await self.redis.set(
-            f"{self.key}:last_refill",
-            now.isoformat()
-        )
+- 路由策略（按 `task_type`）：
+  - `character_name` → 由 `character_expert` 处理
+  - `location_name`/`item`/`organization`/`skill` → 由 `worldbuilder` 处理
+- Registry/别名：在 `agent_config.AGENT_ALIASES` 中确保 `"character_expert"→"characterexpert"`（已存在）与 `"world_builder"→"worldbuilder"` 映射；按需在各包 `__init__.py` 中注册。
+- 事件：
+  - 消费 `Genesis.Session.DetailBatchGenerationRequested`
+  - 产出 `Genesis.Session.DetailBatchCreated`（保持 `correlation_id` 与 `retries`）
 
-class PriorityQueueManager:
-    """优先级队列管理器"""
-    
-    def __init__(self, redis_client):
-        self.redis = redis_client
-    
-    async def get_next_task(self, queue_name: str) -> Optional[str]:
-        """获取下一个任务（最高优先级）"""
-        
-        # 从sorted set中获取分数最低的（优先级最高）
-        result = await self.redis.zpopmin(queue_name, 1)
-        
-        if result:
-            task_id, score = result[0]
-            return task_id.decode('utf-8')
-        
-        return None
-    
-    async def requeue_task(self, queue_name: str, task_id: str, priority: int):
-        """重新入队（用于失败重试）"""
-        
-        # 降低优先级
-        new_priority = max(1, priority - 1)
-        score = self._calculate_priority_score(new_priority)
-        
-        await self.redis.zadd(queue_name, {task_id: score})
+### Rate Limiting and Priority Management（Redis + Lua）
+
+```lua
+-- 原子令牌桶（Lua），多进程安全
+-- KEYS[1] = bucket key; ARGV = rate, capacity, now_ms, need
+local key = KEYS[1]
+local rate = tonumber(ARGV[1])
+local capacity = tonumber(ARGV[2])
+local now_ms = tonumber(ARGV[3])
+local need = tonumber(ARGV[4])
+
+local last_ts = tonumber(redis.call('HGET', key, 'ts') or 0)
+local tokens = tonumber(redis.call('HGET', key, 'tokens') or capacity)
+if last_ts == 0 then last_ts = now_ms end
+
+local elapsed = math.max(0, now_ms - last_ts) / 1000.0
+tokens = math.min(capacity, tokens + elapsed * rate)
+
+if tokens >= need then
+  tokens = tokens - need
+  redis.call('HSET', key, 'tokens', tokens, 'ts', now_ms)
+  redis.call('PEXPIRE', key, 60000)
+  return 1
+else
+  redis.call('HSET', key, 'tokens', tokens, 'ts', now_ms)
+  redis.call('PEXPIRE', key, 60000)
+  return 0
+end
 ```
+
+备注：优先级 ZSET 采用
+`score = (10-priority)*1e12 + current_ms`，保证优先级先于时间；时间提供老化，避免饥饿。
 
 ### Monitoring and Metrics
+
 ```python
-# 监控指标
 class BatchSchedulerMetrics:
-    """批量调度器监控"""
-    
     def __init__(self, prometheus_client):
         self.prom = prometheus_client
-        
-        # 定义指标
-        self.task_counter = Counter(
-            'batch_tasks_total',
-            'Total batch tasks',
-            ['type', 'status']
-        )
-        
-        self.task_duration = Histogram(
-            'batch_task_duration_seconds',
-            'Task execution duration',
-            ['type']
-        )
-        
-        self.queue_size = Gauge(
-            'batch_queue_size',
-            'Current queue size',
-            ['priority']
-        )
-    
+        self.task_counter = Counter('batch_tasks_total', 'Total batch tasks', ['type', 'status'])
+        self.task_duration = Histogram('batch_task_duration_seconds', 'Task execution duration', ['type'])
+        self.queue_size = Gauge('batch_queue_size', 'Current queue size', ['priority'])
+        self.first_response = Histogram('batch_first_response_seconds', 'First usable items latency', ['type'])
+
     async def record_task(self, task_type: str, status: str, duration: float):
-        """记录任务指标"""
         self.task_counter.labels(type=task_type, status=status).inc()
         self.task_duration.labels(type=task_type).observe(duration)
 ```
 
 ### Rollback Plan
-- **触发条件**：吞吐量不足或系统过于复杂
-- **回滚步骤**：
-  1. 停止新任务提交
-  2. 等待现有任务完成
-  3. 切换到简单的线程池模式
+
+- 触发条件：吞吐量不足或集成复杂度不可控
+- 回滚步骤：
+  1. 冻结新任务入队
+  2. Drain 现有队列
+  3. 降级为“单次大批量 LLM 调用 + 直接返回首批”的简化路径（减少子任务与分发）
   4. 逐步优化后再切换回来
-- **数据恢复**：Kafka保证消息不丢失
+- 数据恢复：Outbox + Kafka 保证消息不丢失；Redis 队列仅作临时结构（可丢弃）
 
 ## Validation
 
 ### Alignment with Existing Patterns
-- **架构一致性检查**：完全符合事件驱动架构
-- **代码审查重点**：
-  - 任务分解逻辑
-  - 优先级算法
-  - 错误处理和重试
+
+- 完全对齐 docs/architecture 的 Outbox、暂停/恢复、事件命名、Agent 语义
+- 代码审查重点：
+  - 任务分解与批大小策略
+  - 优先级权重与老化计算
+  - 限流与背压（Lua 令牌桶）
+  - 错误处理/重试/DLT 与 Envelope（correlation/causation）
 
 ### Metrics
-- **性能指标**：
-  - 任务调度延迟：P95 < 100ms
-  - 批量生成时间：P95 < 5秒（10-50项）
-  - 任务吞吐量：> 100 tasks/秒
-  - 队列延迟：P95 < 500ms
-- **可靠性指标**：
-  - 任务成功率：> 99%
-  - 重试成功率：> 95%
+
+- 性能：
+  - 首批可用结果（First Response）：P95 ≤ 2s（10–25 项）
+  - 全量补齐：P95 ≤ 5s（10–50 项，视模型/配额）
+  - 出队→Outbox 延迟：P95 < 100ms；队列延迟：P95 < 500ms
+- 可靠性：
+  - 任务成功率：> 99%；重试成功率：> 95%
+  - DLT 率：< 0.1%（按天）
 
 ### Test Strategy
-- **单元测试**：任务分解、优先级计算
-- **集成测试**：端到端的批量生成流程
-- **性能测试**：大批量任务的处理能力
-- **压力测试**：队列堆积和背压处理
-- **故障测试**：Agent故障时的恢复
+
+- 单元：批大小、优先级打分/Lua 令牌桶、去重阈值
+- 集成：本地 Redpanda + Redis +
+  PostgreSQL，端到端验证 Outbox→Kafka→Callback 恢复
+- 性能：并发 20 批规模压测；SLO 验证（首响与全量）
+- 压力：队列堆积、限流触发与老化效果
+- 故障：Agent 故障/429/超时，DLT 与重试
+- 超时：遵循仓库测试超时规范（单测 5–10s、集成 30–60s）
 
 ## References
-- [Prefect文档](https://docs.prefect.io/)
-- [Kafka最佳实践](https://kafka.apache.org/documentation/#bestpractices)
-- [Redis Sorted Sets](https://redis.io/docs/data-types/sorted-sets/)
-- [Token Bucket算法](https://en.wikipedia.org/wiki/Token_bucket)
+
+- Prefect 文档: https://docs.prefect.io/
+- Kafka 最佳实践: https://kafka.apache.org/documentation/#bestpractices
+- Redis Sorted Sets: https://redis.io/docs/data-types/sorted-sets/
+- Token Bucket 算法: https://en.wikipedia.org/wiki/Token_bucket
+- docs/architecture: High Level Architecture, Components, Core Workflows, Event
+  Naming Conventions, Error Handling Strategy, Tech Stack
 
 ## Changelog
+
 - 2025-09-04: 初始草稿创建
+- 2025-09-04: 修订以对齐 docs/architecture（Outbox、暂停/恢复、BaseAgent、事件命名、Redis 仅作调度）
