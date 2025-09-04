@@ -7,7 +7,6 @@
 4. 在 __init__.py 中导出 Agent 类
 """
 
-import asyncio
 import logging
 from typing import Any
 
@@ -19,12 +18,17 @@ logger = logging.getLogger(__name__)
 class TemplateAgent(BaseAgent):
     """Agent 模板类 - 请修改为具体的 Agent 描述"""
 
-    def __init__(self, name: str):
-        super().__init__(name)
-        self.is_running = False
+    def __init__(self):
+        # 配置消费/生产主题
+        consume_topics: list[str] = [
+            # "example.request",
+        ]
+        produce_topics: list[str] = [
+            # "example.response",
+        ]
+        super().__init__(name="template", consume_topics=consume_topics, produce_topics=produce_topics)
 
-        # TODO: 初始化 agent 特定的配置和资源
-        # 例如:模型配置、数据库连接、缓存等
+        # TODO: 初始化 agent 特定的配置和资源（模型、数据库、缓存等）
 
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any]:
         """处理消息
@@ -58,42 +62,10 @@ class TemplateAgent(BaseAgent):
         # TODO: 实现具体的处理逻辑
         return {"status": "success", "agent": self.name, "result": "处理完成"}
 
-    async def start(self):
-        """启动 Agent"""
-        logger.info(f"启动 {self.name} agent")
-        self.is_running = True
+    async def on_start(self):
+        """启动时的初始化（可选）"""
+        logger.info(f"{self.name} 初始化完成")
 
-        try:
-            # TODO: 初始化连接
-            # await self._connect_to_message_queue()
-            # await self._subscribe_to_topics()
-
-            # 主循环
-            while self.is_running:
-                # TODO: 实现消息获取和处理
-                # message = await self._get_next_message()
-                # if message:
-                #     result = await self.process_message(message)
-                #     await self._send_result(result)
-
-                # 临时:模拟工作
-                await asyncio.sleep(1)
-
-        except Exception as e:
-            logger.error(f"{self.name} agent 运行出错: {e}", exc_info=True)
-        finally:
-            await self._cleanup()
-            logger.info(f"{self.name} agent 已停止")
-
-    async def stop(self):
-        """停止 Agent"""
-        logger.info(f"正在停止 {self.name} agent")
-        self.is_running = False
-
-    async def _cleanup(self):
-        """清理资源"""
-        # TODO: 实现资源清理
-        # - 断开连接
-        # - 保存状态
-        # - 释放资源
-        pass
+    async def on_stop(self):
+        """停止时的清理（可选）"""
+        logger.info(f"{self.name} 资源清理完成")

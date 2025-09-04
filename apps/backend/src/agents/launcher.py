@@ -5,7 +5,8 @@ import importlib
 import logging
 import signal
 import sys
-from typing import Any
+from collections.abc import Callable
+from typing import Any, cast
 
 from ..agents.base import BaseAgent
 from .agent_config import AGENT_PRIORITY, AGENT_TOPICS
@@ -17,8 +18,6 @@ class AgentsLoadError(Exception):
     pass
 
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # 从配置中获取所有可用的 agents
@@ -31,6 +30,7 @@ class AgentLauncher:
     def __init__(self):
         self.agents: dict[str, BaseAgent] = {}
         self.running = False
+        self._signal_cleanup: Callable[[], None] | None = None
 
     def load_agent(self, agent_name: str) -> BaseAgent | None:
         """动态加载指定的 agent"""
@@ -39,16 +39,28 @@ class AgentLauncher:
             try:
                 module = importlib.import_module(f"..agents.{agent_name}", package=__name__)
 
-                # 查找 Agent 类(约定类名为 AgentNameAgent)
-                agent_class_name = f"{agent_name.capitalize()}Agent"
-                # Dynamic import: allow unknown constructor signature for concrete agents
-                agent_class: type[Any] | None = getattr(module, agent_class_name, None)
+                # 生成候选类名，兼容 snake_case 和单词形式
+                def snake_to_pascal(name: str) -> str:
+                    return "".join(part.capitalize() for part in name.split("_"))
 
-                if agent_class:
+                candidates = [
+                    f"{snake_to_pascal(agent_name)}Agent",
+                    f"{agent_name.capitalize()}Agent",
+                ]
+
+                agent_class: type[Any] | None = None
+                for cls_name in candidates:
+                    agent_class = getattr(module, cls_name, None)
+                    if agent_class is not None:
+                        break
+
+                if agent_class and issubclass(agent_class, BaseAgent):
                     # 创建 agent 实例
-                    agent_instance = agent_class()
+                    agent_instance = cast(Any, agent_class)()
                     logger.info(f"成功加载 agent: {agent_name}")
                     return agent_instance
+                elif agent_class is not None:
+                    logger.error(f"模块 {agent_name} 中的类不是 BaseAgent 子类，忽略: {agent_class}")
             except (ImportError, AttributeError):
                 pass
 
@@ -110,7 +122,7 @@ class AgentLauncher:
     async def start_all(self) -> None:
         """启动所有已加载的 agents"""
         self.running = True
-        tasks = []
+        tasks: list[asyncio.Task[Any]] = []
 
         for name, agent in self.agents.items():
             logger.info(f"启动 agent: {name}")
@@ -122,17 +134,22 @@ class AgentLauncher:
             await asyncio.gather(*tasks)
         except Exception as e:
             logger.error(f"启动 agents 时出错: {e}")
+            # 取消任务并确保收敛
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             await self.stop_all()
 
     async def stop_all(self) -> None:
         """停止所有运行中的 agents"""
         self.running = False
-        tasks = []
+        tasks: list[asyncio.Task[Any]] = []
 
         for name, agent in self.agents.items():
-            logger.info(f"停止 agent: {name}")
-            task = asyncio.create_task(agent.stop())
-            tasks.append(task)
+            if agent.is_running or agent.consumer or agent.producer:
+                logger.info(f"停止 agent: {name}")
+                task = asyncio.create_task(agent.stop())
+                tasks.append(task)
 
         # 等待所有 agents 停止
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -148,15 +165,39 @@ class AgentLauncher:
             logger.info("Signal handlers disabled - managed by external orchestrator")
             return
 
-        def signal_handler(sig, frame):
-            logger.info(f"收到信号 {sig},正在停止 agents...")
-            task = asyncio.create_task(self.stop_all())
-            # 任务会在事件循环中运行，不需要等待
-            _ = task
+        # 复用统一信号处理工具，避免与外层 orchestrator 冲突
+        try:
+            from src.launcher.signal_utils import register_shutdown_handler
 
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-        logger.info("Agent signal handlers registered: SIGINT,SIGTERM")
+            async def on_shutdown() -> None:
+                logger.info("收到终止信号，准备停止所有 agents ...")
+                await self.stop_all()
+
+            cleanup = register_shutdown_handler(on_shutdown)
+            self._signal_cleanup = cleanup
+            logger.info("Agent signal handlers registered via signal_utils")
+        except Exception as e:
+            # 回退到基本信号处理（不建议，但确保最小可用性）
+            logger.warning(f"信号工具注册失败，回退到基础 signal 处理: {e}")
+
+            def signal_handler(sig, frame):
+                logger.info(f"收到信号 {sig},正在停止 agents...")
+                task = asyncio.create_task(self.stop_all())
+                _ = task
+
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+            logger.info("Agent signal handlers registered: SIGINT,SIGTERM (fallback)")
+
+    def cleanup_signal_handlers(self) -> None:
+        """清理注册的信号处理器（用于测试或自管理时）"""
+        try:
+            if self._signal_cleanup is not None:
+                self._signal_cleanup()
+                self._signal_cleanup = None
+                logger.info("Agent signal handlers cleaned up")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup signal handlers: {e}")
 
 
 async def main(agent_names: list[str] | None = None):

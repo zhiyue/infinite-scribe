@@ -1,5 +1,6 @@
 """Base Agent class for all agent services."""
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -28,10 +29,11 @@ class BaseAgent(ABC):
 
         # 运行状态
         self.is_running = False
+        self._stopping = False
 
-        # Kafka 配置
-        self.kafka_bootstrap_servers = getattr(settings, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-        self.kafka_group_id = f"{self.name}-agent-group"
+        # Kafka 配置（遵循统一 Settings）
+        self.kafka_bootstrap_servers = self.config.kafka_bootstrap_servers
+        self.kafka_group_id = f"{self.config.kafka_group_id_prefix}-{self.name}-agent-group"
 
     @abstractmethod
     async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
@@ -47,12 +49,16 @@ class BaseAgent(ABC):
 
     async def _create_consumer(self) -> AIOKafkaConsumer:
         """创建 Kafka 消费者"""
+        if not self.consume_topics:
+            logger.warning(f"{self.name} 未配置消费主题，跳过 Kafka consumer 创建（idle 模式）")
+            raise RuntimeError("No consume topics configured")
+
         consumer = AIOKafkaConsumer(
             *self.consume_topics,
             bootstrap_servers=self.kafka_bootstrap_servers,
             group_id=self.kafka_group_id,
             value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-            auto_offset_reset="earliest",
+            auto_offset_reset=self.config.kafka_auto_offset_reset,
             enable_auto_commit=True,
         )
         await consumer.start()
@@ -127,20 +133,34 @@ class BaseAgent(ABC):
         """启动 agent 服务"""
         logger.info(f"正在启动 {self.name} agent")
         self.is_running = True
+        self._stopping = False
 
         try:
-            # 创建 Kafka 消费者
-            self.consumer = await self._create_consumer()
+            # 当未配置消费主题时，进入 idle 循环，避免任务立即退出
+            if not self.consume_topics:
+                logger.info(f"{self.name} 处于 idle 模式（无消费主题）")
+                # 如果需要发送消息,创建生产者
+                if self.produce_topics:
+                    self.producer = await self._create_producer()
 
-            # 如果需要发送消息,创建生产者
-            if self.produce_topics:
-                self.producer = await self._create_producer()
+                await self.on_start()
 
-            # 调用子类的启动钩子
-            await self.on_start()
+                # Idle 循环，等待 stop 信号
+                while self.is_running:
+                    await asyncio.sleep(1)
+            else:
+                # 创建 Kafka 消费者
+                self.consumer = await self._create_consumer()
 
-            # 开始消费消息
-            await self._consume_messages()
+                # 如果需要发送消息,创建生产者
+                if self.produce_topics:
+                    self.producer = await self._create_producer()
+
+                # 调用子类的启动钩子
+                await self.on_start()
+
+                # 开始消费消息
+                await self._consume_messages()
 
         except Exception as e:
             logger.error(f"{self.name} agent 启动失败: {e}", exc_info=True)
@@ -150,6 +170,10 @@ class BaseAgent(ABC):
 
     async def stop(self):
         """停止 agent 服务"""
+        if self._stopping:
+            logger.debug(f"{self.name} stop 已在进行中，跳过重复调用")
+            return
+        self._stopping = True
         logger.info(f"正在停止 {self.name} agent")
         self.is_running = False
 
