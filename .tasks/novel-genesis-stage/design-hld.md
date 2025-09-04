@@ -29,7 +29,7 @@
 | NFR-001 | 首token响应<3秒，批量生成<5秒 | SSE推送，滑动窗口限流（P2：Token Bucket），Redis缓存 | 负载测试，监控P95延迟 |
 | NFR-002 | 月度可用性≥99.5%              | 服务冗余，自动重启，故障转移                         | 监控告警，定期演练    |
 | NFR-003 | 水平扩展，2分钟内完成         | 容器化部署，Kubernetes编排                           | 自动扩缩容测试        |
-| NFR-004 | JWT认证，TLS加密              | RBAC权限控制，字段级加密                             | 安全审计，渗透测试    |
+| NFR-004 | JWT认证，TLS加密              | P1: 基础JWT+管理员检查; P2: 完整RBAC权限控制         | 安全审计，渗透测试    |
 | NFR-005 | AI采纳率≥70%                  | 多维质量评分系统（详见质量评分体系章节），阶段差异化阈值 | 实时监控，事件分析   |
 | NFR-006 | FCP<1.5秒，TTI<3秒            | React代码分割，CDN加速                               | Lighthouse性能测试    |
 | NFR-007 | 监控100%覆盖                  | Langfuse观测，结构化日志                             | 监控大盘，日志分析    |
@@ -43,7 +43,7 @@
 | ADR-002 | 向量嵌入模型   | Qwen3-Embedding 0.6B   | 相似度搜索，质量评分 |
 | ADR-004 | 内容版本控制   | 快照+增量混合方案      | 版本管理，分支合并   |
 | ADR-005 | 知识图谱Schema | 层级+网状混合模型      | 世界观管理，人物关系 |
-| ADR-006 | 批量任务调度   | Prefect+Outbox模式     | 细节生成，任务编排   |
+| ADR-006 | 批量任务调度   | P1: Outbox模式; P2: Prefect编排 | 细节生成，任务编排   |
 
 ## 系统架构
 
@@ -95,7 +95,7 @@ C4Container
     ContainerDb(milvus, "Milvus", "向量数据库", "语义搜索")
     ContainerDb(redis, "Redis", "缓存", "会话缓存")
     ContainerQueue(kafka, "Kafka", "事件总线", "异步消息传递")
-    Container(prefect, "Prefect", "工作流引擎", "任务编排调度")
+    Container(prefect, "Prefect (P2)", "工作流引擎", "任务编排调度")
     Container(storage, "对象存储", "MinIO/S3", "快照与大文件存储")
 
     Rel(web, api, "HTTPS/REST, SSE")
@@ -104,8 +104,8 @@ C4Container
 
     Rel(postgres, kafka, "Outbox发送")
     Rel(orchestrator, kafka, "消费领域事件")
-    Rel(orchestrator, prefect, "任务调度")
-    Rel(prefect, kafka, "发布能力任务")
+    Rel(orchestrator, prefect, "任务调度 (P2)")
+    Rel(prefect, kafka, "发布能力任务 (P2)")
 
     Rel(outliner, kafka, "消费/发布事件")
     Rel(worldbuilder, kafka, "消费/发布事件")
@@ -150,8 +150,8 @@ C4Container
 2. **中央协调者（Orchestrator）**：
    - 消费领域事件（`genesis.session.events`）
    - 根据业务规则和当前阶段决定需要调用的Agent
-   - 通过Prefect编排复杂工作流
-   - 发布任务事件到对应Agent的task topic
+   - P1: 直接发布任务事件到Agent的task topic
+   - P2: 通过Prefect编排复杂工作流（暂停/恢复/分支/回调）
 
 3. **EventBridge（Kafka→SSE桥接）**：
    - 消费 `genesis.session.events` 领域事件
@@ -172,12 +172,22 @@ C4Container
 
 5. **事件流转机制**：
 
+   **P1实现（当前）**：
    ```
    用户请求 → API网关(含会话服务) → PostgreSQL(Outbox)
-   → Kafka(领域事件) → 中央协调者 → Prefect任务编排
-   → Kafka(能力任务) → 专门Agent → Kafka(结果事件)
-   → 中央协调者 → Kafka(领域事件) → EventBridge
-   → Redis(SSE事件) → API(SSE推送) → 用户
+   → Kafka(领域事件) → 中央协调者 → Kafka(能力任务)
+   → 专门Agent → Kafka(结果事件) → 中央协调者 
+   → Kafka(领域事件) → EventBridge → Redis(SSE事件) 
+   → API(SSE推送) → 用户
+   ```
+
+   **P2扩展（规划）**：
+   ```
+   在P1基础上，中央协调者通过Prefect实现：
+   - 复杂工作流编排
+   - 任务暂停/恢复
+   - 条件分支处理
+   - 失败补偿回调
    ```
 
 6. **优势**：
@@ -223,8 +233,10 @@ graph LR
 说明（对齐 core-workflows 与 ADR）：
 
 - 创世开始（Genesis.Session.Started）即创建 Novel 记录（status=GENESIS）以获取 novel_id；conversation_sessions.scope_type=GENESIS，scope_id=novel_id。
-- 所有领域事件（请求/结果）统一落地 Outbox 并发布到 Kafka，由 Prefect 编排暂停/恢复驱动后续步骤（详见 docs/architecture/core-workflows.md）。
-- Agent 处理遵循“至少一次 + 指数退避 + DLT”策略；分区 key 统一使用 `session_id`
+- 所有领域事件（请求/结果）统一落地 Outbox 并发布到 Kafka。
+- P1阶段：Orchestrator直接消费事件并分发任务，无需Prefect。
+- P2阶段：引入Prefect编排暂停/恢复驱动后续步骤（详见 docs/architecture/core-workflows.md）。
+- Agent 处理遵循"至少一次 + 指数退避 + DLT"策略；分区 key 统一使用 `session_id`
   保序。
 
 ### 控制流设计
@@ -286,7 +298,7 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 | Agents→Kafka       | 事件消费/发布 | JSON Envelope | 50 msgs/s per agent |
 | Agents→LLM         | HTTPS         | JSON          | 50 QPS total        |
 | Agents→Knowledge   | 同步调用      | JSON          | 200 QPS             |
-| Prefect→Kafka      | 任务编排      | JSON          | 100 msgs/s          |
+| Prefect→Kafka (P2) | 任务编排      | JSON          | 100 msgs/s          |
 
 ### SSE 细节（实现对齐）
 
@@ -358,7 +370,9 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 - **水平扩展**：所有Agent服务无状态设计，支持Kubernetes HPA独立扩展
 - **缓存策略**：Redis写透缓存，30天TTL
 - **数据分片**：按novel_id分片，支持多租户隔离
-- **异步处理**：批量任务通过Prefect+Kafka解耦
+- **异步处理**：
+  - P1: 通过Outbox+Kafka解耦
+  - P2: 增加Prefect编排复杂工作流
 - **Agent扩展**：每个Agent可根据负载独立扩展副本数
 
 ## 质量评分体系
@@ -865,7 +879,7 @@ auto_fix_strategies:
 | 向量搜索 | Milvus + Qwen3                                            | 自托管，低成本     | ADR-002 |
 | 知识图谱 | Neo4j                                                     | 复杂关系管理       | ADR-005 |
 | 版本控制 | MinIO + PostgreSQL                                        | 快照+增量          | ADR-004 |
-| 任务调度 | Prefect + Kafka                                           | 可靠编排           | ADR-006 |
+| 任务调度 | P1: Outbox+Kafka; P2: Prefect                            | 可靠编排           | ADR-006 |
 | 事件总线 | Kafka                                                     | 高吞吐，持久化     | 已确定  |
 
 ### 架构决策依据
@@ -905,7 +919,9 @@ auto_fix_strategies:
 
 ### 安全架构
 
-- **认证与授权**：JWT令牌（24小时）+ 刷新令牌（30天），RBAC权限模型
+- **认证与授权**：
+  - P1：基础JWT令牌（24小时）+ 管理员检查
+  - P2：完整RBAC权限模型 + 刷新令牌（30天）
 - **数据保护**：
   - 传输加密：TLS 1.3
   - 存储加密：字段级加密（敏感数据）
@@ -1594,7 +1610,27 @@ collection_schema = {
 
 ## 批量任务调度（基于ADR-006）
 
-### Prefect工作流定义
+### P1实现：基于Outbox的简单调度
+
+```python
+class BatchDetailGenerator:
+    """P1: 批量细节生成（无Prefect）"""
+    
+    async def generate_details(self, novel_id: str, categories: List[str], style: str):
+        """通过Agent直接处理批量任务"""
+        # 发布到Outbox
+        await self.publish_to_outbox({
+            "event_type": "Genesis.Session.Details.Requested",
+            "novel_id": novel_id,
+            "categories": categories,
+            "style": style
+        })
+        
+        # Detail Generator Agent会消费任务并处理
+        # 完成后发布 Genesis.Session.Details.Generated 事件
+```
+
+### P2扩展：Prefect工作流编排
 
 ```python
 from prefect import flow, task
@@ -1621,12 +1657,12 @@ async def detail_generation_flow(
     categories: List[str],
     style: str
 ):
-    """细节生成工作流"""
-    # 发布到Outbox
-    await publish_to_outbox({
-        "event_type": "Genesis.Session.Details.Requested",
-        "novel_id": novel_id
-    })
+    """P2: 复杂工作流编排
+    - 支持暂停/恢复
+    - 支持条件分支
+    - 支持并行处理
+    - 支持失败补偿
+    """
 
     # 并行生成各类细节
     futures = []
@@ -1654,6 +1690,35 @@ async def detail_generation_flow(
 - 当前（P1）：滑动窗口限流（Redis 存储请求时间戳窗口），已通过中间件应用于关键端点。
 - 规划（P2）：迁移至 Redis Lua 令牌桶（Token
   Bucket）以获得更平滑的限速与更好的峰值控制。
+
+## P1/P2实施边界说明
+
+### P1阶段（当前实施）
+- **核心功能**：API + Agents + Kafka + Outbox
+- **认证授权**：基础JWT + 管理员检查
+- **任务调度**：Outbox + Kafka直接分发
+- **限流策略**：滑动窗口
+- **事件流程**：Orchestrator直接消费和分发
+
+### P2阶段（规划扩展）
+- **工作流编排**：引入Prefect（暂停/恢复/分支/回调）
+- **认证授权**：完整RBAC权限模型
+- **任务调度**：Prefect复杂工作流
+- **限流策略**：Redis Lua Token Bucket
+- **请求签名**：API请求签名验证
+
+### 实施优先级
+1. **立即实施（P1）**：
+   - 基于Outbox的事件驱动
+   - Agent直接消费Kafka任务
+   - 基础JWT认证
+   - 滑动窗口限流
+
+2. **后续扩展（P2）**：
+   - Prefect工作流编排
+   - RBAC权限体系
+   - Token Bucket限流
+   - 复杂的失败补偿机制
 
 ## 交付物
 
