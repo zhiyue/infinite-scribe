@@ -160,6 +160,20 @@ C4Container
    - 按 user_id/session_id 维度路由事件
    - 调用 `RedisSSEService.publish_event` 推送到Redis
    - 维护 Last-Event-ID 序列保证事件顺序
+   
+   **回压与故障语义**：
+   - **Redis不可用时的策略**：
+     - 首选：继续消费Kafka但丢弃SSE推送（仅影响UI实时性）
+     - 记录丢弃计数到Prometheus指标
+     - 触发告警（阈值：连续失败超过100条或持续1分钟）
+   - **熔断条件**：
+     - Redis连接失败率 > 50%（10秒窗口）时触发熔断
+     - 熔断期间：暂停Kafka消费，避免消息堆积
+     - 半开状态：每30秒尝试恢复一次
+   - **重要说明**：
+     - **EventBridge仅影响UI实时性，不影响事务一致性**
+     - 所有业务事实已通过Outbox持久化到PostgreSQL
+     - SSE推送失败不会导致数据丢失或状态不一致
 
 4. **专门化Agent服务**：
    - **Outliner Agent**：负责大纲和高概念生成（Stage 0, 4）
@@ -433,14 +447,148 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 ### SSE 细节（实现对齐）
 
 #### 连接管理
-- 并发限制：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）。
-- 心跳与超时：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理。
-- 重连语义：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）。
-- 健康检查：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503。
-- 响应头：`Cache-Control: no-cache`、`Connection: keep-alive`。
-- 鉴权：`POST /api/v1/auth/sse-token` 获取短时效
-  `sse_token`（默认 60s），`GET /api/v1/events/stream?sse_token=...` 建立连接。
-- SLO 口径：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时。
+- **并发限制**：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）。
+- **心跳与超时**：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理。
+- **重连语义**：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）。
+- **健康检查**：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503。
+- **响应头**：`Cache-Control: no-cache`、`Connection: keep-alive`。
+- **鉴权**：`POST /api/v1/auth/sse-token` 获取短时效 `sse_token`（**默认 TTL=60秒**），`GET /api/v1/events/stream?sse_token=...` 建立连接。
+- **SLO 口径**：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时。
+
+#### SSE历史窗口与保留策略
+
+##### Redis Stream配置
+```yaml
+历史事件保留:
+  stream_maxlen: 1000           # XADD maxlen ≈ 1000（默认值）
+  stream_ttl: 3600              # 1小时后自动清理
+  user_history_limit: 100       # 每用户保留最近100条
+  
+回放策略:
+  初次连接:
+    max_events: 20              # 仅回放最近20条
+    time_window: 300            # 或最近5分钟内的事件
+  
+  重连场景:
+    from_last_event_id: true    # 从Last-Event-ID开始全量补发
+    batch_size: 50              # 每批发送50条
+    max_backfill: 500           # 最多补发500条
+    timeout_ms: 5000            # 补发超时时间
+```
+
+##### 裁剪策略
+- **Stream裁剪**：使用 `XADD ... MAXLEN ~` 近似裁剪，避免精确裁剪的性能开销
+- **定期清理**：每小时清理超过TTL的历史记录
+- **用户隔离**：按 `user_id:session_id` 维度独立管理历史
+
+#### SSE Token管理与续签策略
+
+##### Token生命周期
+```yaml
+token_config:
+  default_ttl: 60           # 默认60秒有效期
+  max_ttl: 300             # 最长5分钟（用于长连接）
+  refresh_window: 15       # 过期前15秒可续签
+  
+签发流程:
+  1. POST /api/v1/auth/sse-token
+     - 验证JWT主令牌有效性
+     - 生成短时效SSE令牌
+     - 返回: {token, expires_in: 60}
+  
+  2. GET /api/v1/events/stream?sse_token=xxx
+     - 验证SSE令牌
+     - 建立SSE连接
+     - 开始推送事件流
+```
+
+##### 客户端续签策略
+```javascript
+// 前端续签示例时序
+class SSETokenManager {
+  constructor() {
+    this.token = null;
+    this.expiresAt = null;
+    this.refreshTimer = null;
+  }
+  
+  async connect() {
+    // 1. 获取初始token
+    const tokenData = await fetch('/api/v1/auth/sse-token', {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${mainJWT}`}
+    }).then(r => r.json());
+    
+    this.token = tokenData.token;
+    this.expiresAt = Date.now() + (tokenData.expires_in * 1000);
+    
+    // 2. 建立SSE连接
+    this.eventSource = new EventSource(
+      `/api/v1/events/stream?sse_token=${this.token}`
+    );
+    
+    // 3. 设置自动续签（提前15秒）
+    this.scheduleRefresh();
+  }
+  
+  scheduleRefresh() {
+    const refreshTime = this.expiresAt - Date.now() - 15000; // 提前15秒
+    this.refreshTimer = setTimeout(() => this.refresh(), refreshTime);
+  }
+  
+  async refresh() {
+    try {
+      // 4. 获取新token
+      const newTokenData = await fetch('/api/v1/auth/sse-token', {
+        method: 'POST',
+        headers: {'Authorization': `Bearer ${mainJWT}`}
+      }).then(r => r.json());
+      
+      // 5. 无缝切换连接
+      const oldEventSource = this.eventSource;
+      this.token = newTokenData.token;
+      this.expiresAt = Date.now() + (newTokenData.expires_in * 1000);
+      
+      // 6. 创建新连接（带Last-Event-ID）
+      this.eventSource = new EventSource(
+        `/api/v1/events/stream?sse_token=${this.token}`,
+        {headers: {'Last-Event-ID': this.lastEventId}}
+      );
+      
+      // 7. 关闭旧连接
+      setTimeout(() => oldEventSource.close(), 1000);
+      
+      // 8. 递归设置下次续签
+      this.scheduleRefresh();
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // 触发重连逻辑
+      this.reconnect();
+    }
+  }
+}
+```
+
+##### 服务端验证流程
+```python
+async def validate_sse_token(token: str) -> dict:
+    """验证SSE令牌"""
+    # 1. 从Redis获取token信息
+    token_data = await redis.get(f"sse_token:{token}")
+    if not token_data:
+        raise HTTPException(401, "Invalid or expired SSE token")
+    
+    # 2. 检查过期时间
+    if datetime.now() > token_data["expires_at"]:
+        await redis.delete(f"sse_token:{token}")
+        raise HTTPException(401, "SSE token expired")
+    
+    # 3. 可选：检查主JWT是否仍有效
+    if not await is_main_jwt_valid(token_data["user_id"]):
+        raise HTTPException(401, "Main session expired")
+    
+    return token_data
+```
 
 #### SSE 事件格式
 
@@ -1279,6 +1427,41 @@ graph TB
 4. **序列化层**：
    - 对外（Kafka、数据库）：始终使用点式命名
    - 对内（代码）：可使用枚举，但 value 必须是点式字符串
+
+#### 枚举与点式命名映射说明
+
+**重要说明**：内部代码仍保留历史枚举（如 `GENESIS_SESSION_STARTED`）用于类型判断和业务逻辑，但在序列化层统一处理映射关系。
+
+```python
+# 序列化层统一映射示例
+class EventSerializer:
+    """事件序列化器，负责枚举与点式命名的双向映射"""
+    
+    @staticmethod
+    def serialize_for_storage(event: DomainEvent) -> dict:
+        """序列化到数据库/Kafka时，转换为点式命名"""
+        return {
+            "event_type": event.event_type.value,  # 枚举的value是点式字符串
+            "payload": event.payload,
+            # ... 其他字段
+        }
+    
+    @staticmethod
+    def deserialize_from_storage(data: dict) -> DomainEvent:
+        """从数据库/Kafka反序列化时，转换回枚举"""
+        event_type = GenesisEventType.from_event_type(data["event_type"])
+        return DomainEvent(
+            event_type=event_type,  # 内部使用枚举
+            payload=data["payload"],
+            # ... 其他字段
+        )
+```
+
+**映射原则**：
+- **内部处理**：使用枚举便于类型检查和IDE支持
+- **外部存储**：统一使用点式命名作为标准格式
+- **边界转换**：在序列化/反序列化层自动处理映射
+- **向后兼容**：支持历史枚举名称，避免破坏性变更
 
 ### 核心领域事件
 
