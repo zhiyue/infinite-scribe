@@ -694,39 +694,24 @@ Stage_5_细节:
   创意性: -30%      # 批量生成规范化
 ```
 
-#### 评分计算公式
+#### 评分计算模型
 
-```python
-def calculate_quality_score(stage: str, content: dict) -> float:
-    """计算质量评分"""
-    # 获取一致性校验器
-    validator = ConsistencyValidator()
-    consistency_result = await validator.validate_all(novel_id)
-    
-    base_scores = {
-        'llm_score': llm_evaluate(content),           # 0-10
-        'rule_check': validate_rules(content),        # 0或1
-        'similarity': calculate_similarity(content),   # 0-1
-        'consistency': consistency_result.score       # 0-10（来自Neo4j校验）
-    }
-    
-    # 归一化到0-10
-    normalized = {
-        'llm_score': base_scores['llm_score'],
-        'rule_check': base_scores['rule_check'] * 10,
-        'similarity': base_scores['similarity'] * 10,
-        'consistency': base_scores['consistency']     # 已经是0-10
-    }
-    
-    # 应用权重
-    weights = get_stage_weights(stage)
-    final_score = sum(
-        normalized[key] * weights[key] 
-        for key in normalized
-    )
-    
-    return final_score
-```
+质量评分采用**多维度加权模型**，整合以下维度：
+
+| 维度 | 权重范围 | 数据源 | 评分标准 |
+|------|----------|--------|----------|
+| **LLM 评分** | 0.4-0.6 | GPT-4/Claude 评估 | 内容质量、创意度、连贯性 |
+| **规则校验** | 0.1-0.2 | 硬编码规则引擎 | 格式正确性、必填项完整性 |
+| **相似度检测** | 0.1-0.2 | Milvus 向量检索 | 避免重复、保持新颖性 |
+| **一致性校验** | 0.2-0.3 | Neo4j 图数据分析 | 角色关系、世界规则、时间线 |
+
+**评分流程**：
+1. 各维度独立打分（0-10分制）
+2. 按阶段动态调整权重
+3. 加权求和得出最终评分
+4. 根据阈值触发不同处理策略
+
+> 具体计算实现参见：[design-lld.md](design-lld.md#质量评分计算实现)
 
 ### 评分阈值与处理策略
 
@@ -838,34 +823,33 @@ metrics:
 3. **模型调优**：基于历史数据调整prompt模板
 4. **知识库更新**：高分内容入库作为示例
 
-## 一致性校验规则集（Neo4j）
+## 一致性校验框架（Neo4j）
 
-### 校验框架
+### 校验规则类型
 
-#### 1. 角色关系闭包校验
+系统实现**5类核心校验规则**，确保小说世界的内在逻辑一致性：
 
-**规则**：角色关系必须满足传递性和对称性约束
+| 校验类型 | 检测目标 | 严重程度 | 自动修复 | 触发时机 |
+|----------|----------|----------|----------|----------|
+| **角色关系闭包** | 社交关系传递性、对称性缺失 | Warning | 是 | 角色关系变更时 |
+| **世界规则冲突** | 矛盾的设定规则共存 | Error | 否 | 规则新增/修改时 |
+| **时间线一致性** | 因果关系时序错误 | Error | 是 | 事件时间变更时 |
+| **人物属性连续性** | 角色属性异常突变 | Warning | 是 | 属性更新时 |
+| **地理空间合理性** | 不可能的移动速度/距离 | Warning | 是 | 位置变更时 |
 
-```cypher
-// 检测关系不一致：A→B→C 但 A与C无关系定义
-MATCH (a:Character)-[:RELATES_TO]->(b:Character)-[:RELATES_TO]->(c:Character)
-WHERE a.novel_id = $novel_id 
-  AND NOT EXISTS((a)-[:RELATES_TO]-(c))
-  AND a <> c
-RETURN a.name as character1, b.name as mediator, c.name as character2,
-       "Missing transitive relationship" as violation
+### 校验架构设计
 
-// 示例违例：
-// 张三是李四的朋友，李四是王五的朋友，但张三与王五完全陌生
-// 违反了社交网络的基本传递性
-```
+**触发机制**：
+- **实时校验**：关键操作触发即时检查
+- **批量校验**：阶段完成时全面检查  
+- **后台校验**：定期巡检发现潜在问题
 
-**修正策略**：
-- 自动推断：生成弱关系（strength < 3）
-- 提示用户：明确定义A-C关系
-- 标记警告：潜在的剧情漏洞
+**处理策略**：
+- **Error级别**：阻止操作，要求用户解决
+- **Warning级别**：记录问题，允许继续，可自动修复
+- **Info级别**：提示建议，不影响流程
 
-#### 2. 世界规则冲突检测
+> 详细校验查询实现参见：[design-lld.md](design-lld.md#一致性校验规则集neo4j实现)
 
 **规则**：CONFLICTS_WITH 和 GOVERNS 不能同时存在
 
@@ -1718,112 +1702,23 @@ Review.Consistency.Checked → Genesis.Session.*.ValidationCompleted
 采用通用对话表 conversation_sessions +
 conversation_rounds（PostgreSQL 持久化）与 Redis 写通缓存；并保留事务性 Outbox。
 
-```sql
--- 会话表（conversation_sessions）
-CREATE TABLE conversation_sessions (
-    id UUID PRIMARY KEY,
-    scope_type TEXT NOT NULL,                 -- GENESIS/CHAPTER/REVIEW/...
-    scope_id TEXT NOT NULL,                   -- 绑定业务实体ID（创世阶段=novel_id）
-    status TEXT NOT NULL DEFAULT 'ACTIVE',    -- ACTIVE/COMPLETED/ABANDONED/PAUSED
-    stage TEXT,                               -- 当前业务阶段（可选）
-    state JSONB,                              -- 会话聚合/摘要
-    version INTEGER NOT NULL DEFAULT 0,       -- 乐观锁版本（OCC）
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_conv_sessions_scope ON conversation_sessions (scope_type, scope_id);
-CREATE INDEX IF NOT EXISTS idx_conv_sessions_updated_at ON conversation_sessions (updated_at DESC);
+### PostgreSQL 核心表设计
 
--- 轮次表（conversation_rounds）
-CREATE TABLE conversation_rounds (
-    session_id UUID NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
-    round_path TEXT NOT NULL,                 -- '1','2','2.1','2.1.1'
-    role TEXT NOT NULL,                       -- user/assistant/system/tool
-    input JSONB,
-    output JSONB,
-    tool_calls JSONB,
-    model TEXT,
-    tokens_in INTEGER,
-    tokens_out INTEGER,
-    latency_ms INTEGER,
-    cost NUMERIC,
-    correlation_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (session_id, round_path)
-);
-CREATE INDEX IF NOT EXISTS idx_conv_rounds_session_created ON conversation_rounds (session_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_conv_rounds_correlation ON conversation_rounds (correlation_id);
+| 表名 | 用途 | 关键字段 | 索引策略 |
+|------|------|----------|----------|
+| `conversation_sessions` | 会话管理 | id, scope_type, scope_id, status, stage, state, version | scope复合索引、更新时间索引 |
+| `conversation_rounds` | 对话轮次 | session_id, round_path, role, input, output, correlation_id | 会话+时间索引、关联ID索引 |
+| `command_inbox` | CQRS命令侧 | command_type, idempotency_key, status, retry_count | 唯一待处理命令索引、状态索引 |
+| `domain_events` | 事件溯源 | sequence_id, event_type, aggregate_type, aggregate_id, correlation_id | 聚合索引、事件类型索引、时序索引 |
+| `event_outbox` | 事务发件箱 | topic, status, partition_key, retry_count | 状态索引、主题+状态组合索引 |
 
--- 命令收件箱（CommandInbox，CQRS命令侧）
-CREATE TABLE command_inbox (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL,                         -- 会话标识
-    command_type TEXT NOT NULL,                       -- 命令类型（如 ConfirmStoryConception, GenerateWorldview）
-    idempotency_key TEXT UNIQUE NOT NULL,             -- 幂等键，确保同一命令不会被重复处理
-    payload JSONB,                                     -- 命令载荷，包含命令执行所需的所有数据
-    status command_status NOT NULL DEFAULT 'RECEIVED', -- 命令状态（RECEIVED/PROCESSING/COMPLETED/FAILED）
-    error_message TEXT,                               -- 错误信息（当状态为FAILED时必填）
-    retry_count INTEGER NOT NULL DEFAULT 0,           -- 重试次数，用于失败重试机制
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
--- 核心索引：支持幂等性和高效查询
-CREATE UNIQUE INDEX idx_command_inbox_unique_pending_command 
-    ON command_inbox(session_id, command_type) 
-    WHERE status IN ('RECEIVED', 'PROCESSING');
-CREATE INDEX idx_command_inbox_session_id ON command_inbox(session_id);
-CREATE INDEX idx_command_inbox_status ON command_inbox(status);
-CREATE INDEX idx_command_inbox_command_type ON command_inbox(command_type);
-CREATE INDEX idx_command_inbox_created_at ON command_inbox(created_at);
-CREATE INDEX idx_command_inbox_session_status ON command_inbox(session_id, status);
-CREATE INDEX idx_command_inbox_status_created ON command_inbox(status, created_at);
+**设计要点**：
+- 使用 UUID 作为主键，支持分布式环境
+- JSONB 字段支持灵活的业务状态存储
+- 复合索引优化查询性能，避免全表扫描
+- 事务性发件箱模式确保事件可靠投递
 
--- 领域事件表（Event Sourcing事件存储）
-CREATE TABLE domain_events (
-    sequence_id BIGSERIAL PRIMARY KEY,                -- 自增主键，确保严格顺序
-    event_id UUID NOT NULL DEFAULT gen_random_uuid(), -- 事件唯一标识
-    correlation_id UUID,                              -- 关联ID（跟踪整个流程）
-    causation_id UUID,                                -- 因果ID（触发此事件的前一个事件）
-    event_type TEXT NOT NULL,                         -- 事件类型（点式命名）
-    event_version INTEGER NOT NULL DEFAULT 1,         -- 事件版本
-    aggregate_type TEXT NOT NULL,                     -- 聚合类型
-    aggregate_id TEXT NOT NULL,                       -- 聚合根ID
-    payload JSONB NOT NULL,                           -- 事件数据
-    metadata JSONB,                                   -- 元数据
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_domain_events_event_id ON domain_events(event_id);
-CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
-CREATE INDEX idx_domain_events_correlation ON domain_events(correlation_id);
-CREATE INDEX idx_domain_events_event_type ON domain_events(event_type);
-CREATE INDEX idx_domain_events_created_at ON domain_events(created_at);
-
--- 事件发件箱（Outbox，事务性可靠投递）
-CREATE TABLE event_outbox (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    topic TEXT NOT NULL,                         -- 主题（Kafka / 逻辑主题）
-    key TEXT,                                   -- key（顺序/分区控制）
-    partition_key TEXT,                         -- 分区键（可选）
-    payload JSONB NOT NULL,                     -- 事件载荷
-    headers JSONB,                              -- 元信息（event_type使用点式命名、version、trace等）
-    status outbox_status NOT NULL DEFAULT 'PENDING',
-    retry_count INT NOT NULL DEFAULT 0,
-    max_retries INT NOT NULL DEFAULT 5,
-    last_error TEXT,
-    scheduled_at TIMESTAMPTZ,                   -- 延迟发送（可选）
-    sent_at TIMESTAMPTZ,                        -- 成功发送时间
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_event_outbox_status ON event_outbox(status);
-CREATE INDEX idx_event_outbox_topic ON event_outbox(topic);
-CREATE INDEX idx_event_outbox_created_at ON event_outbox(created_at);
-CREATE INDEX idx_event_outbox_pending_scheduled ON event_outbox(status, scheduled_at);
-CREATE INDEX idx_event_outbox_retry_count ON event_outbox(retry_count);
-CREATE INDEX idx_event_outbox_topic_status ON event_outbox(topic, status);
-CREATE INDEX idx_event_outbox_status_created ON event_outbox(status, created_at);
-CREATE INDEX idx_event_outbox_key ON event_outbox(key);
-CREATE INDEX idx_event_outbox_partition_key ON event_outbox(partition_key);
-```
+> 详细SQL实现参见：[design-lld.md](design-lld.md#数据库模式设计postgresql-完整实现)
 
 说明：
 
@@ -2306,82 +2201,37 @@ cold_hot_strategy:
     compression: enabled
 ```
 
-## 批量任务调度（基于ADR-006）
+## 批量任务调度架构（基于ADR-006）
 
-### P1实现：基于Outbox的简单调度
+### 调度策略设计
 
-```python
-class BatchDetailGenerator:
-    """P1: 批量细节生成（无Prefect）"""
-    
-    async def generate_details(self, novel_id: str, categories: List[str], style: str):
-        """通过Agent直接处理批量任务"""
-        # 发布到Outbox
-        await self.publish_to_outbox({
-            "event_type": "Genesis.Session.Details.Requested",
-            "novel_id": novel_id,
-            "categories": categories,
-            "style": style
-        })
-        
-        # Detail Generator Agent会消费任务并处理
-        # 完成后发布 Genesis.Session.Details.Generated 事件
+采用**分阶段实现**的批量处理架构：
+
+| 实现阶段 | 调度方式 | 能力特性 | 适用场景 |
+|----------|----------|----------|----------|
+| **P1: 简单调度** | 基于 Outbox 的事件驱动 | 任务分发、状态跟踪、基础重试 | MVP阶段、单用户场景 |
+| **P2: 工作流编排** | Prefect 流程引擎 | 暂停/恢复、条件分支、并行处理、失败补偿 | 多用户、复杂业务逻辑 |
+
+### 任务生命周期管理
+
+**任务分类**：
+- **细节生成任务**：地名、人名、道具等批量创建
+- **内容校验任务**：一致性检查、质量评估
+- **优化任务**：向量索引更新、缓存刷新
+
+**状态流转**：
+```
+待调度 → 执行中 → 完成/失败 → 清理
+   ↓        ↓        ↓        ↓
+  入队 → 分发给Agent → 结果回收 → 资源回收
 ```
 
-### P2扩展：Prefect工作流编排
+**容错机制**：
+- **重试策略**：指数退避，最多3次
+- **超时处理**：任务超时自动取消并重新调度
+- **死信队列**：多次失败任务进入DLT处理
 
-```python
-from prefect import flow, task
-from prefect.tasks import task_input_hash
-from datetime import timedelta
-
-@task(
-    retries=3,
-    retry_delay_seconds=60,
-    cache_key_fn=task_input_hash,
-    cache_expiration=timedelta(hours=1)
-)
-async def generate_batch_details(
-    category: str,
-    count: int,
-    style: str
-) -> List[str]:
-    """批量生成细节任务"""
-    pass
-
-@flow(name="genesis-detail-generation")
-async def detail_generation_flow(
-    novel_id: str,
-    categories: List[str],
-    style: str
-):
-    """P2: 复杂工作流编排
-    - 支持暂停/恢复
-    - 支持条件分支
-    - 支持并行处理
-    - 支持失败补偿
-    """
-
-    # 并行生成各类细节
-    futures = []
-    for category in categories:
-        future = await generate_batch_details.submit(
-            category=category,
-            count=get_count_for_category(category),
-            style=style
-        )
-        futures.append(future)
-
-    # 等待所有任务完成
-    results = await gather(*futures)
-
-    # 发布完成事件
-    await publish_to_outbox({
-        "event_type": "Genesis.Session.Details.Completed",
-        "novel_id": novel_id,
-        "results": results
-    })
-```
+> 具体实现代码参见：[design-lld.md](design-lld.md#批量任务调度实现)
 
 ### 限流实现
 
