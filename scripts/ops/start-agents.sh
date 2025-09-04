@@ -33,7 +33,7 @@ fi
 # 检查 Kafka 是否运行
 check_kafka() {
     # 从 Python 配置中获取 Kafka 地址
-    local kafka_info=$(cd "$PROJECT_ROOT/apps/backend" && source "$PROJECT_ROOT/.venv/bin/activate" && python -c "
+    local kafka_info=$(cd "$PROJECT_ROOT/apps/backend" && python -c "
 from src.core.config import settings
 print(settings.kafka_bootstrap_servers)
 " 2>/dev/null)
