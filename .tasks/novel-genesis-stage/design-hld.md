@@ -372,7 +372,7 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 | LLM自评分 | 30% | GPT-4评估相关性、创意性、完整性 | 0-10分 |
 | 规则校验 | 20% | 长度、格式、必填字段验证 | 0/1二值 |
 | 语义相似度 | 25% | Qwen3-Embedding与上下文对比 | 0.6-1.0 |
-| 一致性检查 | 25% | Neo4j约束验证、冲突检测 | 0/1二值 |
+| 一致性检查 | 25% | Neo4j五维校验（详见一致性校验规则集） | 0-10分 |
 
 #### 阶段特定权重调整
 
@@ -407,11 +407,15 @@ Stage_5_细节:
 ```python
 def calculate_quality_score(stage: str, content: dict) -> float:
     """计算质量评分"""
+    # 获取一致性校验器
+    validator = ConsistencyValidator()
+    consistency_result = await validator.validate_all(novel_id)
+    
     base_scores = {
         'llm_score': llm_evaluate(content),           # 0-10
         'rule_check': validate_rules(content),        # 0或1
         'similarity': calculate_similarity(content),   # 0-1
-        'consistency': check_consistency(content)      # 0或1
+        'consistency': consistency_result.score       # 0-10（来自Neo4j校验）
     }
     
     # 归一化到0-10
@@ -419,7 +423,7 @@ def calculate_quality_score(stage: str, content: dict) -> float:
         'llm_score': base_scores['llm_score'],
         'rule_check': base_scores['rule_check'] * 10,
         'similarity': base_scores['similarity'] * 10,
-        'consistency': base_scores['consistency'] * 10
+        'consistency': base_scores['consistency']     # 已经是0-10
     }
     
     # 应用权重
@@ -541,6 +545,279 @@ metrics:
 2. **用户反馈**：记录接受/拒绝/修改行为
 3. **模型调优**：基于历史数据调整prompt模板
 4. **知识库更新**：高分内容入库作为示例
+
+## 一致性校验规则集（Neo4j）
+
+### 校验框架
+
+#### 1. 角色关系闭包校验
+
+**规则**：角色关系必须满足传递性和对称性约束
+
+```cypher
+// 检测关系不一致：A→B→C 但 A与C无关系定义
+MATCH (a:Character)-[:RELATES_TO]->(b:Character)-[:RELATES_TO]->(c:Character)
+WHERE a.novel_id = $novel_id 
+  AND NOT EXISTS((a)-[:RELATES_TO]-(c))
+  AND a <> c
+RETURN a.name as character1, b.name as mediator, c.name as character2,
+       "Missing transitive relationship" as violation
+
+// 示例违例：
+// 张三是李四的朋友，李四是王五的朋友，但张三与王五完全陌生
+// 违反了社交网络的基本传递性
+```
+
+**修正策略**：
+- 自动推断：生成弱关系（strength < 3）
+- 提示用户：明确定义A-C关系
+- 标记警告：潜在的剧情漏洞
+
+#### 2. 世界规则冲突检测
+
+**规则**：CONFLICTS_WITH 和 GOVERNS 不能同时存在
+
+```cypher
+// 检测矛盾的世界规则
+MATCH (r1:WorldRule)-[:CONFLICTS_WITH]-(r2:WorldRule)
+WHERE r1.novel_id = $novel_id
+  AND EXISTS((r1)-[:GOVERNS]->(:Novel)<-[:GOVERNS]-(r2))
+RETURN r1.rule as rule1, r2.rule as rule2,
+       "Conflicting rules both govern the same novel" as violation
+
+// 示例违例：
+// Rule1: "魔法不存在于这个世界" CONFLICTS_WITH 
+// Rule2: "所有人都能使用基础魔法"
+// 但两者都 GOVERNS 同一个小说
+```
+
+**修正策略**：
+- 优先级判定：保留创建时间早的规则
+- 范围限定：添加适用条件（地域、时间）
+- 合并处理：创建新的综合规则
+
+#### 3. 时间线一致性校验
+
+**规则**：事件时间必须符合因果关系
+
+```cypher
+// 检测时间悖论：因在果之后
+MATCH (e1:Event)-[:CAUSES]->(e2:Event)
+WHERE e1.novel_id = $novel_id
+  AND e1.timestamp > e2.timestamp
+RETURN e1.description as cause_event, e1.timestamp as cause_time,
+       e2.description as effect_event, e2.timestamp as effect_time,
+       "Cause happens after effect" as violation
+
+// 示例违例：
+// Event1: "主角出生" at 1850年 CAUSES
+// Event2: "主角父母相遇" at 1860年
+```
+
+**修正策略**：
+- 自动调整：重新计算合理时间线
+- 分支处理：创建平行时间线
+- 标记修改：要求用户确认时序
+
+#### 4. 人物属性一致性校验
+
+**规则**：人物属性变化必须有合理解释
+
+```cypher
+// 检测不合理的属性突变
+MATCH (c:Character)-[:HAS_STATE]->(s1:CharacterState),
+      (c)-[:HAS_STATE]->(s2:CharacterState)
+WHERE c.novel_id = $novel_id
+  AND s2.chapter = s1.chapter + 1
+  AND abs(s2.age - s1.age) > 10  // 年龄突变超过10岁
+  AND NOT EXISTS((e:Event {type: 'time_skip'}))
+RETURN c.name as character, s1.chapter as chapter1, s1.age as age1,
+       s2.chapter as chapter2, s2.age as age2,
+       "Unreasonable age change" as violation
+
+// 示例违例：
+// 第3章：李明 25岁
+// 第4章：李明 45岁（无时间跳跃说明）
+```
+
+**修正策略**：
+- 插入解释：自动生成时间跳跃事件
+- 修正数值：调整为合理变化范围
+- 用户确认：特殊设定需要标注
+
+#### 5. 地理空间一致性校验
+
+**规则**：位置移动必须符合物理限制
+
+```cypher
+// 检测不可能的移动速度
+MATCH (c:Character)-[:LOCATED_AT]->(l1:Location),
+      (c)-[:LOCATED_AT]->(l2:Location)
+WHERE c.novel_id = $novel_id
+  AND l2.timestamp - l1.timestamp < 3600  // 1小时内
+  AND distance(point({x: l1.x, y: l1.y}), 
+               point({x: l2.x, y: l2.y})) > 500  // 超过500公里
+  AND NOT EXISTS((c)-[:USES]->(:Transportation {type: 'teleport'}))
+RETURN c.name as character, l1.name as from_location, l2.name as to_location,
+       duration((l2.timestamp - l1.timestamp)) as travel_time,
+       distance(point({x: l1.x, y: l1.y}), point({x: l2.x, y: l2.y})) as distance,
+       "Impossible travel speed" as violation
+
+// 示例违例：
+// 10:00 张三在北京
+// 10:30 张三在上海（无传送能力）
+```
+
+**修正策略**：
+- 时间调整：延长移动时间
+- 添加能力：赋予快速移动能力
+- 插入中转：添加交通工具使用记录
+
+### 批量校验执行
+
+```python
+class ConsistencyValidator:
+    """一致性校验器"""
+    
+    VALIDATION_RULES = {
+        'relationship_closure': {
+            'query': RELATIONSHIP_CLOSURE_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        },
+        'world_rule_conflict': {
+            'query': WORLD_RULE_CONFLICT_QUERY,
+            'severity': 'error',
+            'auto_fix': False
+        },
+        'timeline_consistency': {
+            'query': TIMELINE_CONSISTENCY_QUERY,
+            'severity': 'error',
+            'auto_fix': True
+        },
+        'character_continuity': {
+            'query': CHARACTER_CONTINUITY_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        },
+        'spatial_consistency': {
+            'query': SPATIAL_CONSISTENCY_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        }
+    }
+    
+    async def validate_all(self, novel_id: str) -> ValidationResult:
+        """执行所有校验规则"""
+        violations = []
+        
+        for rule_name, rule_config in self.VALIDATION_RULES.items():
+            result = await self.neo4j.run(
+                rule_config['query'],
+                {'novel_id': novel_id}
+            )
+            
+            if result:
+                violations.append({
+                    'rule': rule_name,
+                    'severity': rule_config['severity'],
+                    'violations': result,
+                    'auto_fix_available': rule_config['auto_fix']
+                })
+        
+        return ValidationResult(
+            is_valid=len(violations) == 0,
+            violations=violations,
+            score=self.calculate_consistency_score(violations)
+        )
+    
+    def calculate_consistency_score(self, violations: List) -> float:
+        """计算一致性分数（0-10）"""
+        if not violations:
+            return 10.0
+        
+        penalties = {
+            'error': 3.0,
+            'warning': 1.0,
+            'info': 0.3
+        }
+        
+        total_penalty = sum(
+            penalties[v['severity']] * len(v['violations'])
+            for v in violations
+        )
+        
+        return max(0, 10.0 - total_penalty)
+```
+
+### 自动修复策略
+
+```yaml
+auto_fix_strategies:
+  relationship_closure:
+    action: "infer_weak_relationship"
+    parameters:
+      default_strength: 2
+      relationship_type: "knows_of"
+  
+  timeline_consistency:
+    action: "adjust_timestamps"
+    parameters:
+      method: "shift_forward"
+      maintain_relative_order: true
+  
+  character_continuity:
+    action: "interpolate_states"
+    parameters:
+      method: "linear"
+      add_explanation: true
+  
+  spatial_consistency:
+    action: "add_transportation"
+    parameters:
+      infer_type: true
+      calculate_min_time: true
+```
+
+### 一致性报告示例
+
+```json
+{
+  "novel_id": "uuid",
+  "validation_time": "2025-01-15T10:30:00Z",
+  "overall_score": 7.5,
+  "violations": [
+    {
+      "rule": "relationship_closure",
+      "severity": "warning",
+      "count": 3,
+      "examples": [
+        {
+          "character1": "张三",
+          "character2": "王五",
+          "issue": "Missing transitive relationship via 李四",
+          "suggested_fix": "Add 'knows_of' relationship with strength=2"
+        }
+      ]
+    },
+    {
+      "rule": "timeline_consistency",
+      "severity": "error",
+      "count": 1,
+      "examples": [
+        {
+          "event1": "Battle of Dawn",
+          "event2": "King's coronation",
+          "issue": "Cause happens 10 years after effect",
+          "suggested_fix": "Move Battle of Dawn to year 1020"
+        }
+      ]
+    }
+  ],
+  "auto_fixes_applied": 2,
+  "manual_review_required": 1
+}
+```
 
 ## 性能与可扩展性
 
@@ -1212,21 +1489,87 @@ CREATE (c:Character {
     wounds: 'text'          // 心结
 })
 
+// 角色状态节点（支持连续性校验）
+CREATE (cs:CharacterState {
+    id: 'uuid',
+    character_id: 'uuid',
+    chapter: integer,
+    age: integer,
+    status: 'string',
+    attributes: 'json'
+})
+
 // 世界规则节点
 CREATE (w:WorldRule {
     id: 'uuid',
     novel_id: 'uuid',
     dimension: 'string',    // 地理/历史/文化/规则/社会
     rule: 'text',
+    priority: integer,      // 优先级（冲突时使用）
+    scope: 'json',          // 适用范围（地域/时间）
     examples: 'json',
-    constraints: 'json'
+    constraints: 'json',
+    created_at: datetime()  // 创建时间（冲突判定）
 })
 
-// 关系定义
-CREATE (c1:Character)-[:RELATES_TO {strength: 8}]->(c2:Character)
+// 事件节点（支持时间线校验）
+CREATE (e:Event {
+    id: 'uuid',
+    novel_id: 'uuid',
+    description: 'text',
+    timestamp: datetime(),
+    type: 'string'          // normal/time_skip/battle等
+})
+
+// 位置节点（支持空间校验）
+CREATE (l:Location {
+    id: 'uuid',
+    novel_id: 'uuid',
+    name: 'string',
+    x: float,               // 坐标X
+    y: float,               // 坐标Y
+    timestamp: datetime()   // 时间戳
+})
+
+// 交通工具节点
+CREATE (t:Transportation {
+    id: 'uuid',
+    type: 'string',         // walk/horse/car/teleport等
+    speed: float            // km/h
+})
+
+// 关系定义（支持一致性校验）
+CREATE (c1:Character)-[:RELATES_TO {
+    strength: 8,            // 关系强度1-10
+    type: 'string',         // friend/enemy/knows_of等
+    symmetric: boolean      // 是否对称关系
+}]->(c2:Character)
+
 CREATE (c:Character)-[:BELONGS_TO]->(n:Novel)
+CREATE (c:Character)-[:HAS_STATE]->(cs:CharacterState)
+CREATE (c:Character)-[:LOCATED_AT {timestamp: datetime()}]->(l:Location)
+CREATE (c:Character)-[:USES]->(t:Transportation)
+
 CREATE (w:WorldRule)-[:GOVERNS]->(n:Novel)
-CREATE (w1:WorldRule)-[:CONFLICTS_WITH]->(w2:WorldRule)
+CREATE (w1:WorldRule)-[:CONFLICTS_WITH {
+    severity: 'string'      // critical/major/minor
+}]->(w2:WorldRule)
+
+CREATE (e1:Event)-[:CAUSES]->(e2:Event)
+CREATE (e:Event)-[:INVOLVES]->(c:Character)
+CREATE (e:Event)-[:OCCURS_AT]->(l:Location)
+
+// 索引优化（支持校验查询性能）
+CREATE INDEX novel_id_index FOR (n:Novel) ON (n.id)
+CREATE INDEX character_novel_index FOR (c:Character) ON (c.novel_id)
+CREATE INDEX worldrule_novel_index FOR (w:WorldRule) ON (w.novel_id)
+CREATE INDEX event_timestamp_index FOR (e:Event) ON (e.timestamp)
+CREATE INDEX location_coords_index FOR (l:Location) ON (l.x, l.y)
+
+// 约束定义（数据完整性）
+CREATE CONSTRAINT unique_novel_id ON (n:Novel) ASSERT n.id IS UNIQUE
+CREATE CONSTRAINT unique_character_id ON (c:Character) ASSERT c.id IS UNIQUE
+CREATE CONSTRAINT character_state_chapter ON (cs:CharacterState) ASSERT (cs.character_id, cs.chapter) IS NODE KEY
 ```
 
 ### Milvus向量集合（ADR-002）
@@ -1351,6 +1694,12 @@ HLD完成后需要：
   - 设置分数阈值（8.0/6.0/4.0）和处理策略
   - 实现3次重试机制和DLT队列
   - 部署采纳率监控指标（目标≥70%）
+- Neo4j一致性校验实施：
+  - 实现5个核心校验规则（关系闭包、规则冲突、时间线、人物连续性、空间一致性）
+  - 部署ConsistencyValidator类和批量校验
+  - 配置自动修复策略（弱关系推断、时间调整、状态插值）
+  - 集成到质量评分的一致性维度（25%权重）
+  - 实现一致性报告生成和违规追踪
 - 对齐接口与通道：HLD 明确 P1=REST+SSE，移除 WebSocket/gRPC（标 P2）。
 - 事件命名统一：
   - 实施点式命名作为唯一标准（`Genesis.Session.Theme.Proposed`）
