@@ -308,6 +308,64 @@ class DLTEnvelope(TypedDict):
     original_offset: int
 ```
 
+## 事件命名与序列化实现
+
+为落实 HLD 的事件命名契约（点式命名）并确保代码到存储/传输层的一致性，这里给出实现细节与参考代码。
+
+### 枚举与点式命名映射
+
+```python
+from enum import Enum
+
+class GenesisEventType(Enum):
+    # 枚举名使用大写下划线，value 使用点式命名
+    GENESIS_SESSION_STARTED = "Genesis.Session.Started"
+    GENESIS_SESSION_THEME_PROPOSED = "Genesis.Session.Theme.Proposed"
+    GENESIS_SESSION_THEME_CONFIRMED = "Genesis.Session.Theme.Confirmed"
+
+# 枚举 → 点式字符串
+def to_event_type(enum_value: GenesisEventType) -> str:
+    return enum_value.value  # "Genesis.Session.Started"
+
+# 点式字符串 → 枚举
+def from_event_type(event_type: str) -> GenesisEventType:
+    for event in GenesisEventType:
+        if event.value == event_type:
+            return event
+    raise ValueError(f"Unknown event type: {event_type}")
+```
+
+### 序列化层（双向映射）
+
+```python
+# 序列化层统一映射示例
+class EventSerializer:
+    """事件序列化器，负责枚举与点式命名的双向映射"""
+
+    @staticmethod
+    def serialize_for_storage(event: "DomainEvent") -> dict:
+        """序列化到数据库/Kafka时，转换为点式命名"""
+        return {
+            "event_type": event.event_type.value,  # 枚举的value是点式字符串
+            "payload": event.payload,
+            # ... 其他字段
+        }
+
+    @staticmethod
+    def deserialize_from_storage(data: dict) -> "DomainEvent":
+        """从数据库/Kafka反序列化时，转换回枚举"""
+        event_type = GenesisEventType.from_event_type(data["event_type"])
+        return DomainEvent(
+            event_type=event_type,  # 内部使用枚举
+            payload=data["payload"],
+            # ... 其他字段
+        )
+```
+
+实现要点：
+- 外部（Kafka/数据库）一律点式命名；内部可用枚举但其 value 必须是点式字符串。
+- 边界（序列化/反序列化）负责统一转换；保留对历史枚举名称的兼容。
+
 ## 前端组件设计
 
 #### 组件表格
@@ -1571,4 +1629,3 @@ deploy:
 - 回滚步骤与容量配置
 - 测试策略与关键测试点
 - 部署与依赖矩阵
-
