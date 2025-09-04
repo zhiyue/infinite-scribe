@@ -130,7 +130,30 @@ graph LR
 - **技术负责人**: backend-lead@infinite-scribe.com
 - **AI负责人**: ai-lead@infinite-scribe.com
 
+## 实施状态总结
+
+### 已完成
+- ✅ **5个ADR已接受并生成schemas**：
+  - `dialogue.py` - ADR-001 对话状态管理schemas
+  - `embedding.py` - ADR-002 向量嵌入集成schemas
+  - `version.py` - ADR-004 内容版本控制schemas
+  - `graph.py` - ADR-005 知识图谱schemas
+  - Backend schemas已更新于 `apps/backend/src/schemas/novel/`
+
+### 待完成
+- 🔄 ADR-003 提示词模板管理 - 待评审和决策
+- 📝 生成HLD文档
+- 📝 生成LLD文档
+- 🗃️ 执行数据库迁移脚本
+
+### 数据库迁移清单
+- **PostgreSQL**: 创建 `conversation_sessions`, `conversation_rounds`, `content_*` 等表
+- **Neo4j**: 创建节点约束和索引
+- **Milvus**: 配置向量集合（768维，HNSW索引）
+- **Redis**: 设置缓存键TTL策略
+
 ---
 
 **最后更新**: 2025-09-04
-**版本**: 1.0.0
+**版本**: 2.0.0
+**状态**: 5/6 ADRs Accepted (83%)
