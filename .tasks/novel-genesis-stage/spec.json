@@ -1,9 +1,9 @@
 {
   "feature_name": "novel-genesis-stage",
   "created_at": "2025-09-04T12:00:00Z",
-  "updated_at": "2025-09-05T02:30:00Z",
+  "updated_at": "2025-09-04T12:30:00Z",
   "language": "chinese",
-  "phase": "lld-generated",
+  "phase": "tasks-generated",
   "documents": {
     "prd": {
       "generated": true,
@@ -46,18 +46,18 @@
   "approvals": {
     "requirements": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "hld": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "lld": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "tasks": {
-      "generated": false,
+      "generated": true,
       "approved": false
     }
   },
