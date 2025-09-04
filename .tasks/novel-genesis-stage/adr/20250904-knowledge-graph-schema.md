@@ -1,7 +1,7 @@
 ---
 id: ADR-005-knowledge-graph-schema
 title: 知识图谱Schema设计
-status: Proposed
+status: Accepted
 date: 2025-09-04
 decision_makers: [platform-arch, data-arch]
 related_requirements: [FR-003, FR-004, FR-008, NFR-003]
@@ -14,7 +14,7 @@ tags: [architecture, neo4j, graph-database, data-model]
 # 知识图谱Schema设计
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 
@@ -29,13 +29,13 @@ Proposed
 
 ### Technical Context
 基于现有架构：
-- 当前架构：Neo4j 已部署（版本4.x+）
+- 当前架构：Neo4j 5.x 已部署（开启 apoc 与 graph-data-science 插件）
 - 现有技术栈：
-  - Neo4j作为图数据库
-  - Python后端使用py2neo或neo4j-driver
-  - 已有PostgreSQL和Milvus协同工作
-- 现有约定：图数据用于关系管理，属性数据存PostgreSQL
-- 集成点：需要与知识库、一致性检查、Agent服务集成
+  - Neo4j 作为图数据库
+  - Python 后端使用官方 neo4j-driver（异步）
+  - 已有 PostgreSQL 与 Milvus 协同工作
+- 现有约定：图数据用于关系管理，属性与版本化内容存 PostgreSQL
+- 集成点：需要与知识库、一致性检查、Agent 服务集成
 
 ### Requirements Driving This Decision
 - FR-003: 世界观需要5个维度的规则管理
@@ -146,14 +146,13 @@ Proposed
 
 ### Integration with Existing Architecture
 - **代码位置**：
-  - 图模型定义：`apps/backend/src/domain/graph/`
-  - Neo4j客户端：`apps/backend/src/infrastructure/neo4j/`
-  - 查询构建器：`apps/backend/src/core/graph_query/`
+  - 知识图谱服务与查询：`apps/backend/src/common/services/knowledge_graph/`
+  - Neo4j 客户端封装：`apps/backend/src/common/services/neo4j_service.py`
 - **模块边界**：
-  - GraphRepository: 图数据访问层
-  - GraphService: 业务逻辑层
+  - KnowledgeGraphService: 图操作与业务接口
+  - GraphQueryBuilder: 常用查询构建
   - ConsistencyChecker: 一致性检查
-- **依赖管理**：使用neo4j官方Python驱动
+- **依赖管理**：使用官方 neo4j-driver（异步）
 
 ### Graph Schema Design
 ```cypher
@@ -161,31 +160,12 @@ Proposed
 // 1. 顶层组织结构（层级部分）
 // ==========================================
 
-// 项目根节点
-CREATE (p:Project {
-    id: 'project_uuid',
-    name: '小说名称',
-    created_at: datetime(),
-    stage: 0  // 当前创世阶段
+// 小说根节点
+CREATE (n:Novel {
+    novel_id: 'novel_uuid',
+    title: '小说名称',
+    created_at: datetime()
 })
-
-// 世界观容器节点
-CREATE (w:WorldContainer {
-    id: 'world_uuid',
-    name: '世界观'
-})-[:BELONGS_TO]->(p)
-
-// 人物容器节点
-CREATE (c:CharacterContainer {
-    id: 'char_container_uuid',
-    name: '人物'
-})-[:BELONGS_TO]->(p)
-
-// 情节容器节点
-CREATE (plot:PlotContainer {
-    id: 'plot_container_uuid',
-    name: '情节'
-})-[:BELONGS_TO]->(p)
 
 // ==========================================
 // 2. 世界观层级结构
@@ -193,15 +173,17 @@ CREATE (plot:PlotContainer {
 
 // 世界观维度
 CREATE (dim:WorldDimension {
-    id: 'dim_uuid',
+    app_id: 'dim_uuid',
+    novel_id: n.novel_id,
     type: 'geography|history|culture|rules|society',
     name: '地理',
     description: '世界的物理空间'
-})-[:DIMENSION_OF]->(w)
+})<-[:HAS_DIMENSION]-(n)
 
 // 世界规则
 CREATE (rule:WorldRule {
-    id: 'rule_uuid',
+    app_id: 'rule_uuid',
+    novel_id: n.novel_id,
     name: '魔法体系',
     category: 'magic_system',
     level: 1,  // 规则等级：1-核心，2-重要，3-次要
@@ -217,17 +199,19 @@ CREATE (detail:RuleDetail {
     constraints: ['限制条件']
 })-[:DETAILS]->(rule)
 
+// 规则适用范围（示例）：规则适用于某地点或其上级地域
+CREATE (rule)-[:APPLIES_TO]->(loc)
+
 // 地理位置（层级：世界->大陆->国家->城市->地点）
 CREATE (loc:Location {
-    id: 'loc_uuid',
+    app_id: 'loc_uuid',
+    novel_id: n.novel_id,
     name: '王都',
     type: 'city',  // world|continent|country|city|place
     description: '帝国的首都',
-    coordinates: {x: 100, y: 200},  // 可选的地图坐标
-    properties: {
-        population: 1000000,
-        climate: 'temperate'
-    }
+    coordinates: point({x: 100, y: 200, crs: 'cartesian'}),  // 可选的地图坐标
+    population: 1000000,
+    climate: 'temperate'
 })
 
 // 位置层级关系
@@ -239,9 +223,10 @@ CREATE (child_loc)-[:LOCATED_IN]->(parent_loc)
 
 // 人物节点
 CREATE (char:Character {
-    id: 'char_uuid',
+    app_id: 'char_uuid',
+    novel_id: n.novel_id,
     name: '主角名',
-    type: 'protagonist|antagonist|supporting',
+    role: 'protagonist|antagonist|supporting',
     age: 25,
     gender: 'male|female|other',
     
@@ -250,19 +235,15 @@ CREATE (char:Character {
     personality: 'INTJ',  // MBTI类型
     background: '背景故事',
     motivation: '核心动机',
-    goals: {
-        short_term: '短期目标',
-        mid_term: '中期目标',
-        long_term: '长期目标'
-    },
-    obstacles: {
-        internal: '内在障碍',
-        external: '外在障碍',
-        environmental: '环境障碍'
-    },
+    goals_short_term: '短期目标',
+    goals_mid_term: '中期目标',
+    goals_long_term: '长期目标',
+    obstacles_internal: '内在障碍',
+    obstacles_external: '外在障碍',
+    obstacles_environmental: '环境障碍',
     arc: '成长弧线描述',
     secrets: '心结或秘密'
-})-[:CHARACTER_IN]->(c)
+})-[:APPEARS_IN_NOVEL]->(n)
 
 // 人物关系（可以有多种类型的关系）
 CREATE (char1)-[rel:RELATES_TO {
@@ -283,8 +264,9 @@ CREATE (char)-[:VISITS {
     purpose: '寻找线索'
 }]->(location)
 
-// 人物与规则的关系
-CREATE (char)-[:FOLLOWS|BREAKS|MASTERS {
+// 人物与规则的关系（使用单一关系 + kind 属性，避免多类型并列）
+CREATE (char)-[:RULE_REL {
+    kind: 'FOLLOWS',
     proficiency: 0.8,  // 掌握程度
     since_chapter: 10
 }]->(rule)
@@ -295,32 +277,36 @@ CREATE (char)-[:FOLLOWS|BREAKS|MASTERS {
 
 // 章节节点
 CREATE (chapter:Chapter {
-    id: 'chapter_uuid',
+    app_id: 'chapter_uuid',
+    novel_id: n.novel_id,
     number: 1,
     title: '序章',
     summary: '故事开始',
     word_count: 3000,
     status: 'drafted|revised|published'
-})-[:CHAPTER_IN]->(plot)
+})-[:BELONGS_TO_NOVEL]->(n)
 
-// 场景节点
+// 场景节点（地点与参与者使用关系表达，避免外键/列表）
 CREATE (scene:Scene {
-    id: 'scene_uuid',
+    app_id: 'scene_uuid',
+    novel_id: n.novel_id,
     name: '初遇',
-    location_id: 'loc_uuid',
     time: '黄昏',
-    participants: ['char_id1', 'char_id2'],
     mood: 'tense',
     purpose: 'character_introduction'
 })-[:SCENE_IN]->(chapter)
+// 场景地点与参与者
+CREATE (scene)-[:TAKES_PLACE_AT]->(loc)
+CREATE (char)-[:PARTICIPATES_IN {role: 'POV'}]->(scene)
 
 // 事件节点
 CREATE (event:Event {
-    id: 'event_uuid',
+    app_id: 'event_uuid',
+    novel_id: n.novel_id,
     type: 'plot_point|conflict|revelation',
     description: '重要事件描述',
     impact: 'high|medium|low',
-    timestamp: '故事内时间'
+    timestamp: datetime('2025-01-01T00:00:00Z')
 })-[:HAPPENS_IN]->(scene)
 
 // 事件影响关系
@@ -329,6 +315,17 @@ CREATE (event)-[:AFFECTS {
     impact_type: 'emotional|physical|social',
     degree: 0.8
 }]->(char)
+
+// 角色状态（用于弧线分析）
+CREATE (state:CharacterState {
+    app_id: 'state_uuid',
+    novel_id: n.novel_id,
+    chapter: 1,
+    emotional: 'tense',
+    relationships: ['friendship_strength:8'],
+    goals: ['find_clue']
+})
+CREATE (char)-[:HAS_STATE]->(state)
 
 // ==========================================
 // 5. 一致性约束节点
@@ -357,18 +354,27 @@ CREATE (conflict:Conflict {
 // 6. 索引和约束
 // ==========================================
 
-// 唯一性约束
-CREATE CONSTRAINT unique_project_id ON (p:Project) ASSERT p.id IS UNIQUE;
-CREATE CONSTRAINT unique_character_id ON (c:Character) ASSERT c.id IS UNIQUE;
-CREATE CONSTRAINT unique_location_id ON (l:Location) ASSERT l.id IS UNIQUE;
-CREATE CONSTRAINT unique_rule_id ON (r:WorldRule) ASSERT r.id IS UNIQUE;
+// 唯一性约束（Neo4j 5.x 语法）
+CREATE CONSTRAINT unique_novel_id IF NOT EXISTS FOR (n:Novel) REQUIRE n.novel_id IS UNIQUE;
+CREATE CONSTRAINT unique_character_app_id IF NOT EXISTS FOR (c:Character) REQUIRE c.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_location_app_id IF NOT EXISTS FOR (l:Location) REQUIRE l.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_rule_app_id IF NOT EXISTS FOR (r:WorldRule) REQUIRE r.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_chapter_app_id IF NOT EXISTS FOR (ch:Chapter) REQUIRE ch.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_event_app_id IF NOT EXISTS FOR (e:Event) REQUIRE e.app_id IS UNIQUE;
 
-// 性能索引
-CREATE INDEX ON :Character(name);
-CREATE INDEX ON :Location(name);
-CREATE INDEX ON :Chapter(number);
-CREATE INDEX ON :Event(timestamp);
-CREATE INDEX ON :WorldRule(category);
+// 范围隔离索引（按 novel_id 提升过滤性能）
+CREATE INDEX character_novel_id IF NOT EXISTS FOR (c:Character) ON (c.novel_id);
+CREATE INDEX location_novel_id IF NOT EXISTS FOR (l:Location) ON (l.novel_id);
+CREATE INDEX rule_novel_id IF NOT EXISTS FOR (r:WorldRule) ON (r.novel_id);
+CREATE INDEX chapter_novel_id IF NOT EXISTS FOR (ch:Chapter) ON (ch.novel_id);
+CREATE INDEX event_novel_id IF NOT EXISTS FOR (e:Event) ON (e.novel_id);
+
+// 常用属性索引
+CREATE INDEX character_name IF NOT EXISTS FOR (c:Character) ON (c.name);
+CREATE INDEX location_name IF NOT EXISTS FOR (l:Location) ON (l.name);
+CREATE INDEX chapter_number IF NOT EXISTS FOR (ch:Chapter) ON (ch.number);
+CREATE INDEX event_time IF NOT EXISTS FOR (e:Event) ON (e.timestamp);
+CREATE INDEX worldrule_category IF NOT EXISTS FOR (r:WorldRule) ON (r.category);
 
 // 全文搜索索引
 CALL db.index.fulltext.createNodeIndex(
@@ -398,15 +404,18 @@ class GraphQueryBuilder:
     
     async def get_character_network(
         self,
+        novel_id: str,
         character_id: str,
         depth: int = 2
     ) -> Dict[str, Any]:
         """获取人物关系网络"""
         query = """
-        MATCH (c:Character {id: $char_id})
+        MATCH (n:Novel {novel_id: $novel_id})
+        MATCH (c:Character {app_id: $char_id})-[:APPEARS_IN_NOVEL]->(n)
         CALL apoc.path.subgraphAll(c, {
-            relationshipFilter: "RELATES_TO",
-            maxLevel: $depth
+            relationshipFilter: "RELATES_TO>",
+            maxLevel: $depth,
+            bfs: true
         })
         YIELD nodes, relationships
         RETURN nodes, relationships
@@ -415,6 +424,7 @@ class GraphQueryBuilder:
         async with self.driver.session() as session:
             result = await session.run(
                 query,
+                novel_id=novel_id,
                 char_id=character_id,
                 depth=depth
             )
@@ -422,30 +432,30 @@ class GraphQueryBuilder:
     
     async def check_timeline_consistency(
         self,
-        project_id: str
+        novel_id: str
     ) -> List[Dict[str, Any]]:
         """检查时间线一致性"""
         query = """
-        MATCH (p:Project {id: $project_id})
-        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:CHAPTER_IN]->(:PlotContainer)-[:BELONGS_TO]->(p)
+        MATCH (n:Novel {novel_id: $novel_id})
+        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
         MATCH (e1)-[:TRIGGERS]->(e2:Event)
         WHERE e1.timestamp > e2.timestamp
         RETURN e1, e2, 'Timeline violation: cause after effect' as error
         """
         
         async with self.driver.session() as session:
-            result = await session.run(query, project_id=project_id)
+            result = await session.run(query, novel_id=novel_id)
             return [record.data() async for record in result]
     
     async def find_plot_holes(
         self,
-        project_id: str
+        novel_id: str
     ) -> List[Dict[str, Any]]:
         """查找情节漏洞"""
         query = """
         // 查找没有解决的伏笔
-        MATCH (p:Project {id: $project_id})
-        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:CHAPTER_IN]->(:PlotContainer)-[:BELONGS_TO]->(p)
+        MATCH (n:Novel {novel_id: $novel_id})
+        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
         WHERE NOT EXISTS {
             MATCH (setup)-[:RESOLVED_BY]->(:Event)
         }
@@ -454,16 +464,16 @@ class GraphQueryBuilder:
         UNION
         
         // 查找孤立的角色（没有任何关系）
-        MATCH (p:Project {id: $project_id})
-        MATCH (c:Character)-[:CHARACTER_IN]->(:CharacterContainer)-[:BELONGS_TO]->(p)
+        MATCH (n:Novel {novel_id: $novel_id})
+        MATCH (c:Character)-[:APPEARS_IN_NOVEL]->(n)
         WHERE NOT EXISTS {
             MATCH (c)-[:RELATES_TO]-()
         }
-        RETURN c.id as isolated_character, c.name
+        RETURN c.app_id as isolated_character, c.name
         """
         
         async with self.driver.session() as session:
-            result = await session.run(query, project_id=project_id)
+            result = await session.run(query, novel_id=novel_id)
             return [record.data() async for record in result]
     
     async def get_world_rules_for_location(
@@ -472,8 +482,8 @@ class GraphQueryBuilder:
     ) -> List[Dict[str, Any]]:
         """获取特定地点适用的世界规则"""
         query = """
-        MATCH (l:Location {id: $loc_id})
-        MATCH (l)-[:LOCATED_IN*0..]->(parent:Location)
+        MATCH (l:Location {app_id: $loc_id})
+        MATCH (l)-[:LOCATED_IN*0..4]->(parent:Location)
         MATCH (rule:WorldRule)-[:APPLIES_TO]->(parent)
         RETURN DISTINCT rule
         ORDER BY rule.level
@@ -521,26 +531,30 @@ class GraphOptimizer:
     def __init__(self, driver):
         self.driver = driver
     
-    async def warm_cache(self, project_id: str):
+    async def warm_cache(self, novel_id: str):
         """预热缓存，加载常用数据"""
         queries = [
             # 预加载所有角色
-            "MATCH (p:Project {id: $pid})-[:BELONGS_TO]-(cc:CharacterContainer)-[:CHARACTER_IN]-(c:Character) RETURN c",
-            # 预加载主要位置
-            "MATCH (p:Project {id: $pid})-[:BELONGS_TO]-(w:WorldContainer)-[:CONTAINS]-(l:Location {type: 'city'}) RETURN l",
-            # 预加载核心规则
-            "MATCH (p:Project {id: $pid})-[:BELONGS_TO]-(w:WorldContainer)-[:RULE_IN]-(r:WorldRule {level: 1}) RETURN r"
+            "MATCH (n:Novel {novel_id: $nid})<-[:APPEARS_IN_NOVEL]-(c:Character) RETURN c LIMIT 1000",
+            # 预加载主要位置（城市）
+            "MATCH (n:Novel {novel_id: $nid})<-[:BELONGS_TO_NOVEL]-(ch:Chapter)
+             MATCH (sc:Scene)-[:SCENE_IN]->(ch)
+             MATCH (sc)-[:TAKES_PLACE_AT]->(l:Location {type: 'city'}) RETURN l LIMIT 1000",
+            # 预加载核心规则（level=1）
+            "MATCH (n:Novel {novel_id: $nid})
+             MATCH (n)-[:HAS_DIMENSION]->(dim:WorldDimension)
+             MATCH (r:WorldRule {level: 1})-[:RULE_IN]->(dim) RETURN r LIMIT 500"
         ]
         
         async with self.driver.session() as session:
             for query in queries:
-                await session.run(query, pid=project_id)
+                await session.run(query, nid=novel_id)
     
-    async def create_virtual_graph(self, project_id: str):
+    async def create_virtual_graph(self, novel_id: str):
         """创建虚拟图用于复杂分析"""
         query = """
         CALL gds.graph.project(
-            $project_id + '_virtual',
+            $novel_id + '_virtual',
             ['Character', 'Location', 'Event'],
             {
                 RELATES_TO: {orientation: 'UNDIRECTED'},
@@ -551,12 +565,12 @@ class GraphOptimizer:
         """
         
         async with self.driver.session() as session:
-            await session.run(query, project_id=project_id)
+            await session.run(query, novel_id=novel_id)
     
-    async def analyze_centrality(self, project_id: str):
+    async def analyze_centrality(self, novel_id: str):
         """分析节点中心性（找出关键人物/地点）"""
         query = """
-        CALL gds.pageRank.stream($project_id + '_virtual')
+        CALL gds.pageRank.stream($novel_id + '_virtual')
         YIELD nodeId, score
         RETURN gds.util.asNode(nodeId).name AS name, score
         ORDER BY score DESC
@@ -564,8 +578,20 @@ class GraphOptimizer:
         """
         
         async with self.driver.session() as session:
-            result = await session.run(query, project_id=project_id)
+            result = await session.run(query, novel_id=novel_id)
             return [record.data() async for record in result]
+
+    async def drop_virtual_graph(self, novel_id: str):
+        """清理虚拟图，释放内存"""
+        query = """
+        CALL gds.graph.exists($novel_id + '_virtual') YIELD exists
+        WITH exists
+        WHERE exists
+        CALL gds.graph.drop($novel_id + '_virtual') YIELD graphName
+        RETURN graphName
+        """
+        async with self.driver.session() as session:
+            await session.run(query, novel_id=novel_id)
 ```
 
 ### Rollback Plan
@@ -612,3 +638,4 @@ class GraphOptimizer:
 
 ## Changelog
 - 2025-09-04: 初始草稿创建
+- 2025-09-04: 对齐 Neo4j 5.x，统一 :Novel/novel_id 与 app_id，修正 Cypher 示例（关系与属性）、索引与约束语法、查询示例绑定 novel_id，新增 Scene/Event/CharacterState 关系示例与 GDS 清理

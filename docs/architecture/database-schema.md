@@ -5,7 +5,7 @@
 ### 核心设计原则
 
 - **统一事件日志:** `domain_events` 表是整个系统所有业务事实的唯一、不可变来源。
-- **状态快照:** 核心业务表（如 `novels`, `chapters`, `genesis_sessions`）存储实体的当前状态快照，用于高效查询，其状态由领域事件驱动更新。
+- **状态快照:** 核心业务表（如 `novels`, `chapters`, `conversation_sessions`）存储实体的当前状态快照，用于高效查询，其状态由领域事件驱动更新。
 - **可靠的异步通信:** `command_inbox` (幂等性), `event_outbox` (事务性事件发布), 和 `flow_resume_handles` (工作流恢复) 这三张表共同构成了我们健壮的异步通信和编排的基石。
 - **混合外键策略:** 在代表核心领域模型的表之间保留数据库级外键约束以保证强一致性。在高吞吐量的日志和追踪类表中，则不使用外键以获得更好的写入性能和灵活性。
 
@@ -137,20 +137,44 @@ CREATE TABLE reviews (
 );
 COMMENT ON TABLE reviews IS '记录每一次对章节草稿的评审结果。';
 
---- 状态快照表 ---
+--- 对话会话与轮次表（通用） ---
 
-CREATE TABLE genesis_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- 会话的唯一标识符
-    novel_id UUID REFERENCES novels(id) ON DELETE SET NULL, -- 流程完成后关联的小说ID
-    user_id UUID, -- 关联的用户ID
-    status genesis_status NOT NULL DEFAULT 'IN_PROGRESS', -- 整个会话的状态
-    current_stage genesis_stage NOT NULL DEFAULT 'CONCEPT_SELECTION', -- 当前所处的业务阶段
-    confirmed_data JSONB, -- 存储每个阶段已确认的最终数据
-    version INTEGER NOT NULL DEFAULT 1, -- 乐观锁版本号
+-- 通用会话快照：支持 GENESIS/CHAPTER/REVIEW 等多域对话
+CREATE TABLE conversation_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scope_type TEXT NOT NULL,                 -- 会话所属域：GENESIS/CHAPTER/REVIEW/...（后续可迁 ENUM）
+    scope_id TEXT NOT NULL,                   -- 绑定业务实体ID（如 genesis_id/novel_id/chapter_id）
+    status TEXT NOT NULL DEFAULT 'ACTIVE',    -- ACTIVE/COMPLETED/ABANDONED/PAUSED
+    stage TEXT,                               -- 业务阶段（可选，域内自定义）
+    state JSONB,                              -- 会话聚合/摘要（滚动摘要 + 锁定事实）
+    version INTEGER NOT NULL DEFAULT 0,       -- 乐观锁版本（OCC）
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-COMMENT ON TABLE genesis_sessions IS '作为创世流程的“状态快照”，用于高效查询当前流程的状态，其状态由领域事件驱动更新。';
+COMMENT ON TABLE conversation_sessions IS '通用的多域对话会话快照表，统一管理创世/章节/评审等场景。';
+CREATE INDEX idx_conversation_sessions_scope ON conversation_sessions(scope_type, scope_id);
+CREATE INDEX idx_conversation_sessions_updated_at ON conversation_sessions(updated_at DESC);
+
+-- 每轮对话审计与分支回溯
+CREATE TABLE conversation_rounds (
+    session_id UUID NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+    round_path TEXT NOT NULL,                 -- 如 '1', '2', '2.1', '2.1.1'
+    role TEXT NOT NULL,                       -- user/assistant/system/tool 等
+    input JSONB,
+    output JSONB,
+    tool_calls JSONB,
+    model TEXT,
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    latency_ms INTEGER,
+    cost NUMERIC,
+    correlation_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (session_id, round_path)
+);
+COMMENT ON TABLE conversation_rounds IS '记录对话的每一轮输入/输出与元数据，支持分支和回溯。';
+CREATE INDEX idx_conversation_rounds_session_created ON conversation_rounds(session_id, created_at);
+CREATE INDEX idx_conversation_rounds_correlation ON conversation_rounds(correlation_id);
 
 --- 核心架构机制表 ---
 
@@ -180,6 +204,7 @@ CREATE TABLE command_inbox (
 );
 COMMENT ON TABLE command_inbox IS '命令收件箱，通过唯一性约束为需要异步处理的命令提供幂等性保证。';
 CREATE UNIQUE INDEX idx_command_inbox_unique_pending_command ON command_inbox (session_id, command_type) WHERE status IN ('RECEIVED', 'PROCESSING');
+-- 说明：command_inbox.session_id 语义为“关联到 conversation_sessions.id 的会话上下文标识”
 
 
 CREATE TABLE async_tasks (
@@ -232,7 +257,7 @@ CREATE TRIGGER set_timestamp_chapters BEFORE UPDATE ON chapters FOR EACH ROW EXE
 CREATE TRIGGER set_timestamp_characters BEFORE UPDATE ON characters FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_worldview_entries BEFORE UPDATE ON worldview_entries FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_story_arcs BEFORE UPDATE ON story_arcs FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
-CREATE TRIGGER set_timestamp_genesis_sessions BEFORE UPDATE ON genesis_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_conversation_sessions BEFORE UPDATE ON conversation_sessions FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_async_tasks BEFORE UPDATE ON async_tasks FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_handles FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
@@ -241,12 +266,12 @@ CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_ha
 ## Neo4j
 
 - **核心原则:** Neo4j用于存储和查询**每个小说项目内部的**知识图谱。它的核心价值在于管理和推理实体之间复杂的、动态演变的关系，这是传统关系型数据库难以高效处理的。
-  - **关联性:** 所有Neo4j中的核心节点都应有一个 `app_id` 属性，其值对应其在PostgreSQL中对应表的主键ID，以便于跨数据库关联和数据补充。
+  - **关联性:** :Novel 节点使用 `novel_id`（对应PG `novels.id`，唯一）；除 :Novel 外的节点均使用 `app_id`（对应其在PG中的主键）。为提升范围过滤性能，推荐在核心节点冗余 `novel_id` 并建立索引。
   - **数据职责:** PostgreSQL负责存储实体的核心“属性”和“版本化内容”，而Neo4j专注于存储这些实体之间的“关系”、“上下文”和“随时间演变的互动状态”。
   - **范围隔离:** 所有图数据都必须通过关系连接到唯一的 `:Novel` 节点，确保每个小说的知识图谱是完全隔离的。
 
 - **节点标签 (Node Labels) - 示例:**
-  - `:Novel` (属性: `app_id: string` (来自PG `novels.id`), `title: string`) - 图谱的根节点。
+  - `:Novel` (属性: `novel_id: string` (来自PG `novels.id`), `title: string`) - 图谱的根节点。
   - `:Chapter` (属性: `app_id: string` (来自PG `chapters.id`), `chapter_number: integer`, `title: string`) - 章节的元数据节点。
   - `:ChapterVersion` (属性: `app_id: string` (来自PG `chapter_versions.id`), `version_number: integer`, `created_by_agent_type: string`) - 代表一个具体的章节版本，是大多数事件和互动的关联点。
   - `:Character` (属性: `app_id: string` (来自PG `characters.id`), `name: string`, `role: string`) - 角色节点。
@@ -290,22 +315,24 @@ CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_ha
 - **Cypher 查询示例 (展示图数据库的威力):**
   - **简单查询 (角色出场章节):**
     ```cypher
-    MATCH (c:Character {name: '艾拉'})<-[:FEATURES_CHARACTER]-(cv:ChapterVersion)-[:VERSION_OF]->(chap:Chapter)
-    WHERE (chap)-[:BELONGS_TO_NOVEL]->(:Novel {app_id: '指定小说ID'})
+    MATCH (n:Novel {novel_id: $novel_id})
+    MATCH (c:Character {name: $name})<-[:FEATURES_CHARACTER]-(cv:ChapterVersion)-[:VERSION_OF]->(chap:Chapter)-[:BELONGS_TO_NOVEL]->(n)
     RETURN chap.chapter_number, chap.title
     ORDER BY chap.chapter_number;
     ```
   - **中等查询 (复杂关系查找):** 找出在“暗影森林”中出现过，并且是“光明教会”敌人的所有角色。
     ```cypher
-    MATCH (c:Character)-[:APPEARS_IN_NOVEL]->(:Novel {app_id: '指定小说ID'}),
-          (c)-[:TAKES_PLACE_IN]->(:WorldviewEntry {name: '暗影森林'}),
-          (c)-[:HAS_RELATIONSHIP {type: 'HOSTILE'}]->(:WorldviewEntry {name: '光明教会', entry_type: 'ORGANIZATION'})
+    MATCH (n:Novel {novel_id: $novel_id})
+    MATCH (c:Character)-[:APPEARS_IN_NOVEL]->(n)
+    MATCH (c)-[:TAKES_PLACE_IN]->(:WorldviewEntry {name: '暗影森林'})
+    MATCH (c)-[:HAS_RELATIONSHIP {type: 'HOSTILE'}]->(:WorldviewEntry {name: '光明教会', entry_type: 'ORGANIZATION'})
     RETURN c.name, c.role;
     ```
   - **复杂查询 (事实一致性检查):** 检查角色“艾拉”在第5章的版本中，是否既有在“北境”的互动，又有在“南都”的互动（逻辑矛盾）。
     ```cypher
-    MATCH (cv:ChapterVersion)-[:VERSION_OF]->(:Chapter {chapter_number: 5}),
-          (cv)-[:BELONGS_TO_NOVEL]->(:Novel {app_id: '指定小说ID'})
+    MATCH (n:Novel {novel_id: $novel_id})
+    MATCH (cv:ChapterVersion)-[:VERSION_OF]->(:Chapter {chapter_number: 5})
+    MATCH (cv)-[:BELONGS_TO_NOVEL]->(n)
     MATCH (cv)-[:FEATURES_CHARACTER]->(c:Character {name: '艾拉'})
     MATCH (c)<-[:INVOLVES]-(:Interaction)-[:INTERACTION_IN]->(:SceneCard)-[:SCENE_IN]->(:Outline)-[:OUTLINE_FOR]->(cv),
           (interaction_location:WorldviewEntry {entry_type: 'LOCATION'})<-[:TAKES_PLACE_IN]-(cv)
@@ -313,13 +340,16 @@ CREATE TRIGGER set_timestamp_flow_resume_handles BEFORE UPDATE ON flow_resume_ha
     RETURN count(DISTINCT location_name) > 1 AS has_contradiction, collect(DISTINCT location_name) AS locations;
     ```
 
-- **索引策略 (Indexing Strategy):**
+- **索引策略 (Indexing Strategy，Neo4j 5.x):**
   - 为了保证查询性能，必须为节点上频繁用于查找的属性创建索引。
-  - **必须创建的索引:**
-    - `CREATE INDEX novel_app_id FOR (n:Novel) ON (n.app_id);`
-    - `CREATE INDEX chapter_app_id FOR (c:Chapter) ON (c.app_id);`
-    - `CREATE INDEX character_app_id FOR (c:Character) ON (c.app_id);`
-    - `CREATE INDEX worldview_app_id FOR (w:WorldviewEntry) ON (w.app_id);`
+  - **必须创建的约束/索引:**
+    - `CREATE CONSTRAINT unique_novel_id IF NOT EXISTS FOR (n:Novel) REQUIRE n.novel_id IS UNIQUE;`
+    - `CREATE CONSTRAINT unique_chapter_app_id IF NOT EXISTS FOR (c:Chapter) REQUIRE c.app_id IS UNIQUE;`
+    - `CREATE CONSTRAINT unique_character_app_id IF NOT EXISTS FOR (c:Character) REQUIRE c.app_id IS UNIQUE;`
+    - `CREATE CONSTRAINT unique_worldview_app_id IF NOT EXISTS FOR (w:WorldviewEntry) REQUIRE w.app_id IS UNIQUE;`
+    - `CREATE INDEX chapter_novel_id IF NOT EXISTS FOR (c:Chapter) ON (c.novel_id);`
+    - `CREATE INDEX character_novel_id IF NOT EXISTS FOR (c:Character) ON (c.novel_id);`
+    - `CREATE INDEX worldview_novel_id IF NOT EXISTS FOR (w:WorldviewEntry) ON (w.novel_id);`
   - **推荐创建的索引:**
     - `CREATE INDEX character_name FOR (c:Character) ON (c.name);`
     - `CREATE INDEX worldview_name_type FOR (w:WorldviewEntry) ON (w.name, w.entry_type);`

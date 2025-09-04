@@ -1,7 +1,7 @@
 ---
 id: ADR-002-vector-embedding-model
 title: 向量嵌入模型选择
-status: Proposed
+status: Accepted
 date: 2025-09-04
 decision_makers: [platform-arch, ai-lead]
 related_requirements: [FR-008, NFR-001, NFR-003, NFR-005]
@@ -14,7 +14,7 @@ tags: [ai, embeddings, search, performance, cost]
 # 向量嵌入模型选择
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 
@@ -37,6 +37,17 @@ Proposed
 - 现有约定：所有AI模型调用通过LiteLLM统一管理
 - 集成点：需要与知识库模块、各Agent服务集成
 
+已部署的 Embedding API：
+- 运行方式：自托管（Ollama/自研网关），通过 HTTP 提供统一向量接口
+- 访问配置（后端 Settings/env）：
+  - `EMBEDDING_API_HOST=192.168.1.191`
+  - `EMBEDDING_API_PORT=11434`
+  - `EMBEDDING_API_MODEL=dengcao/Qwen3-Embedding-0.6B:F16`
+- 已有客户端：`apps/backend/src/common/services/embedding_service.py`
+  - 健康检查：`GET /api/tags`
+  - 获取向量：`POST /api/embed`，JSON：`{"model": <string>, "input": <string>}`
+  - 返回格式兼容：`{"embedding": number[]}` 或 `{"embeddings": number[][]}`
+
 ### Requirements Driving This Decision
 - FR-008: 知识库需要支持向量检索，P95<400ms
 - NFR-001: 混合检索P95<600ms的性能要求
@@ -57,7 +68,21 @@ Proposed
 
 ## Considered Options
 
-### Option 1: BGE-M3（推荐）
+### Option 0: Qwen3-Embedding 0.6B（已采纳）
+- 描述：阿里 Qwen3 系列小型中文嵌入模型，经 Ollama/自研 API 自托管对外提供
+- 与现有架构的一致性：高 - 已部署并通过后端 EmbeddingService 接入
+- 实现复杂度：低 - 直接通过 HTTP API 调用，无需在本仓库新增模型服务
+- 优点：
+  - 中文理解良好，体量小，推理速度快
+  - 自托管，零第三方 API 费用；可控的局域网延迟
+  - 与当前后端服务已打通（`/api/embed` 接口）
+- 缺点：
+  - 相比大型/专业嵌入模型（如 BGE-M3）在长文本细粒度语义上可能略有差距
+  - 具体维度、最大输入长度、是否归一化需以实际模型配置为准（以 API 返回为准）
+- 风险：
+  - 依赖外部嵌入服务的稳定性与 GPU 资源（由运维侧保障）
+
+### Option 1: BGE-M3（备选）
 - **描述**：BAAI开源的多语言、多功能、多粒度的嵌入模型，专门优化了中文性能
 - **与现有架构的一致性**：高 - 可本地部署，与Milvus完美兼容
 - **实现复杂度**：低
@@ -121,141 +146,79 @@ Proposed
 - **风险**：MVP时间限制下无法完成
 
 ## Decision
-建议采用 **Option 1: BGE-M3模型**
+采纳 **Option 0: Qwen3-Embedding 0.6B（自托管 API）** 作为 MVP 嵌入模型与服务对接方案。
 
 理由：
-1. 中文性能优秀，特别适合网络小说场景
-2. 本地部署无API成本，长期成本可控
-3. 支持长文本（8192 tokens），适合章节级别的嵌入
-4. 多功能设计支持未来扩展需求
-5. 开源生态活跃，有持续更新
+1. 已在内网完成部署与连通性验证，接入成本最低
+2. 中文语料适配良好，体量小、延迟低，满足当前 P95 要求
+3. 自托管不产生第三方 API 成本，可控性更高
+4. 与后端 `EmbeddingService` 现有接口契合（`/api/embed`）
+5. 保留 BGE-M3 作为二期可插拔备选，便于后续 A/B 与升级
 
 ## Consequences
 
 ### Positive
-- 零API调用成本，显著降低运营开支
-- 中文语义理解准确，提升检索质量
-- 本地部署响应快速，易满足性能要求
-- 支持离线运行，不受网络影响
-- 可以根据需要调整部署规模
+- 自托管零第三方 API 费用，降低运营成本
+- 中文语义效果良好；就近部署，链路短、延迟可控
+- 已有后端客户端与配置，集成改动小
+- 可按需更换模型（通过 `EMBEDDING_API_MODEL`）
 
 ### Negative
-- 需要GPU资源（建议至少1张V100或3090）
-- 需要维护模型服务的稳定性
-- 团队需要学习模型部署和优化
+- 依赖外部嵌入服务稳定性与 GPU 供给（由运维保证）
+- 模型与实现差异可能导致维度/归一化/输入上限的差异化处理需求
 
 ### Risks
-- **风险1：GPU资源不足**
-  - 缓解：可以使用量化版本或CPU推理（性能降低）
-- **风险2：模型服务不稳定**
-  - 缓解：使用容器化部署，配置健康检查和自动重启
+- 风险1：嵌入服务容量不足
+  - 缓解：横向扩容实例；后端侧启用批量化与退避重试；必要时临时降级 QPS
+- 风险2：模型服务不稳定
+  - 缓解：健康检查（`/api/tags`）、就绪探针、自动重启；监控时延与错误率
 
 ## Implementation Plan
 
 ### Integration with Existing Architecture
-- **代码位置**：
-  - 模型服务：`services/embedding-service/`
-  - 集成代码：`apps/backend/src/infrastructure/embeddings/`
-- **模块边界**：
-  - EmbeddingService: 统一的嵌入服务接口
-  - BGEProvider: BGE-M3的具体实现
-  - MilvusAdapter: 与Milvus的集成适配器
-- **依赖管理**：
-  - 使用transformers库加载模型
-  - 使用FastAPI创建嵌入服务API
+- 代码位置：
+  - 客户端：`apps/backend/src/common/services/embedding_service.py`
+  - （可选）Milvus 适配：`apps/backend/src/db/vector/`（待实现）
+- 配置来源：
+  - `.env` / `config.toml` 中的 `EMBEDDING_API_HOST`、`EMBEDDING_API_PORT`、`EMBEDDING_API_MODEL`
+- API 约定（已实现）：
+  - 健康检查：`GET {EMBEDDING_API_URL}/api/tags`
+  - 获取向量：`POST {EMBEDDING_API_URL}/api/embed`
+    - 请求：`{"model": settings.embedding_api_model, "input": text}`
+    - 响应：`{"embedding": number[]}` 或 `{"embeddings": number[][]}`（服务端可能返回单/批）
+- 归一化策略：
+  - 若采用 Milvus `COSINE`，可不强制预归一化；若采用 `IP` 需在入库前进行 L2 归一化（由向量层负责）
 
 ### Deployment Architecture
-```python
-# 模型服务部署
-class EmbeddingService:
-    def __init__(self):
-        self.model = FlagModel(
-            'BAAI/bge-m3',
-            query_instruction="为这个句子生成表示以用于检索相关文章：",
-            use_fp16=True  # 使用半精度加速
-        )
-    
-    async def embed_batch(
-        self, 
-        texts: List[str],
-        max_length: int = 8192
-    ) -> List[List[float]]:
-        # 批量处理优化性能
-        embeddings = self.model.encode(
-            texts,
-            batch_size=32,
-            max_length=max_length
-        )
-        return embeddings['dense_vecs']
-
-# Docker部署配置
-FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
-RUN pip install FlagEmbedding transformers
-COPY ./embedding_service /app
-EXPOSE 8001
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
-
-# Kubernetes资源配置
-resources:
-  requests:
-    memory: "4Gi"
-    nvidia.com/gpu: 1
-  limits:
-    memory: "8Gi"
-    nvidia.com/gpu: 1
-```
+- 嵌入服务：已在 192.168.1.191:11434 自托管部署（Ollama/网关负责运行与扩容），不在本仓库内维护镜像
+- 后端：通过 `EmbeddingService` 以 HTTP 直连嵌入服务；健康检查对 `/api/tags`，向量请求走 `/api/embed`
+- 监控：建议在嵌入服务侧暴露时延/QPS/错误率指标，并联动后端日志中的 `correlation_id`
 
 ### Migration Strategy
-- **阶段1**：部署BGE-M3模型服务（Day 1）
-- **阶段2**：实现嵌入生成和缓存机制（Day 2）
-- **阶段3**：集成到Milvus和知识库系统（Day 2-3）
-- **阶段4**：性能测试和优化（Day 3）
-- **向后兼容**：新系统启动，如需要可并行运行多个嵌入模型
+- 阶段1：使用已部署的 Qwen3-Embedding 服务直连（已完成）
+- 阶段2：实现/接入向量入库与检索（Milvus 集合与索引）
+- 阶段3：按需增加服务端/客户端缓存与批量化
+- 阶段4：性能与质量评估，必要时 A/B 对比 BGE-M3 或 OpenAI 方案
+- 向后兼容：通过 `EMBEDDING_API_MODEL` 切换模型；必要时双写双读以平滑迁移
 
 ### Performance Optimization
 ```python
-# 优化策略
-class OptimizedEmbeddingService:
-    def __init__(self):
-        self.cache = Redis()  # 缓存常见查询
-        self.batch_queue = Queue()  # 批量处理队列
-        
-    async def get_embedding(self, text: str) -> List[float]:
-        # 1. 检查缓存
-        cache_key = hashlib.md5(text.encode()).hexdigest()
-        if cached := await self.cache.get(cache_key):
-            return json.loads(cached)
-        
-        # 2. 加入批处理队列
-        future = asyncio.Future()
-        self.batch_queue.put((text, future))
-        
-        # 3. 触发批处理（如果队列满或超时）
-        if self.batch_queue.qsize() >= 32:
-            await self._process_batch()
-        
-        return await future
-
-# Milvus索引优化
+# Milvus 索引优化（建议默认）
 index_params = {
-    "index_type": "IVF_PQ",  # 使用乘积量化减少内存
-    "metric_type": "IP",      # 内积相似度
-    "params": {
-        "nlist": 1024,
-        "m": 16,
-        "nbits": 8
-    }
+    "index_type": "HNSW",
+    "metric_type": "COSINE",  # 或使用 IP + 预归一化
+    "params": {"M": 32, "efConstruction": 200}
 }
+# 查询参数示例：{"ef": 200}
 ```
 
 ### Rollback Plan
-- **触发条件**：模型性能不达标或资源消耗过高
-- **回滚步骤**：
-  1. 保留已生成的向量
-  2. 切换到OpenAI Ada-002 API（Option 2）
-  3. 通过LiteLLM配置API调用
-  4. 监控成本和性能
-- **数据恢复**：向量维度不同需要重新生成
+- 触发条件：服务不稳定/延迟超标/质量不达标
+- 回滚步骤：
+  1. 通过 LiteLLM 切换到 OpenAI `text-embedding-3-small`（或本地替代模型）
+  2. 或将 `EMBEDDING_API_MODEL` 改为其它自托管模型（如 BGE-M3）
+  3. 监控成本与性能，评估是否需要重建向量
+- 数据注意：不同模型维度通常不同，需评估是否重嵌入/双索引并行
 
 ## Validation
 
@@ -267,26 +230,28 @@ index_params = {
   - 资源管理和内存泄漏
 
 ### Metrics
-- **性能指标**：
-  - 单条嵌入生成：当前N/A → P95 < 50ms
-  - 批量嵌入（32条）：当前N/A → P95 < 500ms
-  - 嵌入服务QPS：目标 > 100
-- **质量指标**：
-  - 检索召回率@10：目标 > 85%
-  - 语义相似度准确率：目标 > 90%
+- 性能指标（以 200–400 tokens/条为测量基线）：
+  - 单条嵌入生成：P95 < 120ms（随硬件/负载调整）
+  - 批量嵌入（客户端串行批量或服务端并行）：P95 < 800ms（32 条）
+  - 嵌入服务 QPS：> 100（在稳定批量化条件下）
+- 质量指标：
+  - 检索 Recall@10：> 85%（以领域样本集评估）
+  - 排序 nDCG@10：> 0.85（融合策略后）
 
 ### Test Strategy
-- **单元测试**：测试嵌入生成和缓存逻辑
-- **集成测试**：端到端的嵌入生成和检索流程
-- **性能测试**：使用真实小说文本测试吞吐量
-- **质量测试**：使用标注数据集评估检索准确性
-- **A/B测试**：对比不同模型的检索效果
+- 单元测试：EmbeddingService 响应格式分支（`embedding`/`embeddings`）、错误处理、超时
+- 集成测试：端到端嵌入 + Milvus 相似检索
+- 性能测试：以真实小说文本进行基线采样，评估 P50/P95
+- 质量测试：C-MTEB 中文子集 + 领域样本集
+- A/B 测试：对比 Qwen3-Embedding 与 BGE-M3 / OpenAI 的检索效果
 
 ## References
+- [Qwen Embedding（官方）](https://github.com/QwenLM)
+- [Ollama Embeddings API](https://github.com/ollama/ollama/blob/main/docs/api.md#embeddings)
+- [Milvus 最佳实践](https://milvus.io/docs/index.md)
 - [BGE-M3 论文](https://arxiv.org/abs/2402.03216)
-- [BGE-M3 GitHub](https://github.com/FlagOpen/FlagEmbedding)
-- [Milvus最佳实践](https://milvus.io/docs/index.md)
-- [中文嵌入模型评测](https://github.com/FlagOpen/FlagEmbedding/blob/master/C-MTEB)
+- [中文嵌入模型评测（示例）](https://github.com/FlagOpen/FlagEmbedding/blob/master/C-MTEB)
 
 ## Changelog
 - 2025-09-04: 初始草稿创建
+- 2025-09-05: 采纳 Qwen3-Embedding（自托管 API），对齐现有后端接口与配置；更新回滚与指标
