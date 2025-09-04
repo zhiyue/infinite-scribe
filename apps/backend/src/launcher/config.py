@@ -27,6 +27,11 @@ class LauncherAgentsConfig(BaseModel):
     disable_signal_handlers: bool = Field(
         default=False, description="Disable agent signal handlers when managed by external orchestrator"
     )
+    ready_timeout: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Optional readiness wait time (seconds) for agents background startup; 0 or None disables waiting",
+    )
 
     @field_validator("names")
     @classmethod

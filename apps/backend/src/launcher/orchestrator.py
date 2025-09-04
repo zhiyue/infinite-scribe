@@ -357,6 +357,7 @@ class Orchestrator:
             cfg = {
                 "agents": self.config.agents.names,
                 "disable_signal_handlers": self.config.agents.disable_signal_handlers,
+                "ready_timeout": getattr(self.config.agents, "ready_timeout", None),
             }
             return AgentsAdapter(cfg)
         return None

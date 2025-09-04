@@ -65,11 +65,26 @@ def _execute_startup(
     disable_agent_signals = getattr(args, "stay", False)
 
     # Build config
+    # Normalize agents readiness timeout from CLI args (may be missing/mocked in tests)
+    _ready_timeout = None
+    if hasattr(args, "agents_ready_timeout"):
+        try:
+            if args.agents_ready_timeout is not None:
+                _ready_timeout = float(args.agents_ready_timeout)
+                if _ready_timeout < 0:
+                    _ready_timeout = 0.0
+        except Exception:
+            _ready_timeout = None
+
     config = LauncherConfigModel(
         default_mode=mode,
         components=components,
         api=LauncherApiConfig(reload=bool(args.reload)),
-        agents=LauncherAgentsConfig(names=agent_names, disable_signal_handlers=disable_agent_signals),
+        agents=LauncherAgentsConfig(
+            names=agent_names,
+            disable_signal_handlers=disable_agent_signals,
+            ready_timeout=_ready_timeout,
+        ),
     )
 
     orch = Orchestrator(config)

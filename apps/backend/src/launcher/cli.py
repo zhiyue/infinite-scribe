@@ -90,6 +90,17 @@ def _add_up_command_parser(subparsers) -> None:
         default=None,
         help="Agent names (CSV or JSON list). Defaults to settings.launcher.agents.names",
     )
+    up_parser.add_argument(
+        "--agents-ready-timeout",
+        dest="agents_ready_timeout",
+        type=float,
+        default=None,
+        help=(
+            "Agents readiness wait in seconds (optional). "
+            "Waits for Kafka consumer/producer initialization per loaded agent. "
+            "0 or unset disables waiting."
+        ),
+    )
     up_parser.add_argument("--reload", action="store_true", help="Enable hot-reload for development")
     up_parser.add_argument("--apply", action="store_true", help="Execute the plan (start services)")
     up_parser.add_argument("--json", action="store_true", help="Output structured JSON status")
