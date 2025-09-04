@@ -921,6 +921,433 @@ class VectorService:
         collection.compact()
 ```
 
+### 组件3：[业务逻辑层实现]
+
+#### 质量评分计算实现
+
+```python
+def calculate_quality_score(stage: str, content: dict) -> float:
+    """计算质量评分"""
+    # 获取一致性校验器
+    validator = ConsistencyValidator()
+    consistency_result = await validator.validate_all(novel_id)
+    
+    base_scores = {
+        'llm_score': llm_evaluate(content),           # 0-10
+        'rule_check': validate_rules(content),        # 0或1
+        'similarity': calculate_similarity(content),   # 0-1
+        'consistency': consistency_result.score       # 0-10（来自Neo4j校验）
+    }
+    
+    # 归一化到0-10
+    normalized = {
+        'llm_score': base_scores['llm_score'],
+        'rule_check': base_scores['rule_check'] * 10,
+        'similarity': base_scores['similarity'] * 10,
+        'consistency': base_scores['consistency']     # 已经是0-10
+    }
+    
+    # 应用权重
+    weights = get_stage_weights(stage)
+    final_score = sum(
+        normalized[key] * weights[key] 
+        for key in normalized
+    )
+    
+    return final_score
+```
+
+#### 一致性校验规则集（Neo4j实现）
+
+##### 校验查询定义
+
+```cypher
+-- 1. 角色关系闭包校验
+-- 检测关系不一致：A→B→C 但 A与C无关系定义
+MATCH (a:Character)-[:RELATES_TO]->(b:Character)-[:RELATES_TO]->(c:Character)
+WHERE a.novel_id = $novel_id 
+  AND NOT EXISTS((a)-[:RELATES_TO]-(c))
+  AND a <> c
+RETURN a.name as character1, b.name as mediator, c.name as character2,
+       "Missing transitive relationship" as violation
+
+-- 2. 世界规则冲突检测
+-- 检测矛盾的世界规则
+MATCH (r1:WorldRule)-[:CONFLICTS_WITH]-(r2:WorldRule)
+WHERE r1.novel_id = $novel_id
+  AND EXISTS((r1)-[:GOVERNS]->(:Novel)<-[:GOVERNS]-(r2))
+RETURN r1.rule as rule1, r2.rule as rule2,
+       "Conflicting rules both govern the same novel" as violation
+
+-- 3. 时间线一致性校验
+-- 检测时间悖论：因在果之后
+MATCH (e1:Event)-[:CAUSES]->(e2:Event)
+WHERE e1.novel_id = $novel_id
+  AND e1.timestamp > e2.timestamp
+RETURN e1.description as cause_event, e1.timestamp as cause_time,
+       e2.description as effect_event, e2.timestamp as effect_time,
+       "Cause happens after effect" as violation
+
+-- 4. 人物属性一致性校验
+-- 检测不合理的属性突变
+MATCH (c:Character)-[:HAS_STATE]->(s1:CharacterState),
+      (c)-[:HAS_STATE]->(s2:CharacterState)
+WHERE c.novel_id = $novel_id
+  AND s2.chapter = s1.chapter + 1
+  AND abs(s2.age - s1.age) > 10  -- 年龄突变超过10岁
+  AND NOT EXISTS((e:Event {type: 'time_skip'}))
+RETURN c.name as character, s1.chapter as chapter1, s1.age as age1,
+       s2.chapter as chapter2, s2.age as age2,
+       "Unreasonable age change" as violation
+
+-- 5. 地理空间一致性校验
+-- 检测不可能的移动速度
+MATCH (c:Character)-[:LOCATED_AT]->(l1:Location),
+      (c)-[:LOCATED_AT]->(l2:Location)
+WHERE c.novel_id = $novel_id
+  AND l2.timestamp - l1.timestamp < 3600  -- 1小时内
+  AND distance(point({x: l1.x, y: l1.y}), 
+               point({x: l2.x, y: l2.y})) > 500  -- 超过500公里
+  AND NOT EXISTS((c)-[:USES]->(:Transportation {type: 'teleport'}))
+RETURN c.name as character, l1.name as from_location, l2.name as to_location,
+       duration((l2.timestamp - l1.timestamp)) as travel_time,
+       distance(point({x: l1.x, y: l1.y}), point({x: l2.x, y: l2.y})) as distance,
+       "Impossible travel speed" as violation
+```
+
+##### 校验器Python实现
+
+```python
+class ConsistencyValidator:
+    """一致性校验器"""
+    
+    VALIDATION_RULES = {
+        'relationship_closure': {
+            'query': RELATIONSHIP_CLOSURE_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        },
+        'world_rule_conflict': {
+            'query': WORLD_RULE_CONFLICT_QUERY,
+            'severity': 'error',
+            'auto_fix': False
+        },
+        'timeline_consistency': {
+            'query': TIMELINE_CONSISTENCY_QUERY,
+            'severity': 'error',
+            'auto_fix': True
+        },
+        'character_continuity': {
+            'query': CHARACTER_CONTINUITY_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        },
+        'spatial_consistency': {
+            'query': SPATIAL_CONSISTENCY_QUERY,
+            'severity': 'warning',
+            'auto_fix': True
+        }
+    }
+    
+    async def validate_all(self, novel_id: str) -> ValidationResult:
+        """执行所有校验规则"""
+        violations = []
+        
+        for rule_name, rule_config in self.VALIDATION_RULES.items():
+            result = await self.neo4j.run(
+                rule_config['query'],
+                {'novel_id': novel_id}
+            )
+            
+            if result:
+                violations.append({
+                    'rule': rule_name,
+                    'severity': rule_config['severity'],
+                    'violations': result,
+                    'auto_fix_available': rule_config['auto_fix']
+                })
+        
+        return ValidationResult(
+            is_valid=len(violations) == 0,
+            violations=violations,
+            score=self.calculate_consistency_score(violations)
+        )
+    
+    def calculate_consistency_score(self, violations: List) -> float:
+        """计算一致性分数（0-10）"""
+        if not violations:
+            return 10.0
+        
+        penalties = {
+            'error': 3.0,
+            'warning': 1.0,
+            'info': 0.3
+        }
+        
+        total_penalty = sum(
+            penalties[v['severity']] * len(v['violations'])
+            for v in violations
+        )
+        
+        return max(0, 10.0 - total_penalty)
+```
+
+#### 批量任务调度实现
+
+##### P1实现：基于Outbox的简单调度
+
+```python
+class BatchDetailGenerator:
+    """P1: 批量细节生成（无Prefect）"""
+    
+    async def generate_details(self, novel_id: str, categories: List[str], style: str):
+        """通过Agent直接处理批量任务"""
+        # 发布到Outbox
+        await self.publish_to_outbox({
+            "event_type": "Genesis.Session.Details.Requested",
+            "novel_id": novel_id,
+            "categories": categories,
+            "style": style
+        })
+        
+        # Detail Generator Agent会消费任务并处理
+        # 完成后发布 Genesis.Session.Details.Generated 事件
+```
+
+##### P2扩展：Prefect工作流编排
+
+```python
+from prefect import flow, task
+from prefect.tasks import task_input_hash
+from datetime import timedelta
+
+@task(
+    retries=3,
+    retry_delay_seconds=60,
+    cache_key_fn=task_input_hash,
+    cache_expiration=timedelta(hours=1)
+)
+async def generate_batch_details(
+    category: str,
+    count: int,
+    style: str
+) -> List[str]:
+    """批量生成细节任务"""
+    pass
+
+@flow(name="genesis-detail-generation")
+async def detail_generation_flow(
+    novel_id: str,
+    categories: List[str],
+    style: str
+):
+    """P2: 复杂工作流编排
+    - 支持暂停/恢复
+    - 支持条件分支
+    - 支持并行处理
+    - 支持失败补偿
+    """
+
+    # 并行生成各类细节
+    futures = []
+    for category in categories:
+        future = await generate_batch_details.submit(
+            category=category,
+            count=get_count_for_category(category),
+            style=style
+        )
+        futures.append(future)
+
+    # 等待所有任务完成
+    results = await gather(*futures)
+
+    # 发布完成事件
+    await publish_to_outbox({
+        "event_type": "Genesis.Session.Details.Completed",
+        "novel_id": novel_id,
+        "results": results
+    })
+```
+
+## SSE 详细实现规范
+
+### 连接管理配置
+
+- **并发限制**：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）
+- **心跳与超时**：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理
+- **重连语义**：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）
+- **健康检查**：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503
+- **响应头**：`Cache-Control: no-cache`、`Connection: keep-alive`
+- **鉴权**：`POST /api/v1/auth/sse-token` 获取短时效 `sse_token`（**默认 TTL=60秒**），`GET /api/v1/events/stream?sse_token=...` 建立连接
+- **SLO 口径**：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时
+
+### Redis Stream 配置
+
+```yaml
+历史事件保留:
+  stream_maxlen: 1000           # XADD maxlen ≈ 1000（默认值）
+  stream_ttl: 3600              # 1小时后自动清理
+  user_history_limit: 100       # 每用户保留最近100条
+  
+回放策略:
+  初次连接:
+    max_events: 20              # 仅回放最近20条
+    time_window: 300            # 或最近5分钟内的事件
+  
+  重连场景:
+    from_last_event_id: true    # 从Last-Event-ID开始全量补发
+    batch_size: 50              # 每批发送50条
+    max_backfill: 500           # 最多补发500条
+    timeout_ms: 5000            # 补发超时时间
+```
+
+### Token 管理实现
+
+```yaml
+token_config:
+  default_ttl: 60           # 默认60秒有效期
+  max_ttl: 300             # 最长5分钟（用于长连接）
+  refresh_window: 15       # 过期前15秒可续签
+  
+签发流程:
+  1. POST /api/v1/auth/sse-token
+     - 验证JWT主令牌有效性
+     - 生成短时效SSE令牌
+     - 返回: {token, expires_in: 60}
+  
+  2. GET /api/v1/events/stream?sse_token=xxx
+     - 验证SSE令牌
+     - 建立SSE连接
+     - 开始推送事件流
+```
+
+### 客户端续签实现
+
+```javascript
+class SSETokenManager {
+  constructor() {
+    this.token = null;
+    this.expiresAt = null;
+    this.refreshTimer = null;
+  }
+  
+  async connect() {
+    // 1. 获取初始token
+    const tokenData = await fetch('/api/v1/auth/sse-token', {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${mainJWT}`}
+    }).then(r => r.json());
+    
+    this.token = tokenData.token;
+    this.expiresAt = Date.now() + (tokenData.expires_in * 1000);
+    
+    // 2. 建立SSE连接
+    this.eventSource = new EventSource(
+      `/api/v1/events/stream?sse_token=${this.token}`
+    );
+    
+    // 3. 设置自动续签（提前15秒）
+    this.scheduleRefresh();
+  }
+  
+  scheduleRefresh() {
+    const refreshTime = this.expiresAt - Date.now() - 15000; // 提前15秒
+    this.refreshTimer = setTimeout(() => this.refresh(), refreshTime);
+  }
+  
+  async refresh() {
+    try {
+      // 4. 获取新token
+      const newTokenData = await fetch('/api/v1/auth/sse-token', {
+        method: 'POST',
+        headers: {'Authorization': `Bearer ${mainJWT}`}
+      }).then(r => r.json());
+      
+      // 5. 无缝切换连接
+      const oldEventSource = this.eventSource;
+      this.token = newTokenData.token;
+      this.expiresAt = Date.now() + (newTokenData.expires_in * 1000);
+      
+      // 6. 创建新连接（带Last-Event-ID）
+      this.eventSource = new EventSource(
+        `/api/v1/events/stream?sse_token=${this.token}`,
+        {headers: {'Last-Event-ID': this.lastEventId}}
+      );
+      
+      // 7. 关闭旧连接
+      setTimeout(() => oldEventSource.close(), 1000);
+      
+      // 8. 递归设置下次续签
+      this.scheduleRefresh();
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // 触发重连逻辑
+      this.reconnect();
+    }
+  }
+}
+```
+
+### 服务端验证实现
+
+```python
+async def validate_sse_token(token: str) -> dict:
+    """验证SSE令牌"""
+    # 1. 从Redis获取token信息
+    token_data = await redis.get(f"sse_token:{token}")
+    if not token_data:
+        raise HTTPException(401, "Invalid or expired SSE token")
+    
+    # 2. 检查过期时间
+    if datetime.now() > token_data["expires_at"]:
+        await redis.delete(f"sse_token:{token}")
+        raise HTTPException(401, "SSE token expired")
+    
+    # 3. 可选：检查主JWT是否仍有效
+    if not await is_main_jwt_valid(token_data["user_id"]):
+        raise HTTPException(401, "Main session expired")
+    
+    return token_data
+```
+
+### SSE 事件格式规范
+
+```json
+{
+  "id": "event-123",                           // Last-Event-ID
+  "event": "Genesis.Session.Theme.Proposed",   // 事件类型（点式命名）
+  "data": {
+    "event_id": "uuid",                        // 事件唯一ID
+    "event_type": "Genesis.Session.Theme.Proposed",
+    "session_id": "uuid",                       // 会话ID
+    "novel_id": "uuid",                         // 小说ID
+    "correlation_id": "uuid",                   // 关联ID（跟踪整个流程）
+    "trace_id": "uuid",                         // 追踪ID（分布式追踪）
+    "timestamp": "ISO-8601",                    // 事件时间戳
+    "payload": {                                // 业务数据（最小集）
+      "stage": "Stage_1",
+      "content": {                              // 仅必要的展示数据
+        "theme": "...",
+        "summary": "..."
+      }
+    }
+  }
+}
+```
+
+### 可推送事件白名单
+
+仅以下领域事件会推送到SSE（都来自 `genesis.session.events`）：
+- `Genesis.Session.Started` - 会话开始
+- `Genesis.Session.*.Proposed` - AI提议（需用户审核）
+- `Genesis.Session.*.Confirmed` - 用户确认
+- `Genesis.Session.*.Updated` - 内容更新
+- `Genesis.Session.StageCompleted` - 阶段完成
+- `Genesis.Session.Finished` - 创世完成
+- `Genesis.Session.Failed` - 处理失败
+
+**注意**：能力事件（`*.tasks/events`）不推送到SSE，仅用于内部协调。
+
 #### 迁移策略
 
 - 使用 Alembic 版本化迁移脚本；顺序：新建表→数据迁移→切换读写→删除旧表
