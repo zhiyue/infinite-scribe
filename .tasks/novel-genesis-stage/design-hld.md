@@ -41,6 +41,7 @@
 | ------- | -------------- | ---------------------- | -------------------- |
 | ADR-001 | 对话状态管理   | 通用会话架构+Redis缓存 | 对话引擎，状态持久化 |
 | ADR-002 | 向量嵌入模型   | Qwen3-Embedding 0.6B   | 相似度搜索，质量评分 |
+| ADR-003 | 架构模式       | CQRS+事件溯源+Outbox   | 命令处理，事件发布   |
 | ADR-004 | 内容版本控制   | 快照+增量混合方案      | 版本管理，分支合并   |
 | ADR-005 | 知识图谱Schema | 层级+网状混合模型      | 世界观管理，人物关系 |
 | ADR-006 | 批量任务调度   | P1: Outbox模式; P2: Prefect编排 | 细节生成，任务编排   |
@@ -196,9 +197,138 @@ C4Container
    - 灵活的工作流编排
    - 完整的事件追踪和审计
 
+## CQRS架构模式
+
+系统采用CQRS（命令查询责任分离）模式，严格分离写操作和读操作，优化性能和复杂性管理。
+
+### 命令侧（Command Side）
+
+#### CommandInbox机制
+
+**目的**：提供可靠的命令接收和幂等性保证，防止重复处理。
+
+```sql
+-- command_inbox表结构
+CREATE TABLE command_inbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL,                    -- 会话标识
+    command_type TEXT NOT NULL,                  -- 命令类型
+    idempotency_key TEXT UNIQUE NOT NULL,        -- 幂等键
+    payload JSONB,                                -- 命令载荷
+    status command_status NOT NULL DEFAULT 'RECEIVED',  -- 状态
+    error_message TEXT,                          -- 错误信息
+    retry_count INT DEFAULT 0,                   -- 重试次数
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 唯一约束保证幂等性
+CREATE UNIQUE INDEX idx_command_inbox_unique_pending 
+ON command_inbox(session_id, command_type) 
+WHERE status IN ('RECEIVED', 'PROCESSING');
+```
+
+#### 命令处理流程
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant DB
+    participant Outbox
+    participant Kafka
+    participant Agent
+
+    Client->>API: POST /commands
+    API->>API: 生成idempotency_key
+    
+    Note over API,DB: 开始数据库事务
+    API->>DB: 1. INSERT INTO command_inbox
+    alt 幂等键冲突
+        DB-->>API: UniqueViolationError
+        API-->>Client: 409 Conflict (命令已存在)
+    else 成功插入
+        API->>DB: 2. INSERT INTO domain_events
+        API->>DB: 3. INSERT INTO event_outbox
+        Note over API,DB: 提交事务
+        API-->>Client: 202 Accepted
+        
+        Outbox->>Kafka: 发布命令事件
+        Kafka->>Agent: 异步处理命令
+    end
+```
+
+### 查询侧（Query Side）
+
+#### 读模型设计
+
+```yaml
+查询模式:
+  直接查询:
+    - 来源: PostgreSQL读模型表
+    - 内容: conversation_sessions, conversation_rounds, novels
+    - 特点: 强一致性读取
+    
+  缓存查询:
+    - 来源: Redis缓存层
+    - 内容: 活跃会话状态、热点数据
+    - 特点: 高性能、最终一致性
+    
+  向量搜索:
+    - 来源: Milvus向量数据库
+    - 内容: 语义相似内容
+    - 特点: AI驱动的智能检索
+    
+  图查询:
+    - 来源: Neo4j图数据库
+    - 内容: 关系网络、知识图谱
+    - 特点: 复杂关系遍历
+```
+
+### 命令与查询分离的优势
+
+1. **性能优化**：
+   - 写操作通过命令异步处理，不阻塞用户
+   - 读操作可以独立优化，使用缓存和专门的读模型
+   
+2. **扩展性**：
+   - 命令处理和查询处理可以独立扩展
+   - 不同的读模型可以针对特定查询模式优化
+   
+3. **复杂性管理**：
+   - 业务逻辑集中在命令处理
+   - 查询侧专注于数据展示和检索
+
+### 事务性保证
+
+通过CommandInbox + DomainEvents + EventOutbox的原子写入，确保：
+- **幂等性**：相同命令不会被重复处理
+- **可靠性**：命令与事件的原子性保证
+- **可追溯性**：完整的命令处理历史
+
 ## 数据流设计
 
 ### 主要数据流
+
+#### 命令处理数据流
+
+```mermaid
+graph LR
+    A[用户命令] --> B[API网关]
+    B --> C[CommandInbox<br/>幂等性检查]
+    C --> D[DomainEvents<br/>事件记录]
+    D --> E[EventOutbox<br/>待发送队列]
+    E --> F[Message Relay<br/>轮询发送]
+    F --> G[Kafka事件总线]
+    G --> H[中央协调者]
+    H --> I[Agent处理]
+    I --> J[结果事件]
+    J --> G
+    G --> K[SSE推送]
+    K --> L[用户界面]
+```
+
+#### AI生成处理流
 
 ```mermaid
 graph LR
@@ -998,7 +1128,7 @@ graph TB
         subgraph "基础设施"
             KAFKA[Kafka<br/>:9092]
             MINIO[MinIO<br/>:9000]
-            PREFECT[Prefect<br/>:4200]
+            PREFECT[Prefect (P2)<br/>:4200]
         end
     end
 
@@ -1441,6 +1571,50 @@ CREATE TABLE conversation_rounds (
 CREATE INDEX IF NOT EXISTS idx_conv_rounds_session_created ON conversation_rounds (session_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conv_rounds_correlation ON conversation_rounds (correlation_id);
 
+-- 命令收件箱（CommandInbox，CQRS命令侧）
+CREATE TABLE command_inbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL,                         -- 会话标识
+    command_type TEXT NOT NULL,                       -- 命令类型（如 ConfirmStoryConception, GenerateWorldview）
+    idempotency_key TEXT UNIQUE NOT NULL,             -- 幂等键，确保同一命令不会被重复处理
+    payload JSONB,                                     -- 命令载荷，包含命令执行所需的所有数据
+    status command_status NOT NULL DEFAULT 'RECEIVED', -- 命令状态（RECEIVED/PROCESSING/COMPLETED/FAILED）
+    error_message TEXT,                               -- 错误信息（当状态为FAILED时必填）
+    retry_count INTEGER NOT NULL DEFAULT 0,           -- 重试次数，用于失败重试机制
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- 核心索引：支持幂等性和高效查询
+CREATE UNIQUE INDEX idx_command_inbox_unique_pending_command 
+    ON command_inbox(session_id, command_type) 
+    WHERE status IN ('RECEIVED', 'PROCESSING');
+CREATE INDEX idx_command_inbox_session_id ON command_inbox(session_id);
+CREATE INDEX idx_command_inbox_status ON command_inbox(status);
+CREATE INDEX idx_command_inbox_command_type ON command_inbox(command_type);
+CREATE INDEX idx_command_inbox_created_at ON command_inbox(created_at);
+CREATE INDEX idx_command_inbox_session_status ON command_inbox(session_id, status);
+CREATE INDEX idx_command_inbox_status_created ON command_inbox(status, created_at);
+
+-- 领域事件表（Event Sourcing事件存储）
+CREATE TABLE domain_events (
+    sequence_id BIGSERIAL PRIMARY KEY,                -- 自增主键，确保严格顺序
+    event_id UUID NOT NULL DEFAULT gen_random_uuid(), -- 事件唯一标识
+    correlation_id UUID,                              -- 关联ID（跟踪整个流程）
+    causation_id UUID,                                -- 因果ID（触发此事件的前一个事件）
+    event_type TEXT NOT NULL,                         -- 事件类型（点式命名）
+    event_version INTEGER NOT NULL DEFAULT 1,         -- 事件版本
+    aggregate_type TEXT NOT NULL,                     -- 聚合类型
+    aggregate_id TEXT NOT NULL,                       -- 聚合根ID
+    payload JSONB NOT NULL,                           -- 事件数据
+    metadata JSONB,                                   -- 元数据
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_domain_events_event_id ON domain_events(event_id);
+CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
+CREATE INDEX idx_domain_events_correlation ON domain_events(correlation_id);
+CREATE INDEX idx_domain_events_event_type ON domain_events(event_type);
+CREATE INDEX idx_domain_events_created_at ON domain_events(created_at);
+
 -- 事件发件箱（Outbox，事务性可靠投递）
 CREATE TABLE event_outbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1470,13 +1644,12 @@ CREATE INDEX idx_event_outbox_partition_key ON event_outbox(partition_key);
 
 说明：
 
-- conversation_sessions/rounds 为通用对话持久化表；Redis 作为缓存，采用"写通 PG→回填 Redis、读优先 Redis"的策略（详见 ADR-001）。
-- 已删除未使用的 `genesis_sessions`
-  表与模型；创世阶段改以 conversation_sessions 聚合，并以 novel_id 作为 scope_id 绑定。
-- 章节内容版本采用现有 `chapter_versions`（含 MinIO URL），不再使用通用
-  `content_versions`。
-- Outbox：沿用
-  `EventOutbox`（字段与索引如上）作为唯一真相源，通过 DB 函数批处理发送与重试。
+- **conversation_sessions/rounds**：通用对话持久化表；Redis 作为缓存，采用"写通 PG→回填 Redis、读优先 Redis"的策略（详见 ADR-001）。
+- **command_inbox**：CQRS架构的命令侧实现，通过唯一约束保证命令幂等性，防止重复处理。所有需要异步处理的用户命令都通过此表接收。
+- **domain_events**：事件溯源的核心存储，记录系统中所有业务事实的不可变历史。采用自增主键确保严格的事件顺序。
+- **event_outbox**：事务性发件箱模式实现，保证数据库状态变更与事件发布的原子性。通过Message Relay服务轮询并发布到Kafka。
+- 已删除未使用的 `genesis_sessions` 表与模型；创世阶段改以 conversation_sessions 聚合，并以 novel_id 作为 scope_id 绑定。
+- 章节内容版本采用现有 `chapter_versions`（含 MinIO URL），不再使用通用 `content_versions`。
 - headers 示例：`{"event_type": "Genesis.Session.Theme.Proposed", "version": 1, "trace_id": "uuid"}`，注意 event_type 使用点式命名。
 
 ### Neo4j图模型（ADR-005）
@@ -1590,22 +1763,301 @@ CREATE CONSTRAINT character_state_chapter ON (cs:CharacterState) ASSERT (cs.char
 
 ### Milvus向量集合（ADR-002）
 
+#### 集合Schema定义
+
 ```python
 collection_schema = {
-    "name": "novel_embeddings",
+    "name": "novel_embeddings_v1",  # 版本化命名
     "fields": [
         {"name": "id", "type": DataType.INT64, "is_primary": True},
         {"name": "novel_id", "type": DataType.VARCHAR, "max_length": 36},
         {"name": "content_type", "type": DataType.VARCHAR, "max_length": 50},
         {"name": "content", "type": DataType.VARCHAR, "max_length": 8192},
-        {"name": "embedding", "type": DataType.FLOAT_VECTOR, "dim": 768}
+        {"name": "embedding", "type": DataType.FLOAT_VECTOR, "dim": 768},
+        {"name": "created_at", "type": DataType.INT64},  # 时间戳
+        {"name": "version", "type": DataType.INT32},      # 内容版本
+        {"name": "metadata", "type": DataType.JSON}       # 扩展元数据
     ],
     "index": {
         "type": "HNSW",
         "metric": "COSINE",
         "params": {"M": 32, "efConstruction": 200}
+    },
+    "partition": {
+        "key": "novel_id",  # 按小说分区
+        "ttl": 90 * 24 * 3600  # 90天TTL
     }
 }
+```
+
+#### VectorService封装层
+
+```python
+from typing import List, Dict, Optional
+import numpy as np
+from dataclasses import dataclass
+from pymilvus import Collection, utility
+
+@dataclass
+class VectorConfig:
+    """向量配置"""
+    model_name: str = "qwen3-embedding-0.6b"
+    dimension: int = 768
+    metric_type: str = "COSINE"
+    index_type: str = "HNSW"
+    collection_version: int = 1
+
+class VectorService:
+    """向量服务封装层"""
+    
+    def __init__(self, config: VectorConfig):
+        self.config = config
+        self.collection_name = f"novel_embeddings_v{config.collection_version}"
+        self._init_collection()
+    
+    async def create_collection(self, force: bool = False):
+        """创建集合"""
+        if utility.has_collection(self.collection_name) and not force:
+            return
+        
+        # 创建集合schema
+        schema = self._build_schema()
+        collection = Collection(
+            name=self.collection_name,
+            schema=schema,
+            using='default'
+        )
+        
+        # 创建索引
+        await self._create_index(collection)
+        
+        # 设置TTL
+        await self._set_ttl(collection)
+        
+        return collection
+    
+    async def upsert_embeddings(
+        self, 
+        novel_id: str,
+        contents: List[str],
+        embeddings: List[np.ndarray],
+        content_types: List[str],
+        versions: Optional[List[int]] = None
+    ):
+        """批量插入/更新向量"""
+        collection = Collection(self.collection_name)
+        
+        # 准备数据
+        entities = []
+        for i, (content, embedding, content_type) in enumerate(
+            zip(contents, embeddings, content_types)
+        ):
+            entity = {
+                "novel_id": novel_id,
+                "content": content[:8192],  # 截断超长文本
+                "content_type": content_type,
+                "embedding": embedding.tolist(),
+                "created_at": int(time.time()),
+                "version": versions[i] if versions else 1,
+                "metadata": {}
+            }
+            entities.append(entity)
+        
+        # 批量插入
+        collection.insert(entities)
+        collection.flush()
+        
+        return len(entities)
+    
+    async def search_similar(
+        self,
+        novel_id: str,
+        query_embedding: np.ndarray,
+        content_type: Optional[str] = None,
+        top_k: int = 10,
+        min_score: float = 0.6
+    ) -> List[Dict]:
+        """相似度搜索"""
+        collection = Collection(self.collection_name)
+        collection.load()
+        
+        # 构建搜索参数
+        search_params = {
+            "metric_type": self.config.metric_type,
+            "params": {"ef": 200}
+        }
+        
+        # 构建过滤表达式
+        expr = f'novel_id == "{novel_id}"'
+        if content_type:
+            expr += f' and content_type == "{content_type}"'
+        
+        # 执行搜索
+        results = collection.search(
+            data=[query_embedding.tolist()],
+            anns_field="embedding",
+            param=search_params,
+            limit=top_k,
+            expr=expr,
+            output_fields=["content", "content_type", "version", "metadata"]
+        )
+        
+        # 过滤低分结果
+        filtered_results = []
+        for hit in results[0]:
+            if hit.score >= min_score:
+                filtered_results.append({
+                    "id": hit.id,
+                    "content": hit.entity.get("content"),
+                    "content_type": hit.entity.get("content_type"),
+                    "version": hit.entity.get("version"),
+                    "score": hit.score,
+                    "metadata": hit.entity.get("metadata")
+                })
+        
+        return filtered_results
+    
+    async def migrate_to_new_model(
+        self,
+        new_config: VectorConfig,
+        batch_size: int = 1000
+    ):
+        """模型变更迁移"""
+        old_collection = Collection(self.collection_name)
+        new_service = VectorService(new_config)
+        
+        # 创建新集合
+        await new_service.create_collection()
+        
+        # 批量迁移数据
+        offset = 0
+        while True:
+            # 读取旧数据
+            old_data = old_collection.query(
+                expr="",
+                offset=offset,
+                limit=batch_size,
+                output_fields=["novel_id", "content", "content_type", "version"]
+            )
+            
+            if not old_data:
+                break
+            
+            # 使用新模型重新生成embedding
+            contents = [item["content"] for item in old_data]
+            new_embeddings = await self._generate_embeddings(
+                contents, 
+                new_config.model_name
+            )
+            
+            # 插入新集合
+            await new_service.upsert_embeddings(
+                novel_id=old_data[0]["novel_id"],
+                contents=contents,
+                embeddings=new_embeddings,
+                content_types=[item["content_type"] for item in old_data],
+                versions=[item["version"] for item in old_data]
+            )
+            
+            offset += batch_size
+        
+        # 切换别名
+        utility.do_bulk_insert(
+            collection_name=new_service.collection_name,
+            alias="novel_embeddings_active"
+        )
+        
+        return new_service
+    
+    async def setup_cold_hot_partitions(self):
+        """冷热数据分层"""
+        collection = Collection(self.collection_name)
+        
+        # 创建热数据分区（最近30天）
+        hot_partition = collection.create_partition("hot_data")
+        
+        # 创建温数据分区（30-60天）
+        warm_partition = collection.create_partition("warm_data")
+        
+        # 创建冷数据分区（60天以上）
+        cold_partition = collection.create_partition("cold_data")
+        
+        # 设置不同的索引参数
+        hot_index = {
+            "index_type": "IVF_FLAT",  # 热数据用精确索引
+            "metric_type": "COSINE",
+            "params": {"nlist": 128}
+        }
+        
+        cold_index = {
+            "index_type": "HNSW",  # 冷数据用近似索引
+            "metric_type": "COSINE",
+            "params": {"M": 16, "efConstruction": 100}
+        }
+        
+        return {
+            "hot": hot_partition,
+            "warm": warm_partition,
+            "cold": cold_partition
+        }
+    
+    async def cleanup_expired_data(self, days: int = 90):
+        """清理过期数据"""
+        collection = Collection(self.collection_name)
+        
+        # 计算过期时间戳
+        expire_time = int(time.time()) - (days * 24 * 3600)
+        
+        # 删除过期数据
+        expr = f"created_at < {expire_time}"
+        collection.delete(expr)
+        collection.flush()
+        
+        # 压缩集合
+        collection.compact()
+        
+        return True
+```
+
+#### 模型变更策略
+
+```yaml
+model_migration_strategy:
+  trigger:
+    - dimension_change  # 维度变化（如768→1024）
+    - metric_change     # 度量变化（如COSINE→L2）
+    - model_upgrade     # 模型升级（如qwen3→qwen4）
+  
+  process:
+    1_preparation:
+      - create_new_collection  # 创建新版本集合
+      - setup_dual_write      # 设置双写模式
+    
+    2_migration:
+      - batch_reindex         # 批量重建索引
+      - validate_quality      # 验证搜索质量
+      - gradual_traffic       # 逐步切换流量
+    
+    3_cleanup:
+      - switch_alias          # 切换活跃别名
+      - archive_old           # 归档旧集合
+      - delete_after_30d      # 30天后删除
+
+cold_hot_strategy:
+  hot_tier:
+    retention: 30_days
+    index_type: IVF_FLAT
+    cache: enabled
+    
+  warm_tier:
+    retention: 60_days
+    index_type: IVF_SQ8
+    cache: disabled
+    
+  cold_tier:
+    retention: 90_days
+    index_type: HNSW
+    compression: enabled
 ```
 
 ## 批量任务调度（基于ADR-006）
@@ -1691,6 +2143,268 @@ async def detail_generation_flow(
 - 规划（P2）：迁移至 Redis Lua 令牌桶（Token
   Bucket）以获得更平滑的限速与更好的峰值控制。
 
+## 版本控制策略
+
+### 版本化范围定义
+
+#### 已版本化内容（已实现）
+
+```yaml
+chapter_versions:
+  storage: PostgreSQL + MinIO
+  tracking:
+    - content: MinIO URL引用
+    - metadata: 创建时间、作者、版本号
+    - status: draft/published/archived
+  operations:
+    - create_version  # 创建新版本
+    - restore_version # 恢复历史版本
+    - compare_versions # 版本对比
+```
+
+#### 创世内容版本化（新增）
+
+```python
+class GenesisVersioning:
+    """创世内容版本控制"""
+    
+    # 世界规则版本化
+    async def version_world_rules(self, novel_id: str, rule_id: str):
+        """世界规则版本化（Neo4j属性版本）"""
+        query = """
+        MATCH (r:WorldRule {id: $rule_id, novel_id: $novel_id})
+        CREATE (v:WorldRuleVersion {
+            id: apoc.create.uuid(),
+            rule_id: $rule_id,
+            version: r.version + 1,
+            content: r.rule,
+            dimension: r.dimension,
+            priority: r.priority,
+            scope: r.scope,
+            created_at: datetime(),
+            is_active: false
+        })
+        CREATE (r)-[:HAS_VERSION]->(v)
+        SET r.version = r.version + 1
+        RETURN v
+        """
+        return await self.neo4j.execute(query, {
+            "novel_id": novel_id,
+            "rule_id": rule_id
+        })
+    
+    # 角色卡版本化
+    async def version_character_card(self, novel_id: str, character_id: str):
+        """角色卡版本化（Neo4j关系建模）"""
+        query = """
+        MATCH (c:Character {id: $character_id, novel_id: $novel_id})
+        
+        // 创建角色版本节点
+        CREATE (cv:CharacterVersion {
+            id: apoc.create.uuid(),
+            character_id: $character_id,
+            version: c.version + 1,
+            created_at: datetime(),
+            
+            // 8维度数据快照
+            name: c.name,
+            appearance: c.appearance,
+            personality: c.personality,
+            background: c.background,
+            motivation: c.motivation,
+            goals: c.goals,
+            obstacles: c.obstacles,
+            arc: c.arc,
+            wounds: c.wounds
+        })
+        
+        // 建立版本关系
+        CREATE (c)-[:HAS_VERSION {
+            version_number: c.version + 1,
+            is_active: false
+        }]->(cv)
+        
+        // 更新当前版本号
+        SET c.version = c.version + 1
+        
+        // 标记活跃版本
+        WITH c, cv
+        MATCH (c)-[r:HAS_VERSION]->(old_cv:CharacterVersion)
+        WHERE r.is_active = true
+        SET r.is_active = false
+        
+        WITH c, cv
+        MATCH (c)-[r:HAS_VERSION]->(cv)
+        SET r.is_active = true
+        
+        RETURN cv
+        """
+        return await self.neo4j.execute(query, {
+            "novel_id": novel_id,
+            "character_id": character_id
+        })
+    
+    # 情节节点版本化
+    async def version_plot_node(self, novel_id: str, node_id: str):
+        """情节节点版本化"""
+        # 序列化为JSON
+        plot_node = await self.get_plot_node(node_id)
+        
+        # 存储到MinIO
+        version_key = f"novels/{novel_id}/plot_nodes/{node_id}/v{plot_node.version}.json"
+        await self.minio.put_object(
+            bucket="genesis-versions",
+            key=version_key,
+            data=json.dumps(plot_node.to_dict()),
+            metadata={
+                "novel_id": novel_id,
+                "node_id": node_id,
+                "version": str(plot_node.version),
+                "created_at": datetime.now().isoformat()
+            }
+        )
+        
+        # 更新Neo4j引用
+        query = """
+        MATCH (p:PlotNode {id: $node_id, novel_id: $novel_id})
+        SET p.version = p.version + 1,
+            p.minio_url = $minio_url,
+            p.updated_at = datetime()
+        RETURN p
+        """
+        return await self.neo4j.execute(query, {
+            "novel_id": novel_id,
+            "node_id": node_id,
+            "minio_url": version_key
+        })
+
+class VersionBoundaries:
+    """版本控制边界定义"""
+    
+    # Neo4j版本化（图内管理）
+    NEO4J_VERSIONED = [
+        "WorldRule",       # 世界规则：属性版本
+        "Character",       # 角色卡：关系版本
+        "CharacterState",  # 角色状态：时间序列版本
+        "Event"           # 事件：不可变记录
+    ]
+    
+    # MinIO版本化（对象存储）
+    MINIO_VERSIONED = [
+        "ChapterContent",  # 章节内容：完整快照
+        "PlotNode",       # 情节节点：JSON序列化
+        "DialogueTree",   # 对话树：结构化数据
+        "DetailBatch"     # 批量细节：压缩归档
+    ]
+    
+    # 混合版本化（Neo4j元数据+MinIO内容）
+    HYBRID_VERSIONED = [
+        "Novel",          # 小说：Neo4j索引+MinIO快照
+        "Outline",        # 大纲：Neo4j结构+MinIO详情
+        "WorldSettings"   # 世界设定：Neo4j规则+MinIO文档
+    ]
+```
+
+### 版本合并策略
+
+```python
+class VersionMergeStrategy:
+    """版本合并策略"""
+    
+    async def merge_world_rules(
+        self, 
+        base_version: str,
+        current_version: str,
+        incoming_version: str
+    ):
+        """三路合并世界规则"""
+        # 获取三个版本
+        base = await self.get_rule_version(base_version)
+        current = await self.get_rule_version(current_version)
+        incoming = await self.get_rule_version(incoming_version)
+        
+        # 冲突检测
+        conflicts = []
+        
+        # 规则文本冲突
+        if current.rule != base.rule and incoming.rule != base.rule:
+            if current.rule != incoming.rule:
+                conflicts.append({
+                    "type": "rule_conflict",
+                    "current": current.rule,
+                    "incoming": incoming.rule
+                })
+        
+        # 优先级冲突
+        if current.priority != incoming.priority:
+            conflicts.append({
+                "type": "priority_conflict",
+                "current": current.priority,
+                "incoming": incoming.priority
+            })
+        
+        # 范围冲突
+        if not self._is_scope_compatible(current.scope, incoming.scope):
+            conflicts.append({
+                "type": "scope_conflict",
+                "current": current.scope,
+                "incoming": incoming.scope
+            })
+        
+        if conflicts:
+            return {
+                "status": "conflict",
+                "conflicts": conflicts,
+                "resolution_required": True
+            }
+        
+        # 自动合并
+        merged = WorldRuleVersion(
+            rule=incoming.rule if incoming.rule != base.rule else current.rule,
+            priority=max(current.priority, incoming.priority),
+            scope=self._merge_scopes(current.scope, incoming.scope)
+        )
+        
+        return {
+            "status": "merged",
+            "result": merged,
+            "auto_merged": True
+        }
+```
+
+### 版本化边界总结
+
+| 内容类型 | 存储位置 | 版本化策略 | 快照频率 |
+| -------- | -------- | ---------- | -------- |
+| 章节内容 | MinIO | 完整快照 | 每次保存 |
+| 世界规则 | Neo4j | 属性版本 | 规则变更时 |
+| 角色卡 | Neo4j | 关系版本 | 8维度变更时 |
+| 角色状态 | Neo4j | 时间序列 | 章节边界 |
+| 情节节点 | MinIO | JSON序列化 | 节点修改时 |
+| 对话历史 | PostgreSQL | 增量记录 | 实时 |
+| 向量嵌入 | Milvus | 版本字段 | 内容更新时 |
+
+### 版本保留策略
+
+```yaml
+retention_policy:
+  chapters:
+    draft: 30_days      # 草稿保留30天
+    published: forever  # 发布版永久保留
+    
+  world_rules:
+    active: forever     # 活跃版本永久
+    historical: 90_days # 历史版本90天
+    
+  characters:
+    current: forever    # 当前版本永久
+    snapshots: 10       # 保留最近10个快照
+    
+  plot_nodes:
+    working: 60_days    # 工作版本60天
+    milestone: forever  # 里程碑版本永久
+```
+
 ## P1/P2实施边界说明
 
 ### P1阶段（当前实施）
@@ -1753,39 +2467,56 @@ HLD完成后需要：
 
 ## 近期行动项（两周内）
 
-- 质量评分体系实施：
+### P1优先实施
+
+- **质量评分体系**：
   - 实现多维评分器（LLM自评+规则+相似度+一致性）
   - 配置阶段特定权重矩阵
   - 设置分数阈值（8.0/6.0/4.0）和处理策略
   - 实现3次重试机制和DLT队列
   - 部署采纳率监控指标（目标≥70%）
-- Neo4j一致性校验实施：
-  - 实现5个核心校验规则（关系闭包、规则冲突、时间线、人物连续性、空间一致性）
-  - 部署ConsistencyValidator类和批量校验
-  - 配置自动修复策略（弱关系推断、时间调整、状态插值）
-  - 集成到质量评分的一致性维度（25%权重）
-  - 实现一致性报告生成和违规追踪
-- 对齐接口与通道：HLD 明确 P1=REST+SSE，移除 WebSocket/gRPC（标 P2）。
-- 事件命名统一：
-  - 实施点式命名作为唯一标准（`Genesis.Session.Theme.Proposed`）
-  - 严格分离命名空间：
-    - 领域事件：`Genesis.Session.*`（对外暴露）
-    - 能力事件：`Outliner.*`, `Worldbuilder.*` 等（内部使用）
-  - 更新所有代码枚举，确保 value 使用点式字符串
-  - 实现枚举 ↔ 点式命名的双向映射函数
-  - Orchestrator实现领域-能力事件映射表
-  - 验证 Kafka Envelope 和数据库存储使用一致的点式命名
-- EventBridge 实现：
-  - 开发 Kafka→Redis SSE 桥接服务
-  - 消费 `genesis.session.events` 领域事件
-  - 实现事件过滤白名单（仅推送Facts）
-  - 按 user_id/session_id 路由到对应SSE通道
-  - 集成 `RedisSSEService.publish_event` API
-  - 维护 Last-Event-ID 序列保证顺序
-- 事件规范：采用 JSON Envelope + 命名规范，补充"事件类型→Topic"映射清单并与
-  `AGENT_TOPICS` 同步。
-- SSE 文档化：并发/心跳/重连/健康接口/429
-  Retry-After 与 Last-Event-ID 重连语义。
-- Outbox Sender：实现基于 `event_outbox` 的发送器与重试回退，补集成/e2e 验证。
-- 指标与 SLO：首 Token/完整响应埋点；SSE/Kafka/Outbox 指标入 Prometheus。
-- 限流计划：P1 滑动窗口已启用；评估 P2 Redis Lua Token Bucket 迁移可行性。
+
+- **Neo4j一致性校验**：
+  - 实现5个核心校验规则
+  - 部署ConsistencyValidator类
+  - 集成到质量评分系统（25%权重）
+
+- **事件系统完善**：
+  - 实施点式命名标准
+  - 实现Orchestrator事件映射
+  - EventBridge Kafka→SSE桥接
+  - Outbox发送器实现
+
+- **基础安全**：
+  - 基础JWT认证优化
+  - 滑动窗口限流实施
+  - SSE连接管理完善
+
+- **Milvus向量服务**：
+  - 实现VectorService封装层
+  - 配置冷热数据分层（30/60/90天）
+  - 实现模型迁移策略
+  - 设置TTL自动清理
+
+- **版本控制扩展**：
+  - 实现世界规则版本化（Neo4j属性版本）
+  - 实现角色卡版本化（Neo4j关系建模）
+  - 配置版本保留策略
+  - 实现三路合并算法
+
+### P2后续规划
+
+- **工作流编排**：
+  - 引入Prefect编排引擎
+  - 实现暂停/恢复机制
+  - 条件分支和失败补偿
+
+- **高级安全**：
+  - 完整RBAC权限模型
+  - Redis Lua Token Bucket限流
+  - API请求签名验证
+
+- **扩展功能**：
+  - WebSocket双向通信
+  - gRPC高性能接口
+  - 复杂的自动修复策略
