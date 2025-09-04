@@ -127,5 +127,6 @@
   },
   "github.copilot.chat.agent.autoFix": true,
   "chat.tools.autoApprove": false,
-  "mypy-type-checker.enabled": false
+  "mypy-type-checker.enabled": false,
+  "terminal.integrated.fontFamily": "\"Liga InputMonoNarrow\", \"BlexMono Nerd Font Mono\", \"LigaConsola Nerd Font\", \"等距更纱黑体 SC\", \"IntOneMono Nerd Font Mono\", \"IBM Plex Mono\", \"Rec Mono Semicasual\", \"Monaspace Neon\", \"IntOneMono Nerd Font Mono\", \"BlexMono Nerd Font Mono\", \"IntelOne Mono\", \"Noto Sans Mono ExtraCondensed\", \"DroidSansMono-NF-Mono\", \"iosevka\", \"mplus-1m-regular\", \"Fira Code\", \"OPPOSans M\", \"更纱黑体 SC\", Hack, Monaco, Menlo, 'Courier New', \"Berkeley Mono\", \"Monoid Nerd Font\", \"Comic Code Ligatures\", \"小赖字体 等宽 SC\", \"0xProto Nerd Font Mono\", monospaceerd"
 }
