@@ -10,8 +10,8 @@
 
 | 需求ID | 需求描述 | 设计方案 | 相关组件 |
 | ------ | -------- | -------- | -------- |
-| FR-001 | 创意种子生成与选择 | 通过Genesis Agent提供多种创作起点，生成3-6个高概念方案，支持方案融合与锁定 | Genesis Agent, API Gateway, PostgreSQL |
-| FR-002 | 立意主题对话系统 | 基于ADR-001通用会话架构，实现3-5轮主题深化对话，支持多种用户操作模式 | Dialogue Manager, Genesis Agent, Redis缓存 |
+| FR-001 | 创意种子生成与选择 | 通过Outliner Agent提供多种创作起点，生成3-6个高概念方案，支持方案融合与锁定 | Outliner Agent, Orchestrator, API Gateway, PostgreSQL |
+| FR-002 | 立意主题对话系统 | 基于ADR-001通用会话架构，实现3-5轮主题深化对话，支持多种用户操作模式 | Dialogue Manager, Orchestrator, Redis缓存 |
 | FR-003 | 世界观对话式构建 | 分5个维度构建世界观，支持魔法/科技体系定义，实时一致性校验 | World Builder Agent, Neo4j图数据库 |
 | FR-004 | 人物对话式设计 | 8维度人物设定模板，自动生成关系网络，支持对白生成 | Character Expert Agent, Neo4j |
 | FR-005 | 情节框架对话构建 | 生成10-20个节点卡，支持三幕/五幕/英雄之旅结构 | Plot Master Agent, Outliner Agent |
@@ -68,37 +68,96 @@ C4Context
 
 ```mermaid
 C4Container
-    title 创世系统容器架构图
+    title 创世系统容器架构图 (事件驱动架构)
 
     Container(web, "Web应用", "React/Vite", "对话界面，内容审核")
     Container(api, "API网关", "FastAPI", "请求路由，SSE推送")
-    Container(genesis_agent, "Genesis Agent", "Python", "创世对话处理")
     Container(dialogue_mgr, "对话管理器", "Python", "会话状态管理")
+    Container(orchestrator, "中央协调者", "Python", "事件路由，任务分发")
+    
+    Container_Boundary(agents, "Agent服务群") {
+        Container(outliner, "Outliner Agent", "Python", "大纲生成")
+        Container(worldbuilder, "Worldbuilder Agent", "Python", "世界观构建")
+        Container(character, "Character Agent", "Python", "人物设计")
+        Container(plot, "Plot Master Agent", "Python", "情节框架")
+        Container(writer, "Writer Agent", "Python", "内容生成")
+        Container(reviewer, "Review Agent", "Python", "质量评审")
+        Container(rewriter, "Rewriter Agent", "Python", "内容重写")
+        Container(detail_gen, "Detail Generator", "Python", "批量细节生成")
+    }
+    
     Container(knowledge, "知识库服务", "Python", "内容组织检索")
     Container(version, "版本控制", "Python", "分支管理，快照存储")
 
-    ContainerDb(postgres, "PostgreSQL", "关系数据库", "会话、元数据")
+    ContainerDb(postgres, "PostgreSQL", "关系数据库", "会话、元数据、Outbox")
     ContainerDb(neo4j, "Neo4j", "图数据库", "知识图谱")
     ContainerDb(milvus, "Milvus", "向量数据库", "语义搜索")
     ContainerDb(redis, "Redis", "缓存", "会话缓存")
-    ContainerQueue(kafka, "Kafka", "事件总线", "异步通信")
-    Container(prefect, "Prefect", "工作流引擎", "批量任务编排")
+    ContainerQueue(kafka, "Kafka", "事件总线", "异步消息传递")
+    Container(prefect, "Prefect", "工作流引擎", "任务编排调度")
     Container(storage, "对象存储", "MinIO/S3", "快照与大文件存储")  
 
     Rel(web, api, "HTTPS/REST, SSE")
     Rel(api, dialogue_mgr, "进程内调用")
-    Rel(dialogue_mgr, genesis_agent, "内部调用")
     Rel(dialogue_mgr, redis, "缓存读写")
-    Rel(dialogue_mgr, postgres, "持久化")
-    Rel(genesis_agent, knowledge, "知识查询")
+    Rel(dialogue_mgr, postgres, "持久化+Outbox")
+    
+    Rel(postgres, kafka, "Outbox发送")
+    Rel(orchestrator, kafka, "消费领域事件")
+    Rel(orchestrator, prefect, "任务调度")
+    Rel(prefect, kafka, "发布能力任务")
+    
+    Rel(outliner, kafka, "消费/发布事件")
+    Rel(worldbuilder, kafka, "消费/发布事件")
+    Rel(character, kafka, "消费/发布事件")
+    Rel(plot, kafka, "消费/发布事件")
+    Rel(writer, kafka, "消费/发布事件")
+    Rel(reviewer, kafka, "消费/发布事件")
+    Rel(rewriter, kafka, "消费/发布事件")
+    Rel(detail_gen, kafka, "消费/发布事件")
+    
+    Rel(agents, knowledge, "查询知识")
     Rel(knowledge, neo4j, "图查询")
     Rel(knowledge, milvus, "向量检索")
     Rel(version, postgres, "元数据")
     Rel(version, storage, "快照存储")
-    Rel(kafka, api, "事件通知(订阅)")        
-    Rel(prefect, kafka, "任务编排（P2）")
+    Rel(kafka, api, "事件订阅(SSE)")
 
 ```
+
+### 事件驱动架构说明
+
+系统采用事件驱动的微服务架构，核心组件包括：
+
+1. **中央协调者（Orchestrator）**：
+   - 消费领域事件（`genesis.session.events`）
+   - 根据业务规则和当前阶段决定需要调用的Agent
+   - 通过Prefect编排复杂工作流
+   - 发布任务事件到对应Agent的task topic
+
+2. **专门化Agent服务**：
+   - **Outliner Agent**：负责大纲和高概念生成（Stage 0, 4）
+   - **Worldbuilder Agent**：构建世界观设定（Stage 2）
+   - **Character Agent**：设计人物和关系网络（Stage 3）
+   - **Plot Master Agent**：情节框架和节点卡（Stage 4）
+   - **Writer Agent**：内容生成和润色
+   - **Review Agent**：质量评审和一致性检查
+   - **Rewriter Agent**：内容重写和优化
+   - **Detail Generator**：批量细节生成（Stage 5）
+
+3. **事件流转机制**：
+   ```
+   用户请求 → API网关 → 对话管理器 → PostgreSQL(Outbox)
+   → Kafka(领域事件) → 中央协调者 → Prefect任务编排
+   → Kafka(能力任务) → 专门Agent → Kafka(结果事件)
+   → 中央协调者 → Kafka(领域事件) → API(SSE) → 用户
+   ```
+
+4. **优势**：
+   - 各Agent独立部署和扩展
+   - 失败隔离，单个Agent故障不影响其他服务
+   - 灵活的工作流编排
+   - 完整的事件追踪和审计
 
 ## 数据流设计
 
@@ -107,20 +166,23 @@ C4Container
 ```mermaid
 graph LR
     A[用户输入] --> B[对话管理器]
-    B --> C[Genesis Agent]
-    C --> D[LLM生成]
-    D --> E[质量评分]
-    E --> F{评分通过?}
-    F -->|是| G[一致性检查]
-    F -->|否| H[重新生成]
-    H --> D
-    G --> I{一致性通过?}
-    I -->|是| J[内容锁定]
-    I -->|否| K[修正建议]
-    K --> C
-    J --> L[知识库更新]
-    L --> M[版本存储]
-    M --> N[响应用户]
+    B --> C[Outbox/Kafka]
+    C --> D[中央协调者]
+    D --> E[分发任务到Agent]
+    E --> F[对应Agent处理]
+    F --> G[LLM生成]
+    G --> H[质量评分]
+    H --> I{评分通过?}
+    I -->|是| J[一致性检查]
+    I -->|否| K[重新生成]
+    K --> G
+    J --> L{一致性通过?}
+    L -->|是| M[发布完成事件]
+    L -->|否| N[发布修正事件]
+    N --> F
+    M --> O[知识库更新]
+    O --> P[版本存储]
+    P --> Q[SSE推送用户]
 ```
 
 说明（对齐 core-workflows 与 ADR）：
@@ -180,9 +242,12 @@ stateDiagram-v2
 | ---------- | -------- | -------- | -------- |
 | API→Dialogue | 进程内调用 | Python 对象 | 100 QPS |
 | Dialogue→Redis | 同步调用 | JSON | 500 QPS |
-| Agent→LLM | HTTPS | JSON | 50 QPS |
-| Agent→Knowledge | 同步调用 | JSON | 200 QPS |
-| Prefect→Kafka | 异步发送 | JSON | 100 msgs/s（P2 规划） |
+| Dialogue→Outbox | 事务写入 | JSON | 100 QPS |
+| Orchestrator→Kafka | 事件消费/发布 | JSON Envelope | 200 msgs/s |
+| Agents→Kafka | 事件消费/发布 | JSON Envelope | 50 msgs/s per agent |
+| Agents→LLM | HTTPS | JSON | 50 QPS total |
+| Agents→Knowledge | 同步调用 | JSON | 200 QPS |
+| Prefect→Kafka | 任务编排 | JSON | 100 msgs/s |
 
 ### SSE 细节（实现对齐）
 
@@ -210,10 +275,11 @@ stateDiagram-v2
 
 ### 扩展策略
 
-- **水平扩展**：Genesis Agent无状态设计，支持Kubernetes HPA
+- **水平扩展**：所有Agent服务无状态设计，支持Kubernetes HPA独立扩展
 - **缓存策略**：Redis写透缓存，30天TTL
 - **数据分片**：按novel_id分片，支持多租户隔离
 - **异步处理**：批量任务通过Prefect+Kafka解耦
+- **Agent扩展**：每个Agent可根据负载独立扩展副本数
 
 ## 性能与可扩展性
 
@@ -236,11 +302,14 @@ stateDiagram-v2
 
 ### 可扩展性方法
 
-- Genesis Agent水平扩展（无状态）
+- 所有Agent服务水平扩展（无状态）
+  - Outliner/Worldbuilder/Character/Plot等Agent独立扩展
+  - 基于Kafka消费组实现负载均衡
 - PostgreSQL读写分离
 - Neo4j集群部署
 - Milvus分片索引
 - Kafka分区并行消费
+- Orchestrator多实例部署，分区消费
 
 ## 技术栈选择
 
