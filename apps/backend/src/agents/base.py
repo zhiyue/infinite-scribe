@@ -14,8 +14,8 @@ from aiokafka.structs import OffsetAndMetadata, TopicPartition
 
 from ..core.config import settings
 from ..core.logging.config import get_logger
-from .message import decode_message, encode_message
 from .errors import NonRetriableError
+from .message import decode_message, encode_message
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class BaseAgent(ABC):
         self._validate_config()
 
         # Structured logger bound with agent context
-        self.log = get_logger("agent").bind(agent=self.name)
+        self.log: Any = get_logger("agent").bind(agent=self.name)
 
         # Agent status
         self.connected: bool = False
@@ -117,7 +117,7 @@ class BaseAgent(ABC):
         self.connected = True
         # Attempt to get current assignment (may be empty until poll)
         try:
-            assignment = consumer.assignment()  # type: ignore[attr-defined]
+            assignment = consumer.assignment()
             self.assigned_partitions = [f"{tp.topic}:{tp.partition}" for tp in assignment] if assignment else []
         except Exception:
             self.assigned_partitions = []

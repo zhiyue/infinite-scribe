@@ -35,7 +35,7 @@ check_kafka() {
     # 从 Python 配置中获取 Kafka 地址
     local kafka_info=$(cd "$PROJECT_ROOT/apps/backend" && source "$PROJECT_ROOT/.venv/bin/activate" && python -c "
 from src.core.config import settings
-print(f'{settings.KAFKA_HOST}:{settings.KAFKA_PORT}')
+print(settings.kafka_bootstrap_servers)
 " 2>/dev/null)
     
     if [ -z "$kafka_info" ]; then

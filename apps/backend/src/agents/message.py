@@ -7,7 +7,7 @@ agents can produce/consume messages with strong typing and versioning.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Tuple
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -56,7 +56,7 @@ def encode_message(agent: str, result: dict[str, Any], *, correlation_id: str | 
     return env.model_dump()
 
 
-def decode_message(value: dict[str, Any]) -> Tuple[dict[str, Any], dict[str, Any]]:
+def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Decode incoming dict into (payload, meta) tuple.
 
     If the dict already conforms to Envelope, returns (env.data, meta),
@@ -90,4 +90,3 @@ def decode_message(value: dict[str, Any]) -> Tuple[dict[str, Any], dict[str, Any
         "status": payload.get("status"),
     }
     return payload, meta
-
