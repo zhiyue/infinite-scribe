@@ -127,13 +127,19 @@ C4Container
 
 系统采用事件驱动的微服务架构，核心组件包括：
 
-1. **中央协调者（Orchestrator）**：
+1. **API网关与会话服务**：
+   - API网关内集成会话管理服务层（Conversation Service）
+   - 处理HTTP请求路由和SSE事件推送
+   - 管理对话状态的持久化（PostgreSQL）和缓存（Redis）
+   - 通过Outbox模式发布领域事件到Kafka
+
+2. **中央协调者（Orchestrator）**：
    - 消费领域事件（`genesis.session.events`）
    - 根据业务规则和当前阶段决定需要调用的Agent
    - 通过Prefect编排复杂工作流
    - 发布任务事件到对应Agent的task topic
 
-2. **专门化Agent服务**：
+3. **专门化Agent服务**：
    - **Outliner Agent**：负责大纲和高概念生成（Stage 0, 4）
    - **Worldbuilder Agent**：构建世界观设定（Stage 2）
    - **Character Agent**：设计人物和关系网络（Stage 3）
@@ -143,7 +149,7 @@ C4Container
    - **Rewriter Agent**：内容重写和优化
    - **Detail Generator**：批量细节生成（Stage 5）
 
-3. **事件流转机制**：
+4. **事件流转机制**：
    ```
    用户请求 → API网关(含会话服务) → PostgreSQL(Outbox)
    → Kafka(领域事件) → 中央协调者 → Prefect任务编排
@@ -151,7 +157,7 @@ C4Container
    → 中央协调者 → Kafka(领域事件) → API(SSE) → 用户
    ```
 
-4. **优势**：
+5. **优势**：
    - 各Agent独立部署和扩展
    - 失败隔离，单个Agent故障不影响其他服务
    - 灵活的工作流编排
