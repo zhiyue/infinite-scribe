@@ -6,20 +6,13 @@ from collections.abc import Callable
 
 def handle_daemon_mode(orchestrator, service_names: list[str]) -> None:
     """
-    Handle daemon mode: wait for shutdown signal and gracefully stop services
+    Backwards-compatible hook for daemon mode selection.
 
-    :param orchestrator: The orchestrator instance to use for shutdown
-    :param service_names: List of service names to shutdown
+    This function intentionally does not manage event loops; the actual
+    wait/shutdown flow is handled in commands._handle_stay_mode to ensure
+    services remain on the same asyncio loop.
     """
-
-    print("🔄 Stay mode enabled, waiting for shutdown signal (Ctrl+C)...")
-
-    try:
-        _wait_and_shutdown(orchestrator, service_names)
-    except KeyboardInterrupt:
-        _handle_interrupt(orchestrator, service_names)
-    except Exception as e:
-        _handle_error(orchestrator, service_names, e)
+    print("🔄 Stay mode enabled (compat hook)")
 
 
 def handle_daemon_mode_with_early_registration(
@@ -29,47 +22,22 @@ def handle_daemon_mode_with_early_registration(
     cleanup_fn: Callable[[], None],
 ) -> None:
     """
-    Handle daemon mode with pre-registered signal handlers
+    Backwards-compatible hook for early registration mode selection.
 
-    :param orchestrator: The orchestrator instance to use for shutdown
-    :param service_names: List of service names to shutdown
-    :param shutdown_event: Pre-registered asyncio.Event that will be set on signal
-    :param cleanup_fn: Pre-registered cleanup function
+    This function intentionally does not manage event loops; the actual
+    wait/shutdown flow is handled in commands._handle_stay_mode.
     """
-    if cleanup_fn is None:
-        raise RuntimeError("handle_daemon_mode_with_early_registration called with failed registration")
-
-    if shutdown_event is None:
-        raise RuntimeError("handle_daemon_mode_with_early_registration called with invalid shutdown_event")
-
-    print("🔄 Stay mode enabled (early registration), waiting for shutdown signal (Ctrl+C)...")
-
-    try:
-        _wait_and_shutdown_with_event(orchestrator, service_names, shutdown_event)
-    except KeyboardInterrupt:
-        _handle_interrupt(orchestrator, service_names)
-    except Exception as e:
-        _handle_error(orchestrator, service_names, e)
-    finally:
-        _cleanup_signal_handlers(cleanup_fn)
+    print("🔄 Stay mode enabled (early registration compat hook)")
 
 
 def _wait_and_shutdown(orchestrator, service_names: list[str]) -> None:
-    """Wait for shutdown signal and stop services"""
-    from .signal_utils import wait_for_shutdown_signal
-
-    asyncio.run(wait_for_shutdown_signal())
-    print("📡 Shutdown signal received, stopping services...")
-    asyncio.run(orchestrator.orchestrate_shutdown(service_names))
-    print("✅ Services stopped gracefully")
+    """Deprecated: handled by commands._handle_stay_mode"""
+    print("(deprecated) _wait_and_shutdown invoked")
 
 
 def _wait_and_shutdown_with_event(orchestrator, service_names: list[str], shutdown_event: asyncio.Event) -> None:
-    """Wait for pre-registered shutdown event and stop services"""
-    asyncio.run(shutdown_event.wait())
-    print("📡 Shutdown signal received, stopping services...")
-    asyncio.run(orchestrator.orchestrate_shutdown(service_names))
-    print("✅ Services stopped gracefully")
+    """Deprecated: handled by commands._handle_stay_mode"""
+    print("(deprecated) _wait_and_shutdown_with_event invoked")
 
 
 def _handle_interrupt(orchestrator, service_names: list[str]) -> None:
