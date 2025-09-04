@@ -8,11 +8,12 @@ from src.db.sql.base import Base as AuthBase  # 兼容旧名称
 from src.models.base import BaseModel as AuthBaseModel
 from src.models.chapter import Chapter, ChapterVersion, Review
 from src.models.character import Character
+from src.models.conversation import ConversationRound, ConversationSession
 
 # 认证相关模型
 from src.models.email_verification import EmailVerification, VerificationPurpose
 from src.models.event import DomainEvent
-from src.models.genesis import ConceptTemplate, GenesisSession
+from src.models.genesis import ConceptTemplate
 
 # 业务领域模型
 from src.models.novel import Novel
@@ -45,9 +46,10 @@ __all__ = [
     "ChapterVersion",
     "Review",
     "Character",
+    "ConversationSession",
+    "ConversationRound",
     "WorldviewEntry",
     "StoryArc",
-    "GenesisSession",
     "ConceptTemplate",
     "DomainEvent",
     "CommandInbox",

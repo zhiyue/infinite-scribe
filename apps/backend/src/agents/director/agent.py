@@ -50,7 +50,8 @@ class DirectorAgent(BaseAgent):
             "project_id": project_id,
             "genre": project_config.get("genre"),
             "theme": project_config.get("theme"),
-            "_topic": "story.outline.request",
+            # 领域协调 -> 下发能力任务到 outline.tasks
+            "_topic": "genesis.outline.tasks",
             "_key": str(project_id) if project_id is not None else None,
         }
 
@@ -72,7 +73,8 @@ class DirectorAgent(BaseAgent):
             "project_id": project_id,
             "status": "in_progress",
             "completion": 45,
-            "_topic": "project.status.update",
+            # 示例：进度汇总可走领域总线
+            "_topic": "genesis.session.events",
             "_key": str(project_id) if project_id is not None else None,
         }
 
@@ -94,7 +96,8 @@ class DirectorAgent(BaseAgent):
                 {"agent": "writer", "task": "write_chapter", "priority": 1},
                 {"agent": "critic", "task": "review_chapter", "priority": 2},
             ],
-            "_topic": "agent.task.assignment",
+            # 示例：派发写作任务
+            "_topic": "genesis.writer.tasks",
             "_key": f"coord_{task_type}" if task_type else None,
         }
 

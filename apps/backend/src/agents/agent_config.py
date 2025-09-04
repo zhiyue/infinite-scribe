@@ -18,117 +18,46 @@ class AgentTopicConfig(TypedDict, total=False):
 
 # Agent 主题配置
 AGENT_TOPICS: dict[str, AgentTopicConfig] = {
+    # 领域总线（Facts）：genesis.session.events（仅中央协调者消费/产出）
+    # 能力总线（Capabilities）：各 Agent 的 tasks/events
+
+    # Orchestrator-like director（示例）：消费领域与各能力结果；产出能力任务
     "director": {
         "consume": [
-            "project.start.request",  # 项目启动请求
-            "project.status.request",  # 项目状态查询
-            "agent.coordination.request",  # Agent 协调请求
+            "genesis.session.events",
+            "genesis.outline.events",
+            "genesis.writer.events",
+            "genesis.review.events",
+            "genesis.world.events",
+            "genesis.character.events",
+            "genesis.plot.events",
+            "genesis.factcheck.events",
+            "genesis.rewriter.events",
+            "genesis.worldsmith.events",
         ],
         "produce": [
-            "agent.task.assignment",  # 任务分配
-            "project.status.update",  # 项目状态更新
-            "story.outline.request",  # 大纲请求(发给 outliner)
+            "genesis.outline.tasks",
+            "genesis.writer.tasks",
+            "genesis.review.tasks",
+            "genesis.world.tasks",
+            "genesis.character.tasks",
+            "genesis.plot.tasks",
+            "genesis.factcheck.tasks",
+            "genesis.rewriter.tasks",
+            "genesis.worldsmith.tasks",
         ],
     },
-    "outliner": {
-        "consume": [
-            "story.outline.request",  # 大纲创建请求
-            "outline.revision.request",  # 大纲修订请求
-        ],
-        "produce": [
-            "story.outline.response",  # 大纲响应
-            "story.write.request",  # 写作请求(发给 writer)
-        ],
-    },
-    "writer": {
-        "consume": [
-            "story.write.request",  # 写作请求
-            "story.rewrite.request",  # 重写请求
-        ],
-        "produce": [
-            "story.write.response",  # 写作响应
-            "story.review.request",  # 评审请求(发给 critic)
-        ],
-    },
-    "critic": {
-        "consume": [
-            "story.review.request",  # 评审请求
-            "review.update.request",  # 评审更新请求
-        ],
-        "produce": [
-            "story.review.response",  # 评审响应
-            "story.rewrite.request",  # 重写请求(发给 writer)
-            "story.approved",  # 批准的内容
-        ],
-    },
-    "characterexpert": {
-        "consume": [
-            "character.create.request",  # 角色创建请求
-            "character.analysis.request",  # 角色分析请求
-            "character.consistency.check",  # 角色一致性检查
-        ],
-        "produce": [
-            "character.profile.response",  # 角色档案响应
-            "character.suggestion",  # 角色建议
-            "story.write.guidance",  # 写作指导(发给 writer)
-        ],
-    },
-    "worldbuilder": {
-        "consume": [
-            "world.create.request",  # 世界构建请求
-            "world.expand.request",  # 世界扩展请求
-            "world.consistency.check",  # 世界一致性检查
-        ],
-        "produce": [
-            "world.setting.response",  # 世界设定响应
-            "world.detail.update",  # 世界细节更新
-            "story.write.context",  # 写作上下文(发给 writer)
-        ],
-    },
-    "plotmaster": {
-        "consume": [
-            "plot.design.request",  # 情节设计请求
-            "plot.twist.request",  # 情节转折请求
-            "plot.consistency.check",  # 情节一致性检查
-        ],
-        "produce": [
-            "plot.structure.response",  # 情节结构响应
-            "plot.event.suggestion",  # 情节事件建议
-            "story.outline.guidance",  # 大纲指导(发给 outliner)
-        ],
-    },
-    "factchecker": {
-        "consume": [
-            "fact.verify.request",  # 事实验证请求
-            "consistency.check.request",  # 一致性检查请求
-        ],
-        "produce": [
-            "fact.verification.response",  # 验证响应
-            "inconsistency.alert",  # 不一致警告
-            "story.correction.request",  # 修正请求
-        ],
-    },
-    "rewriter": {
-        "consume": [
-            "content.rewrite.request",  # 内容重写请求
-            "style.adjustment.request",  # 风格调整请求
-            "content.polish.request",  # 内容润色请求
-        ],
-        "produce": [
-            "content.rewrite.response",  # 重写响应
-            "content.final.version",  # 最终版本
-        ],
-    },
-    "worldsmith": {
-        "consume": [
-            "worldsmith.task.request",  # Worldsmith 任务请求
-            "world.integration.request",  # 世界整合请求
-        ],
-        "produce": [
-            "worldsmith.task.response",  # 任务响应
-            "world.update.notification",  # 世界更新通知
-        ],
-    },
+
+    # Capability agents
+    "outliner": {"consume": ["genesis.outline.tasks"], "produce": ["genesis.outline.events"]},
+    "writer": {"consume": ["genesis.writer.tasks"], "produce": ["genesis.writer.events"]},
+    "critic": {"consume": ["genesis.review.tasks"], "produce": ["genesis.review.events"]},
+    "characterexpert": {"consume": ["genesis.character.tasks"], "produce": ["genesis.character.events"]},
+    "worldbuilder": {"consume": ["genesis.world.tasks"], "produce": ["genesis.world.events"]},
+    "plotmaster": {"consume": ["genesis.plot.tasks"], "produce": ["genesis.plot.events"]},
+    "factchecker": {"consume": ["genesis.factcheck.tasks"], "produce": ["genesis.factcheck.events"]},
+    "rewriter": {"consume": ["genesis.rewriter.tasks"], "produce": ["genesis.rewriter.events"]},
+    "worldsmith": {"consume": ["genesis.worldsmith.tasks"], "produce": ["genesis.worldsmith.events"]},
 }
 
 # Agent 依赖关系

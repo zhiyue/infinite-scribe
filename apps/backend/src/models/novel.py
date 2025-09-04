@@ -53,4 +53,4 @@ class Novel(Base):
     characters = relationship("Character", back_populates="novel", cascade="all, delete-orphan")
     worldview_entries = relationship("WorldviewEntry", back_populates="novel", cascade="all, delete-orphan")
     story_arcs = relationship("StoryArc", back_populates="novel", cascade="all, delete-orphan")
-    genesis_sessions = relationship("GenesisSession", back_populates="novel")
+    # removed legacy relationship to GenesisSession (deleted)

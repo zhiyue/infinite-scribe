@@ -50,7 +50,8 @@ class WriterAgent(BaseAgent):
             "chapter_id": chapter_id,
             "content": content,
             "word_count": len(content),
-            "_topic": "story.review.request",  # 发送给评审
+            # Writer 能力结果事件 -> 能力总线 events
+            "_topic": "genesis.writer.events",
             "_key": str(chapter_id) if chapter_id is not None else None,
         }
 
@@ -68,7 +69,7 @@ class WriterAgent(BaseAgent):
             "type": "scene_written",
             "scene_id": scene_id,
             "content": content,
-            "_topic": "story.write.response",
+            "_topic": "genesis.writer.events",
             "_key": str(scene_id) if scene_id is not None else None,
         }
 
@@ -87,7 +88,7 @@ class WriterAgent(BaseAgent):
             "type": "content_rewritten",
             "content_id": content_id,
             "content": rewritten_content,
-            "_topic": "story.review.request",
+            "_topic": "genesis.writer.events",
             "_key": str(content_id) if content_id is not None else None,
         }
 

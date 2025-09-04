@@ -4,99 +4,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-)
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from src.db.sql.base import Base
-from src.schemas.enums import GenesisStage, GenesisStatus
-
-if TYPE_CHECKING:
-    from src.models.novel import Novel
-
-
-class GenesisSession(Base):
-    """创世会话表 - 作为创世流程的"状态快照",用于高效查询当前流程的状态"""
-
-    __tablename__ = "genesis_sessions"
-    __table_args__ = (
-        CheckConstraint(
-            """
-            (current_stage = 'CONCEPT_SELECTION' AND status = 'IN_PROGRESS') OR
-            (current_stage = 'STORY_CONCEPTION' AND status = 'IN_PROGRESS') OR
-            (current_stage = 'WORLDVIEW' AND status = 'IN_PROGRESS') OR
-            (current_stage = 'CHARACTERS' AND status = 'IN_PROGRESS') OR
-            (current_stage = 'PLOT_OUTLINE' AND status = 'IN_PROGRESS') OR
-            (current_stage = 'FINISHED' AND status IN ('COMPLETED', 'ABANDONED'))
-            """,
-            name="check_genesis_stage_progression",
-        ),
-        CheckConstraint(
-            "(status != 'COMPLETED') OR (status = 'COMPLETED' AND novel_id IS NOT NULL)",
-            name="check_completed_has_novel",
-        ),
-        Index("idx_genesis_sessions_user_id", "user_id"),
-        Index("idx_genesis_sessions_status", "status"),
-        Index("idx_genesis_sessions_current_stage", "current_stage"),
-        Index("idx_genesis_sessions_novel_id", "novel_id"),
-        Index("idx_genesis_sessions_user_status", "user_id", "status"),
-        Index("idx_genesis_sessions_status_stage", "status", "current_stage"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="创世会话的唯一标识符"
-    )
-    novel_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("novels.id", ondelete="SET NULL"),
-        comment="流程完成后关联的小说ID，允许为空（流程未完成时）",
-    )
-    user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), comment="发起创世流程的用户ID，用于权限控制和用户关联"
-    )
-    status: Mapped[GenesisStatus] = mapped_column(
-        SQLEnum(GenesisStatus),
-        nullable=False,
-        default=GenesisStatus.IN_PROGRESS,
-        comment="整个创世会话的状态，使用genesis_status枚举",
-    )
-    current_stage: Mapped[GenesisStage] = mapped_column(
-        SQLEnum(GenesisStage),
-        nullable=False,
-        default=GenesisStage.CONCEPT_SELECTION,
-        comment="当前所处的业务阶段，使用genesis_stage枚举",
-    )
-    confirmed_data: Mapped[dict | None] = mapped_column(
-        JSONB, comment="存储每个阶段已确认的最终数据，JSONB格式，包含各阶段的输出结果"
-    )
-    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="乐观锁版本号，用于并发控制")
-    created_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创世会话创建时间"
-    )
-    updated_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-        comment="创世会话最后更新时间",
-    )
-
-    # 关系
-    novel: Mapped[Novel | None] = relationship(back_populates="genesis_sessions")
 
 
 class ConceptTemplate(Base):

@@ -62,7 +62,7 @@ async def verify_tables():
             "story_arcs",
             "reviews",
         ]
-        genesis_tables = ["genesis_sessions", "concept_templates"]
+        genesis_tables = ["concept_templates"]
         arch_tables = ["domain_events", "command_inbox", "async_tasks", "event_outbox", "flow_resume_handles"]
         auth_tables = ["users", "sessions", "email_verifications"]
 

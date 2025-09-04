@@ -25,7 +25,7 @@
 
 | 需求ID | 性能/安全/可用性要求 | 设计保障 | 验证方法 |
 | ------ | -------------------- | -------- | -------- |
-| NFR-001 | 首token响应<3秒，批量生成<5秒 | SSE推送，Token Bucket限流，Redis缓存 | 负载测试，监控P95延迟 |
+| NFR-001 | 首token响应<3秒，批量生成<5秒 | SSE推送，滑动窗口限流（P2：Token Bucket），Redis缓存 | 负载测试，监控P95延迟 |
 | NFR-002 | 月度可用性≥99.5% | 服务冗余，自动重启，故障转移 | 监控告警，定期演练 |
 | NFR-003 | 水平扩展，2分钟内完成 | 容器化部署，Kubernetes编排 | 自动扩缩容测试 |
 | NFR-004 | JWT认证，TLS加密 | RBAC权限控制，字段级加密 | 安全审计，渗透测试 |
@@ -85,8 +85,8 @@ C4Container
     Container(prefect, "Prefect", "工作流引擎", "批量任务编排")
     Container(storage, "对象存储", "MinIO/S3", "快照与大文件存储")  
 
-    Rel(web, api, "HTTPS/REST, WebSocket")
-    Rel(api, dialogue_mgr, "gRPC")
+    Rel(web, api, "HTTPS/REST, SSE")
+    Rel(api, dialogue_mgr, "进程内调用")
     Rel(dialogue_mgr, genesis_agent, "内部调用")
     Rel(dialogue_mgr, redis, "缓存读写")
     Rel(dialogue_mgr, postgres, "持久化")
@@ -96,7 +96,7 @@ C4Container
     Rel(version, postgres, "元数据")
     Rel(version, storage, "快照存储")
     Rel(kafka, api, "事件通知(订阅)")        
-    Rel(prefect, kafka, "任务调度")
+    Rel(prefect, kafka, "任务编排（P2）")
 
 ```
 
@@ -122,6 +122,11 @@ graph LR
     L --> M[版本存储]
     M --> N[响应用户]
 ```
+
+说明（对齐 core-workflows 与 ADR）：
+- 创世开始（Genesis.Session.Started）即创建 Novel 记录（status=GENESIS）以获取 novel_id；conversation_sessions.scope_type=GENESIS，scope_id=novel_id。
+- 所有领域事件（请求/结果）统一落地 Outbox 并发布到 Kafka，由 Prefect 编排暂停/恢复驱动后续步骤（详见 docs/architecture/core-workflows.md）。
+- Agent 处理遵循“至少一次 + 指数退避 + DLT”策略；分区 key 统一使用 `session_id` 保序。
 
 ### 控制流设计
 
@@ -165,19 +170,31 @@ stateDiagram-v2
 | 接口类型 | 协议 | 用途 | SLA要求 |
 | -------- | ---- | ---- | ------- |
 | REST API | HTTPS | 客户端交互 | 99.9% 可用性 |
-| WebSocket | WSS | 实时对话 | 低延迟 < 100ms |
 | SSE | HTTPS | 事件推送 | 首token < 3秒 |
-| gRPC | HTTP/2 | 服务间通信 | 高吞吐量 |
+
+说明：当前阶段（P1）仅支持 REST + SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服务通信，P2 再评估）。
 
 ### 内部接口
 
 | 组件间接口 | 通信方式 | 数据格式 | 频率估算 |
 | ---------- | -------- | -------- | -------- |
-| API→Dialogue | gRPC | Protobuf | 100 QPS |
-| Dialogue→Redis | 同步调用 | Binary | 500 QPS |
+| API→Dialogue | 进程内调用 | Python 对象 | 100 QPS |
+| Dialogue→Redis | 同步调用 | JSON | 500 QPS |
 | Agent→LLM | HTTPS | JSON | 50 QPS |
 | Agent→Knowledge | 同步调用 | JSON | 200 QPS |
-| Prefect→Kafka | 异步发送 | Avro | 100 msgs/s |
+| Prefect→Kafka | 异步发送 | JSON | 100 msgs/s（P2 规划） |
+
+### SSE 细节（实现对齐）
+
+- 并发限制：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）。
+- 心跳与超时：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理。
+- 重连语义：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）。
+- 健康检查：`/api/v1/events/health` 返回 Redis 状态与连接统计；异常时 503。
+- 响应头：`Cache-Control: no-cache`、`Connection: keep-alive`。
+- 鉴权：`POST /api/v1/auth/sse-token` 获取短时效 `sse_token`（默认 60s），`GET /api/v1/events/stream?sse_token=...` 建立连接。
+- SLO 口径：重连场景不计入“首 Token”延迟；新会话从事件生成时刻开始计时。
+
+以上与当前 sse-starlette + Redis 实现一致。
 
 ## 容量规划
 
@@ -233,7 +250,7 @@ stateDiagram-v2
 | ---- | -------- | -------- | ------- |
 | 前端 | React + Vite | 快速开发，丰富生态 | 已确定 |
 | 后端 | Python + FastAPI | 异步性能，AI生态 | 已确定 |
-| 对话管理 | PostgreSQL + Redis | 持久化+缓存 | ADR-001 |
+| 对话管理 | Redis + PostgreSQL(conversation_sessions/rounds) + Outbox | 缓存+写通持久化 | ADR-001 |
 | 向量搜索 | Milvus + Qwen3 | 自托管，低成本 | ADR-002 |
 | 知识图谱 | Neo4j | 复杂关系管理 | ADR-005 |
 | 版本控制 | MinIO + PostgreSQL | 快照+增量 | ADR-004 |
@@ -264,7 +281,7 @@ stateDiagram-v2
 - **Redis-py** (v5.0+)
   - 异步支持
   - 连接池管理
-  - Lua脚本支持（Token Bucket）
+  - Lua脚本支持（Token Bucket，P2）
   - 发布订阅功能
 
 - **Neo4j Python Driver** (v5.0+)
@@ -282,14 +299,14 @@ stateDiagram-v2
   - 传输加密：TLS 1.3
   - 存储加密：字段级加密（敏感数据）
   - 服务端解密：受控域内处理
-- **内容安全**：
-  - 违法内容过滤（100%拦截）
-  - 暴力色情标记
-  - 版权风险检测（相似度<30%）
+- **内容安全**（P1 基线，P2 强化）：
+  - 违法与风险内容拦截（高覆盖率策略 + 人审闭环；不承诺 100%）
+  - 暴力/色情标记（模型 + 规则）
+  - 版权相似度检测（向量相似度 + 阈值，示例阈值 <30% 视业务调整）
 - **API安全**：
-  - 速率限制（Token Bucket）
+  - 速率限制（P1：滑动窗口；P2：Redis Lua Token Bucket）
   - API密钥管理（LiteLLM）
-  - 请求签名验证
+  - 请求签名验证（P2）
 
 ### 安全合规
 
@@ -403,12 +420,15 @@ graph TB
 
 ## 监控与可观测性
 
-### 关键指标
+### 关键指标（含 SSE/Kafka/Outbox）
 
 | 层级 | 监控指标 | 告警阈值 | 响应级别 |
 | ---- | -------- | -------- | -------- |
 | 系统 | CPU/内存/磁盘 | >80% | P2 |
-| 应用 | 响应时间 | >5秒 | P1 |
+| 应用 | 响应时间 (P95) | >5秒 | P1 |
+| SSE  | 活跃连接数/重连次数/历史补发量 | 异常跃迁 | P1 |
+| Kafka | 消费/生产速率、分区滞后 | 滞后持续上升 | P1 |
+| Outbox | 待发送队列深度、失败重试率 | 深度>阈值 | P1 |
 | 业务 | 生成成功率 | <90% | P0 |
 | 质量 | AI采纳率 | <60% | P1 |
 
@@ -422,12 +442,12 @@ graph TB
 - **指标**：
   - Prometheus采集
   - Grafana可视化
-  - 自定义业务指标
+  - 自定义业务指标（首 Token/完整响应时延、Kafka 滞后、Outbox 深度、Neo4j/Milvus 查询分位）
 
 - **追踪**：
   - Langfuse LLM观测
-  - 分布式追踪（Jaeger）
-  - 会话级追踪
+  - 分布式追踪（Jaeger，P2）
+  - 会话级追踪（请求级 trace_id + Envelope.correlation_id 透传）
 
 - **告警**：
   - 分级告警策略
@@ -438,14 +458,15 @@ graph TB
 
 ### 核心领域事件
 
-根据事件命名规范，创世阶段的事件遵循以下结构：
-`Genesis.Session.<OptionalSubAggregate>.<ActionInPastTense>`
+遵循 `docs/architecture/event-naming-conventions.md` 规范：
+`<Domain>.<AggregateRoot>.<OptionalSubAggregate>.<ActionInPastTense>`。
+创世阶段以 `Genesis.Session` 为聚合根，动作动词严格使用受控词表（Requested/Proposed/Confirmed/Updated/Completed/Finished/Failed/Branched 等）。
 
 主要事件列表：
 
 ```yaml
 # Stage 0 - 创意种子
-Genesis.Session.Started                    # 创世会话开始
+Genesis.Session.Started                    # 创世会话开始（此时即创建 Novel 记录，status=GENESIS）
 Genesis.Session.SeedRequested              # 请求生成创意种子
 Genesis.Session.ConceptProposed            # AI提出高概念方案
 Genesis.Session.ConceptConfirmed           # 用户确认高概念
@@ -460,7 +481,7 @@ Genesis.Session.Theme.Confirmed            # 主题确认
 # Stage 2 - 世界观
 Genesis.Session.World.Created              # 世界观创建
 Genesis.Session.World.Updated              # 世界观更新
-Genesis.Session.World.Validated            # 一致性验证通过
+Genesis.Session.World.ValidationCompleted  # 一致性验证完成
 
 # Stage 3 - 人物
 Genesis.Session.Character.Created          # 人物创建
@@ -478,7 +499,7 @@ Genesis.Session.Details.Completed          # 细节生成完成
 # 通用事件
 Genesis.Session.Finished                   # 创世完成
 Genesis.Session.Failed                     # 创世失败
-Genesis.Session.Branched                   # 版本分支创建
+Genesis.Session.BranchCreated              # 版本分支创建
 ```
 
 ### 事件负载结构
@@ -492,6 +513,7 @@ Genesis.Session.Branched                   # 版本分支创建
     "causation_id": "previous_event_id",
     "payload": {
         "session_id": "uuid",
+        "novel_id": "uuid",          # 创世开始即创建并返回 novel_id
         "stage": "Stage_0",
         "user_id": "uuid",
         "content": {},  # 具体内容
@@ -506,64 +528,116 @@ Genesis.Session.Branched                   # 版本分支创建
 }
 ```
 
+### 事件与 Topic 映射（领域总线 + 能力总线）
+
+- 类型命名：事件类型遵循 `docs/architecture/event-naming-conventions.md`，作为 Envelope/DomainEvent 的 `event_type`（例如：`Genesis.Session.Theme.Proposed`）。
+- 传输格式：统一使用 JSON Envelope（已在 Agents 落地），Avro 作为 P2 选项。
+
+领域总线（Facts，对外暴露）：
+- `genesis.session.events`（仅承载 Genesis.Session.* 等领域事实；UI/SSE/审计只订阅此总线）
+
+能力总线（Capabilities，内部）：
+- Outliner：`genesis.outline.tasks` / `genesis.outline.events`
+- Writer：`genesis.writer.tasks` / `genesis.writer.events`
+- Review（评论家）：`genesis.review.tasks` / `genesis.review.events`
+- Worldbuilder：`genesis.world.tasks` / `genesis.world.events`
+- Character：`genesis.character.tasks` / `genesis.character.events`
+- Plot：`genesis.plot.tasks` / `genesis.plot.events`
+- FactCheck：`genesis.factcheck.tasks` / `genesis.factcheck.events`
+- Rewriter：`genesis.rewriter.tasks` / `genesis.rewriter.events`
+- Worldsmith：`genesis.worldsmith.tasks` / `genesis.worldsmith.events`
+
+路由职责（中央协调者/Orchestrator）：
+- 消费 `genesis.session.events`（领域事实），按业务决策派发能力“请求事实”（`*.Requested`）到对应 `*.tasks`。
+- 消费各 `*.events` 的能力结果（`*.Created/Updated/Completed/...`），合成领域事实并写回 `genesis.session.events`。
+
+示例映射：
+
+```
+# 领域请求 → 能力任务
+Envelope.type: Genesis.Session.Theme.Requested       -> topic: genesis.outline.tasks (Chapter.Outline.GenerationRequested)
+
+# 能力结果 → 领域事实
+Envelope.type: Chapter.Outline.Created               -> topic: genesis.outline.events
+Orchestrator 合成: Genesis.Session.Plot.Created      -> topic: genesis.session.events
+```
+
+注意：DLT 使用统一后缀 `.DLT`（如 `genesis.writer.events.DLT`）。分区键：会话级事件用 `session_id`，章节类能力用 `chapter_id` 保序。
+
 ## 数据模型设计
 
-### PostgreSQL表结构
+### PostgreSQL表结构（对齐 ADR-001）
 
-基于ADR-001和ADR-004：
+采用通用对话表 conversation_sessions + conversation_rounds（PostgreSQL 持久化）与 Redis 写通缓存；并保留事务性 Outbox。
 
 ```sql
--- 对话会话表（ADR-001）
+-- 会话表（conversation_sessions）
 CREATE TABLE conversation_sessions (
     id UUID PRIMARY KEY,
-    user_id UUID NOT NULL,
-    novel_id UUID,
-    scope VARCHAR(50) NOT NULL,  -- 'GENESIS', 'CHAPTER', 'REVIEW'
-    state JSONB NOT NULL,        -- 会话状态快照
-    version INT NOT NULL DEFAULT 1,  -- 乐观锁
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    INDEX idx_user_novel (user_id, novel_id)
+    scope_type TEXT NOT NULL,                 -- GENESIS/CHAPTER/REVIEW/...
+    scope_id TEXT NOT NULL,                   -- 绑定业务实体ID（创世阶段=novel_id）
+    status TEXT NOT NULL DEFAULT 'ACTIVE',    -- ACTIVE/COMPLETED/ABANDONED/PAUSED
+    stage TEXT,                               -- 当前业务阶段（可选）
+    state JSONB,                              -- 会话聚合/摘要
+    version INTEGER NOT NULL DEFAULT 0,       -- 乐观锁版本（OCC）
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_conv_sessions_scope ON conversation_sessions (scope_type, scope_id);
+CREATE INDEX IF NOT EXISTS idx_conv_sessions_updated_at ON conversation_sessions (updated_at DESC);
 
--- 对话轮次表（ADR-001）
+-- 轮次表（conversation_rounds）
 CREATE TABLE conversation_rounds (
-    id UUID PRIMARY KEY,
-    session_id UUID REFERENCES conversation_sessions(id),
-    round_number INT NOT NULL,
-    user_input TEXT,
-    ai_output TEXT,
-    selected_options JSONB,
-    metadata JSONB,
-    created_at TIMESTAMP,
-    INDEX idx_session_round (session_id, round_number)
+    session_id UUID NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+    round_path TEXT NOT NULL,                 -- '1','2','2.1','2.1.1'
+    role TEXT NOT NULL,                       -- user/assistant/system/tool
+    input JSONB,
+    output JSONB,
+    tool_calls JSONB,
+    model TEXT,
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    latency_ms INTEGER,
+    cost NUMERIC,
+    correlation_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (session_id, round_path)
 );
+CREATE INDEX IF NOT EXISTS idx_conv_rounds_session_created ON conversation_rounds (session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conv_rounds_correlation ON conversation_rounds (correlation_id);
 
--- 内容版本表（ADR-004）
-CREATE TABLE content_versions (
-    id UUID PRIMARY KEY,
-    novel_id UUID NOT NULL,
-    version_hash VARCHAR(64) UNIQUE,
-    parent_version_id UUID,
-    branch_name VARCHAR(100),
-    snapshot_url TEXT,  -- MinIO URL
-    metadata JSONB,
-    created_at TIMESTAMP,
-    INDEX idx_novel_branch (novel_id, branch_name)
-);
-
--- 事件发件箱（ADR-006）
+-- 事件发件箱（Outbox，事务性可靠投递）
 CREATE TABLE event_outbox (
-    id BIGSERIAL PRIMARY KEY,
-    event_type VARCHAR(255) NOT NULL,
-    aggregate_id UUID NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(20) DEFAULT 'PENDING',
-    created_at TIMESTAMP DEFAULT NOW(),
-    processed_at TIMESTAMP,
-    INDEX idx_status_created (status, created_at)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    topic TEXT NOT NULL,                         -- 主题（Kafka / 逻辑主题）
+    key TEXT,                                   -- key（顺序/分区控制）
+    partition_key TEXT,                         -- 分区键（可选）
+    payload JSONB NOT NULL,                     -- 事件载荷
+    headers JSONB,                              -- 元信息（event_type、version、trace 等）
+    status outbox_status NOT NULL DEFAULT 'PENDING',
+    retry_count INT NOT NULL DEFAULT 0,
+    max_retries INT NOT NULL DEFAULT 5,
+    last_error TEXT,
+    scheduled_at TIMESTAMPTZ,                   -- 延迟发送（可选）
+    sent_at TIMESTAMPTZ,                        -- 成功发送时间
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_event_outbox_status ON event_outbox(status);
+CREATE INDEX idx_event_outbox_topic ON event_outbox(topic);
+CREATE INDEX idx_event_outbox_created_at ON event_outbox(created_at);
+CREATE INDEX idx_event_outbox_pending_scheduled ON event_outbox(status, scheduled_at);
+CREATE INDEX idx_event_outbox_retry_count ON event_outbox(retry_count);
+CREATE INDEX idx_event_outbox_topic_status ON event_outbox(topic, status);
+CREATE INDEX idx_event_outbox_status_created ON event_outbox(status, created_at);
+CREATE INDEX idx_event_outbox_key ON event_outbox(key);
+CREATE INDEX idx_event_outbox_partition_key ON event_outbox(partition_key);
 ```
+
+说明：
+- conversation_sessions/rounds 为通用对话持久化表；Redis 作为缓存，采用“写通 PG→回填 Redis、读优先 Redis”的策略（详见 ADR-001）。
+- 已删除未使用的 `genesis_sessions` 表与模型；创世阶段改以 conversation_sessions 聚合，并以 novel_id 作为 scope_id 绑定。
+- 章节内容版本采用现有 `chapter_versions`（含 MinIO URL），不再使用通用 `content_versions`。
+- Outbox：沿用 `EventOutbox`（字段与索引如上）作为唯一真相源，通过 DB 函数批处理发送与重试。
 
 ### Neo4j图模型（ADR-005）
 
@@ -685,35 +759,10 @@ async def detail_generation_flow(
     })
 ```
 
-### Redis限流实现
+### 限流实现
 
-```lua
--- Token Bucket限流脚本
-local key = KEYS[1]
-local capacity = tonumber(ARGV[1])
-local tokens = tonumber(ARGV[2])
-local interval = tonumber(ARGV[3])
-local now = tonumber(ARGV[4])
-
-local current = redis.call('HGETALL', key)
-local last_refill = current[2] and tonumber(current[2]) or now
-local available = current[4] and tonumber(current[4]) or capacity
-
--- 计算新增令牌
-local elapsed = now - last_refill
-local new_tokens = elapsed * (capacity / interval)
-available = math.min(capacity, available + new_tokens)
-
--- 尝试获取令牌
-if available >= tokens then
-    available = available - tokens
-    redis.call('HMSET', key, 'last_refill', now, 'available', available)
-    redis.call('EXPIRE', key, interval * 2)
-    return 1
-else
-    return 0
-end
-```
+- 当前（P1）：滑动窗口限流（Redis 存储请求时间戳窗口），已通过中间件应用于关键端点。
+- 规划（P2）：迁移至 Redis Lua 令牌桶（Token Bucket）以获得更平滑的限速与更好的峰值控制。
 
 ## 交付物
 
@@ -745,3 +794,12 @@ HLD完成后需要：
 **创建日期**: 2025-09-05  
 **状态**: 待审批  
 **下一步**: 生成低层设计（LLD）
+
+## 近期行动项（两周内）
+
+- 对齐接口与通道：HLD 明确 P1=REST+SSE，移除 WebSocket/gRPC（标 P2）。
+- 事件规范：采用 JSON Envelope + 命名规范，补充“事件类型→Topic”映射清单并与 `AGENT_TOPICS` 同步。
+- SSE 文档化：并发/心跳/重连/健康接口/429 Retry-After 与 Last-Event-ID 重连语义。
+- Outbox Sender：实现基于 `event_outbox` 的发送器与重试回退，补集成/e2e 验证。
+- 指标与 SLO：首 Token/完整响应埋点；SSE/Kafka/Outbox 指标入 Prometheus。
+- 限流计划：P1 滑动窗口已启用；评估 P2 Redis Lua Token Bucket 迁移可行性。

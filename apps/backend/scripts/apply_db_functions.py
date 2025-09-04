@@ -205,7 +205,7 @@ async def apply_db_functions():
         "characters",
         "worldview_entries",
         "story_arcs",
-        "genesis_sessions",
+        "conversation_sessions",
         "command_inbox",
         "async_tasks",
         "flow_resume_handles",
@@ -225,7 +225,14 @@ async def apply_db_functions():
         )
 
     # version 触发器
-    tables_with_version = ["novels", "chapters", "characters", "worldview_entries", "story_arcs", "genesis_sessions"]
+    tables_with_version = [
+        "novels",
+        "chapters",
+        "characters",
+        "worldview_entries",
+        "story_arcs",
+        "conversation_sessions",
+    ]
 
     for table in tables_with_version:
         dynamic_triggers.append(
