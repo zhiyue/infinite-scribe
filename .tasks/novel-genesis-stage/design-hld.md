@@ -11,7 +11,7 @@
 | 需求ID | 需求描述 | 设计方案 | 相关组件 |
 | ------ | -------- | -------- | -------- |
 | FR-001 | 创意种子生成与选择 | 通过Outliner Agent提供多种创作起点，生成3-6个高概念方案，支持方案融合与锁定 | Outliner Agent, Orchestrator, API Gateway, PostgreSQL |
-| FR-002 | 立意主题对话系统 | 基于ADR-001通用会话架构，实现3-5轮主题深化对话，支持多种用户操作模式 | Dialogue Manager, Orchestrator, Redis缓存 |
+| FR-002 | 立意主题对话系统 | 基于ADR-001通用会话架构，实现3-5轮主题深化对话，支持多种用户操作模式 | API Conversation Service, Orchestrator, Redis缓存 |
 | FR-003 | 世界观对话式构建 | 分5个维度构建世界观，支持魔法/科技体系定义，实时一致性校验 | World Builder Agent, Neo4j图数据库 |
 | FR-004 | 人物对话式设计 | 8维度人物设定模板，自动生成关系网络，支持对白生成 | Character Expert Agent, Neo4j |
 | FR-005 | 情节框架对话构建 | 生成10-20个节点卡，支持三幕/五幕/英雄之旅结构 | Plot Master Agent, Outliner Agent |
@@ -71,8 +71,7 @@ C4Container
     title 创世系统容器架构图 (事件驱动架构)
 
     Container(web, "Web应用", "React/Vite", "对话界面，内容审核")
-    Container(api, "API网关", "FastAPI", "请求路由，SSE推送")
-    Container(dialogue_mgr, "对话管理器", "Python", "会话状态管理")
+    Container(api, "API + Conversation Service", "FastAPI", "请求路由，SSE推送，会话管理")
     Container(orchestrator, "中央协调者", "Python", "事件路由，任务分发")
     
     Container_Boundary(agents, "Agent服务群") {
@@ -98,9 +97,8 @@ C4Container
     Container(storage, "对象存储", "MinIO/S3", "快照与大文件存储")  
 
     Rel(web, api, "HTTPS/REST, SSE")
-    Rel(api, dialogue_mgr, "进程内调用")
-    Rel(dialogue_mgr, redis, "缓存读写")
-    Rel(dialogue_mgr, postgres, "持久化+Outbox")
+    Rel(api, redis, "缓存读写")
+    Rel(api, postgres, "持久化+Outbox")
     
     Rel(postgres, kafka, "Outbox发送")
     Rel(orchestrator, kafka, "消费领域事件")
@@ -147,7 +145,7 @@ C4Container
 
 3. **事件流转机制**：
    ```
-   用户请求 → API网关 → 对话管理器 → PostgreSQL(Outbox)
+   用户请求 → API网关(含会话服务) → PostgreSQL(Outbox)
    → Kafka(领域事件) → 中央协调者 → Prefect任务编排
    → Kafka(能力任务) → 专门Agent → Kafka(结果事件)
    → 中央协调者 → Kafka(领域事件) → API(SSE) → 用户
@@ -165,7 +163,7 @@ C4Container
 
 ```mermaid
 graph LR
-    A[用户输入] --> B[对话管理器]
+    A[用户输入] --> B[API/会话服务]
     B --> C[Outbox/Kafka]
     C --> D[中央协调者]
     D --> E[分发任务到Agent]
@@ -240,9 +238,8 @@ stateDiagram-v2
 
 | 组件间接口 | 通信方式 | 数据格式 | 频率估算 |
 | ---------- | -------- | -------- | -------- |
-| API→Dialogue | 进程内调用 | Python 对象 | 100 QPS |
-| Dialogue→Redis | 同步调用 | JSON | 500 QPS |
-| Dialogue→Outbox | 事务写入 | JSON | 100 QPS |
+| API→Redis | 同步调用 | JSON | 500 QPS |
+| API→PostgreSQL | 事务写入 | JSON | 100 QPS |
 | Orchestrator→Kafka | 事件消费/发布 | JSON Envelope | 200 msgs/s |
 | Agents→Kafka | 事件消费/发布 | JSON Envelope | 50 msgs/s per agent |
 | Agents→LLM | HTTPS | JSON | 50 QPS total |
