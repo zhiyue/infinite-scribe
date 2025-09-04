@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from ..base import BaseAgent
+from ..errors import NonRetriableError  # noqa: F401 - 示例用途
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ class TemplateAgent(BaseAgent):
     async def _handle_example_type(self, message: dict[str, Any]) -> dict[str, Any]:
         """处理特定类型的消息"""
         # TODO: 实现具体的处理逻辑
+        # 如需不可重试错误，抛出 NonRetriableError
+        # raise NonRetriableError("invalid request")
         return {"status": "success", "agent": self.name, "result": "处理完成"}
 
     async def on_start(self):

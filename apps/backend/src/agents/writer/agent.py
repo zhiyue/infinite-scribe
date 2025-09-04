@@ -58,6 +58,7 @@ class WriterAgent(BaseAgent):
             "content": content,
             "word_count": len(content),
             "_topic": "story.review.request",  # 发送给评审
+            "_key": str(chapter_id) if chapter_id is not None else None,
         }
 
     async def _handle_write_scene(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -75,6 +76,7 @@ class WriterAgent(BaseAgent):
             "scene_id": scene_id,
             "content": content,
             "_topic": "story.write.response",
+            "_key": str(scene_id) if scene_id is not None else None,
         }
 
     async def _handle_rewrite_content(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -93,6 +95,7 @@ class WriterAgent(BaseAgent):
             "content_id": content_id,
             "content": rewritten_content,
             "_topic": "story.review.request",
+            "_key": str(content_id) if content_id is not None else None,
         }
 
     async def on_start(self):

@@ -10,7 +10,7 @@
 - 配置来源优先级：环境变量 > `.env` > `config.toml` > 模型默认值。
 - 配置文件位置：
   - 实际文件：`apps/backend/config.toml`（不纳入版本控制）。
-  - 模板文件：`apps/backend/config.toml.example`（复制为 `config.toml`
+ - 模板文件：`apps/backend/config.toml.example`（复制为 `config.toml`
     后按需修改）。
   - `.env` 文件：`apps/backend/.env`（开发环境可选）。
 
@@ -118,6 +118,26 @@ agent_names = settings.launcher.agents.names
   表示未指定，由系统决定）。
 
 > 注：CLI 仅做解析与校验对齐，后续编排逻辑由 orchestrator/adapters 接入。
+
+## 与 Agent 处理参数的关系（重要）
+
+Launcher 负责编排 Agents 的启动/关闭，但消息处理可靠性相关的参数位于 `Settings` 顶层（非 `[launcher]` 嵌套），包括：
+
+- `agent_max_retries`、`agent_retry_backoff_ms`、`agent_dlt_suffix`
+- `agent_commit_batch_size`、`agent_commit_interval_ms`
+
+这些参数影响 BaseAgent 的重试（指数退避）、DLT（死信主题）与手动提交偏移的策略。请在 `apps/backend/config.toml` 顶层设置，或使用环境变量：
+
+```toml
+# 顶层（非 [launcher]）
+agent_max_retries = "${AGENT_MAX_RETRIES:-3}"
+agent_retry_backoff_ms = "${AGENT_RETRY_BACKOFF_MS:-500}"
+agent_dlt_suffix = "${AGENT_DLT_SUFFIX:-.DLT}"
+agent_commit_batch_size = "${AGENT_COMMIT_BATCH_SIZE:-20}"
+agent_commit_interval_ms = "${AGENT_COMMIT_INTERVAL_MS:-1000}"
+```
+
+更多关于这些字段的说明，参见 `apps/backend/docs/configuration-guide.md` 的“Agent 处理参数”章节。
 
 ## 常见问题（FAQ）
 

@@ -26,6 +26,13 @@ kafka_port = "${KAFKA_PORT:-9092}"
 kafka_auto_offset_reset = "${KAFKA_AUTO_OFFSET_RESET:-earliest}"
 kafka_group_id_prefix = "${KAFKA_GROUP_ID_PREFIX:-infinite-scribe}"
 
+# Agent processing
+agent_max_retries = "${AGENT_MAX_RETRIES:-3}"
+agent_retry_backoff_ms = "${AGENT_RETRY_BACKOFF_MS:-500}"
+agent_dlt_suffix = "${AGENT_DLT_SUFFIX:-.DLT}"
+agent_commit_batch_size = "${AGENT_COMMIT_BATCH_SIZE:-20}"
+agent_commit_interval_ms = "${AGENT_COMMIT_INTERVAL_MS:-1000}"
+
 # Milvus
 milvus_host = "${MILVUS_HOST:-localhost}"
 milvus_port = "${MILVUS_PORT:-19530}"

@@ -90,6 +90,36 @@ LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
 
 更多细节（字段说明、示例与注意事项）参见：`apps/backend/docs/launcher-configuration.md`。
 
+### Agent 处理参数（Kafka 可靠性相关）
+
+以下为 `Settings` 顶层的 Agent 处理相关配置（非 `[launcher]` 嵌套），用于控制消息处理的重试、DLT 以及手动提交偏移的策略：
+
+- `agent_max_retries`（默认 3）：单条消息的最大重试次数（指数退避）。
+- `agent_retry_backoff_ms`（默认 500）：重试基础退避毫秒数，实际退避为 `base * 2^(attempt-1)`。
+- `agent_dlt_suffix`（默认 `.DLT`）：DLT（死信队列）主题后缀，例如 `story.write.request.DLT`。
+- `agent_commit_batch_size`（默认 20）：手动提交偏移的条数阈值，达到即批量提交。
+- `agent_commit_interval_ms`（默认 1000）：手动提交偏移的时间阈值（毫秒），达到即批量提交。
+
+对应环境变量（示例）：
+
+```bash
+export AGENT_MAX_RETRIES=5
+export AGENT_RETRY_BACKOFF_MS=250
+export AGENT_DLT_SUFFIX=.DLT
+export AGENT_COMMIT_BATCH_SIZE=50
+export AGENT_COMMIT_INTERVAL_MS=500
+```
+
+在 `config.toml` 中的示例：
+
+```toml
+agent_max_retries = "${AGENT_MAX_RETRIES:-3}"
+agent_retry_backoff_ms = "${AGENT_RETRY_BACKOFF_MS:-500}"
+agent_dlt_suffix = "${AGENT_DLT_SUFFIX:-.DLT}"
+agent_commit_batch_size = "${AGENT_COMMIT_BATCH_SIZE:-20}"
+agent_commit_interval_ms = "${AGENT_COMMIT_INTERVAL_MS:-1000}"
+```
+
 ## 配置示例
 
 ### 1. 开发环境

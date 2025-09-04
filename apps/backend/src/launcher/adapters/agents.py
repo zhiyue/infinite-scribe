@@ -165,7 +165,7 @@ class AgentsAdapter(BaseAdapter):
             return {"status": "not_started", "agents": {}, "total_agents": 0}
 
         # Get agent status
-        agent_status = {}
+        agent_status: dict[str, Any] = {}
         # Fallback to launcher's agents if _loaded_agents not populated
         names = self._loaded_agents or list(self._launcher.agents.keys())
         for agent_name in names:
@@ -174,10 +174,20 @@ class AgentsAdapter(BaseAdapter):
             else:
                 agent_status[agent_name] = "stopped"
 
+        # Optional: include per-agent details when available
+        details: dict[str, Any] = {}
+        for name, agent in self._launcher.agents.items():
+            try:
+                details[name] = agent.get_status()
+            except Exception:
+                # Fallback if agent doesn't implement get_status()
+                details[name] = {"running": getattr(agent, "is_running", False)}
+
         return {
             "status": "healthy" if self._launcher.running else "stopped",
             "agents": agent_status,
             "total_agents": len(self._launcher.agents) if self._launcher.agents else 0,
+            "details": details,
         }
 
     def get_loaded_agents(self) -> list[str]:

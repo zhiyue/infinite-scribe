@@ -224,6 +224,13 @@ class Settings(BaseSettings):
     kafka_auto_offset_reset: str = Field(default="earliest")
     kafka_group_id_prefix: str = Field(default="infinite-scribe")
 
+    # Agent processing settings
+    agent_max_retries: int = Field(default=3, description="Max retries before sending to DLT")
+    agent_retry_backoff_ms: int = Field(default=500, description="Base backoff in ms for retry with exponential growth")
+    agent_dlt_suffix: str = Field(default=".DLT", description="Suffix for dead-letter topics")
+    agent_commit_batch_size: int = Field(default=20, description="Commit after N messages processed")
+    agent_commit_interval_ms: int = Field(default=1000, description="Commit at least every T milliseconds")
+
     # MinIO
     minio_endpoint: str = Field(default="localhost:9000")
     minio_access_key: str = Field(default="minioadmin")

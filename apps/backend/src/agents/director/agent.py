@@ -60,6 +60,7 @@ class DirectorAgent(BaseAgent):
             "genre": project_config.get("genre"),
             "theme": project_config.get("theme"),
             "_topic": "story.outline.request",
+            "_key": str(project_id) if project_id is not None else None,
         }
 
         return outline_request
@@ -81,6 +82,7 @@ class DirectorAgent(BaseAgent):
             "status": "in_progress",
             "completion": 45,
             "_topic": "project.status.update",
+            "_key": str(project_id) if project_id is not None else None,
         }
 
     async def _handle_coordinate_agents(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -102,6 +104,7 @@ class DirectorAgent(BaseAgent):
                 {"agent": "critic", "task": "review_chapter", "priority": 2},
             ],
             "_topic": "agent.task.assignment",
+            "_key": f"coord_{task_type}" if task_type else None,
         }
 
     async def on_start(self):
