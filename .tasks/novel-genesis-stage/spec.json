@@ -3,13 +3,38 @@
   "created_at": "2025-09-04T12:00:00Z",
   "updated_at": "2025-09-04T14:00:00Z",
   "language": "chinese",
-  "phase": "prd-updated",
+  "phase": "requirements-optimized-v2.1",
   "documents": {
     "prd": {
       "generated": true,
       "approved": false,
       "story_count": 10,
       "last_update": "重构为对话式创世流程"
+    },
+    "requirements": {
+      "generated": true,
+      "approved": false,
+      "functional_count": 10,
+      "non_functional_count": 8,
+      "version": "2.1",
+      "last_update": "修正关键冲突：响应时延、加密策略、搜索性能、一致性检查分级",
+      "features": [
+        "6阶段状态机定义",
+        "详细EARS验收标准",
+        "对话引擎规范（SSE流式）",
+        "分级一致性校验（4级处理）",
+        "量化评分算法（明确口径）",
+        "版本控制策略",
+        "搜索SLA分拆（本地/向量/混合）"
+      ],
+      "optimizations": [
+        "首token响应<3秒，完整响应<30秒",
+        "应用层加密替代端到端加密",
+        "搜索性能分层：本地100ms/向量400ms/混合600ms",
+        "一致性检查分级：提示→建议→必须→阻断",
+        "具体量化算法：余弦相似度、关键词匹配等",
+        "移除流式响应ADR（系统已实现SSE）"
+      ]
     }
   },
   "approvals": {
@@ -31,20 +56,19 @@
     }
   },
   "adr": {
-    "total_count": 0,
+    "total_count": 6,
     "proposed": 0,
     "accepted": 0,
     "superseded": 0,
     "candidates": [
-      "世界观数据存储方案",
-      "AI模型集成方式",
-      "实时协作架构",
-      "前端框架选择",
-      "缓存策略",
-      "搜索引擎选择",
-      "文件存储方案",
-      "多租户隔离方案"
-    ]
+      "对话状态管理方案（Redis Session vs PostgreSQL）",
+      "向量嵌入模型选择（OpenAI Ada vs BGE-M3）",
+      "提示词模板管理（模板仓库+版本化）",
+      "内容版本控制实现（Event Sourcing vs 快照+增量）",
+      "知识图谱Schema设计（层级 vs 网状 vs 混合）",
+      "批量任务调度策略（Prefect+Kafka+优先级队列）"
+    ],
+    "notes": "已移除流式响应相关ADR（系统已实现SSE），前端/后端/数据库等技术栈已在高层架构中确定"
   },
   "ready_for_implementation": false
 }
