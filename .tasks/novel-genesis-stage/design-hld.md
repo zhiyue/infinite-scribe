@@ -16,7 +16,7 @@
 | FR-003 | 世界观对话式构建   | 分5个维度构建世界观，支持魔法/科技体系定义，实时一致性校验                  | World Builder Agent, Neo4j图数据库                    |
 | FR-004 | 人物对话式设计     | 8维度人物设定模板，自动生成关系网络，支持对白生成                           | Character Expert Agent, Neo4j                         |
 | FR-005 | 情节框架对话构建   | 生成10-20个节点卡，支持三幕/五幕/英雄之旅结构                               | Plot Master Agent, Outliner Agent                     |
-| FR-006 | AI批量细节生成     | 批量生成地名、人名等细节，支持风格控制，单批10-50个                         | Detail Generator Service, Prefect编排                 |
+| FR-006 | AI批量细节生成     | 批量生成地名、人名等细节，支持风格控制，单批10-50个                         | P1: Outbox模式; P2: Prefect编排                      |
 | FR-007 | 内容审核与编辑界面 | 三键操作（接受/修改/重新生成），支持影响分析和版本管理                      | React前端, Version Control Service                    |
 | FR-008 | 创世内容知识库     | 自动整理分类，支持全文和向量搜索，多格式导出                                | Knowledge Base Service, Milvus, Neo4j                 |
 | FR-009 | 对话历史与版本管理 | 基于ADR-004实现分支管理和时间线回溯                                         | Version Control Service, MinIO                        |
@@ -1655,110 +1655,173 @@ CREATE INDEX idx_event_outbox_partition_key ON event_outbox(partition_key);
 ### Neo4j图模型（ADR-005）
 
 ```cypher
-// 小说节点
-CREATE (n:Novel {
-    id: 'uuid',
+-- Neo4j 5.x 标准语法
+-- 注意：所有节点的主键统一为 novel_id（Novel节点）或 id（其他节点）
+
+-- 小说节点
+MERGE (n:Novel {
+    novel_id: 'uuid',        -- 统一使用 novel_id 作为主键
     app_id: 'infinite-scribe',
     title: 'string',
     created_at: datetime()
 })
 
-// 角色节点（8维度）
-CREATE (c:Character {
+-- 角色节点（8维度）
+MERGE (c:Character {
     id: 'uuid',
-    novel_id: 'uuid',
+    novel_id: 'uuid',        -- 关联到小说
     name: 'string',
-    appearance: 'text',      // 外貌
-    personality: 'text',     // 性格
-    background: 'text',      // 背景
-    motivation: 'text',      // 动机
-    goals: 'text',          // 目标
-    obstacles: 'text',      // 障碍
-    arc: 'text',            // 转折
-    wounds: 'text'          // 心结
+    appearance: 'text',      -- 外貌
+    personality: 'text',     -- 性格
+    background: 'text',      -- 背景
+    motivation: 'text',      -- 动机
+    goals: 'text',          -- 目标
+    obstacles: 'text',      -- 障碍
+    arc: 'text',            -- 转折
+    wounds: 'text'          -- 心结
 })
 
-// 角色状态节点（支持连续性校验）
-CREATE (cs:CharacterState {
+-- 角色状态节点（支持连续性校验）
+MERGE (cs:CharacterState {
     id: 'uuid',
     character_id: 'uuid',
-    chapter: integer,
-    age: integer,
+    chapter: 0,             -- 章节号
+    age: 0,                 -- 年龄
     status: 'string',
-    attributes: 'json'
+    attributes: '{}'        -- JSON 字符串
 })
 
-// 世界规则节点
-CREATE (w:WorldRule {
+-- 世界规则节点
+MERGE (w:WorldRule {
     id: 'uuid',
     novel_id: 'uuid',
-    dimension: 'string',    // 地理/历史/文化/规则/社会
+    dimension: 'string',    -- 地理/历史/文化/规则/社会
     rule: 'text',
-    priority: integer,      // 优先级（冲突时使用）
-    scope: 'json',          // 适用范围（地域/时间）
-    examples: 'json',
-    constraints: 'json',
-    created_at: datetime()  // 创建时间（冲突判定）
+    priority: 0,            -- 优先级（冲突时使用）
+    scope: '{}',            -- 适用范围（地域/时间）
+    examples: '{}',
+    constraints: '{}',
+    created_at: datetime()  -- 创建时间（冲突判定）
 })
 
-// 事件节点（支持时间线校验）
-CREATE (e:Event {
+-- 事件节点（支持时间线校验）
+MERGE (e:Event {
     id: 'uuid',
     novel_id: 'uuid',
     description: 'text',
     timestamp: datetime(),
-    type: 'string'          // normal/time_skip/battle等
+    type: 'string'          -- normal/time_skip/battle等
 })
 
-// 位置节点（支持空间校验）
-CREATE (l:Location {
+-- 位置节点（支持空间校验）
+MERGE (l:Location {
     id: 'uuid',
     novel_id: 'uuid',
     name: 'string',
-    x: float,               // 坐标X
-    y: float,               // 坐标Y
-    timestamp: datetime()   // 时间戳
+    x: 0.0,                 -- 坐标X
+    y: 0.0,                 -- 坐标Y
+    timestamp: datetime()   -- 时间戳
 })
 
-// 交通工具节点
-CREATE (t:Transportation {
+-- 交通工具节点
+MERGE (t:Transportation {
     id: 'uuid',
-    type: 'string',         // walk/horse/car/teleport等
-    speed: float            // km/h
+    type: 'string',         -- walk/horse/car/teleport等
+    speed: 0.0              -- km/h
 })
 
-// 关系定义（支持一致性校验）
-CREATE (c1:Character)-[:RELATES_TO {
-    strength: 8,            // 关系强度1-10
-    type: 'string',         // friend/enemy/knows_of等
-    symmetric: boolean      // 是否对称关系
-}]->(c2:Character)
+-- 关系定义（支持一致性校验）
+MATCH (c1:Character {id: 'uuid1'}), (c2:Character {id: 'uuid2'})
+MERGE (c1)-[:RELATES_TO {
+    strength: 8,            -- 关系强度1-10
+    type: 'friend',         -- friend/enemy/knows_of等
+    symmetric: true         -- 是否对称关系
+}]->(c2)
 
-CREATE (c:Character)-[:BELONGS_TO]->(n:Novel)
-CREATE (c:Character)-[:HAS_STATE]->(cs:CharacterState)
-CREATE (c:Character)-[:LOCATED_AT {timestamp: datetime()}]->(l:Location)
-CREATE (c:Character)-[:USES]->(t:Transportation)
+-- 角色与小说关系
+MATCH (c:Character {id: 'uuid'}), (n:Novel {novel_id: 'uuid'})
+MERGE (c)-[:BELONGS_TO]->(n)
 
-CREATE (w:WorldRule)-[:GOVERNS]->(n:Novel)
-CREATE (w1:WorldRule)-[:CONFLICTS_WITH {
-    severity: 'string'      // critical/major/minor
-}]->(w2:WorldRule)
+-- 角色与状态关系
+MATCH (c:Character {id: 'uuid'}), (cs:CharacterState {character_id: 'uuid'})
+MERGE (c)-[:HAS_STATE]->(cs)
 
-CREATE (e1:Event)-[:CAUSES]->(e2:Event)
-CREATE (e:Event)-[:INVOLVES]->(c:Character)
-CREATE (e:Event)-[:OCCURS_AT]->(l:Location)
+-- 角色位置关系
+MATCH (c:Character {id: 'uuid'}), (l:Location {id: 'uuid'})
+MERGE (c)-[:LOCATED_AT {timestamp: datetime()}]->(l)
 
-// 索引优化（支持校验查询性能）
-CREATE INDEX novel_id_index FOR (n:Novel) ON (n.id)
-CREATE INDEX character_novel_index FOR (c:Character) ON (c.novel_id)
-CREATE INDEX worldrule_novel_index FOR (w:WorldRule) ON (w.novel_id)
-CREATE INDEX event_timestamp_index FOR (e:Event) ON (e.timestamp)
-CREATE INDEX location_coords_index FOR (l:Location) ON (l.x, l.y)
+-- 角色使用工具关系
+MATCH (c:Character {id: 'uuid'}), (t:Transportation {id: 'uuid'})
+MERGE (c)-[:USES]->(t)
 
-// 约束定义（数据完整性）
-CREATE CONSTRAINT unique_novel_id ON (n:Novel) ASSERT n.id IS UNIQUE
-CREATE CONSTRAINT unique_character_id ON (c:Character) ASSERT c.id IS UNIQUE
-CREATE CONSTRAINT character_state_chapter ON (cs:CharacterState) ASSERT (cs.character_id, cs.chapter) IS NODE KEY
+-- 世界规则管理关系
+MATCH (w:WorldRule {id: 'uuid'}), (n:Novel {novel_id: 'uuid'})
+MERGE (w)-[:GOVERNS]->(n)
+
+-- 规则冲突关系
+MATCH (w1:WorldRule {id: 'uuid1'}), (w2:WorldRule {id: 'uuid2'})
+MERGE (w1)-[:CONFLICTS_WITH {
+    severity: 'major'       -- critical/major/minor
+}]->(w2)
+
+-- 事件因果关系
+MATCH (e1:Event {id: 'uuid1'}), (e2:Event {id: 'uuid2'})
+MERGE (e1)-[:CAUSES]->(e2)
+
+-- 事件涉及角色
+MATCH (e:Event {id: 'uuid'}), (c:Character {id: 'uuid'})
+MERGE (e)-[:INVOLVES]->(c)
+
+-- 事件发生地点
+MATCH (e:Event {id: 'uuid'}), (l:Location {id: 'uuid'})
+MERGE (e)-[:OCCURS_AT]->(l)
+
+-- ==================== Neo4j 5.x 约束定义 ====================
+-- 唯一性约束（使用 Neo4j 5.x 语法）
+CREATE CONSTRAINT unique_novel_novel_id IF NOT EXISTS 
+FOR (n:Novel) REQUIRE n.novel_id IS UNIQUE;
+
+CREATE CONSTRAINT unique_character_id IF NOT EXISTS 
+FOR (c:Character) REQUIRE c.id IS UNIQUE;
+
+CREATE CONSTRAINT unique_world_rule_id IF NOT EXISTS 
+FOR (w:WorldRule) REQUIRE w.id IS UNIQUE;
+
+CREATE CONSTRAINT unique_event_id IF NOT EXISTS 
+FOR (e:Event) REQUIRE e.id IS UNIQUE;
+
+CREATE CONSTRAINT unique_location_id IF NOT EXISTS 
+FOR (l:Location) REQUIRE l.id IS UNIQUE;
+
+-- Node Key 约束（Neo4j 5.x 支持）
+CREATE CONSTRAINT character_state_key IF NOT EXISTS
+FOR (cs:CharacterState) REQUIRE (cs.character_id, cs.chapter) IS NODE KEY;
+
+-- ==================== Neo4j 5.x 索引定义 ====================
+-- 性能优化索引（使用 Neo4j 5.x 语法）
+CREATE INDEX novel_app_id_index IF NOT EXISTS 
+FOR (n:Novel) ON (n.app_id);
+
+CREATE INDEX character_novel_index IF NOT EXISTS 
+FOR (c:Character) ON (c.novel_id);
+
+CREATE INDEX worldrule_novel_index IF NOT EXISTS 
+FOR (w:WorldRule) ON (w.novel_id);
+
+CREATE INDEX event_novel_index IF NOT EXISTS 
+FOR (e:Event) ON (e.novel_id);
+
+CREATE INDEX event_timestamp_index IF NOT EXISTS 
+FOR (e:Event) ON (e.timestamp);
+
+CREATE INDEX location_novel_index IF NOT EXISTS 
+FOR (l:Location) ON (l.novel_id);
+
+CREATE INDEX location_coords_index IF NOT EXISTS 
+FOR (l:Location) ON (l.x, l.y);
+
+CREATE INDEX character_state_chapter_index IF NOT EXISTS
+FOR (cs:CharacterState) ON (cs.chapter);
 ```
 
 ### Milvus向量集合（ADR-002）
