@@ -74,6 +74,7 @@ C4Container
     Container(web, "Web应用", "React/Vite", "对话界面，内容审核")
     Container(api, "API + Conversation Service", "FastAPI", "请求路由，SSE推送，会话管理")
     Container(orchestrator, "中央协调者", "Python", "事件路由，任务分发")
+    Container(eventbridge, "EventBridge", "Python", "Kafka→SSE事件桥接")
 
     Container_Boundary(agents, "Agent服务群") {
         Container(outliner, "Outliner Agent", "Python", "大纲生成")
@@ -128,7 +129,10 @@ C4Container
     Rel(knowledge, milvus, "向量检索")
     Rel(version, postgres, "元数据")
     Rel(version, storage, "快照存储")
-    Rel(kafka, api, "事件订阅(SSE)")
+    
+    Rel(eventbridge, kafka, "消费领域事件")
+    Rel(eventbridge, redis, "发布SSE事件")
+    Rel(api, redis, "读取SSE事件流")
 
 
 ```
@@ -149,7 +153,14 @@ C4Container
    - 通过Prefect编排复杂工作流
    - 发布任务事件到对应Agent的task topic
 
-3. **专门化Agent服务**：
+3. **EventBridge（Kafka→SSE桥接）**：
+   - 消费 `genesis.session.events` 领域事件
+   - 过滤需要推送给用户的事件（仅Facts）
+   - 按 user_id/session_id 维度路由事件
+   - 调用 `RedisSSEService.publish_event` 推送到Redis
+   - 维护 Last-Event-ID 序列保证事件顺序
+
+4. **专门化Agent服务**：
    - **Outliner Agent**：负责大纲和高概念生成（Stage 0, 4）
    - **Worldbuilder Agent**：构建世界观设定（Stage 2）
    - **Character Agent**：设计人物和关系网络（Stage 3）
@@ -159,16 +170,17 @@ C4Container
    - **Rewriter Agent**：内容重写和优化
    - **Detail Generator**：批量细节生成（Stage 5）
 
-4. **事件流转机制**：
+5. **事件流转机制**：
 
    ```
    用户请求 → API网关(含会话服务) → PostgreSQL(Outbox)
    → Kafka(领域事件) → 中央协调者 → Prefect任务编排
    → Kafka(能力任务) → 专门Agent → Kafka(结果事件)
-   → 中央协调者 → Kafka(领域事件) → API(SSE) → 用户
+   → 中央协调者 → Kafka(领域事件) → EventBridge
+   → Redis(SSE事件) → API(SSE推送) → 用户
    ```
 
-5. **优势**：
+6. **优势**：
    - 各Agent独立部署和扩展
    - 失败隔离，单个Agent故障不影响其他服务
    - 灵活的工作流编排
@@ -261,6 +273,8 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 | API→Redis          | 同步调用      | JSON          | 500 QPS             |
 | API→PostgreSQL     | 事务写入      | JSON          | 100 QPS             |
 | Orchestrator→Kafka | 事件消费/发布 | JSON Envelope | 200 msgs/s          |
+| EventBridge→Kafka  | 事件消费      | JSON Envelope | 100 msgs/s          |
+| EventBridge→Redis  | SSE发布       | JSON          | 100 msgs/s          |
 | Agents→Kafka       | 事件消费/发布 | JSON Envelope | 50 msgs/s per agent |
 | Agents→LLM         | HTTPS         | JSON          | 50 QPS total        |
 | Agents→Knowledge   | 同步调用      | JSON          | 200 QPS             |
@@ -268,6 +282,7 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 
 ### SSE 细节（实现对齐）
 
+#### 连接管理
 - 并发限制：每用户最多 2 条连接（超限返回 429，`Retry-After` 按配置）。
 - 心跳与超时：`ping` 间隔 15s，发送超时 30s；自动检测客户端断连并清理。
 - 重连语义：支持 `Last-Event-ID` 续传近期事件（Redis 历史 + 实时聚合队列）。
@@ -275,7 +290,46 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 - 响应头：`Cache-Control: no-cache`、`Connection: keep-alive`。
 - 鉴权：`POST /api/v1/auth/sse-token` 获取短时效
   `sse_token`（默认 60s），`GET /api/v1/events/stream?sse_token=...` 建立连接。
-- SLO 口径：重连场景不计入“首 Token”延迟；新会话从事件生成时刻开始计时。
+- SLO 口径：重连场景不计入"首 Token"延迟；新会话从事件生成时刻开始计时。
+
+#### SSE 事件格式
+
+推送到SSE的事件（仅领域Facts）：
+```json
+{
+  "id": "event-123",                           // Last-Event-ID
+  "event": "Genesis.Session.Theme.Proposed",   // 事件类型（点式命名）
+  "data": {
+    "event_id": "uuid",                        // 事件唯一ID
+    "event_type": "Genesis.Session.Theme.Proposed",
+    "session_id": "uuid",                       // 会话ID
+    "novel_id": "uuid",                         // 小说ID
+    "correlation_id": "uuid",                   // 关联ID（跟踪整个流程）
+    "trace_id": "uuid",                         // 追踪ID（分布式追踪）
+    "timestamp": "ISO-8601",                    // 事件时间戳
+    "payload": {                                // 业务数据（最小集）
+      "stage": "Stage_1",
+      "content": {                              // 仅必要的展示数据
+        "theme": "...",
+        "summary": "..."
+      }
+    }
+  }
+}
+```
+
+#### 可推送事件白名单
+
+仅以下领域事件会推送到SSE（都来自 `genesis.session.events`）：
+- `Genesis.Session.Started` - 会话开始
+- `Genesis.Session.*.Proposed` - AI提议（需用户审核）
+- `Genesis.Session.*.Confirmed` - 用户确认
+- `Genesis.Session.*.Updated` - 内容更新
+- `Genesis.Session.StageCompleted` - 阶段完成
+- `Genesis.Session.Finished` - 创世完成
+- `Genesis.Session.Failed` - 处理失败
+
+注意：能力事件（`*.tasks/events`）不推送到SSE，仅用于内部协调。
 
 以上与当前 sse-starlette + Redis 实现一致。
 
@@ -323,6 +377,10 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 - 所有Agent服务水平扩展（无状态）
   - Outliner/Worldbuilder/Character/Plot等Agent独立扩展
   - 基于Kafka消费组实现负载均衡
+- EventBridge水平扩展
+  - 多实例消费同一消费组
+  - 按session_id分区保证顺序
+  - Redis发布无状态操作
 - PostgreSQL读写分离
 - Neo4j集群部署
 - Milvus分片索引
@@ -433,8 +491,17 @@ graph TB
         subgraph "应用层"
             API1[API Gateway #1<br/>:8000]
             API2[API Gateway #2<br/>:8001]
-            AGENT1[Genesis Agent #1<br/>:8100]
-            AGENT2[Genesis Agent #2<br/>:8101]
+            EB[EventBridge<br/>:8050]
+            ORC[Orchestrator<br/>:8090]
+        end
+        
+        subgraph "Agent服务"
+            OUTLINER[Outliner<br/>:8100]
+            WORLD[Worldbuilder<br/>:8101]
+            CHAR[Character<br/>:8102]
+            PLOT[Plot<br/>:8103]
+            WRITER[Writer<br/>:8104]
+            REVIEW[Review<br/>:8105]
         end
 
         subgraph "数据层"
@@ -453,16 +520,22 @@ graph TB
 
     LB --> API1
     LB --> API2
-    API1 --> AGENT1
-    API2 --> AGENT2
-    AGENT1 --> PG
-    AGENT1 --> NEO4J
-    AGENT1 --> MILVUS
-    AGENT1 --> REDIS
-    AGENT2 --> PG
-    AGENT2 --> NEO4J
-    AGENT2 --> MILVUS
-    AGENT2 --> REDIS
+    API1 --> REDIS
+    API2 --> REDIS
+    EB --> KAFKA
+    EB --> REDIS
+    ORC --> KAFKA
+    ORC --> PREFECT
+    OUTLINER --> KAFKA
+    WORLD --> KAFKA
+    CHAR --> KAFKA
+    PLOT --> KAFKA
+    WRITER --> KAFKA
+    REVIEW --> KAFKA
+    OUTLINER --> NEO4J
+    WORLD --> NEO4J
+    CHAR --> NEO4J
+    PLOT --> MILVUS
 ```
 
 ### 环境规划
@@ -972,6 +1045,13 @@ HLD完成后需要：
   - 更新所有代码枚举，确保 value 使用点式字符串
   - 实现枚举 ↔ 点式命名的双向映射函数
   - 验证 Kafka Envelope 和数据库存储使用一致的点式命名
+- EventBridge 实现：
+  - 开发 Kafka→Redis SSE 桥接服务
+  - 消费 `genesis.session.events` 领域事件
+  - 实现事件过滤白名单（仅推送Facts）
+  - 按 user_id/session_id 路由到对应SSE通道
+  - 集成 `RedisSSEService.publish_event` API
+  - 维护 Last-Event-ID 序列保证顺序
 - 事件规范：采用 JSON Envelope + 命名规范，补充"事件类型→Topic"映射清单并与
   `AGENT_TOPICS` 同步。
 - SSE 文档化：并发/心跳/重连/健康接口/429
