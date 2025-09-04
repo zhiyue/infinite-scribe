@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,6 +25,13 @@ class ConversationSession(Base):
     """Generic conversation session (aggregate root)."""
 
     __tablename__ = "conversation_sessions"
+    __table_args__ = (
+        # Performance indexes
+        Index("idx_conversation_sessions_scope", "scope_type", "scope_id"),
+        Index("idx_conversation_sessions_status", "status"),
+        Index("idx_conversation_sessions_updated_at", "updated_at"),
+        Index("idx_conversation_sessions_scope_status", "scope_type", "scope_id", "status"),
+    )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     scope_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -46,7 +53,14 @@ class ConversationRound(Base):
     """A single conversation round/turn within a session (supports hierarchy via round_path)."""
 
     __tablename__ = "conversation_rounds"
-    __table_args__ = (UniqueConstraint("session_id", "round_path", name="uq_conversation_round"),)
+    __table_args__ = (
+        UniqueConstraint("session_id", "round_path", name="uq_conversation_round"),
+        # Performance indexes
+        Index("idx_conversation_rounds_session_id", "session_id"),
+        Index("idx_conversation_rounds_correlation_id", "correlation_id"),
+        Index("idx_conversation_rounds_created_at", "created_at"),
+        Index("idx_conversation_rounds_role", "role"),
+    )
 
     session_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), primary_key=True

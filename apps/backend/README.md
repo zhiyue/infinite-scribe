@@ -52,6 +52,9 @@ uv run python scripts/apply_db_functions.py
 
 # 验证数据库设置
 uv run python scripts/verify_tables.py
+
+# 可选：一键初始化全部数据存储（PostgreSQL/Neo4j/Milvus/Redis）
+uv run is-db-bootstrap
 ```
 
 **预期输出**：

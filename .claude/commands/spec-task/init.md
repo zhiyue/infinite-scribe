@@ -36,6 +36,7 @@ allowed-tools: Bash, Read, Write, Glob
   - `README.md` - ADR 索引和说明
   - `templates/` - ADR 模板目录
     - `adr-template.md` - ADR 通用模板
+- `progress/` - 任务进度跟踪目录（实施阶段使用）
 
 ### 3. 初始化 spec.json 元数据
 
@@ -398,6 +399,8 @@ Proposed
         ├── lld/             # 低层设计文档集
         ├── tasks.md         # 任务计划
         ├── spec.json        # 元数据和状态追踪
+        ├── progress/        # 任务进度跟踪
+        │   └── task-*.md    # 具体任务的进度文件
         └── adr/             # 架构决策记录
             ├── README.md    # ADR 索引
             ├── templates/   # ADR 模板

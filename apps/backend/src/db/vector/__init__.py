@@ -1,14 +1,12 @@
 """
-Vector 数据库基础设施层
+Vector database module for InfiniteScribe.
 
-提供向量数据库（Milvus/Qdrant）的连接和操作管理
-
-TODO: 根据实际需求选择和实现向量数据库
+Provides vector database abstraction and management for novel embeddings.
 """
 
-# 预留接口
-# from .client import get_vector_client, create_vector_client
-# from .schema import create_collection, ensure_collection_exists
-# from .utils import batch_insert, similarity_search
+from .milvus import MilvusSchemaManager, MilvusEmbeddingManager
 
-__all__: list[str] = []
+__all__ = [
+    "MilvusSchemaManager", 
+    "MilvusEmbeddingManager",
+]

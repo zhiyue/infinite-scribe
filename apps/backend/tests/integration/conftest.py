@@ -89,6 +89,7 @@ def _mock_email_service_instance_methods():
 class _AsyncMemoryRedis:
     def __init__(self) -> None:
         self.data: dict[str, str] = {}
+        self.ttls: dict[str, int] = {}  # Store TTL values for keys
 
     async def ping(self) -> bool:
         return True
@@ -98,16 +99,43 @@ class _AsyncMemoryRedis:
 
     async def set(self, key: str, value: str, ex: int | None = None):
         self.data[key] = value
+        if ex is not None:
+            self.ttls[key] = ex
         return True
 
-    async def delete(self, key: str):
-        return 1 if self.data.pop(key, None) is not None else 0
+    async def delete(self, *keys: str) -> int:
+        """Delete one or more keys. Returns count of deleted keys."""
+        deleted_count = 0
+        for key in keys:
+            if self.data.pop(key, None) is not None:
+                deleted_count += 1
+            self.ttls.pop(key, None)  # Remove TTL if key is deleted
+        return deleted_count
 
     async def exists(self, key: str):
         return 1 if key in self.data else 0
 
+    async def ttl(self, key: str) -> int:
+        """Return TTL for key, or -1 if no TTL, or -2 if key doesn't exist."""
+        if key not in self.data:
+            return -2
+        return self.ttls.get(key, -1)
+
+    async def expire(self, key: str, seconds: int) -> int:
+        """Set TTL for existing key. Returns 1 if successful, 0 if key doesn't exist."""
+        if key in self.data:
+            self.ttls[key] = seconds
+            return 1
+        return 0
+
+    async def keys(self, pattern: str) -> list[str]:
+        """Return keys matching pattern (simple * wildcard support)."""
+        import fnmatch
+        return [key for key in self.data.keys() if fnmatch.fnmatch(key, pattern)]
+
     async def close(self):
         self.data.clear()
+        self.ttls.clear()
 
 
 @pytest.fixture(autouse=True)

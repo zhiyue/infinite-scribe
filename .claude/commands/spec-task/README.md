@@ -56,6 +56,8 @@ graph LR
 ├── design-hld.md      # High-Level Design (系统架构和边界)
 ├── lld/               # Low-Level Design (详细实现设计文档集)  
 ├── tasks.md           # Implementation plan and task breakdown
+├── progress/          # Task progress tracking files
+│   └── task-*.md      # Individual task progress files  
 └── impl.md            # Implementation tracking and progress
 ```
 

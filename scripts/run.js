@@ -25,6 +25,7 @@ const CONFIG = {
       commands: {
         install: 'uv sync --all-extras',
         run: 'uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000',
+        'db:bootstrap': 'uv run is-db-bootstrap',
         lint: 'uv run ruff check src/',
         format: 'uv run ruff format src/',
         typecheck: 'uv run mypy src/ --ignore-missing-imports',
@@ -439,6 +440,7 @@ function getActionDescription(app, action) {
     backend: {
       install: '安装Python依赖',
       run: '启动API网关服务器',
+      'db:bootstrap': '初始化PostgreSQL/Neo4j/Milvus/Redis（一次性）',
       lint: '运行Ruff代码检查',
       format: '格式化Python代码',
       typecheck: '运行MyPy类型检查', 
