@@ -958,37 +958,34 @@ Feature: 创意种子生成
 - ✓ AI接口: LiteLLM
 - ✓ 容器: Docker
 
-### 14.2 需要决策的架构点
+### 14.2 已生成的架构决策记录
 
-1. **ADR-001: 对话状态管理方案**
-   - 选项: Redis Session / PostgreSQL / 内存+持久化混合
-   - 影响: 性能、可靠性、扩展性
-   - 建议: Redis Session(快速访问) + PostgreSQL(持久化备份)
+基于需求分析，以下架构决策点已生成详细的ADR文档：
 
-2. **ADR-002: 向量嵌入模型选择**
-   - 选项: OpenAI Ada-002 / Sentence-BERT / BGE-M3
-   - 影响: 搜索质量、成本、延迟
-   - 建议: BGE-M3(中文优化、本地部署、成本可控)
+| ADR ID | 标题 | 状态 | 决策方案 | 文档链接 |
+|--------|------|------|----------|---------|
+| ADR-001 | 对话状态管理方案 | Proposed | Redis Session + PostgreSQL持久化 | [查看详情](./adr/20250904-dialogue-state-management.md) |
+| ADR-002 | 向量嵌入模型选择 | Proposed | BGE-M3本地部署 | [查看详情](./adr/20250904-vector-embedding-model.md) |
+| ADR-003 | 提示词模板管理 | Proposed | 集中式模板仓库+版本化 | [查看详情](./adr/20250904-prompt-template-management.md) |
+| ADR-004 | 内容版本控制实现 | Proposed | 快照+增量混合方案 | [查看详情](./adr/20250904-content-version-control.md) |
+| ADR-005 | 知识图谱Schema设计 | Proposed | 层级+网状混合模型 | [查看详情](./adr/20250904-knowledge-graph-schema.md) |
+| ADR-006 | 批量任务调度策略 | Proposed | Prefect+Kafka+优先级队列 | [查看详情](./adr/20250904-batch-task-scheduling.md) |
 
-3. **ADR-003: 提示词模板管理**
-   - 选项: 模板仓库+版本化(semver)+变量插值+A/B标注
-   - 影响: 版本控制、热更新、协作
-   - 建议: 集中式模板仓库，与LiteLLM provider解耦
+### 14.3 ADR实施计划
 
-4. **ADR-004: 内容版本控制实现**
-   - 选项: Event Sourcing(事件溜源) / 快照+增量
-   - 影响: 存储效率、查询性能、合并复杂度
-   - 建议: 快照+增量(平衡存储和性能)
+#### Phase 1: MVP核心（Week 1）
+- **ADR-001**: 对话状态管理 - 支撑多轮对话的基础设施
+- **ADR-003**: 提示词模板管理 - AI交互的核心管理
+- **ADR-006**: 批量任务调度 - 批量生成功能的基础
 
-5. **ADR-005: 知识图谱Schema设计**  
-   - 选项: 层级模型 / 网状模型 / 混合模型
-   - 影响: 查询效率、扩展性、维护成本
-   - 建议: 混合模型(层级+网状，适应不同关系类型)
+#### Phase 2: 质量提升（Week 2）
+- **ADR-002**: 向量嵌入模型 - 提升语义检索质量
+- **ADR-005**: 知识图谱Schema - 管理复杂关系网络
 
-6. **ADR-006: 批量任务调度策略**
-   - 选项: Prefect编排 + Kafka分发 + 优先级队列
-   - 影响: 吞吐量、优先级控制、监控
-   - 建议: 利用现有Prefect+Kafka，添加优先级和速率限制
+#### Phase 3: 完善功能（Week 3+）
+- **ADR-004**: 内容版本控制 - 支持历史回溯和分支管理
+
+详细的ADR文档请参考 [ADR目录](./adr/README.md)
 
 ## 15. 风险与缓解措施
 
