@@ -1,0 +1,40 @@
+{
+  "feature_name": "novel-genesis-stage",
+  "created_at": "2025-09-04T12:00:00Z",
+  "updated_at": "2025-09-04T12:00:00Z",
+  "language": "chinese",
+  "phase": "initialized",
+  "documents": {
+    "prd": {
+      "generated": false,
+      "approved": false,
+      "story_count": 0
+    }
+  },
+  "approvals": {
+    "requirements": {
+      "generated": false,
+      "approved": false
+    },
+    "hld": {
+      "generated": false,
+      "approved": false
+    },
+    "lld": {
+      "generated": false,
+      "approved": false
+    },
+    "tasks": {
+      "generated": false,
+      "approved": false
+    }
+  },
+  "adr": {
+    "total_count": 0,
+    "proposed": 0,
+    "accepted": 0,
+    "superseded": 0,
+    "candidates": []
+  },
+  "ready_for_implementation": false
+}
