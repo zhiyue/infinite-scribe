@@ -38,25 +38,20 @@ class NovelSummary(BaseSchema):
 
     id: UUID
     title: str
+    theme: str | None = Field(None, description="小说主题")
     status: NovelStatus
     target_chapters: int
     completed_chapters: int
     created_at: datetime
+    updated_at: datetime
 
 
 class NovelProgress(BaseSchema):
     """小说进度信息"""
 
     novel_id: UUID
-    completed_chapters: int
-    target_chapters: int
+    total_chapters: int = Field(..., ge=0, description="总章节数")
+    published_chapters: int = Field(..., ge=0, description="已发布章节数")
+    target_chapters: int = Field(..., ge=0, description="目标章节数")
     progress_percentage: float = Field(..., ge=0, le=100, description="完成百分比")
-
-    @model_validator(mode="after")
-    def calculate_progress(self):
-        """计算进度百分比"""
-        if self.target_chapters > 0:
-            self.progress_percentage = (self.completed_chapters / self.target_chapters) * 100
-        else:
-            self.progress_percentage = 0
-        return self
+    last_updated: datetime = Field(..., description="最后更新时间")

@@ -140,6 +140,7 @@ class OutboxStatus(str, Enum):
     """事件发件箱状态枚举"""
 
     PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
     SENT = "SENT"
     FAILED = "FAILED"
 

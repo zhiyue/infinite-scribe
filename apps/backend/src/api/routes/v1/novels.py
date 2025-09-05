@@ -4,13 +4,12 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import ErrorResponse, MessageResponse
+from src.common.services.novel_service import novel_service
 from src.database import get_db
 from src.middleware.auth import require_auth
-from src.models.novel import Novel
 from src.models.user import User
 from src.schemas.novel.create import NovelCreateRequest
 from src.schemas.novel.read import NovelProgress, NovelResponse, NovelSummary
@@ -50,20 +49,18 @@ async def list_user_novels(
         HTTPException: If retrieval fails
     """
     try:
-        # Build query with filters
-        query = select(Novel).where(Novel.user_id == current_user.id)
+        result = await novel_service.list_user_novels(db, current_user.id, skip, limit, status_filter)
 
-        if status_filter:
-            query = query.where(Novel.status == status_filter)
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result["error"],
+            )
 
-        # Add ordering and pagination
-        query = query.order_by(Novel.updated_at.desc()).offset(skip).limit(limit)
+        return result["novels"]
 
-        result = await db.execute(query)
-        novels = result.scalars().all()
-
-        return [NovelSummary.model_validate(novel) for novel in novels]
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"List novels error: {e}")
         raise HTTPException(
@@ -98,20 +95,22 @@ async def create_novel(
         HTTPException: If creation fails
     """
     try:
-        # Create novel instance
-        novel_data = request.model_dump(exclude_unset=True)
-        novel_data["user_id"] = current_user.id
+        result = await novel_service.create_novel(db, current_user.id, request)
 
-        novel = Novel(**novel_data)
-        db.add(novel)
-        await db.commit()
-        await db.refresh(novel)
+        if not result["success"]:
+            # Handle different error types appropriately
+            if "constraint" in result["error"].lower():
+                status_code = status.HTTP_400_BAD_REQUEST
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
 
-        return NovelResponse.model_validate(novel)
+        return result["novel"]
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Create novel error: {e}")
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while creating the novel",
@@ -143,16 +142,16 @@ async def get_novel(
         HTTPException: If novel not found or access denied
     """
     try:
-        # Query novel with ownership check
-        query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
+        result = await novel_service.get_novel(db, current_user.id, novel_id)
 
-        result = await db.execute(query)
-        novel = result.scalar_one_or_none()
+        if not result["success"]:
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
 
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        return NovelResponse.model_validate(novel)
+        return result["novel"]
 
     except HTTPException:
         raise
@@ -191,41 +190,24 @@ async def update_novel(
         HTTPException: If novel not found, access denied, or update fails
     """
     try:
-        # Query novel with ownership check
-        query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
+        result = await novel_service.update_novel(db, current_user.id, novel_id, request)
 
-        result = await db.execute(query)
-        novel = result.scalar_one_or_none()
+        if not result["success"]:
+            # Handle different error types
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            elif result.get("error_code") == "CONFLICT":
+                status_code = status.HTTP_409_CONFLICT
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
 
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        # Handle optimistic locking
-        if request.version and novel.version != request.version:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Novel has been modified by another process. Please refresh and try again.",
-            )
-
-        # Update novel fields
-        update_data = request.model_dump(exclude_unset=True, exclude={"version"})
-        for field, value in update_data.items():
-            if hasattr(novel, field):
-                setattr(novel, field, value)
-
-        # Increment version for optimistic locking
-        novel.version += 1
-
-        await db.commit()
-        await db.refresh(novel)
-
-        return NovelResponse.model_validate(novel)
+        return result["novel"]
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Update novel error: {e}")
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while updating the novel",
@@ -257,25 +239,21 @@ async def delete_novel(
         HTTPException: If novel not found or access denied
     """
     try:
-        # Query novel with ownership check
-        query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
+        result = await novel_service.delete_novel(db, current_user.id, novel_id)
 
-        result = await db.execute(query)
-        novel = result.scalar_one_or_none()
+        if not result["success"]:
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
 
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        await db.delete(novel)
-        await db.commit()
-
-        return MessageResponse(success=True, message="Novel deleted successfully")
+        return MessageResponse(success=True, message=result["message"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Delete novel error: {e}")
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while deleting the novel",
@@ -307,33 +285,16 @@ async def get_novel_chapters(
         HTTPException: If novel not found or access denied
     """
     try:
-        # First verify novel ownership
-        novel_query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
-        result = await db.execute(novel_query)
-        novel = result.scalar_one_or_none()
-
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        # Load chapters with novel
-        from src.models.chapter import Chapter
-
-        chapters_query = select(Chapter).where(Chapter.novel_id == novel_id).order_by(Chapter.chapter_number)
-
-        result = await db.execute(chapters_query)
-        chapters = result.scalars().all()
-
-        return [
-            {
-                "id": str(chapter.id),
-                "chapter_number": chapter.chapter_number,
-                "title": chapter.title,
-                "status": chapter.status,
-                "created_at": chapter.created_at,
-                "updated_at": chapter.updated_at,
-            }
-            for chapter in chapters
-        ]
+        result = await novel_service.get_novel_chapters(db, current_user.id, novel_id)
+        
+        if not result["success"]:
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
+        
+        return result["chapters"]
 
     except HTTPException:
         raise
@@ -370,35 +331,16 @@ async def get_novel_characters(
         HTTPException: If novel not found or access denied
     """
     try:
-        # First verify novel ownership
-        novel_query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
-        result = await db.execute(novel_query)
-        novel = result.scalar_one_or_none()
-
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        # Load characters
-        from src.models.character import Character
-
-        characters_query = select(Character).where(Character.novel_id == novel_id).order_by(Character.name)
-
-        result = await db.execute(characters_query)
-        characters = result.scalars().all()
-
-        return [
-            {
-                "id": str(character.id),
-                "name": character.name,
-                "role": character.role,
-                "description": character.description,
-                "personality_traits": character.personality_traits,
-                "goals": character.goals,
-                "created_at": character.created_at,
-                "updated_at": character.updated_at,
-            }
-            for character in characters
-        ]
+        result = await novel_service.get_novel_characters(db, current_user.id, novel_id)
+        
+        if not result["success"]:
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
+        
+        return result["characters"]
 
     except HTTPException:
         raise
@@ -435,41 +377,16 @@ async def get_novel_stats(
         HTTPException: If novel not found or access denied
     """
     try:
-        # Verify novel ownership and get basic info
-        novel_query = select(Novel).where(and_(Novel.id == novel_id, Novel.user_id == current_user.id))
-        result = await db.execute(novel_query)
-        novel = result.scalar_one_or_none()
-
-        if not novel:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Novel not found")
-
-        # Get chapter count
-        from src.models.chapter import Chapter
-
-        chapters_count_query = select(func.count(Chapter.id)).where(Chapter.novel_id == novel_id)
-        result = await db.execute(chapters_count_query)
-        total_chapters = result.scalar() or 0
-
-        # Get published chapters count
-        published_count_query = select(func.count(Chapter.id)).where(
-            and_(Chapter.novel_id == novel_id, Chapter.status == "PUBLISHED")
-        )
-        result = await db.execute(published_count_query)
-        published_chapters = result.scalar() or 0
-
-        # Calculate progress percentage
-        progress_percentage = 0
-        if novel.target_chapters > 0:
-            progress_percentage = round((published_chapters / novel.target_chapters) * 100, 2)
-
-        return NovelProgress(
-            novel_id=novel.id,
-            total_chapters=total_chapters,
-            published_chapters=published_chapters,
-            target_chapters=novel.target_chapters,
-            progress_percentage=progress_percentage,
-            last_updated=novel.updated_at,
-        )
+        result = await novel_service.get_novel_stats(db, current_user.id, novel_id)
+        
+        if not result["success"]:
+            if "not found" in result["error"].lower():
+                status_code = status.HTTP_404_NOT_FOUND
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            raise HTTPException(status_code=status_code, detail=result["error"])
+        
+        return result["stats"]
 
     except HTTPException:
         raise

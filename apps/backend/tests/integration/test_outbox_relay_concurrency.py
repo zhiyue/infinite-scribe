@@ -281,37 +281,39 @@ class TestOutboxRelayServiceConcurrency:
                 mock_producer.send_and_wait = variable_send_and_wait
                 mock_producer_class.return_value = mock_producer
 
-                # Create 4 concurrent workers
-                workers = []
-                for i in range(4):
-                    worker = OutboxRelayService()
-                    await worker.start()
-                    workers.append(worker)
+                # Patch the database session creation to use testcontainer database
+                with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                    # Create 4 concurrent workers
+                    workers = []
+                    for i in range(4):
+                        worker = OutboxRelayService()
+                        await worker.start()
+                        workers.append(worker)
 
-                try:
-                    # Run workers with high concurrency
-                    async def aggressive_worker(worker):
-                        total_processed = 0
-                        for _ in range(10):  # Many rapid cycles
-                            processed = await worker._drain_once()
-                            total_processed += processed
-                        return total_processed
+                    try:
+                        # Run workers with high concurrency
+                        async def aggressive_worker(worker):
+                            total_processed = 0
+                            for _ in range(10):  # Many rapid cycles
+                                processed = await worker._drain_once()
+                                total_processed += processed
+                            return total_processed
 
-                    # Start all workers simultaneously
-                    tasks = [asyncio.create_task(aggressive_worker(worker)) for worker in workers]
+                        # Start all workers simultaneously
+                        tasks = [asyncio.create_task(aggressive_worker(worker)) for worker in workers]
 
-                    results = await asyncio.gather(*tasks)
-                    total_processed = sum(results)
+                        results = await asyncio.gather(*tasks)
+                        total_processed = sum(results)
 
-                    # All messages should be processed despite varying times
-                    assert total_processed == len(test_messages)
+                        # All messages should be processed despite varying times
+                        assert total_processed == len(test_messages)
 
-                    # Verify all messages have different processing characteristics
-                    assert len(processing_times) == len(test_messages)
+                        # Verify all messages have different processing characteristics
+                        assert len(processing_times) == len(test_messages)
 
-                finally:
-                    for worker in workers:
-                        await worker.stop()
+                    finally:
+                        for worker in workers:
+                            await worker.stop()
 
     @pytest.mark.asyncio
     async def test_worker_failure_during_concurrent_processing(
@@ -348,99 +350,98 @@ class TestOutboxRelayServiceConcurrency:
                 mock_producer.send_and_wait = selective_failure_send_and_wait
                 mock_producer_class.return_value = mock_producer
 
-                # Create workers with IDs
-                workers = []
-                for i in range(3):
-                    worker = OutboxRelayService()
-                    await worker.start()
-                    workers.append(worker)
+                # Patch the database session creation to use testcontainer database
+                with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                    # Create workers with IDs
+                    workers = []
+                    for i in range(3):
+                        worker = OutboxRelayService()
+                        await worker.start()
+                        workers.append(worker)
 
-                try:
+                    try:
+                        async def tagged_worker(worker, worker_id):
+                            # Tag the current task with worker ID for failure simulation
+                            asyncio.current_task().worker_id = worker_id
 
-                    async def tagged_worker(worker, worker_id):
-                        # Tag the current task with worker ID for failure simulation
-                        asyncio.current_task().worker_id = worker_id
+                            total_processed = 0
+                            for _ in range(6):
+                                try:
+                                    processed = await worker._drain_once()
+                                    total_processed += processed
+                                except Exception:
+                                    # Worker failures are handled internally
+                                    pass
+                            return total_processed
 
-                        total_processed = 0
-                        for _ in range(6):
-                            try:
-                                processed = await worker._drain_once()
-                                total_processed += processed
-                            except Exception:
-                                # Worker failures are handled internally
-                                pass
-                        return total_processed
+                        tasks = [asyncio.create_task(tagged_worker(worker, i)) for i, worker in enumerate(workers)]
 
-                    tasks = [asyncio.create_task(tagged_worker(worker, i)) for i, worker in enumerate(workers)]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                        # Some messages should be processed despite worker failures
+                        successful_count = len(successful_processes)
+                        assert successful_count > 0
 
-                    # Some messages should be processed despite worker failures
-                    successful_count = len(successful_processes)
-                    assert successful_count > 0
+                        # Verify failed messages are still pending and can be retried
+                        final_messages = await self.get_all_messages_from_db(db_session)
+                        pending_messages = [msg for msg in final_messages if msg.status == OutboxStatus.PENDING]
 
-                    # Verify failed messages are still pending and can be retried
-                    final_messages = await self.get_all_messages_from_db()
-                    pending_messages = [msg for msg in final_messages if msg.status == OutboxStatus.PENDING]
+                        # Some messages should have failed and be pending with retry count
+                        retry_messages = [msg for msg in pending_messages if msg.retry_count > 0]
+                        assert len(retry_messages) > 0
 
-                    # Some messages should have failed and be pending with retry count
-                    retry_messages = [msg for msg in pending_messages if msg.retry_count > 0]
-                    assert len(retry_messages) > 0
-
-                finally:
-                    for worker in workers:
-                        await worker.stop()
+                    finally:
+                        for worker in workers:
+                            await worker.stop()
 
     @pytest.mark.asyncio
     async def test_race_condition_between_scheduled_and_immediate_messages(
-        self, mock_kafka_settings, clean_outbox_table
+        self, mock_kafka_settings, clean_outbox_table, db_session
     ):
         """Test race conditions between scheduled and immediate messages."""
         with patch("src.services.outbox.relay.get_settings") as mock_get_settings:
             mock_get_settings.return_value = mock_kafka_settings
 
-            # Create immediate messages
+            # Create immediate messages using the provided test session
             immediate_messages = []
-            async with create_sql_session() as session:
-                for i in range(5):
-                    message_data = {
-                        "id": uuid4(),
-                        "topic": f"immediate.topic.{i}",
-                        "payload": {"type": "immediate", "index": i},
-                        "status": OutboxStatus.PENDING,
-                        "retry_count": 0,
-                        "max_retries": 3,
-                        "scheduled_at": None,  # Immediate processing
-                        "created_at": datetime.now(UTC) + timedelta(milliseconds=i),
-                    }
-                    result = await session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
-                    immediate_messages.append(result.scalar_one())
-                await session.commit()
+            for i in range(5):
+                message_data = {
+                    "id": uuid4(),
+                    "topic": f"immediate.topic.{i}",
+                    "payload": {"type": "immediate", "index": i},
+                    "status": OutboxStatus.PENDING,
+                    "retry_count": 0,
+                    "max_retries": 3,
+                    "scheduled_at": None,  # Immediate processing
+                    "created_at": datetime.now(UTC) + timedelta(milliseconds=i),
+                }
+                result = await db_session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
+                immediate_messages.append(result.scalar_one())
+            await db_session.commit()
 
-            # Create scheduled messages (some ready, some future)
+            # Create scheduled messages (some ready, some future) using the provided test session
             scheduled_messages = []
-            async with create_sql_session() as session:
-                base_time = datetime.now(UTC)
-                for i in range(5):
-                    # Mix of past (ready) and future scheduled times
-                    if i < 3:
-                        scheduled_time = base_time - timedelta(seconds=i + 1)  # Ready now
-                    else:
-                        scheduled_time = base_time + timedelta(hours=1)  # Future
+            base_time = datetime.now(UTC)
+            for i in range(5):
+                # Mix of immediate (ready) and future scheduled times
+                if i < 3:
+                    scheduled_time = None  # Use immediate processing for "ready" messages
+                else:
+                    scheduled_time = base_time + timedelta(hours=1)  # Future
 
-                    message_data = {
-                        "id": uuid4(),
-                        "topic": f"scheduled.topic.{i}",
-                        "payload": {"type": "scheduled", "index": i, "ready": i < 3},
-                        "status": OutboxStatus.PENDING,
-                        "retry_count": 0,
-                        "max_retries": 3,
-                        "scheduled_at": scheduled_time,
-                        "created_at": base_time + timedelta(milliseconds=i + 10),
-                    }
-                    result = await session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
-                    scheduled_messages.append(result.scalar_one())
-                await session.commit()
+                message_data = {
+                    "id": uuid4(),
+                    "topic": f"scheduled.topic.{i}",
+                    "payload": {"type": "scheduled", "index": i, "ready": i < 3},
+                    "status": OutboxStatus.PENDING,
+                    "retry_count": 0,
+                    "max_retries": 3,
+                    "scheduled_at": scheduled_time,
+                    "created_at": base_time + timedelta(milliseconds=i + 10),
+                }
+                result = await db_session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
+                scheduled_messages.append(result.scalar_one())
+            await db_session.commit()
 
             processed_topics = []
 
@@ -456,53 +457,54 @@ class TestOutboxRelayServiceConcurrency:
                 mock_producer.send_and_wait = track_processing_send_and_wait
                 mock_producer_class.return_value = mock_producer
 
-                # Run multiple workers concurrently
-                workers = []
-                for i in range(2):
-                    worker = OutboxRelayService()
-                    await worker.start()
-                    workers.append(worker)
+                # Patch the database session creation to use testcontainer database
+                with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                    # Run multiple workers concurrently
+                    workers = []
+                    for i in range(2):
+                        worker = OutboxRelayService()
+                        await worker.start()
+                        workers.append(worker)
 
-                try:
+                    try:
+                        async def race_worker(worker):
+                            total_processed = 0
+                            for _ in range(8):  # Multiple cycles for race conditions
+                                processed = await worker._drain_once()
+                                total_processed += processed
+                                await asyncio.sleep(0.001)  # Brief pause
+                            return total_processed
 
-                    async def race_worker(worker):
-                        total_processed = 0
-                        for _ in range(8):  # Multiple cycles for race conditions
-                            processed = await worker._drain_once()
-                            total_processed += processed
-                            await asyncio.sleep(0.001)  # Brief pause
-                        return total_processed
+                        tasks = [asyncio.create_task(race_worker(worker)) for worker in workers]
 
-                    tasks = [asyncio.create_task(race_worker(worker)) for worker in workers]
+                        results = await asyncio.gather(*tasks)
+                        total_processed = sum(results)
 
-                    results = await asyncio.gather(*tasks)
-                    total_processed = sum(results)
+                        # Should process immediate messages + ready scheduled messages (which are also immediate)
+                        expected_processed = len(immediate_messages) + 3  # 3 ready scheduled messages (now immediate)
+                        assert total_processed == expected_processed
 
-                    # Should process immediate messages + ready scheduled messages
-                    expected_processed = len(immediate_messages) + 3  # 3 ready scheduled messages
-                    assert total_processed == expected_processed
+                        # Verify correct messages were processed
+                        immediate_topics = [f"immediate.topic.{i}" for i in range(5)]
+                        ready_scheduled_topics = [f"scheduled.topic.{i}" for i in range(3)]  # These are immediate too
+                        expected_topics = set(immediate_topics + ready_scheduled_topics)
 
-                    # Verify correct messages were processed
-                    immediate_topics = [f"immediate.topic.{i}" for i in range(5)]
-                    ready_scheduled_topics = [f"scheduled.topic.{i}" for i in range(3)]
-                    expected_topics = set(immediate_topics + ready_scheduled_topics)
+                        assert set(processed_topics) == expected_topics
 
-                    assert set(processed_topics) == expected_topics
+                        # Verify future scheduled messages are still pending
+                        final_messages = await self.get_all_messages_from_db(db_session)
+                        future_pending = [
+                            msg
+                            for msg in final_messages
+                            if msg.topic.startswith("scheduled.topic.")
+                            and msg.topic.endswith(("3", "4"))
+                            and msg.status == OutboxStatus.PENDING
+                        ]
+                        assert len(future_pending) == 2
 
-                    # Verify future scheduled messages are still pending
-                    final_messages = await self.get_all_messages_from_db()
-                    future_pending = [
-                        msg
-                        for msg in final_messages
-                        if msg.topic.startswith("scheduled.topic.")
-                        and msg.topic.endswith(("3", "4"))
-                        and msg.status == OutboxStatus.PENDING
-                    ]
-                    assert len(future_pending) == 2
-
-                finally:
-                    for worker in workers:
-                        await worker.stop()
+                    finally:
+                        for worker in workers:
+                            await worker.stop()
 
     @pytest.mark.asyncio
     async def test_database_deadlock_prevention(self, mock_kafka_settings, clean_outbox_table, db_session):

@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from aiokafka import AIOKafkaProducer
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -133,7 +133,16 @@ class OutboxRelayService:
                     continue
                 ok = await self._process_row(session, row)
                 # Commit per row regardless of ok to persist state transitions
+                log.info(
+                    "relay_pre_commit",
+                    row_id=str(getattr(row, "id", oid)),
+                )
                 await session.commit()
+                log.info(
+                    "relay_post_commit",
+                    row_id=str(getattr(row, "id", oid)),
+                    committed=True,
+                )
                 processed += 1 if ok else 0
         return processed
 
@@ -175,6 +184,9 @@ class OutboxRelayService:
 
         # Prevent work during shutdown
         if self._stop_event.is_set():
+            # Reset to PENDING so it can be retried when service restarts
+            row.status = OutboxStatus.PENDING
+            session.add(row)
             return False
 
         # Producer may become unavailable during shutdown; snapshot local reference
@@ -201,13 +213,24 @@ class OutboxRelayService:
             # Send and wait to ensure delivery before updating DB
             await producer.send_and_wait(topic, value=encoded_value, key=key_bytes, headers=headers_list)
 
-            # Update status to SENT
+            # Update status to SENT (DB-level update to ensure persistence)
             row.status = OutboxStatus.SENT
             row.sent_at = cast(Any, datetime.now(UTC))
             row.last_error = None
-            # Add to session to track changes for commit
             session.add(row)
-            log.info("relay_sent", topic=topic, key=key_value)
+            await session.execute(
+                update(EventOutbox)
+                .where(EventOutbox.id == row.id)
+                .values(status=OutboxStatus.SENT, sent_at=row.sent_at, last_error=None)
+            )
+            await session.flush()
+            log.info(
+                "relay_sent",
+                topic=topic,
+                key=key_value,
+                new_status=row.status.value,
+                row_id=str(getattr(row, "id", "")),
+            )
             return True
         except Exception as e:
             # Schedule retry with exponential backoff

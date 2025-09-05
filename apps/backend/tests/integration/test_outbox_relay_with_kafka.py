@@ -133,9 +133,30 @@ class TestOutboxRelayServiceRealKafka:
         return message
 
     async def get_message_from_db(self, db_session: AsyncSession, message_id) -> EventOutbox:
-        """Retrieve a message from the database."""
+        """Retrieve a message from the database (ensure fresh view)."""
+        # Commit/refresh to avoid stale reads across sessions
+        await db_session.commit()
         result = await db_session.execute(select(EventOutbox).where(EventOutbox.id == message_id))
         return result.scalar_one()
+
+    async def wait_for_status(
+        self,
+        db_session: AsyncSession,
+        message_id,
+        expected: OutboxStatus,
+        timeout_s: float = 2.0,
+        interval_s: float = 0.05,
+    ) -> EventOutbox:
+        """Poll the DB briefly until the message reaches expected status or timeout."""
+        start = datetime.now(UTC)
+        last = None
+        while (datetime.now(UTC) - start).total_seconds() < timeout_s:
+            msg = await self.get_message_from_db(db_session, message_id)
+            last = msg
+            if msg.status == expected:
+                return msg
+            await asyncio.sleep(interval_s)
+        return last if last is not None else await self.get_message_from_db(db_session, message_id)
 
     async def consume_messages(self, consumer: AIOKafkaConsumer, topic: str, expected_count: int = 1) -> list[dict]:
         """Consume messages from Kafka topic with timeout."""
@@ -201,7 +222,7 @@ class TestOutboxRelayServiceRealKafka:
                 assert processed == 1
 
                 # Verify database state - message should be marked as SENT
-                updated_message = await self.get_message_from_db(db_session, test_message.id)
+                updated_message = await self.wait_for_status(db_session, test_message.id, OutboxStatus.SENT)
                 assert updated_message.status == OutboxStatus.SENT
                 assert updated_message.sent_at is not None
                 assert updated_message.last_error is None
@@ -247,7 +268,7 @@ class TestOutboxRelayServiceRealKafka:
 
                 # Verify all messages are marked as SENT in database
                 for test_message, _ in test_messages:
-                    updated_message = await self.get_message_from_db(db_session, test_message.id)
+                    updated_message = await self.wait_for_status(db_session, test_message.id, OutboxStatus.SENT)
                     assert updated_message.status == OutboxStatus.SENT
 
                 # Verify all messages were sent to Kafka
@@ -306,7 +327,7 @@ class TestOutboxRelayServiceRealKafka:
                 assert processed == 1
 
                 # Verify message was processed successfully
-                updated_message = await self.get_message_from_db(db_session, test_message.id)
+                updated_message = await self.wait_for_status(db_session, test_message.id, OutboxStatus.SENT)
                 assert updated_message.status == OutboxStatus.SENT
 
                 await service2.stop()
@@ -343,7 +364,7 @@ class TestOutboxRelayServiceRealKafka:
                 assert processed == 1
 
                 # Verify database state
-                updated_message = await self.get_message_from_db(db_session, test_message.id)
+                updated_message = await self.wait_for_status(db_session, test_message.id, OutboxStatus.SENT)
                 assert updated_message.status == OutboxStatus.SENT
 
                 # Verify large message was successfully sent to Kafka
