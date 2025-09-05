@@ -55,6 +55,10 @@ case "$SERVICE_TYPE" in
         echo "Starting Rewriter Agent..."
         exec python -m src.agents.rewriter.main
         ;;
+    "relay")
+        echo "Starting Outbox Relay..."
+        exec python -m src.services.outbox.relay
+        ;;
     *)
         echo "ERROR: Unknown SERVICE_TYPE: $SERVICE_TYPE" >&2
         echo "Available services:" >&2
@@ -69,6 +73,7 @@ case "$SERVICE_TYPE" in
         echo "  - agent-critic" >&2
         echo "  - agent-factchecker" >&2
         echo "  - agent-rewriter" >&2
+        echo "  - relay" >&2
         exit 1
         ;;
 esac
