@@ -10,7 +10,7 @@ This file provides guidance for Claude Code when working with the backend codeba
 - **Database ORM**: SQLAlchemy 2.0 with typed relationships
 - **Package Manager**: `uv` for dependency management
 - **Code Quality**: Ruff (linting/formatting), mypy (type checking)
-- **Testing**: pytest with testcontainers for integration tests
+- **Testing**: pytest with **mandatory testcontainers** for all database integration tests
 
 ### Service Architecture
 
@@ -350,7 +350,7 @@ async def test_create_user():
 
 ### 2. Integration Tests
 
-Test with real database connections using testcontainers:
+**MANDATORY**: All integration tests involving databases MUST use testcontainers. Never use real external databases or mocked database connections for integration tests.
 
 ```python
 # tests/integration/test_user_endpoints.py
@@ -359,23 +359,52 @@ async def test_create_user_endpoint(test_client, test_db):
     response = test_client.post("/api/v1/users", json=user_data)
     assert response.status_code == 201
 
-    # Verify in database
+    # Verify in database (using testcontainer)
     user = await test_db.get_user_by_email(user_data["email"])
     assert user is not None
 ```
 
+**Why testcontainers are required**:
+- Ensures tests run against real database behavior
+- Prevents inconsistencies between mocked and actual database responses
+- Provides isolation between test runs
+- Catches database-specific issues (constraints, transactions, etc.)
+
 ### 3. Test Configuration
 
-Use `conftest.py` for shared test fixtures:
+Use `conftest.py` for shared testcontainer fixtures. **All database fixtures MUST use testcontainers**:
 
 ```python
 # tests/conftest.py
+import pytest
+from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
+
+@pytest.fixture(scope="session")
+async def postgres_container():
+    """PostgreSQL testcontainer for integration tests."""
+    with PostgresContainer("postgres:15") as postgres:
+        yield postgres
+
+@pytest.fixture(scope="session")
+async def redis_container():
+    """Redis testcontainer for integration tests."""
+    with RedisContainer("redis:7-alpine") as redis:
+        yield redis
+
 @pytest.fixture
-async def test_db():
-    # Setup test database container
-    # Return database session
-    # Cleanup after test
+async def test_db(postgres_container):
+    """Database session using testcontainer."""
+    # Setup database session from container
+    # Return session for tests
+    # Cleanup automatically handled by testcontainer
 ```
+
+**Testcontainer Requirements**:
+- Use appropriate container versions matching production
+- Clean up containers automatically after tests
+- Isolate each test with fresh database state
+- Never use real external database connections in tests
 
 ## Configuration Management
 
@@ -412,7 +441,7 @@ config = load_toml_config("config.toml")
 1. Create route in `src/api/routes/v1/`
 2. Define schemas in `src/schemas/`
 3. Implement business logic in `src/common/services/`
-4. Add tests in `tests/unit/api/` and `tests/integration/api/`
+4. Add tests in `tests/unit/api/` and `tests/integration/api/` (**use testcontainers for integration tests**)
 5. Update API documentation
 
 ### Adding New Database Model
@@ -422,7 +451,7 @@ config = load_toml_config("config.toml")
 3. Apply migration: `alembic upgrade head`
 4. Create corresponding schemas
 5. Add service methods
-6. Write tests
+6. Write tests (**integration tests MUST use testcontainers**)
 
 ### Adding New Agent
 
@@ -451,6 +480,12 @@ config = load_toml_config("config.toml")
 2. **Database connection**: Verify services are running (`pnpm check services`)
 3. **Migration conflicts**: Use `alembic merge` for branch conflicts
 4. **Test failures**: Ensure test database is clean between runs
+5. **Testcontainer issues**:
+   - Docker daemon not running: Start Docker Desktop or Docker service
+   - Permission errors: Ensure user is in docker group (Linux)
+   - Port conflicts: Let testcontainers auto-assign ports
+   - Container startup timeouts: Increase timeout in test configuration
+   - Memory issues: Ensure sufficient Docker memory allocation
 
 ### Logging
 
