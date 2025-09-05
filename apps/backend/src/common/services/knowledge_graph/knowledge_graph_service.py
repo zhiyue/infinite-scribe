@@ -401,5 +401,14 @@ class KnowledgeGraphService:
         Raises:
             RuntimeError: 当Neo4j驱动程序不可用时
         """
-        # 直接返回查询构建器实例；其内部将按需通过会话工厂获取会话
+        # 在创建查询构建器前，确保全局 Neo4j 驱动已可用
+        try:
+            from src.db.graph.driver import neo4j_driver
+        except Exception:  # pragma: no cover - 防御性导入
+            neo4j_driver = None
+
+        if neo4j_driver is None:
+            raise RuntimeError("Neo4j driver not available")
+
+        # 返回查询构建器实例；其内部将按需通过会话工厂获取会话
         return GraphQueryBuilder()

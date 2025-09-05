@@ -506,6 +506,8 @@ def setup_test_env():
     os.environ["SECRET_KEY"] = "test_secret_key_at_least_32_characters_long"
     os.environ["REDIS_URL"] = "redis://fake:6379/0"  # Will be mocked
     os.environ["FRONTEND_URL"] = "http://localhost:3000"
+    # Some tests rely on default allowed_origins; ensure env override is absent
+    os.environ.pop("ALLOWED_ORIGINS", None)
 
     # Email settings for testing
     os.environ["EMAIL_FROM"] = "test@example.com"

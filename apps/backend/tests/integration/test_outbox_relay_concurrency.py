@@ -18,6 +18,58 @@ class TestOutboxRelayServiceConcurrency:
     """Concurrency and edge case test cases for OutboxRelayService."""
 
     @pytest.fixture
+    def mock_kafka_settings(self):
+        """Mock Kafka settings for testing."""
+        settings = MagicMock()
+        settings.kafka_bootstrap_servers = ["localhost:9092"]
+        settings.relay.batch_size = 5
+        settings.relay.poll_interval_seconds = 0.1
+        settings.relay.retry_backoff_ms = 100
+        settings.relay.max_backoff_ms = 1000
+        settings.relay.max_retries_default = 3
+        settings.relay.loop_error_backoff_ms = 100
+
+        # For Kafka connection mocking
+        settings.kafka.bootstrap_servers = ["localhost:9092"]
+        settings.kafka.security_protocol = "PLAINTEXT"
+        settings.kafka.sasl_mechanism = None
+        settings.kafka.sasl_username = None
+        settings.kafka.sasl_password = None
+        settings.kafka.ssl_cafile = None
+        settings.kafka.ssl_certfile = None
+        settings.kafka.ssl_keyfile = None
+
+        return settings
+
+    def create_mock_sql_session(self, db_session: AsyncSession):
+        """Create a mock create_sql_session that uses the same database engine as the test.
+
+        This ensures OutboxRelayService uses the same testcontainer database
+        as the integration tests, but with a separate session to avoid conflicts.
+        """
+        from contextlib import asynccontextmanager
+
+        from sqlalchemy.orm import sessionmaker
+
+        # Get the same engine as the test
+        engine = db_session.bind
+
+        @asynccontextmanager
+        async def mock_create_sql_session():
+            # Create session with same engine as test
+            async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)()
+            try:
+                yield async_session
+                # Let service handle its own commits - don't auto-commit here
+            except Exception:
+                await async_session.rollback()
+                raise
+            finally:
+                await async_session.close()
+
+        return mock_create_sql_session
+
+    @pytest.fixture
     async def clean_outbox_table(self, db_session: AsyncSession):
         """Clean the event_outbox table before and after each test."""
         await db_session.execute(delete(EventOutbox))
@@ -74,8 +126,16 @@ class TestOutboxRelayServiceConcurrency:
 
     async def get_all_messages_from_db(self, db_session: AsyncSession) -> list[EventOutbox]:
         """Get all messages from the database."""
-        result = await db_session.execute(select(EventOutbox).order_by(EventOutbox.created_at))
-        return list(result.scalars().all())
+        # Create a fresh session to bypass any transaction isolation issues
+        from sqlalchemy.orm import sessionmaker
+        
+        engine = db_session.bind
+        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)()
+        try:
+            result = await async_session.execute(select(EventOutbox).order_by(EventOutbox.created_at))
+            return list(result.scalars().all())
+        finally:
+            await async_session.close()
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_workers_no_duplication(self, kafka_settings, clean_outbox_table, db_session):
@@ -105,18 +165,17 @@ class TestOutboxRelayServiceConcurrency:
             consumer.subscribe(test_topics)
 
             try:
-                # Create multiple worker services
-                workers = []
-                for i in range(3):
-                    worker = OutboxRelayService()
-                    await worker.start()
-                    workers.append(worker)
+                # Patch the database session creation to use testcontainer database
+                with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                    # Create multiple worker services
+                    workers = []
+                    for i in range(3):
+                        worker = OutboxRelayService()
+                        await worker.start()
+                        workers.append(worker)
 
-                try:
-                    # Run workers concurrently
-                    tasks = []
-                    for worker in workers:
-                        # Each worker runs multiple drain cycles
+                    try:
+                        # Run workers concurrently
                         async def worker_cycle(w):
                             total_processed = 0
                             for _ in range(5):  # Multiple cycles to increase concurrency
@@ -126,55 +185,58 @@ class TestOutboxRelayServiceConcurrency:
                                     await asyncio.sleep(0.001)  # Brief pause if no work
                             return total_processed
 
-                        tasks.append(asyncio.create_task(worker_cycle(worker)))
+                        tasks = []
+                        for worker in workers:
+                            # Each worker runs multiple drain cycles
+                            tasks.append(asyncio.create_task(worker_cycle(worker)))
 
-                    # Wait for all workers to complete
-                    results = await asyncio.gather(*tasks)
-                    total_processed = sum(results)
+                        # Wait for all workers to complete
+                        results = await asyncio.gather(*tasks)
+                        total_processed = sum(results)
 
-                    # Verify all messages were processed exactly once in database
-                    assert total_processed == len(test_messages)
+                        # Verify all messages were processed exactly once in database
+                        assert total_processed == len(test_messages)
 
-                    # Verify database state
-                    final_messages = await self.get_all_messages_from_db(db_session)
-                    sent_count = sum(1 for msg in final_messages if msg.status == OutboxStatus.SENT)
-                    assert sent_count == len(test_messages)
+                        # Verify database state
+                        final_messages = await self.get_all_messages_from_db(db_session)
+                        sent_count = sum(1 for msg in final_messages if msg.status == OutboxStatus.SENT)
+                        assert sent_count == len(test_messages)
 
-                    # Verify messages were sent to Kafka without duplication
-                    consumed_messages = []
-                    start_time = datetime.now(UTC)
+                        # Verify messages were sent to Kafka without duplication
+                        consumed_messages = []
+                        start_time = datetime.now(UTC)
 
-                    while len(consumed_messages) < len(test_messages):
-                        # Check timeout (10 seconds max)
-                        if (datetime.now(UTC) - start_time).total_seconds() > 10:
-                            break
+                        while len(consumed_messages) < len(test_messages):
+                            # Check timeout (10 seconds max)
+                            if (datetime.now(UTC) - start_time).total_seconds() > 10:
+                                break
 
-                        try:
-                            msg_batch = await asyncio.wait_for(consumer.getmany(timeout_ms=1000), timeout=2.0)
-                            for topic_partition, messages in msg_batch.items():
-                                for message in messages:
-                                    consumed_messages.append(
-                                        {
-                                            "topic": message.topic,
-                                            "value": message.value,
-                                            "index": message.value["index"] if message.value else None,
-                                        }
-                                    )
-                        except TimeoutError:
-                            continue
+                            try:
+                                msg_batch = await asyncio.wait_for(consumer.getmany(timeout_ms=1000), timeout=2.0)
+                                for topic_partition, messages in msg_batch.items():
+                                    for message in messages:
+                                        consumed_messages.append(
+                                            {
+                                                "topic": message.topic,
+                                                "value": message.value,
+                                                "index": message.value["index"] if message.value else None,
+                                            }
+                                        )
+                            except TimeoutError:
+                                continue
 
-                    # Verify no message duplication in Kafka
-                    assert len(consumed_messages) == len(test_messages)
+                        # Verify no message duplication in Kafka
+                        assert len(consumed_messages) == len(test_messages)
 
-                    # Verify all indices are unique (no duplicates)
-                    consumed_indices = {msg["index"] for msg in consumed_messages if msg["index"] is not None}
-                    expected_indices = {i for i in range(len(test_messages))}
-                    assert consumed_indices == expected_indices
+                        # Verify all indices are unique (no duplicates)
+                        consumed_indices = {msg["index"] for msg in consumed_messages if msg["index"] is not None}
+                        expected_indices = {i for i in range(len(test_messages))}
+                        assert consumed_indices == expected_indices
 
-                finally:
-                    # Clean up workers
-                    for worker in workers:
-                        await worker.stop()
+                    finally:
+                        # Clean up workers
+                        for worker in workers:
+                            await worker.stop()
 
             finally:
                 await consumer.stop()

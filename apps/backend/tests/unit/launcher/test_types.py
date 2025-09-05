@@ -26,15 +26,18 @@ class TestComponentTypeEnum:
         """Test component type enum values"""
         assert ComponentType.API.value == "api"
         assert ComponentType.AGENTS.value == "agents"
+        assert ComponentType.RELAY.value == "relay"
 
     def test_component_type_values_are_strings(self):
         """Test component type enum values are strings"""
         assert isinstance(ComponentType.API.value, str)
         assert isinstance(ComponentType.AGENTS.value, str)
+        assert isinstance(ComponentType.RELAY.value, str)
 
     def test_component_type_enum_completeness(self):
         """Test that all expected component types are present"""
         values = [component.value for component in ComponentType]
         assert "api" in values
         assert "agents" in values
-        assert len(values) == 2  # Exactly two components supported
+        assert "relay" in values
+        assert len(values) == 3  # Exactly three components supported
