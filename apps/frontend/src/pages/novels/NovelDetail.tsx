@@ -1,9 +1,10 @@
-import { useParams, Routes, Route, Navigate, NavLink } from 'react-router-dom'
-import { FileText, BarChart3, Settings, Eye } from 'lucide-react'
+import { useParams, Routes, Route, Navigate, NavLink, Link } from 'react-router-dom'
+import { FileText, BarChart3, Settings, Eye, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
-// 项目详情页面布局
-export default function ProjectDetail() {
+// 小说详情页面布局
+export default function NovelDetail() {
   const { id } = useParams<{ id: string }>()
 
   const navItems = [
@@ -14,17 +15,32 @@ export default function ProjectDetail() {
   ]
 
   return (
-    <div className="flex h-full">
-      {/* 侧边导航 */}
-      <nav className="w-56 border-r bg-muted/10 p-4">
-        <h2 className="mb-4 text-lg font-semibold">项目导航</h2>
+    <div className="min-h-screen bg-background relative">
+      {/* 悬浮返回按钮 - 左下角 */}
+      <Button 
+        variant="outline" 
+        size="sm" 
+        asChild
+        className="fixed left-6 bottom-6 z-50 shadow-lg hover:shadow-xl transition-shadow bg-white dark:bg-gray-800 border-2"
+      >
+        <Link to="/novels" className="flex items-center gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          返回列表
+        </Link>
+      </Button>
+
+      {/* Main content */}
+      <div className="flex min-h-screen">
+        {/* 侧边导航 */}
+        <nav className="w-56 border-r bg-muted/10 p-4">
+        <h2 className="mb-4 text-lg font-semibold">小说导航</h2>
         <ul className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
               <li key={item.path}>
                 <NavLink
-                  to={`/projects/${id}/${item.path}`}
+                  to={`/novels/${id}/${item.path}`}
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -46,28 +62,29 @@ export default function ProjectDetail() {
       <div className="flex-1 overflow-auto">
         <Routes>
           <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<ProjectOverview />} />
+          <Route path="overview" element={<NovelOverview />} />
           <Route path="chapters" element={<ChapterManagement />} />
-          <Route path="analytics" element={<ProjectAnalytics />} />
-          <Route path="settings" element={<ProjectSettings />} />
+          <Route path="analytics" element={<NovelAnalytics />} />
+          <Route path="settings" element={<NovelSettings />} />
         </Routes>
+        </div>
       </div>
     </div>
   )
 }
 
-// 项目概览页面
-function ProjectOverview() {
+// 小说概览页面
+function NovelOverview() {
   const { id } = useParams<{ id: string }>()
 
   return (
     <div className="p-6">
-      <h1 className="mb-6 text-2xl font-bold">项目概览</h1>
+      <h1 className="mb-6 text-2xl font-bold">小说概览</h1>
       <div className="space-y-6">
         <div className="rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">基本信息</h2>
           <div className="space-y-2 text-sm">
-            <p>项目ID: {id}</p>
+            <p>小说ID: {id}</p>
             <p>创建时间: 2024-01-01</p>
             <p>最后更新: 2024-01-15</p>
             <p>当前状态: 草稿</p>
@@ -116,7 +133,7 @@ function ChapterManagement() {
 }
 
 // 数据分析页面
-function ProjectAnalytics() {
+function NovelAnalytics() {
   return (
     <div className="p-6">
       <h1 className="mb-6 text-2xl font-bold">数据分析</h1>
@@ -127,13 +144,13 @@ function ProjectAnalytics() {
   )
 }
 
-// 项目设置页面
-function ProjectSettings() {
+// 小说设置页面
+function NovelSettings() {
   return (
     <div className="p-6">
-      <h1 className="mb-6 text-2xl font-bold">项目设置</h1>
+      <h1 className="mb-6 text-2xl font-bold">小说设置</h1>
       <div className="rounded-lg border bg-card p-6">
-        <p className="text-muted-foreground">项目设置功能开发中...</p>
+        <p className="text-muted-foreground">小说设置功能开发中...</p>
       </div>
     </div>
   )

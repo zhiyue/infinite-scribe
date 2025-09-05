@@ -23,16 +23,32 @@ import {
 export interface Novel extends BaseDBModel, AuditFields {
   /** 小说标题 */
   title: string
-  /** 小说主题 */
-  theme?: string
-  /** 写作风格 */
-  writing_style?: string
+  /** 小说描述 */
+  description: string
   /** 当前状态 */
   status: NovelStatus
-  /** 目标章节数 */
-  target_chapters: number
-  /** 已完成章节数 */
-  completed_chapters: number
+  /** 总字数 */
+  wordCount: number
+  /** 章节数 */
+  chapterCount: number
+  /** 用户ID */
+  userId?: string
+  /** 标签 */
+  tags?: string[]
+  /** 封面图片 */
+  coverImage?: string
+  /** 类型/流派 */
+  genre?: string
+  /** 语言 */
+  language?: string
+  /** 主题（保留向后兼容） */
+  theme?: string
+  /** 写作风格（保留向后兼容） */
+  writing_style?: string
+  /** 目标章节数（保留向后兼容） */
+  target_chapters?: number
+  /** 已完成章节数（保留向后兼容） */
+  completed_chapters?: number
 }
 
 /**
@@ -84,10 +100,12 @@ export interface ChapterVersion extends BaseDBModel {
 export interface Character extends BaseDBModel, AuditFields {
   /** 所属小说的ID */
   novel_id: UUIDString
+  /** 所属小说ID（驼峰命名） */
+  novelId: string
   /** 角色名称 */
   name: string
   /** 角色定位 */
-  role?: string
+  role?: 'protagonist' | 'antagonist' | 'supporting' | 'minor'
   /** 角色外貌、性格等简述 */
   description?: string
   /** 角色背景故事 */
@@ -96,6 +114,18 @@ export interface Character extends BaseDBModel, AuditFields {
   personality_traits?: string[]
   /** 角色的主要目标列表 */
   goals?: string[]
+  /** 年龄 */
+  age?: number
+  /** 性别 */
+  gender?: string
+  /** 外貌描述 */
+  appearance?: string
+  /** 性格描述 */
+  personality?: string
+  /** 背景描述 */
+  background?: string
+  /** 关系网络 */
+  relationships?: string[]
 }
 
 /**

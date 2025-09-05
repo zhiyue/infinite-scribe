@@ -1,6 +1,6 @@
 /**
- * Dashboard page component - Project Dashboard Homepage
- * 项目仪表盘首页，展示用户项目概览、快速操作和系统状态
+ * Dashboard page component - Novel Dashboard Homepage
+ * 小说仪表盘首页，展示用户小说概览、快速操作和系统状态
  */
 
 import {
@@ -37,15 +37,15 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ProjectCard } from '@/components/custom/ProjectCard'
-import type { Project } from '@/types'
+import type { Novel } from '@/types/api'
 
-// 模拟项目数据（后续将从API获取）
-const mockProjects: Project[] = [
+// 模拟小说数据（后续将从API获取）
+const mockNovels = [
   {
     id: '1',
     title: '星际迷航：新纪元',
     description: '一个关于未来星际探索的科幻小说，讲述人类在银河系中的冒险故事。',
-    status: 'drafting',
+    status: 'drafting' as const,
     wordCount: 15420,
     chapterCount: 8,
     lastUpdated: '2024-01-15T10:30:00Z',
@@ -56,7 +56,7 @@ const mockProjects: Project[] = [
     id: '2',
     title: '古代传说',
     description: '基于中国古代神话的奇幻小说，融合了传统文化与现代想象。',
-    status: 'reviewing',
+    status: 'reviewing' as const,
     wordCount: 32100,
     chapterCount: 15,
     lastUpdated: '2024-01-14T16:45:00Z',
@@ -67,7 +67,7 @@ const mockProjects: Project[] = [
     id: '3',
     title: '都市情缘',
     description: '现代都市背景下的爱情故事，描绘年轻人的情感纠葛。',
-    status: 'completed',
+    status: 'completed' as const,
     wordCount: 89500,
     chapterCount: 32,
     lastUpdated: '2024-01-10T14:20:00Z',
@@ -85,16 +85,16 @@ const DashboardPage: React.FC = () => {
 
   // 计算统计数据
   const stats = React.useMemo(() => {
-    const totalProjects = mockProjects.length
-    const totalWords = mockProjects.reduce((sum, project) => sum + project.wordCount, 0)
-    const totalChapters = mockProjects.reduce((sum, project) => sum + project.chapterCount, 0)
-    const completedProjects = mockProjects.filter((p) => p.status === 'completed').length
+    const totalNovels = mockNovels.length
+    const totalWords = mockNovels.reduce((sum, novel) => sum + novel.wordCount, 0)
+    const totalChapters = mockNovels.reduce((sum, novel) => sum + novel.chapterCount, 0)
+    const completedNovels = mockNovels.filter((n) => n.status === 'completed').length
 
     return {
-      totalProjects,
+      totalNovels,
       totalWords,
       totalChapters,
-      completedProjects,
+      completedNovels,
     }
   }, [])
 
@@ -137,17 +137,17 @@ const DashboardPage: React.FC = () => {
                   仪表盘
                 </Link>
                 <Link
-                  to="/projects"
+                  to="/novels"
                   className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center gap-1 group"
                 >
-                  我的项目
+                  我的小说
                   <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
                 <Link
                   to="/create-novel"
                   className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center gap-1 group"
                 >
-                  创建新项目
+                  创建新小说
                   <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
               </nav>
@@ -284,7 +284,7 @@ const DashboardPage: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="pb-4">
-                <div className="text-3xl font-medium text-gray-900 dark:text-gray-100 mb-2 tracking-tight">{stats.totalProjects}</div>
+                <div className="text-3xl font-medium text-gray-900 dark:text-gray-100 mb-2 tracking-tight">{stats.totalNovels}</div>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">个创作项目</p>
@@ -332,7 +332,7 @@ const DashboardPage: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="pb-4">
-                <div className="text-3xl font-medium text-gray-900 dark:text-gray-100 mb-2 tracking-tight">{stats.completedProjects}</div>
+                <div className="text-3xl font-medium text-gray-900 dark:text-gray-100 mb-2 tracking-tight">{stats.completedNovels}</div>
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">已完成作品</p>
@@ -372,11 +372,11 @@ const DashboardPage: React.FC = () => {
                   asChild 
                   className="h-24 flex flex-col items-center justify-center gap-3 bg-gray-900 dark:bg-gray-100 hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-gray-900 transition-colors rounded-lg border-0"
                 >
-                  <Link to="/projects">
+                  <Link to="/novels">
                     <div className="p-2 bg-white/20 dark:bg-gray-900/20 rounded-lg">
                       <BookOpen className="h-6 w-6" />
                     </div>
-                    <span className="text-sm font-medium">查看所有项目</span>
+                    <span className="text-sm font-medium">查看所有小说</span>
                   </Link>
                 </Button>
 
@@ -407,7 +407,7 @@ const DashboardPage: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Recent Projects Overview */}
+          {/* Recent Novels Overview */}
           <Card className="mb-8 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
             <CardHeader className="pb-6">
               <div className="flex items-center justify-between">
@@ -416,9 +416,9 @@ const DashboardPage: React.FC = () => {
                     <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
                       <Clock className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     </div>
-                    最近项目
+                    最近小说
                   </CardTitle>
-                  <CardDescription className="text-gray-500 dark:text-gray-400 leading-relaxed text-base">您最近编辑的创作项目</CardDescription>
+                  <CardDescription className="text-gray-500 dark:text-gray-400 leading-relaxed text-base">您最近编辑的小说作品</CardDescription>
                 </div>
                 <Button asChild variant="ghost" size="sm" className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <Link to="/projects" className="flex items-center gap-2 font-medium">
@@ -429,7 +429,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="pt-2">
-              {mockProjects.length === 0 ? (
+              {mockNovels.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="mb-6">
                     <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg inline-block">
@@ -449,16 +449,16 @@ const DashboardPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {mockProjects.slice(0, 6).map((project) => (
-                    <Card key={project.id} className="group cursor-pointer border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  {mockNovels.slice(0, 6).map((novel) => (
+                    <Card key={novel.id} className="group cursor-pointer border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
                             <h3 className="font-medium text-lg text-gray-900 dark:text-gray-100 mb-2">
-                              {project.title}
+                              {novel.title}
                             </h3>
                             <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed line-clamp-2">
-                              {project.description}
+                              {novel.description}
                             </p>
                           </div>
                           <div className="ml-4 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -469,17 +469,17 @@ const DashboardPage: React.FC = () => {
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-500 dark:text-gray-400 font-medium">状态</span>
                             <Badge variant="outline" className="text-xs">
-                              {project.status === 'drafting' ? '草稿' : project.status === 'reviewing' ? '审阅中' : '已完成'}
+                              {novel.status === 'drafting' ? '草稿' : novel.status === 'reviewing' ? '审阅中' : '已完成'}
                             </Badge>
                           </div>
                           <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                               <Clock className="h-3.5 w-3.5" />
-                              <span>{new Date(project.lastUpdated).toLocaleDateString()}</span>
+                              <span>{new Date(novel.lastUpdated).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                               <FileText className="h-3.5 w-3.5" />
-                              <span>{project.wordCount.toLocaleString()} 字</span>
+                              <span>{novel.wordCount.toLocaleString()} 字</span>
                             </div>
                           </div>
                         </div>

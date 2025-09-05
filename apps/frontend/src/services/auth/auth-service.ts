@@ -439,4 +439,12 @@ export class AuthService implements IAuthService {
   getExtendedApi(): IAuthApiClient {
     return this.authApiClient
   }
+
+  /**
+   * 获取内部HTTP客户端（用于其他服务）
+   * 该客户端已配置认证拦截器，可以用于其他API调用
+   */
+  getHttpClient(): IHttpClient {
+    return this.httpClient
+  }
 }

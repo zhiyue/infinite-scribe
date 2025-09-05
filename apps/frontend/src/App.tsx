@@ -13,6 +13,9 @@ import ResetPasswordPage from './pages/auth/ResetPassword'
 import DashboardPage from './pages/Dashboard'
 import ProfilePage from './pages/Profile'
 import ChangePasswordPage from './pages/auth/ChangePassword'
+import NovelsList from './pages/novels/NovelsList'
+import NovelDetail from './pages/novels/NovelDetail'
+import CreateNovel from './pages/CreateNovel'
 
 // Global styles
 import './index.css'
@@ -55,13 +58,36 @@ function App() {
                 </RequireAuth>
               }
             />
+            <Route
+              path="/novels"
+              element={
+                <RequireAuth>
+                  <NovelsList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/novels/:id/*"
+              element={
+                <RequireAuth>
+                  <NovelDetail />
+                </RequireAuth>
+              }
+            />
 
             {/* Redirect root to dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+            <Route
+              path="/create-novel"
+              element={
+                <RequireAuth>
+                  <CreateNovel />
+                </RequireAuth>
+              }
+            />
+
             {/* Redirect unimplemented feature routes to dashboard */}
-            <Route path="/projects" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/create-novel" element={<Navigate to="/dashboard" replace />} />
             <Route path="/help" element={<Navigate to="/dashboard" replace />} />
 
             {/* Catch all route - redirect to login */}

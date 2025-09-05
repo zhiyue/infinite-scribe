@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@/config/api'
 import { parseApiError, handleNetworkError, logError } from '@/utils/errorHandler'
 import type { ApiResponse } from '@/types'
+import { authService } from './auth'
 
 // API 请求配置接口
 interface RequestConfig extends RequestInit {
@@ -18,6 +19,18 @@ class ApiService {
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL
+    
+    // 添加认证拦截器
+    this.addRequestInterceptor((config) => {
+      const token = authService.getAccessToken()
+      if (token) {
+        config.headers = {
+          ...config.headers,
+          'Authorization': `Bearer ${token}`
+        }
+      }
+      return config
+    })
   }
 
   // 添加请求拦截器
@@ -31,18 +44,21 @@ class ApiService {
   }
 
   private async request<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
+    // 先复制一份配置
     let config = { ...options }
+
+    // 先应用请求拦截器（例如附加 Authorization 头）
+    for (const interceptor of this.requestInterceptors) {
+      config = interceptor(config)
+    }
+
+    // 再从拦截后的配置里解构参数，确保拦截器注入的 headers 不会丢失
     const {
       timeout = this.defaultTimeout,
       retries = 0,
       retryDelay = 1000,
       ...fetchOptions
     } = config
-
-    // 应用请求拦截器
-    for (const interceptor of this.requestInterceptors) {
-      config = interceptor(config)
-    }
 
     const url = `${this.baseURL}${endpoint}`
 

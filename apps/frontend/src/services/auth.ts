@@ -13,6 +13,7 @@
  */
 
 import { Migration } from './auth/index'
+import type { IHttpClient } from './auth/types'
 import type {
   ApiError,
   ChangePasswordRequest,
@@ -52,6 +53,9 @@ interface CompatibleAuthService {
 
   // 私有方法（为了完全兼容性）
   clearTokens(): void
+
+  // 获取内部HTTP客户端（新增方法）
+  getHttpClient(): IHttpClient
 }
 
 /**
@@ -122,6 +126,11 @@ function createCompatibleAuthService(): CompatibleAuthService {
     clearTokens() {
       // 通过登出来清理 tokens（新架构的推荐方式）
       newAuthService.logout().catch(console.warn)
+    },
+
+    // 获取内部HTTP客户端（新增方法）
+    getHttpClient() {
+      return newAuthService.getHttpClient()
     },
   }
 

@@ -55,33 +55,63 @@ export interface PaginatedResponse<T> {
 // ===== 小说相关 API =====
 
 /**
- * 创建小说请求
+ * 创建小说请求 - POST /api/v1/novels
  */
 export interface CreateNovelRequest {
   title: string
-  theme?: string
-  writing_style?: string
-  target_chapters: number
+  description: string
+  tags?: string[]
+  coverImage?: string
+  genre?: string
+  language?: string
 }
 
 /**
- * 更新小说请求
+ * 更新小说请求 - PUT /api/v1/novels/{id}
  */
-export interface UpdateNovelRequest extends Partial<CreateNovelRequest> {
+export interface UpdateNovelRequest {
+  title?: string
+  description?: string
   status?: Novel['status']
+  tags?: string[]
+  coverImage?: string
+  genre?: string
+  language?: string
 }
 
 /**
- * 小说列表查询参数
+ * 小说列表查询参数 - GET /api/v1/novels
  */
-export interface NovelListParams extends PaginationParams {
+export interface NovelQueryParams {
+  page?: number
+  pageSize?: number
   status?: Novel['status']
   search?: string
-  sort_by?: 'created_at' | 'updated_at' | 'title'
-  sort_order?: 'asc' | 'desc'
+  sortBy?: 'createdAt' | 'updatedAt' | 'title' | 'wordCount'
+  sortOrder?: 'asc' | 'desc'
+  tags?: string[]
+}
+
+/**
+ * 小说列表响应
+ */
+export interface NovelsListResponse {
+  novels: Novel[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 // ===== 章节相关 API =====
+
+/**
+ * 章节列表响应 - GET /api/v1/novels/{id}/chapters
+ */
+export interface ChaptersResponse {
+  chapters: Chapter[]
+  total: number
+}
 
 /**
  * 创建章节请求
@@ -113,16 +143,30 @@ export interface ChapterContentResponse {
 // ===== 角色相关 API =====
 
 /**
+ * 角色列表响应 - GET /api/v1/novels/{id}/characters
+ */
+export interface CharactersResponse {
+  characters: Character[]
+  total: number
+}
+
+/**
  * 创建角色请求
  */
 export interface CreateCharacterRequest {
   novel_id: string
   name: string
-  role?: string
+  role?: 'protagonist' | 'antagonist' | 'supporting' | 'minor'
   description?: string
   background_story?: string
   personality_traits?: string[]
   goals?: string[]
+  age?: number
+  gender?: string
+  appearance?: string
+  personality?: string
+  background?: string
+  relationships?: string[]
 }
 
 /**
@@ -244,17 +288,36 @@ export interface GlobalSearchResponse {
 // ===== 统计相关 API =====
 
 /**
+ * 小说统计信息响应 - GET /api/v1/novels/{id}/stats
+ */
+export interface NovelStatsResponse {
+  stats: NovelStats
+}
+
+/**
  * 小说统计信息
  */
-export interface NovelStatistics {
-  novel_id: string
-  total_words: number
-  total_chapters: number
-  completed_chapters: number
-  total_characters: number
-  total_worldview_entries: number
-  last_activity: string
-  creation_progress: number
+export interface NovelStats {
+  totalWords: number
+  totalChapters: number
+  averageChapterLength: number
+  lastUpdated: string
+  readingTime: number // 预计阅读时间（分钟）
+  completionRate: number // 完成度百分比
+  dailyProgress?: {
+    date: string
+    wordsAdded: number
+  }[]
+  weeklyProgress?: {
+    week: string
+    wordsAdded: number
+    chaptersAdded: number
+  }[]
+  monthlyProgress?: {
+    month: string
+    wordsAdded: number
+    chaptersAdded: number
+  }[]
 }
 
 /**
