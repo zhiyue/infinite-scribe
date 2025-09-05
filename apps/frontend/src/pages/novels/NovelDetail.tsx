@@ -2,10 +2,12 @@ import { useParams, Routes, Route, Navigate, NavLink, Link } from 'react-router-
 import { FileText, BarChart3, Settings, Eye, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useNovel } from '@/hooks/useNovels'
 
 // 小说详情页面布局
 export default function NovelDetail() {
   const { id } = useParams<{ id: string }>()
+  const { data: novel, isLoading, error } = useNovel(id || '')
 
   const navItems = [
     { path: 'overview', label: '概览', icon: Eye },
@@ -13,6 +15,22 @@ export default function NovelDetail() {
     { path: 'analytics', label: '数据分析', icon: BarChart3 },
     { path: 'settings', label: '项目设置', icon: Settings },
   ]
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div>加载中...</div>
+      </div>
+    )
+  }
+
+  if (error || !novel) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div>无法加载小说信息</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -33,7 +51,7 @@ export default function NovelDetail() {
       <div className="flex min-h-screen">
         {/* 侧边导航 */}
         <nav className="w-56 border-r bg-muted/10 p-4">
-        <h2 className="mb-4 text-lg font-semibold">小说导航</h2>
+        <h2 className="mb-4 text-lg font-semibold truncate" title={novel.title}>{novel.title}</h2>
         <ul className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon
