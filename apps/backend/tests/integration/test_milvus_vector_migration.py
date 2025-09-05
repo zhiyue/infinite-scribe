@@ -16,13 +16,13 @@ import pytest
 class TestMilvusVectorMigration:
     """Test Milvus vector database migration."""
 
-    async def test_milvus_connection(self):
+    async def test_milvus_connection(self, milvus_service):
         """Test that Milvus service is available and accessible."""
         try:
             from pymilvus import connections, utility
 
             # Connect to Milvus (assuming it's running on default host:port)
-            connections.connect(alias="default", host="localhost", port="19530")
+            connections.connect(alias="default", host=milvus_service["host"], port=str(milvus_service["port"]))
 
             # Check connection
             assert utility.get_server_version()
@@ -35,12 +35,12 @@ class TestMilvusVectorMigration:
         except Exception as e:
             pytest.fail(f"Milvus service is not available: {e}")
 
-    async def test_milvus_collection_creation(self):
+    async def test_milvus_collection_creation(self, milvus_service):
         """Test creation of novel_embeddings_v1 collection with proper schema."""
         try:
             from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
 
-            connections.connect(alias="default", host="localhost", port="19530")
+            connections.connect(alias="default", host=milvus_service["host"], port=str(milvus_service["port"]))
 
             # Define collection schema
             collection_name = "novel_embeddings_v1_test"
@@ -86,12 +86,12 @@ class TestMilvusVectorMigration:
         except ImportError:
             pytest.skip("Milvus client not available")
 
-    async def test_milvus_index_creation(self):
+    async def test_milvus_index_creation(self, milvus_service):
         """Test creation of vector index for performance optimization."""
         try:
             from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
 
-            connections.connect(alias="default", host="localhost", port="19530")
+            connections.connect(alias="default", host=milvus_service["host"], port=str(milvus_service["port"]))
 
             collection_name = "novel_embeddings_v1_index_test"
 
@@ -137,14 +137,14 @@ class TestMilvusVectorMigration:
         except ImportError:
             pytest.skip("Milvus client not available")
 
-    async def test_milvus_data_operations(self):
+    async def test_milvus_data_operations(self, milvus_service):
         """Test basic CRUD operations with novel embeddings."""
         try:
             import time
 
             from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
 
-            connections.connect(alias="default", host="localhost", port="19530")
+            connections.connect(alias="default", host=milvus_service["host"], port=str(milvus_service["port"]))
 
             collection_name = "novel_embeddings_v1_crud_test"
 
@@ -227,12 +227,12 @@ class TestMilvusVectorMigration:
             else:
                 raise
 
-    async def test_milvus_novel_embeddings_schema_manager(self):
+    async def test_milvus_novel_embeddings_schema_manager(self, milvus_service):
         """Test the schema manager for novel embeddings collection."""
         try:
             from src.db.vector.milvus import MilvusSchemaManager
 
-            schema_manager = MilvusSchemaManager(host="localhost", port="19530")
+            schema_manager = MilvusSchemaManager(host=milvus_service["host"], port=str(milvus_service["port"]))
 
             # Test collection creation
             await schema_manager.create_novel_embeddings_collection()

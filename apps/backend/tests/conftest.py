@@ -3,19 +3,22 @@
 import asyncio
 import os
 import sys
+import time
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
+from pymilvus import connections, utility
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from src.api.main import app
 from src.database import get_db
 from src.models.base import Base
+from testcontainers.milvus import MilvusContainer
 
 # Configure remote Docker host if requested
 if os.environ.get("USE_REMOTE_DOCKER", "false").lower() == "true":
@@ -195,6 +198,79 @@ def redis_service(use_external_services):
                     print(f"Warning: Failed to stop Redis container: {e}")
 
 
+@pytest.fixture(scope="session")
+def kafka_service(use_external_services):
+    """Provide Kafka connection configuration."""
+    if use_external_services:
+        # Use external Kafka service
+        yield {
+            "bootstrap_servers": [os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")],
+            "host": os.environ.get("KAFKA_HOST", "localhost"),
+            "port": int(os.environ.get("KAFKA_PORT", "9092")),
+        }
+    else:
+        # Use testcontainers for local or remote Docker
+        try:
+            from testcontainers.kafka import KafkaContainer
+        except ImportError:
+            pytest.skip("KafkaContainer not available in testcontainers")
+
+        kafka = None
+        try:
+            # Use Kafka testcontainer with Zookeeper
+            kafka = KafkaContainer("confluentinc/cp-kafka:7.4.0")
+            kafka.start()
+
+            bootstrap_servers = [f"{kafka.get_container_host_ip()}:{kafka.get_exposed_port(9093)}"]
+
+            yield {
+                "bootstrap_servers": bootstrap_servers,
+                "host": kafka.get_container_host_ip(),
+                "port": kafka.get_exposed_port(9093),
+            }
+        finally:
+            # Ensure cleanup even if Ryuk fails
+            if kafka:
+                try:
+                    kafka.stop()
+                except Exception as e:
+                    print(f"Warning: Failed to stop Kafka container: {e}")
+
+
+MILVUS_IMAGE = os.getenv("MILVUS_IMAGE", "milvusdb/milvus:v2.4.10")  # 固定版本
+CONNECT_TIMEOUT_S = int(os.getenv("MILVUS_CONNECT_TIMEOUT", "60"))
+
+
+@pytest.fixture(scope="session")
+def milvus_service():
+    # 可按需传 env/volumes 等 kwargs
+    with MilvusContainer(MILVUS_IMAGE) as mc:
+        host = mc.get_container_host_ip()
+        port = mc.get_exposed_port(mc.port)  # 默认 19530
+        uri = f"{host}:{port}"
+
+        # 等待就绪：用 PyMilvus API 轮询而非盲睡
+        deadline = time.time() + CONNECT_TIMEOUT_S
+        last_err = None
+        while time.time() < deadline:
+            try:
+                connections.disconnect("default")
+                connections.connect(alias="default", host=host, port=port)
+                utility.list_collections()  # 触发一次请求验证
+                break
+            except Exception as e:
+                last_err = e
+                time.sleep(1)
+        else:
+            raise RuntimeError(f"Milvus not ready: {last_err}")
+
+        yield {"host": host, "port": port}
+
+        # 会话级收尾
+        with suppress(Exception):
+            connections.disconnect("default")
+
+
 # Test database URL - using SQLite in memory for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -224,59 +300,64 @@ def run_alembic_migrations(database_url: str):
     from alembic.config import Config
     from alembic.script import ScriptDirectory
     from sqlalchemy import create_engine, text
-    
+
     # Create alembic config
     alembic_dir = Path(__file__).parent.parent / "alembic"
     original_ini = alembic_dir.parent / "alembic.ini"
-    
+
     alembic_cfg = Config(str(original_ini))
-    
+
     # Set the database URL (sync version for alembic)
     sync_db_url = database_url.replace("+asyncpg", "")
     alembic_cfg.set_main_option("sqlalchemy.url", sync_db_url)
     alembic_cfg.set_main_option("script_location", str(alembic_dir))
-    
+
     print(f"Running Alembic migrations on {sync_db_url}")
     print(f"Script location: {alembic_dir}")
-    
+
     try:
         # Check heads
         script = ScriptDirectory.from_config(alembic_cfg)
         heads = script.get_heads()
         print(f"Available heads: {heads}")
-        
+
         # Create engine and check if we can connect
         engine = create_engine(sync_db_url)
         with engine.connect() as conn:
             # Test connection
             conn.execute(text("SELECT 1"))
             print("Database connection successful")
-        
+
         # Run migrations
         command.upgrade(alembic_cfg, "head")
         print("Alembic upgrade command completed")
-        
+
         # Check results
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'alembic_version')"))
+            result = conn.execute(
+                text(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'alembic_version')"
+                )
+            )
             print(f"Alembic version table exists: {result.scalar()}")
-            
+
             # Check what tables exist
             result = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))
             tables = [row[0] for row in result.fetchall()]
             print(f"Tables in database: {tables}")
-            
+
             # If alembic_version exists, check current revision
             if result.scalar():
                 result = conn.execute(text("SELECT version_num FROM alembic_version"))
                 current_version = result.scalar()
                 print(f"Current migration version: {current_version}")
-        
+
         engine.dispose()
-        
+
     except Exception as e:
         print(f"Error during Alembic migration: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -293,24 +374,29 @@ async def postgres_test_engine(postgres_service):
 
     # Create tables directly (faster for tests) and also create alembic_version table
     from sqlalchemy import text
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
+
         # Also create alembic_version table with the current head revision
         # This satisfies tests that check for migration status
-        await conn.execute(text("""
+        await conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS alembic_version (
                 version_num VARCHAR(32) NOT NULL,
                 CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
             )
-        """))
-        
+        """)
+        )
+
         # Insert the current head revision (from the available heads)
-        await conn.execute(text("""
+        await conn.execute(
+            text("""
             INSERT INTO alembic_version (version_num) 
             VALUES ('9de0f061b66e') 
             ON CONFLICT (version_num) DO NOTHING
-        """))
+        """)
+        )
 
     yield engine
 

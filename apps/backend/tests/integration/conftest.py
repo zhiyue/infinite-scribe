@@ -11,6 +11,48 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # 使用 PostgreSQL 的集成测试专用 fixtures
 
 
+@pytest.fixture(autouse=True)
+def _patch_outbox_relay_database_session(request: pytest.FixtureRequest):
+    """Patch OutboxRelayService to use the test database session.
+
+    This ensures that the OutboxRelayService uses the same testcontainer database
+    as the integration tests, rather than the configured production database.
+    """
+    # Only apply this patch for integration tests that involve OutboxRelay
+    test_name = request.node.name
+    if "outbox" not in test_name.lower() and "relay" not in test_name.lower():
+        yield
+        return
+
+    from contextlib import asynccontextmanager
+    from unittest.mock import patch
+
+    # Get the test database session from the request
+    postgres_test_session_fixture = None
+    for fixture_name in request.fixturenames:
+        if fixture_name == "postgres_test_session":
+            postgres_test_session_fixture = request.getfixturevalue("postgres_test_session")
+            break
+
+    if postgres_test_session_fixture is None:
+        yield
+        return
+
+    # Create a mock create_sql_session that uses the test database
+    @asynccontextmanager
+    async def mock_create_sql_session():
+        # Use the test database session instead of creating a new one
+        try:
+            yield postgres_test_session_fixture
+            # Don't commit here since it's handled by the test session management
+        except Exception:
+            await postgres_test_session_fixture.rollback()
+            raise
+
+    with patch("src.services.outbox.relay.create_sql_session", mock_create_sql_session):
+        yield
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """注册自定义 markers，避免 UnknownMark 警告。"""
     config.addinivalue_line("markers", "redis_container: use Testcontainers Redis for this test")
@@ -19,20 +61,35 @@ def pytest_configure(config: pytest.Config) -> None:
 @pytest.fixture
 async def db_session(postgres_test_session) -> AsyncGenerator[AsyncSession, None]:
     """提供 PostgreSQL 数据库会话用于集成测试，并在每个测试后清理数据。"""
+
+    async def clean_all_tables():
+        """清理数据库中的所有用户创建的表（跳过系统表）"""
+        # 获取所有用户创建的表名
+        result = await postgres_test_session.execute(
+            text("""
+                SELECT tablename FROM pg_tables 
+                WHERE schemaname = 'public' 
+                AND tablename != 'alembic_version'
+                ORDER BY tablename
+            """)
+        )
+        table_names = [row[0] for row in result.fetchall()]
+
+        if table_names:
+            # 使用 TRUNCATE CASCADE 清理所有表
+            tables_list = ", ".join(table_names)
+            await postgres_test_session.execute(text(f"TRUNCATE TABLE {tables_list} CASCADE"))
+
+        await postgres_test_session.commit()
+
     # 在测试开始前清理数据库
-    await postgres_test_session.execute(
-        text("TRUNCATE TABLE users, sessions, email_verifications, domain_events CASCADE")
-    )
-    await postgres_test_session.commit()
+    await clean_all_tables()
 
     # 提供会话给测试
     yield postgres_test_session
 
     # 测试后再次清理（可选，但有助于确保隔离）
-    await postgres_test_session.execute(
-        text("TRUNCATE TABLE users, sessions, email_verifications, domain_events CASCADE")
-    )
-    await postgres_test_session.commit()
+    await clean_all_tables()
 
 
 @pytest.fixture
@@ -131,6 +188,7 @@ class _AsyncMemoryRedis:
     async def keys(self, pattern: str) -> list[str]:
         """Return keys matching pattern (simple * wildcard support)."""
         import fnmatch
+
         return [key for key in self.data.keys() if fnmatch.fnmatch(key, pattern)]
 
     async def close(self):

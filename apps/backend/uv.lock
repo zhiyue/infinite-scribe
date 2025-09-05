@@ -1336,7 +1336,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = "~=2.11.7" },
     { name = "pydantic-settings", specifier = "~=2.6.0" },
-    { name = "pymilvus", specifier = "~=2.4.9" },
+    { name = "pymilvus", specifier = "~=2.6.0" },
     { name = "python-dotenv", specifier = "~=1.0.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
@@ -1366,7 +1366,7 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "rich", specifier = "~=13.9.2" },
     { name = "ruff", specifier = "~=0.7.2" },
-    { name = "testcontainers", specifier = "~=4.8.0" },
+    { name = "testcontainers", extras = ["milvus"], specifier = "~=4.8.0" },
     { name = "types-python-jose", specifier = ">=3.5.0.20250531" },
     { name = "types-pyyaml", specifier = "~=6.0.12" },
     { name = "types-redis", specifier = "~=4.6.0" },
@@ -2665,7 +2665,7 @@ wheels = [
 
 [[package]]
 name = "pymilvus"
-version = "2.4.15"
+version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpcio" },
@@ -2676,9 +2676,9 @@ dependencies = [
     { name = "setuptools" },
     { name = "ujson" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/e6/8606b0dc479e4e6f2a2052c035d09d1911903b6c51f99c623268a4181cc8/pymilvus-2.4.15.tar.gz", hash = "sha256:b21878e5df74dca91b3f3cf0b0597fa6b6aed7bf5cde9a1b10641994faa353bf", size = 1232886, upload-time = "2025-02-24T03:02:04.469Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/a9/b25af985972082d1bb0b26739fece8cea3f56370733b4b1de690c42a77cc/pymilvus-2.6.1.tar.gz", hash = "sha256:ef1d7f5039719398d131ca80c19e55bc2bccc7ab6609f2cca9a04217dcb0a7fb", size = 1322169, upload-time = "2025-08-29T10:03:50.523Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/1d/00ff2f10c8fa0a7ac61a9e1121383fb0b8ebd9e0da97842bc1edc8773cda/pymilvus-2.4.15-py3-none-any.whl", hash = "sha256:0601591ce0498315e19e9ac3f4fdd3051102ca87b6ddff5b33849f522288cff7", size = 212278, upload-time = "2025-02-24T03:02:02.499Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/1a/8b677e0f4ef683bbfb00d495960573fff0844ed509b3cf0abede79a48e90/pymilvus-2.6.1-py3-none-any.whl", hash = "sha256:e3d76d45ce04d3555a6849645a18a1e2992706e248d5b6dc58a00504d0b60165", size = 254252, upload-time = "2025-08-29T10:03:48.539Z" },
 ]
 
 [[package]]

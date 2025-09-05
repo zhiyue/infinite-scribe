@@ -205,6 +205,8 @@ class OutboxRelayService:
             row.status = OutboxStatus.SENT
             row.sent_at = cast(Any, datetime.now(UTC))
             row.last_error = None
+            # Add to session to track changes for commit
+            session.add(row)
             log.info("relay_sent", topic=topic, key=key_value)
             return True
         except Exception as e:
@@ -229,6 +231,8 @@ class OutboxRelayService:
                 # Mark permanently failed
                 row.status = OutboxStatus.FAILED
                 row.scheduled_at = None
+                # Add to session to track changes for commit
+                session.add(row)
                 log.error(
                     "relay_retry_exhausted",
                     topic=topic,
@@ -242,6 +246,8 @@ class OutboxRelayService:
                 # Reschedule with backoff
                 scheduled_delay = delay_ms / 1000.0
                 row.scheduled_at = cast(Any, datetime.now(UTC) + timedelta(seconds=scheduled_delay))
+                # Add to session to track changes for commit
+                session.add(row)
                 log.warning(
                     "relay_send_failed",
                     topic=topic,
