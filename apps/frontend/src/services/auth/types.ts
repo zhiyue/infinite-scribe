@@ -124,6 +124,21 @@ export interface IHttpClient {
    * 移除拦截器
    */
   removeInterceptor(type: 'request' | 'response', id: number): void
+
+  /**
+   * 设置基础 URL
+   */
+  setBaseURL(baseURL: string): void
+
+  /**
+   * 设置超时时间
+   */
+  setTimeout(timeout: number): void
+
+  /**
+   * 清除所有拦截器
+   */
+  clearAllInterceptors(): void
 }
 
 /**
@@ -186,6 +201,11 @@ export interface ITokenManager {
     isAccessTokenExpiringSoon: boolean
     timeToRefresh: number | null
   }
+
+  /**
+   * 销毁令牌管理器（清理资源）
+   */
+  destroy(): void
 }
 
 /**

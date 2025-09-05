@@ -288,6 +288,18 @@ export class FetchHttpClient implements IHttpClient {
     console.warn('Interceptors not supported in FetchHttpClient')
   }
 
+  setBaseURL(baseURL: string): void {
+    this.baseURL = baseURL
+  }
+
+  setTimeout(timeout: number): void {
+    this.timeout = timeout
+  }
+
+  clearAllInterceptors(): void {
+    console.warn('Interceptors not supported in FetchHttpClient')
+  }
+
   /**
    * 执行 HTTP 请求
    * @private
@@ -447,6 +459,18 @@ export class MockHttpClient implements IHttpClient {
   }
 
   removeInterceptor(): void {
+    // Mock implementation
+  }
+
+  setBaseURL(baseURL: string): void {
+    // Mock implementation - not actually used in mock client
+  }
+
+  setTimeout(timeout: number): void {
+    this.delay = timeout
+  }
+
+  clearAllInterceptors(): void {
     // Mock implementation
   }
 

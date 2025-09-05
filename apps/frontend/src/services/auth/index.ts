@@ -30,6 +30,10 @@ export { AuthApiClient } from './auth-api-client'
 export { AuthService } from './auth-service'
 export { TokenManager } from './token-manager'
 
+// 导入 AuthService 类用于类型守卫
+import { AuthService } from './auth-service'
+import type { AuthServiceConfig } from './types'
+
 // 存储服务
 export {
   createStorageService,

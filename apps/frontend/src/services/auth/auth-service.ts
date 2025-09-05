@@ -6,7 +6,6 @@
 import type {
   IAuthService,
   ITokenManager,
-  IStorageService,
   INavigationService,
   IHttpClient,
   IAuthApiClient,
@@ -33,7 +32,6 @@ import { wrapApiResponse, type ApiSuccessResponse } from '../../utils/api-respon
  */
 export class AuthService implements IAuthService {
   private readonly tokenManager: ITokenManager
-  private readonly storageService: IStorageService
   private readonly navigationService: INavigationService
   private readonly httpClient: IHttpClient
   private readonly authApiClient: IAuthApiClient
@@ -44,7 +42,6 @@ export class AuthService implements IAuthService {
 
   constructor(dependencies: AuthDependencies) {
     this.tokenManager = dependencies.tokenManager
-    this.storageService = dependencies.storageService
     this.navigationService = dependencies.navigationService
     this.httpClient = dependencies.httpClient
     this.authApiClient = dependencies.authApiClient
