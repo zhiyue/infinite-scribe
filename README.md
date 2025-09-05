@@ -214,6 +214,11 @@ pnpm env:show     # 查看当前环境
 > 💡 **提示**: `.env` 是一个符号链接，指向当前激活的环境配置文件。详细环境配置说
 > 明请参考 [环境变量结构说明](./docs/guides/deployment/environment-structure.md)。
 
+#### 单独启动 Outbox Relay（数据库→Kafka）
+- 本地运行：`pnpm backend relay:run`（或 `cd apps/backend && uv run python -m src.services.outbox.relay`）
+- 通过 Launcher：`cd apps/backend && uv run is-launcher up --components relay --apply --stay`
+- 配置说明与 Docker 部署示例：见 `apps/backend/docs/relay-service.md`
+
 #### Outbox Relay 配置（可选）
 - 位置：后端 `.env`（嵌套变量）或 `apps/backend/config.toml` 的 `[relay]` 段
 - 变量（环境变量名 → 说明 → 默认）：
