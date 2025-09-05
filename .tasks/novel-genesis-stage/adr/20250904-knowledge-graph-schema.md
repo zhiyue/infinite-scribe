@@ -243,7 +243,7 @@ CREATE (char:Character {
     obstacles_environmental: '环境障碍',
     arc: '成长弧线描述',
     secrets: '心结或秘密'
-})-[:APPEARS_IN_NOVEL]->(n)
+})-[:BELONGS_TO]->(n)
 
 // 人物关系（可以有多种类型的关系）
 CREATE (char1)-[rel:RELATES_TO {
@@ -284,7 +284,7 @@ CREATE (chapter:Chapter {
     summary: '故事开始',
     word_count: 3000,
     status: 'drafted|revised|published'
-})-[:BELONGS_TO_NOVEL]->(n)
+})-[:BELONGS_TO]->(n)
 
 // 场景节点（地点与参与者使用关系表达，避免外键/列表）
 CREATE (scene:Scene {
@@ -411,7 +411,7 @@ class GraphQueryBuilder:
         """获取人物关系网络"""
         query = """
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (c:Character {app_id: $char_id})-[:APPEARS_IN_NOVEL]->(n)
+        MATCH (c:Character {app_id: $char_id})-[:BELONGS_TO]->(n)
         CALL apoc.path.subgraphAll(c, {
             relationshipFilter: "RELATES_TO>",
             maxLevel: $depth,
@@ -437,7 +437,7 @@ class GraphQueryBuilder:
         """检查时间线一致性"""
         query = """
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
+        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO]->(n)
         MATCH (e1)-[:TRIGGERS]->(e2:Event)
         WHERE e1.timestamp > e2.timestamp
         RETURN e1, e2, 'Timeline violation: cause after effect' as error
@@ -455,7 +455,7 @@ class GraphQueryBuilder:
         query = """
         // 查找没有解决的伏笔
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
+        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO]->(n)
         WHERE NOT EXISTS {
             MATCH (setup)-[:RESOLVED_BY]->(:Event)
         }
@@ -465,7 +465,7 @@ class GraphQueryBuilder:
         
         // 查找孤立的角色（没有任何关系）
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (c:Character)-[:APPEARS_IN_NOVEL]->(n)
+        MATCH (c:Character)-[:BELONGS_TO]->(n)
         WHERE NOT EXISTS {
             MATCH (c)-[:RELATES_TO]-()
         }
@@ -535,9 +535,9 @@ class GraphOptimizer:
         """预热缓存，加载常用数据"""
         queries = [
             # 预加载所有角色
-            "MATCH (n:Novel {novel_id: $nid})<-[:APPEARS_IN_NOVEL]-(c:Character) RETURN c LIMIT 1000",
+            "MATCH (n:Novel {novel_id: $nid})<-[:BELONGS_TO]-(c:Character) RETURN c LIMIT 1000",
             # 预加载主要位置（城市）
-            "MATCH (n:Novel {novel_id: $nid})<-[:BELONGS_TO_NOVEL]-(ch:Chapter)
+            "MATCH (n:Novel {novel_id: $nid})<-[:BELONGS_TO]-(ch:Chapter)
              MATCH (sc:Scene)-[:SCENE_IN]->(ch)
              MATCH (sc)-[:TAKES_PLACE_AT]->(l:Location {type: 'city'}) RETURN l LIMIT 1000",
             # 预加载核心规则（level=1）
