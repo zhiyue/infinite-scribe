@@ -99,6 +99,7 @@ def parse_components(items: Iterable[str]) -> list[ComponentType]:
     component_map = {
         ComponentType.API.value: ComponentType.API,
         ComponentType.AGENTS.value: ComponentType.AGENTS,
+        ComponentType.RELAY.value: ComponentType.RELAY,
     }
 
     mapped: list[ComponentType] = []
