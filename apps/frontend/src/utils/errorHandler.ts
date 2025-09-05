@@ -1,4 +1,4 @@
-import type { ApiError } from '@/types'
+import type { ApiError } from '../types/auth'
 
 // 错误类型枚举
 export enum ErrorCode {
@@ -41,6 +41,9 @@ const errorMessages: Record<ErrorCode, string> = {
 
 // 自定义错误类
 export class AppError extends Error implements ApiError {
+  detail: string
+  status_code?: number
+  retry_after?: number
   code: string
   statusCode?: number
   details?: unknown
@@ -49,7 +52,9 @@ export class AppError extends Error implements ApiError {
     super(message || errorMessages[code as ErrorCode] || '未知错误')
     this.name = 'AppError'
     this.code = code
+    this.detail = message || errorMessages[code as ErrorCode] || '未知错误'
     this.statusCode = statusCode
+    this.status_code = statusCode
     this.details = details
   }
 }
