@@ -5,8 +5,11 @@
 """
 
 from datetime import UTC, datetime
+from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+T = TypeVar("T")
 
 
 class BaseSchema(BaseModel):
@@ -69,3 +72,33 @@ class BaseDBModel(BaseModel):
             and "updated_at" in self.__class__.model_fields
         ):
             super().__setattr__("updated_at", datetime.now(tz=UTC))
+
+
+class ApiResponse(BaseSchema, Generic[T]):
+    """统一API响应格式"""
+
+    code: int = Field(..., description="响应状态码: 0=成功, 非0=错误")
+    msg: str = Field(..., description="响应消息")
+    data: T | None = Field(None, description="响应数据")
+
+
+class PaginationInfo(BaseSchema):
+    """分页信息"""
+
+    page: int = Field(..., ge=1, description="当前页码")
+    page_size: int = Field(..., ge=1, le=100, description="每页大小")
+    total: int = Field(..., ge=0, description="总记录数")
+    total_pages: int = Field(..., ge=0, description="总页数")
+
+
+class PaginatedResponse(BaseSchema, Generic[T]):
+    """分页数据响应"""
+
+    items: list[T] = Field(..., description="数据项目列表")
+    pagination: PaginationInfo = Field(..., description="分页信息")
+
+
+class PaginatedApiResponse(ApiResponse[PaginatedResponse[T]]):
+    """统一分页API响应格式"""
+
+    pass

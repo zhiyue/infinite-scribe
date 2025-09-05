@@ -4,7 +4,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, desc, asc, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,9 @@ class NovelService:
         skip: int = 0,
         limit: int = 50,
         status_filter: str | None = None,
+        search: str | None = None,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> dict[str, Any]:
         """Get paginated list of user's novels.
 
@@ -36,20 +39,45 @@ class NovelService:
             skip: Number of records to skip
             limit: Maximum number of records to return
             status_filter: Optional status filter
+            search: Optional search term for title and theme
+            sort_by: Sort field
+            sort_order: Sort order (asc or desc)
 
         Returns:
-            Result dictionary with novels list or error
+            Result dictionary with novels list, total count or error
         """
         try:
-            # Build query with user filter
-            query = select(Novel).where(Novel.user_id == user_id).order_by(Novel.updated_at.desc())
+            # Build base query with user filter
+            base_query = select(Novel).where(Novel.user_id == user_id)
 
             # Add status filter if provided
             if status_filter:
-                query = query.where(Novel.status == status_filter)
+                base_query = base_query.where(Novel.status == status_filter)
+
+            # Add search filter if provided
+            if search:
+                search_pattern = f"%{search}%"
+                base_query = base_query.where(
+                    or_(
+                        Novel.title.ilike(search_pattern),
+                        Novel.theme.ilike(search_pattern)
+                    )
+                )
+
+            # Get total count
+            count_query = select(func.count()).select_from(base_query.subquery())
+            count_result = await db.execute(count_query)
+            total = count_result.scalar()
+
+            # Add sorting
+            sort_column = getattr(Novel, sort_by, Novel.updated_at)
+            if sort_order.lower() == "asc":
+                base_query = base_query.order_by(asc(sort_column))
+            else:
+                base_query = base_query.order_by(desc(sort_column))
 
             # Apply pagination
-            query = query.offset(skip).limit(limit)
+            query = base_query.offset(skip).limit(limit)
 
             result = await db.execute(query)
             novels = result.scalars().all()
@@ -69,7 +97,7 @@ class NovelService:
                 for novel in novels
             ]
 
-            return {"success": True, "novels": novel_summaries}
+            return {"success": True, "novels": novel_summaries, "total": total}
 
         except Exception as e:
             logger.error(f"List user novels error: {e}")

@@ -11,6 +11,7 @@ from src.common.services.novel_service import novel_service
 from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User
+from src.schemas.base import ApiResponse, PaginatedApiResponse, PaginatedResponse, PaginationInfo
 from src.schemas.chapter.read import ChapterSummary
 from src.schemas.character.read import CharacterSummary
 from src.schemas.enums import NovelStatus
@@ -25,7 +26,7 @@ router = APIRouter()
 
 @router.get(
     "",
-    response_model=list[NovelSummary],
+    response_model=PaginatedApiResponse[NovelSummary],
     responses={
         500: {"model": ErrorResponse},
         401: {"model": ErrorResponse},
@@ -33,55 +34,84 @@ router = APIRouter()
         422: {"model": ErrorResponse},
     },
     summary="Get user's novels",
-    description="Get a list of novels belonging to the authenticated user",
+    description="Get a paginated list of novels belonging to the authenticated user",
 )
 async def list_user_novels(
-    skip: int = Query(0, ge=0, description="Number of novels to skip"),
-    limit: int = Query(50, ge=1, le=100, description="Number of novels to return"),
-    status_filter: NovelStatus | None = Query(None, description="Filter by novel status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="Number of novels per page"),
+    status_filter: NovelStatus | None = Query(None, alias="status", description="Filter by novel status"),
+    search: str | None = Query(None, description="Search in title and theme"),
+    sort_by: str = Query("updated_at", alias="sortBy", description="Sort field"),
+    sort_order: str = Query("desc", alias="sortOrder", description="Sort order: asc or desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[NovelSummary]:
+) -> PaginatedApiResponse[NovelSummary]:
     """Get paginated list of user's novels.
 
     Args:
-        skip: Number of novels to skip for pagination
-        limit: Maximum number of novels to return
+        page: Page number (starts from 1)
+        page_size: Number of novels per page
         status_filter: Optional status filter
+        search: Optional search term for title and theme
+        sort_by: Sort field
+        sort_order: Sort order (asc or desc)
         db: Database session
         current_user: Current authenticated user
 
     Returns:
-        List of novel summaries
+        Paginated response with novel summaries
 
     Raises:
         HTTPException: If retrieval fails
     """
     try:
-        result = await novel_service.list_user_novels(db, current_user.id, skip, limit, status_filter)
+        # Convert page-based pagination to offset-based
+        skip = (page - 1) * page_size
+
+        # Call service with extended parameters
+        result = await novel_service.list_user_novels(
+            db=db,
+            user_id=current_user.id,
+            skip=skip,
+            limit=page_size,
+            status_filter=status_filter,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
 
         if not result["success"]:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=result["error"],
-            )
+            return PaginatedApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["novels"]
+        # Calculate pagination info
+        total = result.get("total", 0)
+        total_pages = (total + page_size - 1) // page_size
+
+        pagination_info = PaginationInfo(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=total_pages,
+        )
+
+        paginated_data = PaginatedResponse(
+            items=result["novels"],
+            pagination=pagination_info,
+        )
+
+        return PaginatedApiResponse(code=0, msg="获取小说列表成功", data=paginated_data)
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"List novels error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while retrieving novels",
-        ) from e
+        return PaginatedApiResponse(code=500, msg="获取小说列表时发生错误", data=None)
 
 
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    response_model=NovelResponse,
+    response_model=ApiResponse[NovelResponse],
     responses={
         400: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -96,7 +126,7 @@ async def create_novel(
     request: NovelCreateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse:
+) -> ApiResponse[NovelResponse]:
     """Create a new novel.
 
     Args:
@@ -105,7 +135,7 @@ async def create_novel(
         current_user: Current authenticated user
 
     Returns:
-        Created novel details
+        Created novel details in unified response format
 
     Raises:
         HTTPException: If creation fails
@@ -116,26 +146,22 @@ async def create_novel(
         if not result["success"]:
             # Handle different error types appropriately
             if "constraint" in result["error"].lower():
-                status_code = status.HTTP_400_BAD_REQUEST
+                return ApiResponse(code=400, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["novel"]
+        return ApiResponse(code=0, msg="创建小说成功", data=result["novel"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Create novel error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while creating the novel",
-        ) from e
+        return ApiResponse(code=500, msg="创建小说时发生错误", data=None)
 
 
 @router.get(
     "/{novel_id}",
-    response_model=NovelResponse,
+    response_model=ApiResponse[NovelResponse],
     responses={
         404: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -150,7 +176,7 @@ async def get_novel(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse:
+) -> ApiResponse[NovelResponse]:
     """Get novel by ID.
 
     Args:
@@ -159,7 +185,7 @@ async def get_novel(
         current_user: Current authenticated user
 
     Returns:
-        Novel details
+        Novel details in unified response format
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -169,26 +195,22 @@ async def get_novel(
 
         if not result["success"]:
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["novel"]
+        return ApiResponse(code=0, msg="获取小说详情成功", data=result["novel"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Get novel error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while retrieving the novel",
-        ) from e
+        return ApiResponse(code=500, msg="获取小说详情时发生错误", data=None)
 
 
 @router.put(
     "/{novel_id}",
-    response_model=NovelResponse,
+    response_model=ApiResponse[NovelResponse],
     responses={
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
@@ -205,7 +227,7 @@ async def update_novel(
     request: NovelUpdateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse:
+) -> ApiResponse[NovelResponse]:
     """Update novel by ID.
 
     Args:
@@ -215,7 +237,7 @@ async def update_novel(
         current_user: Current authenticated user
 
     Returns:
-        Updated novel details
+        Updated novel details in unified response format
 
     Raises:
         HTTPException: If novel not found, access denied, or update fails
@@ -226,28 +248,24 @@ async def update_novel(
         if not result["success"]:
             # Handle different error types
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             elif result.get("error_code") == "CONFLICT":
-                status_code = status.HTTP_409_CONFLICT
+                return ApiResponse(code=409, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["novel"]
+        return ApiResponse(code=0, msg="更新小说成功", data=result["novel"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Update novel error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while updating the novel",
-        ) from e
+        return ApiResponse(code=500, msg="更新小说时发生错误", data=None)
 
 
 @router.delete(
     "/{novel_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=ApiResponse[None],
     responses={
         404: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -262,7 +280,7 @@ async def delete_novel(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> None:
+) -> ApiResponse[None]:
     """Delete novel by ID.
 
     Args:
@@ -271,7 +289,7 @@ async def delete_novel(
         current_user: Current authenticated user
 
     Returns:
-        None (204 No Content)
+        Unified response format
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -281,24 +299,22 @@ async def delete_novel(
 
         if not result["success"]:
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
+
+        return ApiResponse(code=0, msg="删除小说成功", data=None)
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Delete novel error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while deleting the novel",
-        ) from e
+        return ApiResponse(code=500, msg="删除小说时发生错误", data=None)
 
 
 @router.get(
     "/{novel_id}/chapters",
-    response_model=list[ChapterSummary],
+    response_model=ApiResponse[list[ChapterSummary]],
     responses={
         404: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -313,7 +329,7 @@ async def get_novel_chapters(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[ChapterSummary]:
+) -> ApiResponse[list[ChapterSummary]]:
     """Get chapters for a novel.
 
     Args:
@@ -322,7 +338,7 @@ async def get_novel_chapters(
         current_user: Current authenticated user
 
     Returns:
-        List of chapters
+        List of chapters in unified response format
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -332,26 +348,22 @@ async def get_novel_chapters(
 
         if not result["success"]:
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["chapters"]
+        return ApiResponse(code=0, msg="获取章节列表成功", data=result["chapters"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Get novel chapters error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while retrieving chapters",
-        ) from e
+        return ApiResponse(code=500, msg="获取章节列表时发生错误", data=None)
 
 
 @router.get(
     "/{novel_id}/characters",
-    response_model=list[CharacterSummary],
+    response_model=ApiResponse[list[CharacterSummary]],
     responses={
         404: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -366,7 +378,7 @@ async def get_novel_characters(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[CharacterSummary]:
+) -> ApiResponse[list[CharacterSummary]]:
     """Get characters for a novel.
 
     Args:
@@ -375,7 +387,7 @@ async def get_novel_characters(
         current_user: Current authenticated user
 
     Returns:
-        List of characters
+        List of characters in unified response format
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -385,26 +397,22 @@ async def get_novel_characters(
 
         if not result["success"]:
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["characters"]
+        return ApiResponse(code=0, msg="获取角色列表成功", data=result["characters"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Get novel characters error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while retrieving characters",
-        ) from e
+        return ApiResponse(code=500, msg="获取角色列表时发生错误", data=None)
 
 
 @router.get(
     "/{novel_id}/stats",
-    response_model=NovelProgress,
+    response_model=ApiResponse[NovelProgress],
     responses={
         404: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
@@ -419,7 +427,7 @@ async def get_novel_stats(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelProgress:
+) -> ApiResponse[NovelProgress]:
     """Get statistics for a novel.
 
     Args:
@@ -428,7 +436,7 @@ async def get_novel_stats(
         current_user: Current authenticated user
 
     Returns:
-        Novel progress and statistics
+        Novel progress and statistics in unified response format
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -438,18 +446,14 @@ async def get_novel_stats(
 
         if not result["success"]:
             if "not found" in result["error"].lower():
-                status_code = status.HTTP_404_NOT_FOUND
+                return ApiResponse(code=404, msg=result["error"], data=None)
             else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=result["error"])
+                return ApiResponse(code=500, msg=result["error"], data=None)
 
-        return result["stats"]
+        return ApiResponse(code=0, msg="获取统计信息成功", data=result["stats"])
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Get novel stats error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while retrieving novel statistics",
-        ) from e
+        return ApiResponse(code=500, msg="获取统计信息时发生错误", data=None)

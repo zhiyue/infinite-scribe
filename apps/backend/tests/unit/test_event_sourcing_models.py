@@ -443,7 +443,7 @@ class TestGenesisSessionModel:
             user_id=user_id,
             novel_id=None,
             status=GenesisStatus.IN_PROGRESS,
-            current_stage=GenesisStage.CONCEPT_SELECTION,
+            current_stage=GenesisStage.INITIAL_PROMPT,
             confirmed_data=None,
             version=1,
             created_at=now,
@@ -452,7 +452,7 @@ class TestGenesisSessionModel:
 
         assert session.id is not None
         assert session.status == GenesisStatus.IN_PROGRESS
-        assert session.current_stage == GenesisStage.CONCEPT_SELECTION
+        assert session.current_stage == GenesisStage.INITIAL_PROMPT
         assert session.confirmed_data is None
 
     def test_create_genesis_session_with_data(self):

@@ -57,8 +57,7 @@ class GenesisStatus(str, Enum):
 class GenesisStage(str, Enum):
     """创世业务阶段枚举"""
 
-    CONCEPT_SELECTION = "CONCEPT_SELECTION"
-    STORY_CONCEPTION = "STORY_CONCEPTION"
+    INITIAL_PROMPT = "INITIAL_PROMPT"
     WORLDVIEW = "WORLDVIEW"
     CHARACTERS = "CHARACTERS"
     PLOT_OUTLINE = "PLOT_OUTLINE"
