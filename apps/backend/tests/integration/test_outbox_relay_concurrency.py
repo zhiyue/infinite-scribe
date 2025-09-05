@@ -1,13 +1,16 @@
 """Concurrency and edge case tests for OutboxRelayService using real Kafka testcontainers."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import sessionmaker
+from src.db.sql.session import create_sql_session
 from src.models.workflow import EventOutbox
 from src.schemas.enums import OutboxStatus
 from src.services.outbox.relay import OutboxRelayService
@@ -22,12 +25,16 @@ class TestOutboxRelayServiceConcurrency:
         """Mock Kafka settings for testing."""
         settings = MagicMock()
         settings.kafka_bootstrap_servers = ["localhost:9092"]
+        settings.environment = "test"
+        settings.log_level = "INFO"
+        
         settings.relay.batch_size = 5
         settings.relay.poll_interval_seconds = 0.1
         settings.relay.retry_backoff_ms = 100
         settings.relay.max_backoff_ms = 1000
         settings.relay.max_retries_default = 3
         settings.relay.loop_error_backoff_ms = 100
+        settings.relay.yield_sleep_ms = 1
 
         # For Kafka connection mocking
         settings.kafka.bootstrap_servers = ["localhost:9092"]
@@ -686,40 +693,39 @@ class TestOutboxRelayServiceConcurrency:
                     raise
 
     @pytest.mark.asyncio
-    async def test_memory_efficiency_under_high_concurrency(self, mock_kafka_settings, clean_outbox_table):
+    async def test_memory_efficiency_under_high_concurrency(self, mock_kafka_settings, clean_outbox_table, db_session):
         """Test memory efficiency with many concurrent operations."""
         with patch("src.services.outbox.relay.get_settings") as mock_get_settings:
             mock_get_settings.return_value = mock_kafka_settings
 
             # Create messages with large payloads to test memory handling
             large_messages = []
-            async with create_sql_session() as session:
-                for i in range(10):
-                    # Create large payload to test memory efficiency
-                    large_payload = {
-                        "event": f"large_message_{i}",
-                        "data": {
-                            "large_text": "x" * 1000,  # 1KB text
-                            "array_data": list(range(100)),
-                            "nested": {"deep": {"data": ["item"] * 50}},
-                        },
-                        "metadata": {"size": "large", "index": i},
-                    }
+            for i in range(10):
+                # Create large payload to test memory efficiency
+                large_payload = {
+                    "event": f"large_message_{i}",
+                    "data": {
+                        "large_text": "x" * 1000,  # 1KB text
+                        "array_data": list(range(100)),
+                        "nested": {"deep": {"data": ["item"] * 50}},
+                    },
+                    "metadata": {"size": "large", "index": i},
+                }
 
-                    message_data = {
-                        "id": uuid4(),
-                        "topic": f"large.topic.{i}",
-                        "payload": large_payload,
-                        "status": OutboxStatus.PENDING,
-                        "retry_count": 0,
-                        "max_retries": 3,
-                        "created_at": datetime.now(UTC) + timedelta(milliseconds=i),
-                    }
+                message_data = {
+                    "id": uuid4(),
+                    "topic": f"large.topic.{i}",
+                    "payload": large_payload,
+                    "status": OutboxStatus.PENDING,
+                    "retry_count": 0,
+                    "max_retries": 3,
+                    "created_at": datetime.now(UTC) + timedelta(milliseconds=i),
+                }
 
-                    result = await session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
-                    large_messages.append(result.scalar_one())
+                result = await db_session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
+                large_messages.append(result.scalar_one())
 
-                await session.commit()
+            await db_session.commit()
 
             memory_snapshots = []
 
@@ -737,40 +743,40 @@ class TestOutboxRelayServiceConcurrency:
                 mock_producer.send_and_wait = memory_tracking_send_and_wait
                 mock_producer_class.return_value = mock_producer
 
-                # Create multiple workers for concurrent processing
-                workers = []
-                for i in range(4):
-                    worker = OutboxRelayService()
-                    await worker.start()
-                    workers.append(worker)
+                # Create multiple workers for concurrent processing  
+                with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                    workers = []
+                    for i in range(4):
+                        worker = OutboxRelayService()
+                        await worker.start()
+                        workers.append(worker)
 
-                try:
+                    try:
+                        async def memory_efficient_worker(worker):
+                            processed = 0
+                            for _ in range(5):
+                                batch_processed = await worker._drain_once()
+                                processed += batch_processed
+                                # Brief pause to allow memory cleanup
+                                await asyncio.sleep(0.001)
+                            return processed
 
-                    async def memory_efficient_worker(worker):
-                        processed = 0
-                        for _ in range(5):
-                            batch_processed = await worker._drain_once()
-                            processed += batch_processed
-                            # Brief pause to allow memory cleanup
-                            await asyncio.sleep(0.001)
-                        return processed
+                        # Process all messages concurrently
+                        tasks = [asyncio.create_task(memory_efficient_worker(worker)) for worker in workers]
 
-                    # Process all messages concurrently
-                    tasks = [asyncio.create_task(memory_efficient_worker(worker)) for worker in workers]
+                        results = await asyncio.gather(*tasks)
+                        total_processed = sum(results)
 
-                    results = await asyncio.gather(*tasks)
-                    total_processed = sum(results)
+                        # Verify all messages processed
+                        assert total_processed == len(large_messages)
 
-                    # Verify all messages processed
-                    assert total_processed == len(large_messages)
+                        # Verify memory efficiency - each payload should be processed once
+                        assert len(memory_snapshots) == len(large_messages)
 
-                    # Verify memory efficiency - each payload should be processed once
-                    assert len(memory_snapshots) == len(large_messages)
+                        # Verify large payloads were handled (each ~1KB+ when serialized)
+                        avg_payload_size = sum(memory_snapshots) / len(memory_snapshots)
+                        assert avg_payload_size > 500  # Should be substantial size
 
-                    # Verify large payloads were handled (each ~1KB+ when serialized)
-                    avg_payload_size = sum(memory_snapshots) / len(memory_snapshots)
-                    assert avg_payload_size > 500  # Should be substantial size
-
-                finally:
-                    for worker in workers:
-                        await worker.stop()
+                    finally:
+                        for worker in workers:
+                            await worker.stop()

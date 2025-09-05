@@ -69,6 +69,30 @@ class TestOutboxRelayServiceRealKafka:
 
         await consumer.stop()
 
+    def create_mock_sql_session(self, db_session: AsyncSession):
+        """Create a mock create_sql_session that uses the same database engine as the test.
+
+        Ensures OutboxRelayService uses the same Postgres testcontainer database
+        as the tests, avoiding cross-DB visibility issues.
+        """
+        from contextlib import asynccontextmanager
+        from sqlalchemy.orm import sessionmaker
+
+        engine = db_session.bind
+
+        @asynccontextmanager
+        async def mock_create_sql_session():
+            async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)()
+            try:
+                yield async_session
+            except Exception:
+                await async_session.rollback()
+                raise
+            finally:
+                await async_session.close()
+
+        return mock_create_sql_session
+
     async def create_test_message(
         self,
         db_session: AsyncSession,
@@ -83,6 +107,12 @@ class TestOutboxRelayServiceRealKafka:
         if payload is None:
             payload = {"event": "test", "data": "kafka_integration_test", "timestamp": datetime.now(UTC).isoformat()}
 
+        # Ensure DB check constraints are satisfied: scheduled_at (if set) >= created_at
+        now_ts = datetime.now(UTC)
+        created_ts = now_ts
+        if scheduled_at is not None and scheduled_at < created_ts:
+            created_ts = scheduled_at
+
         message_data = {
             "id": uuid4(),
             "topic": topic,
@@ -94,7 +124,7 @@ class TestOutboxRelayServiceRealKafka:
             "retry_count": retry_count,
             "max_retries": max_retries,
             "scheduled_at": scheduled_at,
-            "created_at": datetime.now(UTC),
+            "created_at": created_ts,
         }
 
         result = await db_session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
@@ -163,9 +193,9 @@ class TestOutboxRelayServiceRealKafka:
 
             # Start the relay service with real Kafka
             service = OutboxRelayService()
-            await service.start()
-
-            try:
+            # Use the same DB as the test Postgres container for entire run
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
                 # Process the message
                 processed = await service._drain_once()
                 assert processed == 1
@@ -191,7 +221,6 @@ class TestOutboxRelayServiceRealKafka:
                 assert kafka_message["headers"]["source"] == "kafka_integration_test"
                 assert kafka_message["headers"]["version"] == "1.0"
 
-            finally:
                 await service.stop()
 
     @pytest.mark.asyncio
@@ -210,9 +239,8 @@ class TestOutboxRelayServiceRealKafka:
                 test_messages.append((message, payload))
 
             service = OutboxRelayService()
-            await service.start()
-
-            try:
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
                 # Process all messages
                 processed = await service._drain_once()
                 assert processed == 3
@@ -238,7 +266,6 @@ class TestOutboxRelayServiceRealKafka:
                     assert consumed_payload["data"]["batch"] == "multi_kafka"
                     assert consumed_payload["event"].startswith("multi_test_")
 
-            finally:
                 await service.stop()
 
     @pytest.mark.asyncio
@@ -272,9 +299,8 @@ class TestOutboxRelayServiceRealKafka:
 
             # Test successful retry after fixing configuration
             service2 = OutboxRelayService()
-            await service2.start()
-
-            try:
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service2.start()
                 # Process the message - should succeed now
                 processed = await service2._drain_once()
                 assert processed == 1
@@ -283,7 +309,6 @@ class TestOutboxRelayServiceRealKafka:
                 updated_message = await self.get_message_from_db(db_session, test_message.id)
                 assert updated_message.status == OutboxStatus.SENT
 
-            finally:
                 await service2.stop()
 
     @pytest.mark.asyncio
@@ -311,9 +336,8 @@ class TestOutboxRelayServiceRealKafka:
             )
 
             service = OutboxRelayService()
-            await service.start()
-
-            try:
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
                 # Process the large message
                 processed = await service._drain_once()
                 assert processed == 1
@@ -336,7 +360,6 @@ class TestOutboxRelayServiceRealKafka:
                 assert len(kafka_message["value"]["data"]["array_data"]) == 1000
                 assert len(kafka_message["value"]["data"]["nested_structure"]["level1"]["level2"]["items"]) == 100
 
-            finally:
                 await service.stop()
 
     @pytest.mark.asyncio
@@ -360,12 +383,13 @@ class TestOutboxRelayServiceRealKafka:
             service1 = OutboxRelayService()
             service2 = OutboxRelayService()
 
-            await service1.start()
-            await service2.start()
-
-            try:
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service1.start()
+                await service2.start()
                 # Run both workers concurrently
-                results = await asyncio.gather(service1._drain_once(), service2._drain_once(), return_exceptions=True)
+                results = await asyncio.gather(
+                    service1._drain_once(), service2._drain_once(), return_exceptions=True
+                )
 
                 # Total processed should equal number of messages (no duplication)
                 total_processed = sum(r for r in results if isinstance(r, int))
@@ -383,7 +407,6 @@ class TestOutboxRelayServiceRealKafka:
                 expected_indices = {i for i in range(len(test_messages))}
                 assert consumed_indices == expected_indices
 
-            finally:
                 await service1.stop()
                 await service2.stop()
 
@@ -425,7 +448,8 @@ class TestOutboxRelayServiceRealKafka:
             await db_session.commit()
 
             service = OutboxRelayService()
-            await service.start()
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
 
             try:
                 # Process the message
@@ -491,9 +515,8 @@ class TestOutboxRelayServiceRealKafka:
             )
 
             service = OutboxRelayService()
-            await service.start()
-
-            try:
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
                 # Process messages - should process immediate and past scheduled only
                 processed = await service._drain_once()
                 assert processed == 2  # immediate + past scheduled
@@ -513,7 +536,6 @@ class TestOutboxRelayServiceRealKafka:
                 future_message_updated = await self.get_message_from_db(db_session, future_scheduled_message.id)
                 assert future_message_updated.status == OutboxStatus.PENDING
 
-            finally:
                 await service.stop()
 
     @pytest.mark.asyncio
@@ -545,7 +567,8 @@ class TestOutboxRelayServiceRealKafka:
             await self.create_test_message(db_session, topic="integration.test.shutdown", payload=test_payload)
 
             service = OutboxRelayService()
-            await service.start()
+            with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
+                await service.start()
 
             try:
                 # Start processing in background
@@ -569,6 +592,7 @@ class TestOutboxRelayServiceRealKafka:
                     # Timeout is acceptable for graceful shutdown test
                     pass
 
+    
                 # Verify shutdown was reasonably quick
                 shutdown_duration = (shutdown_end - shutdown_start).total_seconds()
                 assert shutdown_duration < 2.0  # Should shutdown within 2 seconds

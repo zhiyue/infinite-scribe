@@ -200,7 +200,7 @@ def redis_service(use_external_services):
 
 @pytest.fixture(scope="session")
 def kafka_service(use_external_services):
-    """Provide Kafka connection configuration."""
+    """Provide Kafka connection configuration with KRaft mode and pre-created topics."""
     if use_external_services:
         # Use external Kafka service
         yield {
@@ -215,26 +215,32 @@ def kafka_service(use_external_services):
         except ImportError:
             pytest.skip("KafkaContainer not available in testcontainers")
 
-        kafka = None
+        container = None
         try:
-            # Use Kafka testcontainer with Zookeeper
-            kafka = KafkaContainer("confluentinc/cp-kafka:7.4.0")
-            kafka.start()
+            # Start Kafka with KRaft and auto topic creation enabled
+            container = (
+                KafkaContainer()
+                .with_kraft()
+                .with_env("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
+                .with_env("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
+                .with_env("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
+                .with_env("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
+            )
+            container.start()
 
-            bootstrap_servers = [f"{kafka.get_container_host_ip()}:{kafka.get_exposed_port(9093)}"]
+            bootstrap_server = container.get_bootstrap_server()
+            print(f"Kafka testcontainer started: {bootstrap_server}")
 
+            host, port = bootstrap_server.split(":")
             yield {
-                "bootstrap_servers": bootstrap_servers,
-                "host": kafka.get_container_host_ip(),
-                "port": kafka.get_exposed_port(9093),
+                "bootstrap_servers": [bootstrap_server],
+                "host": host,
+                "port": int(port),
             }
         finally:
-            # Ensure cleanup even if Ryuk fails
-            if kafka:
-                try:
-                    kafka.stop()
-                except Exception as e:
-                    print(f"Warning: Failed to stop Kafka container: {e}")
+            if container:
+                with suppress(Exception):
+                    container.stop()
 
 
 MILVUS_IMAGE = os.getenv("MILVUS_IMAGE", "milvusdb/milvus:v2.4.10")  # 固定版本

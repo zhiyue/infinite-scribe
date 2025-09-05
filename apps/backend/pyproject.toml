@@ -58,6 +58,7 @@ dev = [
     "pytest-cov~=6.0.0",
     "pytest-mock~=3.14.0",
     "testcontainers[milvus]~=4.8.0",
+    "kafka-python~=2.0.2",
     # Code Quality
     "ruff~=0.7.2",
     "black~=24.10.0",
