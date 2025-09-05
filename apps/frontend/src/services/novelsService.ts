@@ -11,17 +11,28 @@ import type {
   CreateNovelRequest,
   UpdateNovelRequest,
   NovelQueryParams,
-  ChaptersResponse,
-  CharactersResponse,
-  NovelStatsResponse,
+  ApiResponse,
+  PaginatedApiResponse,
 } from '@/types/api'
+import type { NovelStats } from '@/types/api'
+
+/**
+ * 处理API响应的辅助函数
+ */
+function handleApiResponse<T>(response: ApiResponse<T>): T {
+  if (response.code === 0) {
+    return response.data as T
+  } else {
+    throw new Error(response.msg || 'API请求失败')
+  }
+}
 
 export class NovelsService {
   /**
    * 获取用户的小说列表
    * GET /api/v1/novels
    */
-  async getNovels(params?: NovelQueryParams): Promise<Novel[]> {
+  async getNovels(params?: NovelQueryParams): Promise<{ items: Novel[], pagination: any }> {
     const searchParams = new URLSearchParams()
     
     if (params) {
@@ -39,7 +50,8 @@ export class NovelsService {
     const query = searchParams.toString()
     const url = query ? `/api/v1/novels?${query}` : '/api/v1/novels'
     
-    return authenticatedApiService.get<Novel[]>(url)
+    const response = await authenticatedApiService.get<PaginatedApiResponse<Novel>>(url)
+    return handleApiResponse(response)
   }
 
   /**
@@ -47,7 +59,8 @@ export class NovelsService {
    * POST /api/v1/novels
    */
   async createNovel(novel: CreateNovelRequest): Promise<Novel> {
-    return authenticatedApiService.post<Novel>('/api/v1/novels', novel)
+    const response = await authenticatedApiService.post<ApiResponse<Novel>>('/api/v1/novels', novel)
+    return handleApiResponse(response)
   }
 
   /**
@@ -55,7 +68,8 @@ export class NovelsService {
    * GET /api/v1/novels/{id}
    */
   async getNovel(id: string): Promise<Novel> {
-    return authenticatedApiService.get<Novel>(`/api/v1/novels/${id}`)
+    const response = await authenticatedApiService.get<ApiResponse<Novel>>(`/api/v1/novels/${id}`)
+    return handleApiResponse(response)
   }
 
   /**
@@ -63,7 +77,8 @@ export class NovelsService {
    * PUT /api/v1/novels/{id}
    */
   async updateNovel(id: string, updates: UpdateNovelRequest): Promise<Novel> {
-    return authenticatedApiService.put<Novel>(`/api/v1/novels/${id}`, updates)
+    const response = await authenticatedApiService.put<ApiResponse<Novel>>(`/api/v1/novels/${id}`, updates)
+    return handleApiResponse(response)
   }
 
   /**
@@ -71,31 +86,35 @@ export class NovelsService {
    * DELETE /api/v1/novels/{id}
    */
   async deleteNovel(id: string): Promise<void> {
-    return authenticatedApiService.delete<void>(`/api/v1/novels/${id}`)
+    const response = await authenticatedApiService.delete<ApiResponse<null>>(`/api/v1/novels/${id}`)
+    handleApiResponse(response)
   }
 
   /**
    * 获取小说的章节列表
    * GET /api/v1/novels/{id}/chapters
    */
-  async getNovelChapters(novelId: string): Promise<ChaptersResponse> {
-    return authenticatedApiService.get<ChaptersResponse>(`/api/v1/novels/${novelId}/chapters`)
+  async getNovelChapters(novelId: string): Promise<Chapter[]> {
+    const response = await authenticatedApiService.get<ApiResponse<Chapter[]>>(`/api/v1/novels/${novelId}/chapters`)
+    return handleApiResponse(response)
   }
 
   /**
    * 获取小说的角色列表
    * GET /api/v1/novels/{id}/characters
    */
-  async getNovelCharacters(novelId: string): Promise<CharactersResponse> {
-    return authenticatedApiService.get<CharactersResponse>(`/api/v1/novels/${novelId}/characters`)
+  async getNovelCharacters(novelId: string): Promise<Character[]> {
+    const response = await authenticatedApiService.get<ApiResponse<Character[]>>(`/api/v1/novels/${novelId}/characters`)
+    return handleApiResponse(response)
   }
 
   /**
    * 获取小说统计信息
    * GET /api/v1/novels/{id}/stats
    */
-  async getNovelStats(novelId: string): Promise<NovelStatsResponse> {
-    return authenticatedApiService.get<NovelStatsResponse>(`/api/v1/novels/${novelId}/stats`)
+  async getNovelStats(novelId: string): Promise<NovelStats> {
+    const response = await authenticatedApiService.get<ApiResponse<NovelStats>>(`/api/v1/novels/${novelId}/stats`)
+    return handleApiResponse(response)
   }
 }
 

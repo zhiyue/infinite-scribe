@@ -72,6 +72,7 @@ export enum ChapterStatus {
   REVIEWING = 'REVIEWING',
   REVISING = 'REVISING',
   PUBLISHED = 'PUBLISHED',
+  FAILED = 'FAILED',
 }
 
 /**
@@ -81,6 +82,7 @@ export enum GenesisStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   ABANDONED = 'ABANDONED',
+  PAUSED = 'PAUSED',
 }
 
 /**

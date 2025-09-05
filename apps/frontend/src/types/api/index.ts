@@ -3,53 +3,56 @@
  * 用于前后端 API 通信
  */
 
-import type {
-  Novel,
-  Chapter,
-  // @ts-expect-error - Used in CreateCharacterRequest
-  Character,
-  // @ts-expect-error - Used in CreateWorldviewEntryRequest
-  WorldviewEntry,
-  GenesisSession,
-  WorkflowRun,
-} from '../models/entities'
 import { GenesisMode } from '../enums'
+import type { Chapter, GenesisSession, Novel, WorkflowRun } from '../models/entities'
 
 /**
- * API 响应基础类型（已在原 types/index.ts 中定义）
- * 这里重新导出以保持一致性
+ * 统一API响应格式 - 匹配后端 ApiResponse<T>
  */
 export interface ApiResponse<T = unknown> {
-  success: boolean
-  data?: T
-  error?: {
-    code: string
-    message: string
-    details?: unknown
-  }
-  timestamp?: string
+  /** 响应状态码: 0=成功, 非0=错误 */
+  code: number
+  /** 响应消息 */
+  msg: string
+  /** 响应数据 */
+  data?: T | null
 }
 
 /**
- * 分页参数（已在原 types/index.ts 中定义）
+ * 分页信息 - 匹配后端 PaginationInfo
  */
-export interface PaginationParams {
+export interface PaginationInfo {
+  /** 当前页码 */
   page: number
-  pageSize: number
-  total?: number
+  /** 每页大小 */
+  page_size: number
+  /** 总记录数 */
+  total: number
+  /** 总页数 */
+  total_pages: number
 }
 
 /**
- * 分页响应（已在原 types/index.ts 中定义）
+ * 分页数据响应 - 匹配后端 PaginatedResponse<T>
  */
 export interface PaginatedResponse<T> {
+  /** 数据项目列表 */
   items: T[]
-  pagination: {
-    page: number
-    pageSize: number
-    total: number
-    totalPages: number
-  }
+  /** 分页信息 */
+  pagination: PaginationInfo
+}
+
+/**
+ * 统一分页API响应格式 - 匹配后端 PaginatedApiResponse<T>
+ */
+export interface PaginatedApiResponse<T> extends ApiResponse<PaginatedResponse<T>> {}
+
+/**
+ * 分页查询参数
+ */
+export interface PaginationParams {
+  page?: number
+  pageSize?: number
 }
 
 // ===== 小说相关 API =====
@@ -81,37 +84,26 @@ export interface UpdateNovelRequest {
 
 /**
  * 小说列表查询参数 - GET /api/v1/novels
+ * 使用camelCase风格，后端会通过alias映射到snake_case
  */
 export interface NovelQueryParams {
   page?: number
   pageSize?: number
+  /** 状态过滤 - 对应后端 status_filter */
   status?: Novel['status']
+  /** 搜索关键词 - 在title和theme中搜索 */
   search?: string
-  sortBy?: 'createdAt' | 'updatedAt' | 'title' | 'wordCount'
+  /** 排序字段 */
+  sortBy?: 'created_at' | 'updated_at' | 'title' | 'target_chapters'
+  /** 排序方向 */
   sortOrder?: 'asc' | 'desc'
-  tags?: string[]
 }
 
-/**
- * 小说列表响应
- */
-export interface NovelsListResponse {
-  novels: Novel[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
+// 小说列表响应现在使用 PaginatedApiResponse<Novel> 格式
 
 // ===== 章节相关 API =====
 
-/**
- * 章节列表响应 - GET /api/v1/novels/{id}/chapters
- */
-export interface ChaptersResponse {
-  chapters: Chapter[]
-  total: number
-}
+// 章节列表响应现在使用 ApiResponse<Chapter[]> 格式
 
 /**
  * 创建章节请求
@@ -142,13 +134,7 @@ export interface ChapterContentResponse {
 
 // ===== 角色相关 API =====
 
-/**
- * 角色列表响应 - GET /api/v1/novels/{id}/characters
- */
-export interface CharactersResponse {
-  characters: Character[]
-  total: number
-}
+// 角色列表响应现在使用 ApiResponse<Character[]> 格式
 
 /**
  * 创建角色请求
@@ -287,12 +273,7 @@ export interface GlobalSearchResponse {
 
 // ===== 统计相关 API =====
 
-/**
- * 小说统计信息响应 - GET /api/v1/novels/{id}/stats
- */
-export interface NovelStatsResponse {
-  stats: NovelStats
-}
+// 小说统计信息响应现在使用 ApiResponse<NovelStats> 格式
 
 /**
  * 小说统计信息

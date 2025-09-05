@@ -61,7 +61,7 @@ export default function NovelsList() {
   const queryParams: NovelQueryParams = {
     search: searchTerm || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
-    sortBy: 'updatedAt',
+    sortBy: 'updated_at',
     sortOrder: 'desc',
     page: 1,
     pageSize: 20,
@@ -69,7 +69,6 @@ export default function NovelsList() {
 
   const { data: novelsData, isLoading, error, refetch } = useNovels(queryParams)
   const deleteNovelMutation = useDeleteNovel()
-
 
   const handleDeleteNovel = async (novelId: string) => {
     if (window.confirm('确定要删除这部小说吗？此操作不可撤销。')) {
@@ -85,10 +84,11 @@ export default function NovelsList() {
     setSearchTerm(value)
   }
 
-  // 适配后端返回的数据格式：直接数组而非包装对象
-  const novels = Array.isArray(novelsData) ? novelsData : (novelsData?.novels || [])
+  // 适配新的分页API响应格式
+  const novels = novelsData?.items || []
+  const pagination = novelsData?.pagination
   const stats = {
-    total: Array.isArray(novelsData) ? novelsData.length : (novelsData?.total || 0),
+    total: pagination?.total || 0,
     genesis: novels.filter((n) => n.status === 'GENESIS').length,
     generating: novels.filter((n) => n.status === 'GENERATING').length,
     paused: novels.filter((n) => n.status === 'PAUSED').length,
@@ -294,7 +294,7 @@ function NovelCard({ novel, viewType, onDelete }: NovelCardProps) {
   const statusInfo = statusConfig[novel.status] || {
     label: '未知状态',
     color: 'bg-gray-100 text-gray-800',
-    icon: FileText
+    icon: FileText,
   }
 
   if (viewType === 'list') {
@@ -382,7 +382,7 @@ function NovelCard({ novel, viewType, onDelete }: NovelCardProps) {
 
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <Clock className="h-3 w-3" />
-            更新于 {new Date(novel.lastUpdated).toLocaleDateString()}
+            更新于 {new Date(novel.updated_at).toLocaleDateString()}
           </div>
         </div>
       </CardContent>
