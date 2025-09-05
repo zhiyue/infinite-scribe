@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, asc, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.db.redis.dialogue_cache import DialogueCacheManager
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
@@ -308,6 +309,7 @@ class ConversationService:
 
             # Atomic unit: round + domain_event + outbox
             async with db.begin():
+                created_round = None
                 # Idempotency path: existing round by correlation_id
                 if correlation_id:
                     existing = await db.scalar(
@@ -574,7 +576,7 @@ class ConversationService:
                             "aggregate_id": dom_evt.aggregate_id,
                             "payload": dom_evt.payload or {},
                             "metadata": dom_evt.event_metadata or {},
-                            "created_at": dom_evt.created_at.isoformat()
+                            "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
                             if getattr(dom_evt, "created_at", None)
                             else None,
                         },
@@ -609,8 +611,8 @@ class ConversationService:
             "stage": session.stage,
             "state": session.state or {},
             "version": session.version,
-            "created_at": session.created_at.isoformat() if hasattr(session, "created_at") else None,
-            "updated_at": session.updated_at.isoformat() if hasattr(session, "updated_at") else None,
+            "created_at": getattr(session.created_at, "isoformat", lambda: str(session.created_at))() if hasattr(session, "created_at") else None,
+            "updated_at": getattr(session.updated_at, "isoformat", lambda: str(session.updated_at))() if hasattr(session, "updated_at") else None,
         }
 
     @staticmethod
@@ -625,7 +627,7 @@ class ConversationService:
             "output": rnd.output,
             "model": rnd.model,
             "correlation_id": rnd.correlation_id,
-            "created_at": rnd.created_at.isoformat() if hasattr(rnd, "created_at") else None,
+            "created_at": getattr(rnd.created_at, "isoformat", lambda: str(rnd.created_at))() if hasattr(rnd, "created_at") else None,
         }
 
 
