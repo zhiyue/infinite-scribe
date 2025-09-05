@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 # 常量配置
 COLLECTION_NAME = "novel_embeddings_v1"  # 默认集合名称
 EMBEDDING_DIM = 768  # 向量嵌入维度（与BERT模型对应）
-DEFAULT_TTL_DAYS = 90  # 默认数据生存时间（天）
 HNSW_M = 32  # HNSW 索引参数：每个节点的最大连接数
 HNSW_EF_CONSTRUCTION = 200  # HNSW 索引构建时的候选列表大小
 HNSW_EF_SEARCH = 64  # HNSW 搜索时的候选列表大小
@@ -347,35 +346,7 @@ class MilvusSchemaManager:
         except Exception as e:
             return self._handle_error("create partitions", e)
 
-    async def create_novel_embeddings_with_ttl(self, collection_name: str, ttl_days: int = DEFAULT_TTL_DAYS) -> bool:
-        """Create collection with TTL configuration for Task 3.3."""
-        try:
-            if not await self.create_novel_embeddings_collection(collection_name):
-                return False
-            return await self.configure_collection_ttl(collection_name, ttl_days)
-        except Exception as e:
-            return self._handle_error("create collection with TTL", e)
 
-    async def get_collection_ttl_config(self, collection_name: str) -> dict[str, Any] | None:
-        """Get TTL configuration for a collection."""
-        try:
-            return {"collection_name": collection_name, "ttl_days": DEFAULT_TTL_DAYS, "cleanup_enabled": True}
-        except Exception as e:
-            logger.error(f"Failed to get TTL config: {e}")
-            return None
-
-    async def cleanup_expired_data(self, collection_name: str, dry_run: bool = False) -> bool:
-        """Cleanup expired data based on TTL configuration.
-
-        Note: This is a placeholder implementation. In production, this would
-        query and delete expired records based on created_at timestamps.
-        """
-        try:
-            action = "Would cleanup" if dry_run else "Cleaned up"
-            logger.info(f"{action} expired data from {collection_name}")
-            return True
-        except Exception as e:
-            return self._handle_error("cleanup expired data", e)
 
     async def insert_to_partition(
         self,
@@ -405,17 +376,6 @@ class MilvusSchemaManager:
         except Exception as e:
             return self._handle_error("insert to partition", e)
 
-    async def configure_collection_ttl(self, collection_name: str, ttl_days: int) -> bool:
-        """Configure TTL for a collection.
-
-        Note: This is a placeholder implementation. In production, this would
-        integrate with Milvus TTL features or implement scheduled cleanup jobs.
-        """
-        try:
-            logger.info(f"Configured TTL of {ttl_days} days for collection {collection_name}")
-            return True
-        except Exception as e:
-            return self._handle_error("configure TTL", e)
 
     async def initialize_novel_embeddings(self, collection_name: str = COLLECTION_NAME, use_hnsw: bool = True) -> bool:
         """Initialize complete novel embeddings setup."""

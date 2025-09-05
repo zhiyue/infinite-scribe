@@ -447,7 +447,7 @@ SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服�
 ### 扩展策略
 
 - **水平扩展**：所有Agent服务无状态设计，支持Kubernetes HPA独立扩展
-- **缓存策略**：Redis写透缓存，30天TTL
+- **缓存策略**：Redis写透缓存
 - **数据分片**：按novel_id分片，支持多租户隔离
 - **异步处理**：
   - P1: 通过Outbox+Kafka解耦
@@ -950,17 +950,16 @@ conversation_rounds（PostgreSQL 持久化）与 Redis 写通缓存；并保留�
 
 - 集合：`novel_embeddings_v{n}`，字段含
   `novel_id/content_type/embedding/version/metadata`，默认 HNSW(COSINE)
-- 分区与TTL：按 `novel_id` 分区，默认 90 天；冷热分层按数据时效配置索引参数
-- 封装：集合初始化、批量 upsert、相似检索、过期清理、模型迁移
-- 策略：模型迁移（重建索引、双写、灰度切流、别名切换）、冷热分层
+- 分区：按 `novel_id` 分区
+- 封装：集合初始化、批量 upsert、相似检索、模型迁移
+- 策略：模型迁移（重建索引、双写、灰度切流、别名切换）
 
 **技术特性**：
 
 - **集合版本化**：`novel_embeddings_v{n}`命名策略，支持平滑迁移
 - **字段设计**：novel_id、content_type、embedding(768维)、version、metadata
 - **索引策略**：HNSW+COSINE，M=32、efConstruction=200
-- **分区管理**：按novel_id分区，TTL=90天
-- **冷热分层**：热数据IVF_FLAT、冷数据HNSW压缩
+- **分区管理**：按novel_id分区
 - **模型迁移**：双写→灰度→别名切换策略
 
 > 详细的集合定义、VectorService封装和迁移策略参见：[design-lld.md](design-lld.md#milvus-向量数据库实现)
@@ -1111,9 +1110,7 @@ HLD完成后需要：
 
 - **Milvus向量服务**：
   - 实现VectorService封装层
-  - 配置冷热数据分层（30/60/90天）
   - 实现模型迁移策略
-  - 设置TTL自动清理
 
 - **版本控制扩展**：
   - 实现世界规则版本化（Neo4j属性版本）

@@ -1056,7 +1056,6 @@ collection_schema = {
     },
     "partition": {
         "key": "novel_id",  # 按小说分区
-        "ttl": 90 * 24 * 3600  # 90天TTL
     }
 }
 ```
@@ -1240,52 +1239,6 @@ class VectorService:
 
         return new_service
 
-    async def setup_cold_hot_partitions(self):
-        """冷热数据分层"""
-        collection = Collection(self.collection_name)
-
-        # 创建热数据分区（最近30天）
-        hot_partition = collection.create_partition("hot_data")
-
-        # 创建温数据分区（30-60天）
-        warm_partition = collection.create_partition("warm_data")
-
-        # 创建冷数据分区（60天以上）
-        cold_partition = collection.create_partition("cold_data")
-
-        # 设置不同的索引参数
-        hot_index = {
-            "index_type": "IVF_FLAT",  # 热数据用精确索引
-            "metric_type": "COSINE",
-            "params": {"nlist": 128}
-        }
-
-        cold_index = {
-            "index_type": "HNSW",  # 冷数据用近似索引
-            "metric_type": "COSINE",
-            "params": {"M": 16, "efConstruction": 100}
-        }
-
-        return {
-            "hot": hot_partition,
-            "warm": warm_partition,
-            "cold": cold_partition
-        }
-
-    async def cleanup_expired_data(self, days: int = 90):
-        """清理过期数据"""
-        collection = Collection(self.collection_name)
-
-        # 计算过期时间戳
-        expire_time = int(time.time()) - (days * 24 * 3600)
-
-        # 删除过期数据
-        expr = f"created_at < {expire_time}"
-        collection.delete(expr)
-        collection.flush()
-
-        # 压缩集合
-        collection.compact()
 ```
 
 #### 模型变更策略
@@ -1312,21 +1265,6 @@ model_migration_strategy:
       - archive_old # 归档旧集合
       - delete_after_30d # 30天后删除
 
-cold_hot_strategy:
-  hot_tier:
-    retention: 30_days
-    index_type: IVF_FLAT
-    cache: enabled
-
-  warm_tier:
-    retention: 60_days
-    index_type: IVF_SQ8
-    cache: disabled
-
-  cold_tier:
-    retention: 90_days
-    index_type: HNSW
-    compression: enabled
 ```
 
 ### 组件3：[业务逻辑层实现]

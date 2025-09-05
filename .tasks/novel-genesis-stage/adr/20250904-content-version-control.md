@@ -288,7 +288,7 @@ class BranchInfo(Base):
 - 缓存键：`version:content:{version_id}`。
 - 反向索引集合：`version:by_project:{project_id}`（Set）收集所有版本缓存键，以便项目级失效：
   - 失效：读取集合成员并批量 `UNLINK`；或使用 `SCAN` 分页删除。
-- 读取热度：对热点版本命中后延长 TTL；冷版本不缓存或短 TTL。
+- 读取热度：对热点版本命中后延长缓存时间；冷版本不缓存或短时间缓存。
 
 ### 事件与主题（Kafka）
 

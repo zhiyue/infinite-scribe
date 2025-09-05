@@ -601,9 +601,6 @@
   - INFO: 关键操作
   - DEBUG: 开发调试
 - WHERE 日志保留 THE 期限 SHALL：
-  - 热数据: 7天
-  - 温数据: 30天
-  - 冷数据: 90天
 
 #### 6.7.3 告警机制
 - WHEN 错误率>1% THEN 告警延迟 SHALL <1分钟
@@ -680,7 +677,7 @@
 - **会话管理**: 
   - 使用通用`conversation_sessions`表
   - 支持GENESIS/CHAPTER/REVIEW等作用域
-  - Redis写透缓存，30天TTL
+  - Redis写透缓存
   - 乐观并发控制（version字段）
 
 ### 7.3 质量控制机制
@@ -1054,7 +1051,7 @@ Feature: 创意种子生成
 - 度量: COSINE
 
 #### Redis缓存键（ADR-001, ADR-006）
-- 对话: `dialogue:session:{session_id}` (TTL 30天)
+- 对话: `dialogue:session:{session_id}`
 - 版本: `version:content:{version_id}`
 - 任务队列: `q:genesis:detail_batch` (ZSET)
 - 限流: `ratelimit:{bucket_key}` (Token Bucket)
