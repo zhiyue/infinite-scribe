@@ -214,6 +214,20 @@ pnpm env:show     # 查看当前环境
 > 💡 **提示**: `.env` 是一个符号链接，指向当前激活的环境配置文件。详细环境配置说
 > 明请参考 [环境变量结构说明](./docs/guides/deployment/environment-structure.md)。
 
+#### Outbox Relay 配置（可选）
+- 位置：后端 `.env`（嵌套变量）或 `apps/backend/config.toml` 的 `[relay]` 段
+- 变量（环境变量名 → 说明 → 默认）：
+  - `RELAY__POLL_INTERVAL_SECONDS`：轮询频率（秒）→ 5
+  - `RELAY__BATCH_SIZE`：每批处理条数 → 100
+  - `RELAY__RETRY_BACKOFF_MS`：失败指数退避基数（毫秒）→ 1000
+  - `RELAY__MAX_RETRIES_DEFAULT`：默认最大重试次数（当行内未指定时使用）→ 3
+- TOML 示例（apps/backend/config.toml）：
+  - `[relay]`
+  - `poll_interval_seconds = 5`
+  - `batch_size = 100`
+  - `retry_backoff_ms = 1000`
+  - `max_retries_default = 3`
+
 ### 🔄 开发工作流
 
 推荐的日常开发流程（优先使用 Make 命令）：

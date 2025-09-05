@@ -132,8 +132,8 @@ redis_password = "${DATABASE__REDIS_PASSWORD:-}"
 [launcher]
 # 运行模式：single|multi（P3 可选 auto）
 default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
-# 启动组件：可选 api、agents（逗号分隔数组）
-components = ["api", "agents"]
+# 启动组件：可选 api、agents、relay（逗号分隔数组）
+components = ["api", "agents", "relay"]
 # 健康检查间隔（秒）：默认 1Hz
 health_interval = 1.0
 # 管理端点开关：生产环境默认关闭，仅限本地调试时开启
@@ -161,3 +161,13 @@ reload = true
 # [launcher.capacity.concurrency]
 # max_concurrent_startups = 5
 # max_concurrent_health_checks = 10
+
+[relay]
+# Outbox Relay 配置（可用环境变量覆盖）
+poll_interval_seconds = "${RELAY__POLL_INTERVAL_SECONDS:-5}"
+batch_size = "${RELAY__BATCH_SIZE:-100}"
+retry_backoff_ms = "${RELAY__RETRY_BACKOFF_MS:-1000}"
+max_retries_default = "${RELAY__MAX_RETRIES_DEFAULT:-3}"
+yield_sleep_ms = "${RELAY__YIELD_SLEEP_MS:-100}"
+loop_error_backoff_ms = "${RELAY__LOOP_ERROR_BACKOFF_MS:-1000}"
+max_backoff_ms = "${RELAY__MAX_BACKOFF_MS:-60000}"

@@ -1,12 +1,13 @@
 # is-launcher 使用文档（统一后端启动器 CLI）
 
-本指南详细说明如何使用 `is-launcher` 启动与管理 InfiniteScribe 后端组件（API 网关与 Agents），并给出常见问题的排查建议与最佳实践。
+本指南详细说明如何使用 `is-launcher` 启动与管理 InfiniteScribe 后端组件（API 网关、Agents、Outbox Relay），并给出常见问题的排查建议与最佳实践。
 
 ## 基本概念
 
 - 组件（components）
   - `api`: API Gateway（FastAPI）
   - `agents`: AI Agents（通过 `AgentLauncher` 管理）
+  - `relay`: Outbox Relay（DB→Kafka，事务性发件箱轮询）
 - 启动模式（mode）
   - `single`: 同进程启动（API 在当前 Python 进程内以 asyncio 任务运行）
   - `multi`: 子进程启动（API 通过子进程运行 uvicorn）
@@ -50,7 +51,7 @@
 
 - `up`：启动
   - `--mode {single|multi|auto}`：启动模式（默认 single）
-  - `--components <CSV|JSON>`：要启动的组件，示例：`api,agents` 或 `'["api","agents"]'`
+  - `--components <CSV|JSON>`：要启动的组件，示例：`api,agents,relay` 或 `'["api","agents","relay"]'`
   - `--agents <CSV|JSON>`：要启动的 agent 名称列表
   - `--reload`：启用开发热重载（更适合配合 `multi`）
   - `--apply`：执行计划（不加则仅打印计划）

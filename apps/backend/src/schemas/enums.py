@@ -141,6 +141,7 @@ class OutboxStatus(str, Enum):
 
     PENDING = "PENDING"
     SENT = "SENT"
+    FAILED = "FAILED"
 
 
 class HandleStatus(str, Enum):

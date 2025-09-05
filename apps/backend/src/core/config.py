@@ -177,6 +177,18 @@ class DatabaseSettings(BaseModel):
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
 
+class RelaySettings(BaseModel):
+    """Outbox Relay settings"""
+
+    poll_interval_seconds: int = Field(default=5, description="Outbox relay poll interval in seconds")
+    batch_size: int = Field(default=100, description="Outbox relay fetch batch size")
+    retry_backoff_ms: int = Field(default=1000, description="Outbox relay base backoff (ms), exp growth")
+    max_retries_default: int = Field(default=3, description="Default max retries when row not set")
+    yield_sleep_ms: int = Field(default=100, description="Sleep between busy cycles when work found (ms)")
+    loop_error_backoff_ms: int = Field(default=1000, description="Backoff on unexpected loop errors (ms)")
+    max_backoff_ms: int = Field(default=60000, description="Max backoff cap in ms for retry schedule")
+
+
 class Settings(BaseSettings):
     """应用主配置
 
@@ -230,6 +242,9 @@ class Settings(BaseSettings):
     agent_dlt_suffix: str = Field(default=".DLT", description="Suffix for dead-letter topics")
     agent_commit_batch_size: int = Field(default=20, description="Commit after N messages processed")
     agent_commit_interval_ms: int = Field(default=1000, description="Commit at least every T milliseconds")
+
+    # Outbox Relay (nested)
+    relay: RelaySettings = Field(default_factory=RelaySettings)
 
     # MinIO
     minio_endpoint: str = Field(default="localhost:9000")

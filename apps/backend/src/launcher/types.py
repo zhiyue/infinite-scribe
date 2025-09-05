@@ -18,6 +18,7 @@ class ComponentType(Enum):
 
     API = "api"  # API Gateway
     AGENTS = "agents"  # AI Agents
+    RELAY = "relay"  # Outbox Relay (DB -> Kafka)
 
 
 class LauncherStatus(Enum):
