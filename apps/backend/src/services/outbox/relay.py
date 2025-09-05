@@ -46,6 +46,7 @@ class OutboxRelayService:
         )
 
         # Initialize Kafka producer (we pre-encode bytes to avoid double serialization)
+        log.info("relay_connecting_to_kafka", bootstrap_servers=self.settings.kafka_bootstrap_servers)
         self._producer = AIOKafkaProducer(
             bootstrap_servers=self.settings.kafka_bootstrap_servers,
             acks="all",
@@ -53,7 +54,7 @@ class OutboxRelayService:
             linger_ms=5,
         )
         await self._producer.start()
-        log.info("relay_producer_ready")
+        log.info("relay_producer_ready", kafka_connected=True, producer_config={"acks": "all", "idempotent": True})
 
     async def stop(self) -> None:
         """Stop background tasks and close resources."""
@@ -69,16 +70,31 @@ class OutboxRelayService:
     async def run_forever(self) -> None:
         """Main loop: poll -> publish -> sleep until stopped."""
         await self.start()
+        cycle_count = 0
+        heartbeat_interval = 12  # Log heartbeat every ~60s (12 cycles * 5s default interval)
+
         try:
+            log.info("relay_main_loop_started", poll_interval_s=self.settings.relay.poll_interval_seconds)
             while not self._stop_event.is_set():
                 try:
+                    cycle_count += 1
                     processed = await self._drain_once()
+
+                    # Log periodic heartbeat to show service is alive
+                    if cycle_count % heartbeat_interval == 0:
+                        log.info("relay_heartbeat", cycle=cycle_count, last_processed=processed)
+
                     if processed == 0:
+                        # Log idle polling occasionally (every 6 cycles when idle)
+                        if cycle_count % 6 == 0:
+                            log.debug("relay_idle_poll", cycle=cycle_count)
                         # No work found; sleep full interval
                         await asyncio.wait_for(
                             self._stop_event.wait(), timeout=float(self.settings.relay.poll_interval_seconds)
                         )
                     else:
+                        # Log when we processed events
+                        log.info("relay_batch_processed", processed_count=processed, cycle=cycle_count)
                         # When we had work, yield briefly to next cycle
                         await asyncio.sleep(self.settings.relay.yield_sleep_ms / 1000.0)
                 except TimeoutError:
@@ -87,10 +103,11 @@ class OutboxRelayService:
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    log.error("relay_loop_error", exc_info=True)
+                    log.error("relay_loop_error", cycle=cycle_count, exc_info=True)
                     # Small backoff on unexpected loop errors
                     await asyncio.sleep(self.settings.relay.loop_error_backoff_ms / 1000.0)
         finally:
+            log.info("relay_main_loop_stopping", total_cycles=cycle_count)
             await self.stop()
 
     async def _drain_once(self) -> int:
@@ -202,7 +219,7 @@ class OutboxRelayService:
             try:
                 exp = 2 ** max(0, attempt - 1)
             except OverflowError:
-                exp = 2 ** 16  # clamp exponent
+                exp = 2**16  # clamp exponent
             raw_delay = base_ms * exp
             delay_ms = raw_delay if raw_delay <= max_backoff else max_backoff
             # Honor per-row max_retries if set; otherwise fallback to default
