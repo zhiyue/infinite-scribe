@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import auth, events, novels
+from . import auth, conversations, events, novels
 
 router = APIRouter()
 
@@ -16,3 +16,4 @@ router.include_router(events.router, prefix="/events", tags=["sse"])
 router.include_router(novels.router, prefix="/novels", tags=["novels"])
 
 # Future routes will be added here
+router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
