@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from neo4j import AsyncDriver
+from src.db.graph.session import create_neo4j_session
 
 
 class GraphQueryBuilder:
@@ -11,15 +11,16 @@ class GraphQueryBuilder:
     All queries are novel-scoped and assume Neo4j 5.x.
     """
 
-    def __init__(self, driver: AsyncDriver):
-        self.driver = driver
+    def __init__(self) -> None:
+        # 完全依赖会话工厂；无需管理驱动
+        pass
 
     async def get_character_network(
         self, *, novel_id: str, character_app_id: str, depth: int = 2
     ) -> dict[str, Any] | None:
         query = """
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (c:Character {app_id: $char_id})-[:APPEARS_IN_NOVEL]->(n)
+        MATCH (c:Character {app_id: $char_id})-[:BELONGS_TO]->(n)
         CALL apoc.path.subgraphAll(c, {
           relationshipFilter: 'RELATES_TO>',
           maxLevel: $depth,
@@ -28,19 +29,19 @@ class GraphQueryBuilder:
         YIELD nodes, relationships
         RETURN nodes, relationships
         """
-        async with self.driver.session() as session:
+        async with create_neo4j_session() as session:
             result = await session.run(query, novel_id=novel_id, char_id=character_app_id, depth=depth)
             return await result.single()
 
     async def check_timeline_consistency(self, *, novel_id: str) -> list[dict[str, Any]]:
         query = """
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
+        MATCH (e1:Event)-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO]->(n)
         MATCH (e1)-[:TRIGGERS]->(e2:Event)
         WHERE e1.timestamp > e2.timestamp
         RETURN e1, e2, 'Timeline violation: cause after effect' AS error
         """
-        async with self.driver.session() as session:
+        async with create_neo4j_session() as session:
             result = await session.run(query, novel_id=novel_id)
             return [record.data() async for record in result]
 
@@ -48,7 +49,7 @@ class GraphQueryBuilder:
         query = """
         // unresolved foreshadowing
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO_NOVEL]->(n)
+        MATCH (setup:Event {type: 'foreshadowing'})-[:HAPPENS_IN]->(:Scene)-[:SCENE_IN]->(:Chapter)-[:BELONGS_TO]->(n)
         WHERE NOT EXISTS { MATCH (setup)-[:RESOLVED_BY]->(:Event) }
         RETURN setup.app_id AS unresolved_foreshadowing, setup.description
 
@@ -56,11 +57,11 @@ class GraphQueryBuilder:
 
         // isolated characters
         MATCH (n:Novel {novel_id: $novel_id})
-        MATCH (c:Character)-[:APPEARS_IN_NOVEL]->(n)
+        MATCH (c:Character)-[:BELONGS_TO]->(n)
         WHERE NOT EXISTS { MATCH (c)-[:RELATES_TO]-() }
         RETURN c.app_id AS isolated_character, c.name
         """
-        async with self.driver.session() as session:
+        async with create_neo4j_session() as session:
             result = await session.run(query, novel_id=novel_id)
             return [record.data() async for record in result]
 
@@ -72,7 +73,7 @@ class GraphQueryBuilder:
         RETURN DISTINCT rule
         ORDER BY rule.level
         """
-        async with self.driver.session() as session:
+        async with create_neo4j_session() as session:
             result = await session.run(query, loc_id=location_app_id)
             return [record["rule"] async for record in result]
 
@@ -92,6 +93,6 @@ class GraphQueryBuilder:
                    goals: state.goals
                }) AS arc_progression
         """
-        async with self.driver.session() as session:
+        async with create_neo4j_session() as session:
             result = await session.run(query, char_id=character_app_id)
             return await result.single()

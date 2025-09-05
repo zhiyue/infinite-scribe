@@ -3,13 +3,20 @@ Neo4j Consistency Validation Engine
 
 Implements 5-tier consistency checking system for novel world consistency
 according to the LLD specifications.
+
+Refactored to reuse the db/graph session factory, avoiding tight coupling to
+an externally managed session. A session can still be injected for advanced
+use-cases (e.g., batching multiple validations within a single transaction).
 """
 
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 
 from neo4j import AsyncSession
+
+from src.db.graph.session import create_neo4j_session
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +63,18 @@ class ConsistencyReport:
 class ConsistencyValidator:
     """Neo4j-based consistency validation engine."""
 
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, session: AsyncSession | None = None):
+        # 可选注入会话；若未注入则按需通过 create_neo4j_session 创建
+        self._session = session
+
+    @asynccontextmanager
+    async def _get_session(self) -> AsyncSession:
+        if self._session is not None:
+            # 复用外部传入的会话（不负责关闭）
+            yield self._session
+        else:
+            async with create_neo4j_session() as session:
+                yield session
 
     async def validate_all(self, novel_id: str) -> ConsistencyReport:
         """Run all consistency checks and return comprehensive report."""
@@ -117,8 +134,9 @@ class ConsistencyValidator:
                r.type as rel_type
         """
 
-        result = await self.session.run(query_asymmetric, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_asymmetric, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(
@@ -149,8 +167,9 @@ class ConsistencyValidator:
                r1.type as rel_type
         """
 
-        result = await self.session.run(query_transitive, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_transitive, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(
@@ -178,8 +197,9 @@ class ConsistencyValidator:
                r.severity as severity
         """
 
-        result = await self.session.run(query_explicit, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_explicit, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             severity = (
@@ -213,8 +233,9 @@ class ConsistencyValidator:
                w1.dimension as dimension
         """
 
-        result = await self.session.run(query_implicit, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_implicit, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(
@@ -240,8 +261,9 @@ class ConsistencyValidator:
         RETURN e1.id as event_id, e1.description as event_desc, length(path) as loop_length
         """
 
-        result = await self.session.run(query_loops, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_loops, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(
@@ -263,8 +285,9 @@ class ConsistencyValidator:
                e2.id as effect_id, e2.description as effect_desc, e2.timestamp as effect_time
         """
 
-        result = await self.session.run(query_temporal, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_temporal, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(
@@ -295,8 +318,9 @@ class ConsistencyValidator:
                cs2.chapter as chapter2, cs2.age as age2
         """
 
-        result = await self.session.run(query_age_jumps, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_age_jumps, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             age_change = abs(record["age2"] - record["age1"])
@@ -332,8 +356,9 @@ class ConsistencyValidator:
                distance, t.type as transport_type, t.speed as max_speed
         """
 
-        result = await self.session.run(query_travel, {"novel_id": novel_id})
-        records = await result.data()
+        async with self._get_session() as session:
+            result = await session.run(query_travel, {"novel_id": novel_id})
+            records = await result.data()
 
         for record in records:
             violations.append(

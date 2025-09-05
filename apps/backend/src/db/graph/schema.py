@@ -84,7 +84,7 @@ class Neo4jSchemaManager:
         """Verify all required constraints exist."""
         result = await self.session.run("SHOW CONSTRAINTS")
         constraints = await result.data()
-        
+
         required_constraints = set(SCHEMA_CONFIG["constraints"].keys())
         existing_constraints = {c.get("name", "") for c in constraints}
         missing_constraints = required_constraints - existing_constraints
@@ -98,7 +98,7 @@ class Neo4jSchemaManager:
         """Verify all required indexes exist."""
         result = await self.session.run("SHOW INDEXES")
         indexes = await result.data()
-        
+
         required_indexes = set(SCHEMA_CONFIG["indexes"].keys())
         existing_indexes = {i.get("name", "") for i in indexes}
         missing_indexes = required_indexes - existing_indexes
@@ -119,7 +119,7 @@ NODE_TEMPLATES = {
     },
     "Character": {
         "variable": "c",
-        "merge_field": "id", 
+        "merge_field": "id",
         "base_fields": {
             "novel_id": None,
             "name": "",
@@ -175,7 +175,7 @@ class Neo4jNodeCreator:
         template = NODE_TEMPLATES[node_type]
         var = template["variable"]
         merge_field = template["merge_field"]
-        
+
         # Build parameters from template defaults and provided values
         params = {f"{var}_{merge_field}": merge_value}
         for field, default_value in template["base_fields"].items():
@@ -191,7 +191,7 @@ class Neo4jNodeCreator:
 
         # Build query
         query_parts = [f"MERGE ({var}:{node_type} {{{merge_field}: ${var}_{merge_field}}})", "SET"]
-        
+
         # Set base fields
         set_clauses = []
         for field in template["base_fields"].keys():
@@ -200,25 +200,27 @@ class Neo4jNodeCreator:
                     set_clauses.append(f"{var}.{field} = datetime()")
                 else:
                     set_clauses.append(f"{var}.{field} = ${field}")
-        
+
         # Add extra properties if present
         if extra_props:
             set_clauses.append(f"{var} += $extra_properties")
-            
+
         query_parts.append(", ".join(set_clauses))
-        
+
         # Add relationship if defined
         if template["relationship"]:
             rel_type, target_type, target_field = template["relationship"]
-            query_parts.extend([
-                f"WITH {var}",
-                f"MATCH (target:{target_type} {{{target_field}: ${target_field}}})",
-                f"MERGE ({var})-[:{rel_type}]->(target)"
-            ])
-            
+            query_parts.extend(
+                [
+                    f"WITH {var}",
+                    f"MATCH (target:{target_type} {{{target_field}: ${target_field}}})",
+                    f"MERGE ({var})-[:{rel_type}]->(target)",
+                ]
+            )
+
         query_parts.append(f"RETURN {var}")
         query = "\n".join(query_parts)
-        
+
         result = await self.session.run(query, params)
         record = await result.single()
         return dict(record[var]) if record else {}
@@ -244,11 +246,19 @@ class Neo4jNodeCreator:
     ) -> dict[str, Any]:
         """Create a Character node with 8 dimensions."""
         return await self._create_node(
-            "Character", character_id,
-            novel_id=novel_id, name=name, appearance=appearance,
-            personality=personality, background=background,
-            motivation=motivation, goals=goals, obstacles=obstacles,
-            arc=arc, wounds=wounds, **properties
+            "Character",
+            character_id,
+            novel_id=novel_id,
+            name=name,
+            appearance=appearance,
+            personality=personality,
+            background=background,
+            motivation=motivation,
+            goals=goals,
+            obstacles=obstacles,
+            arc=arc,
+            wounds=wounds,
+            **properties,
         )
 
     async def create_world_rule_node(
@@ -265,20 +275,23 @@ class Neo4jNodeCreator:
     ) -> dict[str, Any]:
         """Create a WorldRule node."""
         return await self._create_node(
-            "WorldRule", rule_id,
-            novel_id=novel_id, dimension=dimension, rule=rule,
-            priority=priority, scope=scope, examples=examples,
-            constraints=constraints, **properties
+            "WorldRule",
+            rule_id,
+            novel_id=novel_id,
+            dimension=dimension,
+            rule=rule,
+            priority=priority,
+            scope=scope,
+            examples=examples,
+            constraints=constraints,
+            **properties,
         )
 
     async def create_location_node(
         self, location_id: str, novel_id: str, name: str, x: float = 0.0, y: float = 0.0, **properties
     ) -> dict[str, Any]:
         """Create a Location node with coordinates."""
-        return await self._create_node(
-            "Location", location_id,
-            novel_id=novel_id, name=name, x=x, y=y, **properties
-        )
+        return await self._create_node("Location", location_id, novel_id=novel_id, name=name, x=x, y=y, **properties)
 
 
 class Neo4jRelationshipManager:
@@ -301,18 +314,18 @@ class Neo4jRelationshipManager:
     ) -> bool:
         """Generic relationship creation method."""
         # Build property setters
-        prop_setters = [f"r.{key} = ${key}" for key in properties.keys()]
+        prop_setters = [f"r.{key} = ${key}" for key in properties]
         set_clause = f"SET {', '.join(prop_setters)}" if prop_setters else ""
-        
+
         query = f"""
         MATCH (from:{from_label} {{{from_field}: $from_id}}), (to:{to_label} {{{to_field}: $to_id}})
         MERGE (from)-[r:{rel_type}]->(to)
         {set_clause}
         """
-        
+
         params = {"from_id": from_id, "to_id": to_id, **properties}
         await self.session.run(query, params)
-        
+
         # Create reverse relationship if symmetric
         if symmetric:
             reverse_query = f"""
@@ -321,7 +334,7 @@ class Neo4jRelationshipManager:
             {set_clause}
             """
             await self.session.run(reverse_query, params)
-        
+
         return True
 
     async def create_character_relationship(
@@ -329,21 +342,29 @@ class Neo4jRelationshipManager:
     ) -> bool:
         """Create RELATES_TO relationship between characters."""
         return await self._create_relationship(
-            "Character", "id", character1_id,
-            "Character", "id", character2_id,
+            "Character",
+            "id",
+            character1_id,
+            "Character",
+            "id",
+            character2_id,
             "RELATES_TO",
             {"strength": strength, "type": rel_type, "symmetric": symmetric},
-            symmetric=symmetric
+            symmetric=symmetric,
         )
 
     async def create_world_rule_conflict(self, rule1_id: str, rule2_id: str, severity: str = "major") -> bool:
         """Create CONFLICTS_WITH relationship between world rules."""
         return await self._create_relationship(
-            "WorldRule", "id", rule1_id,
-            "WorldRule", "id", rule2_id,
+            "WorldRule",
+            "id",
+            rule1_id,
+            "WorldRule",
+            "id",
+            rule2_id,
             "CONFLICTS_WITH",
             {"severity": severity},
-            symmetric=True
+            symmetric=True,
         )
 
 

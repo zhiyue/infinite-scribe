@@ -18,11 +18,11 @@
   - [x] 2.5 定义Neo4j关系类型和节点间约束（CONTAINS、INTERACTS、BELONGS_TO等）
   - _需求：FR-003世界观构建, FR-004人物设计的图谱基础_
 
-- [ ] 3. Milvus向量数据库集合配置与索引优化
-  - [ ] 3.1 创建novel_embeddings_v1集合并配置768维向量字段
-  - [ ] 3.2 配置HNSW索引参数（M=32, efConstruction=200, COSINE相似度）
-  - [ ] 3.3 按novel_id设置分区策略并配置TTL=90天自动清理
-  - [ ] 3.4 测试向量插入、检索性能并优化索引参数
+- [x] 3. Milvus向量数据库集合配置与索引优化
+  - [x] 3.1 创建novel_embeddings_v1集合并配置768维向量字段
+  - [x] 3.2 配置HNSW索引参数（M=32, efConstruction=200, COSINE相似度）
+  - [x] 3.3 按novel_id设置分区策略并配置TTL=90天自动清理
+  - [x] 3.4 测试向量插入、检索性能并优化索引参数
   - _需求：FR-008知识库管理, NFR-001向量检索<400ms性能要求_
 
 - [ ] 4. Redis缓存结构设计与TTL策略配置
