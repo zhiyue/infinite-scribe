@@ -14,12 +14,16 @@ class TestNovelEndpointsIntegration:
     @pytest.fixture
     async def test_user(self, postgres_test_session):
         """Create a test user in the database."""
+        import random
         import time
 
-        timestamp = str(int(time.time()))
+        # Use microseconds + random to ensure uniqueness across parallel tests
+        timestamp = str(int(time.time() * 1000000))  # microseconds
+        random_suffix = str(random.randint(1000, 9999))
+        unique_id = f"{timestamp}_{random_suffix}"
         user = User(
-            username=f"noveluser_{timestamp}",
-            email=f"noveluser_{timestamp}@example.com",
+            username=f"noveluser_{unique_id}",
+            email=f"noveluser_{unique_id}@example.com",
             password_hash="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6QlTUpSxKO",  # "testpass"
             is_active=True,
             is_verified=True,
@@ -219,7 +223,7 @@ class TestNovelEndpointsIntegration:
 
     @pytest.mark.asyncio
     async def test_list_novels_with_status_filter(
-        self, postgres_async_client: AsyncClient, auth_headers, postgres_test_session
+        self, postgres_async_client: AsyncClient, auth_headers, postgres_test_session, test_user
     ):
         """Test novel listing with status filter."""
         # Create novel with GENESIS status (default)
@@ -227,20 +231,14 @@ class TestNovelEndpointsIntegration:
         response = await postgres_async_client.post("/api/v1/novels", json=novel_data, headers=auth_headers)
         assert response.status_code == 201
 
-        # Manually create another novel with different status
-        from src.models.user import User
-
-        # Find the user by getting the first user from the session (our test user)
-        user_result = await postgres_test_session.execute(__import__("sqlalchemy").select(User).limit(1))
-        user = user_result.scalar_one()
-
-        writing_novel = Novel(
-            user_id=user.id,
-            title="Writing Novel",
+        # Manually create another novel with different status using the same user
+        generating_novel = Novel(
+            user_id=test_user.id,  # Use the same user as authenticated in auth_headers
+            title="Generating Novel",
             target_chapters=15,
-            status=NovelStatus.WRITING,
+            status=NovelStatus.GENERATING,
         )
-        postgres_test_session.add(writing_novel)
+        postgres_test_session.add(generating_novel)
         await postgres_test_session.commit()
 
         # Test filtering by GENESIS status
@@ -251,13 +249,13 @@ class TestNovelEndpointsIntegration:
         assert data[0]["title"] == "Genesis Novel"
         assert data[0]["status"] == "GENESIS"
 
-        # Test filtering by WRITING status
-        response = await postgres_async_client.get("/api/v1/novels?status_filter=WRITING", headers=auth_headers)
+        # Test filtering by GENERATING status
+        response = await postgres_async_client.get("/api/v1/novels?status_filter=GENERATING", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["title"] == "Writing Novel"
-        assert data[0]["status"] == "WRITING"
+        assert data[0]["title"] == "Generating Novel"
+        assert data[0]["status"] == "GENERATING"
 
     @pytest.mark.asyncio
     async def test_get_novel_not_found(self, postgres_async_client: AsyncClient, auth_headers):
@@ -294,19 +292,23 @@ class TestNovelEndpointsIntegration:
     async def test_novel_ownership_isolation(self, postgres_async_client: AsyncClient, postgres_test_session):
         """Test that users can only access their own novels."""
         # Create two users
+        import random
         import time
 
-        timestamp = str(int(time.time()))
+        # Use microseconds + random to ensure uniqueness across parallel tests
+        timestamp1 = str(int(time.time() * 1000000)) + "_" + str(random.randint(1000, 9999))
+        timestamp2 = str(int(time.time() * 1000000)) + "_" + str(random.randint(1000, 9999))
+
         user1 = User(
-            username=f"user1_{timestamp}",
-            email=f"user1_{timestamp}@example.com",
+            username=f"user1_{timestamp1}",
+            email=f"user1_{timestamp1}@example.com",
             password_hash="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6QlTUpSxKO",
             is_active=True,
             is_verified=True,
         )
         user2 = User(
-            username=f"user2_{timestamp}",
-            email=f"user2_{timestamp}@example.com",
+            username=f"user2_{timestamp2}",
+            email=f"user2_{timestamp2}@example.com",
             password_hash="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6QlTUpSxKO",
             is_active=True,
             is_verified=True,

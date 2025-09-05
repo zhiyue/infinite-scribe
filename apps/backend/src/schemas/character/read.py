@@ -21,3 +21,14 @@ class CharacterResponse(BaseSchema, TimestampMixin):
     personality_traits: list[str] | None = Field(None, description="性格特点列表")
     goals: list[str] | None = Field(None, description="角色的主要目标列表")
     version: int = Field(..., description="乐观锁版本号")
+
+class CharacterSummary(BaseSchema, TimestampMixin):
+    """角色摘要模型 - 用于列表展示"""
+
+    id: UUID = Field(..., description="角色唯一标识符")
+    novel_id: UUID = Field(..., description="所属小说的ID")
+    name: str = Field(..., description="角色名称")
+    role: str | None = Field(None, description="角色定位")
+    description: str | None = Field(None, description="角色外貌、性格等简述")
+    personality_traits: list[str] | None = Field(None, description="性格特点列表")
+    goals: list[str] | None = Field(None, description="角色的主要目标列表")
