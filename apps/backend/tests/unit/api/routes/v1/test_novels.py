@@ -472,9 +472,8 @@ class TestNovelRoutes:
         # Act
         result = await delete_novel(novel_id, mock_db, mock_user)
 
-        # Assert
-        assert result.success is True
-        assert result.message == "Novel deleted successfully"
+        # Assert - DELETE now returns None (204 No Content)
+        assert result is None
         mock_db.delete.assert_called_once_with(mock_novel)
         mock_db.commit.assert_called_once()
 

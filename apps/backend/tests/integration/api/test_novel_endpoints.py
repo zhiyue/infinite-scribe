@@ -180,12 +180,10 @@ class TestNovelEndpointsIntegration:
         assert stats["target_chapters"] == 20
         assert stats["progress_percentage"] == 0
 
-        # Step 7: Delete novel
+        # Step 7: Delete novel (now returns 204 No Content)
         delete_response = await postgres_async_client.delete(f"/api/v1/novels/{novel_id}", headers=auth_headers)
-        assert delete_response.status_code == 200
-        delete_data = delete_response.json()
-        assert delete_data["success"] is True
-        assert delete_data["message"] == "Novel deleted successfully"
+        assert delete_response.status_code == 204
+        # No response body expected for 204 No Content
 
         # Step 8: Verify deletion
         get_deleted_response = await postgres_async_client.get(f"/api/v1/novels/{novel_id}", headers=auth_headers)

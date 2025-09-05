@@ -6,11 +6,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas import ErrorResponse, MessageResponse
+from src.api.schemas import ErrorResponse
 from src.common.services.novel_service import novel_service
 from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User
+from src.schemas.chapter.read import ChapterSummary
+from src.schemas.character.read import CharacterSummary
+from src.schemas.enums import NovelStatus
 from src.schemas.novel.create import NovelCreateRequest
 from src.schemas.novel.read import NovelProgress, NovelResponse, NovelSummary
 from src.schemas.novel.update import NovelUpdateRequest
@@ -22,17 +25,23 @@ router = APIRouter()
 
 @router.get(
     "",
-    response_model=list[NovelSummary] | ErrorResponse,
+    response_model=list[NovelSummary],
+    responses={
+        500: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
     summary="Get user's novels",
     description="Get a list of novels belonging to the authenticated user",
 )
 async def list_user_novels(
     skip: int = Query(0, ge=0, description="Number of novels to skip"),
     limit: int = Query(50, ge=1, le=100, description="Number of novels to return"),
-    status_filter: str = Query(None, description="Filter by novel status"),
+    status_filter: NovelStatus | None = Query(None, description="Filter by novel status"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[NovelSummary] | ErrorResponse:
+) -> list[NovelSummary]:
     """Get paginated list of user's novels.
 
     Args:
@@ -71,8 +80,15 @@ async def list_user_novels(
 
 @router.post(
     "",
-    response_model=NovelResponse | ErrorResponse,
     status_code=status.HTTP_201_CREATED,
+    response_model=NovelResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Create new novel",
     description="Create a new novel project",
 )
@@ -80,7 +96,7 @@ async def create_novel(
     request: NovelCreateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse | ErrorResponse:
+) -> NovelResponse:
     """Create a new novel.
 
     Args:
@@ -119,7 +135,14 @@ async def create_novel(
 
 @router.get(
     "/{novel_id}",
-    response_model=NovelResponse | ErrorResponse,
+    response_model=NovelResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Get novel details",
     description="Get detailed information about a specific novel",
 )
@@ -127,7 +150,7 @@ async def get_novel(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse | ErrorResponse:
+) -> NovelResponse:
     """Get novel by ID.
 
     Args:
@@ -165,7 +188,15 @@ async def get_novel(
 
 @router.put(
     "/{novel_id}",
-    response_model=NovelResponse | ErrorResponse,
+    response_model=NovelResponse,
+    responses={
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Update novel",
     description="Update novel information",
 )
@@ -174,7 +205,7 @@ async def update_novel(
     request: NovelUpdateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelResponse | ErrorResponse:
+) -> NovelResponse:
     """Update novel by ID.
 
     Args:
@@ -216,7 +247,14 @@ async def update_novel(
 
 @router.delete(
     "/{novel_id}",
-    response_model=MessageResponse | ErrorResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Delete novel",
     description="Delete a novel and all its associated data",
 )
@@ -224,7 +262,7 @@ async def delete_novel(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> MessageResponse | ErrorResponse:
+) -> None:
     """Delete novel by ID.
 
     Args:
@@ -233,7 +271,7 @@ async def delete_novel(
         current_user: Current authenticated user
 
     Returns:
-        Success message
+        None (204 No Content)
 
     Raises:
         HTTPException: If novel not found or access denied
@@ -248,8 +286,6 @@ async def delete_novel(
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             raise HTTPException(status_code=status_code, detail=result["error"])
 
-        return MessageResponse(success=True, message=result["message"])
-
     except HTTPException:
         raise
     except Exception as e:
@@ -262,7 +298,14 @@ async def delete_novel(
 
 @router.get(
     "/{novel_id}/chapters",
-    response_model=list[dict] | ErrorResponse,
+    response_model=list[ChapterSummary],
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Get novel chapters",
     description="Get list of chapters for a specific novel",
 )
@@ -270,7 +313,7 @@ async def get_novel_chapters(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[dict] | ErrorResponse:
+) -> list[ChapterSummary]:
     """Get chapters for a novel.
 
     Args:
@@ -286,14 +329,14 @@ async def get_novel_chapters(
     """
     try:
         result = await novel_service.get_novel_chapters(db, current_user.id, novel_id)
-        
+
         if not result["success"]:
             if "not found" in result["error"].lower():
                 status_code = status.HTTP_404_NOT_FOUND
             else:
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             raise HTTPException(status_code=status_code, detail=result["error"])
-        
+
         return result["chapters"]
 
     except HTTPException:
@@ -308,7 +351,14 @@ async def get_novel_chapters(
 
 @router.get(
     "/{novel_id}/characters",
-    response_model=list[dict] | ErrorResponse,
+    response_model=list[CharacterSummary],
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Get novel characters",
     description="Get list of characters for a specific novel",
 )
@@ -316,7 +366,7 @@ async def get_novel_characters(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> list[dict] | ErrorResponse:
+) -> list[CharacterSummary]:
     """Get characters for a novel.
 
     Args:
@@ -332,14 +382,14 @@ async def get_novel_characters(
     """
     try:
         result = await novel_service.get_novel_characters(db, current_user.id, novel_id)
-        
+
         if not result["success"]:
             if "not found" in result["error"].lower():
                 status_code = status.HTTP_404_NOT_FOUND
             else:
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             raise HTTPException(status_code=status_code, detail=result["error"])
-        
+
         return result["characters"]
 
     except HTTPException:
@@ -354,7 +404,14 @@ async def get_novel_characters(
 
 @router.get(
     "/{novel_id}/stats",
-    response_model=NovelProgress | ErrorResponse,
+    response_model=NovelProgress,
+    responses={
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Get novel statistics",
     description="Get progress and statistics for a specific novel",
 )
@@ -362,7 +419,7 @@ async def get_novel_stats(
     novel_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> NovelProgress | ErrorResponse:
+) -> NovelProgress:
     """Get statistics for a novel.
 
     Args:
@@ -378,14 +435,14 @@ async def get_novel_stats(
     """
     try:
         result = await novel_service.get_novel_stats(db, current_user.id, novel_id)
-        
+
         if not result["success"]:
             if "not found" in result["error"].lower():
                 status_code = status.HTTP_404_NOT_FOUND
             else:
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             raise HTTPException(status_code=status_code, detail=result["error"])
-        
+
         return result["stats"]
 
     except HTTPException:
