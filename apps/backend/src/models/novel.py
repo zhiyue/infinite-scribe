@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,6 +23,9 @@ class Novel(Base):
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid4, comment="小说唯一标识符，自动生成的UUID"
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, comment="所属用户ID，外键关联users表"
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False, comment="小说标题，必填，最长255个字符")
     theme: Mapped[str | None] = mapped_column(Text, comment='小说主题描述，如"科幻冒险"、"都市言情"等')
@@ -49,6 +52,7 @@ class Novel(Base):
     )
 
     # 关系
+    user = relationship("User", back_populates="novels")
     chapters = relationship("Chapter", back_populates="novel", cascade="all, delete-orphan")
     characters = relationship("Character", back_populates="novel", cascade="all, delete-orphan")
     worldview_entries = relationship("WorldviewEntry", back_populates="novel", cascade="all, delete-orphan")
