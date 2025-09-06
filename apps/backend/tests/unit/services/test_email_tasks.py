@@ -1,11 +1,10 @@
 """Unit tests for email tasks service."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
 from src.common.services.email_tasks import EmailTasks
-from tenacity import RetryError
 
 
 @pytest.fixture
@@ -34,13 +33,19 @@ def mock_retry_decorator():
 
 @pytest.fixture
 def mock_email_service():
-    """Create mock email service that works with the global mock."""
-    # Instead of trying to override the global mock, work with it
-    # The global mock is already mocking the email service methods
-    # We need to return a reference to the actual mocked methods
-    import src.common.services.email_service
+    """Create mock email service with proper mock attributes."""
+    from unittest.mock import MagicMock
 
-    return src.common.services.email_service.email_service
+    # Create a proper MagicMock with async methods
+    mock = MagicMock()
+    mock.send_verification_email = AsyncMock(return_value=True)
+    mock.send_password_reset_email = AsyncMock(return_value=True)
+    mock.send_welcome_email = AsyncMock(return_value=True)
+    mock.send_password_changed_email = AsyncMock(return_value=True)
+
+    # Patch the email_service import in the email_tasks module
+    with patch("src.common.services.email_tasks.email_service", mock):
+        yield mock
 
 
 @pytest.mark.asyncio
@@ -129,46 +134,6 @@ async def test_email_service_mock_directly(mock_email_service):
     print(f"Call count: {mock_email_service.send_verification_email.call_count}")
     assert result is True
     assert mock_email_service.send_verification_email.call_count == 1
-
-
-@pytest.mark.skip(reason="Tenacity retry decorator interferes with mock assertions - integration test needed")
-@pytest.mark.asyncio
-async def test_send_email_with_retry_success(
-    email_tasks_service,
-    mock_email_service,
-    mock_retry_decorator,
-):
-    """Test successful email sending with retry mechanism."""
-    # This test is skipped because the tenacity retry decorator
-    # interferes with mock call tracking in unit tests
-    pass
-
-
-@pytest.mark.skip(reason="Tenacity retry decorator interferes with mock assertions - integration test needed")
-@pytest.mark.asyncio
-async def test_send_email_with_retry_failure(
-    email_tasks_service,
-    mock_email_service,
-):
-    """Test email sending with retry on failure."""
-    # 模拟邮件发送失败
-    mock_email_service.send_verification_email.side_effect = RuntimeError("SMTP Error")
-
-    # 测试重试机制
-    with patch("src.common.services.email_tasks.logger") as mock_logger:
-        # 由于 @retry 装饰器会在所有重试失败后抛出 RetryError
-        with pytest.raises(RetryError):
-            await email_tasks_service._send_email_with_retry(
-                email_type="verification",
-                to_email="test@example.com",
-                user_name="Test User",
-                verification_url="https://example.com/verify?token=abc123",
-            )
-
-        # 验证重试了3次
-        assert mock_email_service.send_verification_email.call_count == 3
-        # 验证记录了错误日志
-        assert mock_logger.error.called
 
 
 @pytest.mark.asyncio

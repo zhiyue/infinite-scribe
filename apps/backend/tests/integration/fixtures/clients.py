@@ -6,13 +6,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from src.database import get_db
-from src.models.base import Base
 
 
 @asynccontextmanager
@@ -41,17 +36,18 @@ async def create_async_context_mock(return_value) -> AsyncGenerator[Any, None]:
 @pytest.fixture
 async def test_user(pg_session):
     """Create a test user for integration tests."""
-    from src.models.user import User
-    import time
     import random
-    
+    import time
+
+    from src.models.user import User
+
     timestamp = str(int(time.time() * 1000000))
     random_suffix = str(random.randint(1000, 9999))
     unique_id = f"{timestamp}_{random_suffix}"
-    
+
     user = User(
         username=f"testuser_{unique_id}",
-        email=f"testuser_{unique_id}@example.com", 
+        email=f"testuser_{unique_id}@example.com",
         password_hash="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6QlTUpSxKO",  # "testpass"
         is_active=True,
         is_verified=True,
@@ -60,6 +56,7 @@ async def test_user(pg_session):
     await pg_session.commit()
     await pg_session.refresh(user)
     return user
+
 
 @pytest.fixture
 async def test_user_common(pg_session):
@@ -90,16 +87,17 @@ async def test_user_common(pg_session):
 
         yield test_user
 
+
 @pytest.fixture
 async def async_client(pg_session, redis_session_client):
     """Create async test client with dependency overrides."""
-    from unittest.mock import AsyncMock, Mock, patch
-    
-    from tests.unit.test_mocks import mock_email_service
+    from unittest.mock import AsyncMock, patch
+
     from src.api.main import app
     from src.middleware.auth import get_current_user, require_auth
     from src.models.user import User
-    
+    from tests.unit.test_mocks import mock_email_service
+
     # Create a mock user for authentication
     mock_user = User(
         id=999,
@@ -109,10 +107,10 @@ async def async_client(pg_session, redis_session_client):
         is_active=True,
         is_verified=True,
     )
-    
+
     # Apply comprehensive dependency overrides
     app.dependency_overrides[get_db] = lambda: pg_session
-    app.dependency_overrides[get_current_user] = lambda: mock_user  
+    app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[require_auth] = lambda: mock_user
 
     with (
@@ -128,19 +126,17 @@ async def async_client(pg_session, redis_session_client):
     app.dependency_overrides.clear()
     mock_email_service.clear()
 
+
 @pytest.fixture
 async def client_with_lifespan(pg_session):
-    from unittest.mock import AsyncMock, Mock, patch, MagicMock
-    
-    from tests.unit.test_mocks import mock_email_service, mock_redis
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from src.api.main import app
-    from src.middleware.auth import get_current_user, require_auth
-    from src.models.user import User
-    from src.common.services.postgres_service import postgres_service
     from src.common.services.neo4j_service import neo4j_service
+    from src.common.services.postgres_service import postgres_service
     from src.common.services.redis_service import redis_service
     from src.core.config import settings
-
+    from tests.unit.test_mocks import mock_email_service
 
     app.dependency_overrides[get_db] = lambda: pg_session
 
@@ -149,18 +145,14 @@ async def client_with_lifespan(pg_session):
         patch.object(postgres_service, "connect", AsyncMock(return_value=None)),
         patch.object(postgres_service, "check_connection", AsyncMock(return_value=True)),
         patch.object(postgres_service, "disconnect", AsyncMock(return_value=None)),
-
         patch.object(neo4j_service, "connect", AsyncMock(return_value=None)),
         patch.object(neo4j_service, "check_connection", AsyncMock(return_value=True)),
         patch.object(neo4j_service, "disconnect", AsyncMock(return_value=None)),
-
         patch.object(redis_service, "connect", AsyncMock(return_value=None)),
         patch.object(redis_service, "check_connection", AsyncMock(return_value=True)),
         patch.object(redis_service, "disconnect", AsyncMock(return_value=None)),
-
         # 3) SSEProvider stub
         patch("src.services.sse.provider.SSEProvider") as mock_sse_provider,
-
         # 4) Launcher 组件 stub
         patch("src.launcher.orchestrator.Orchestrator") as mock_orchestrator,
         patch("src.launcher.health.HealthMonitor") as mock_health_monitor,
@@ -190,9 +182,7 @@ async def auth_headers():
     from src.common.services.jwt_service import jwt_service
 
     # Create token for mock user
-    access_token, _, _ = jwt_service.create_access_token(
-        "999", {"email": "test@example.com", "username": "testuser"}
-    )
+    access_token, _, _ = jwt_service.create_access_token("999", {"email": "test@example.com", "username": "testuser"})
     return {"Authorization": f"Bearer {access_token}"}
 
 
