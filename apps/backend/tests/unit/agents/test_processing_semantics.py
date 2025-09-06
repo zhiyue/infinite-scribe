@@ -57,7 +57,7 @@ class FakeProducer:
         self.sent.append((topic, value, key))
 
 
-class TestAgent(BaseAgent):
+class FakeAgent(BaseAgent):
     def __init__(self, messages: list[FakeMessage], behavior: str):
         super().__init__(name="test", consume_topics=["t"], produce_topics=["out"])
         # Override processing configs for deterministic tests
@@ -70,12 +70,27 @@ class TestAgent(BaseAgent):
         self._behavior = behavior
 
     async def _create_consumer(self):  # type: ignore[override]
-        return self._fake_consumer
+        consumer = self._fake_consumer
+        # 设置kafka_client.consumer以确保BaseAgent能找到它
+        self.kafka_client.consumer = consumer
+        return consumer
 
     async def _create_producer(self):  # type: ignore[override]
-        return self._fake_producer
+        producer = self._fake_producer
+        # 设置kafka_client.producer以确保BaseAgent能找到它
+        self.kafka_client.producer = producer
+        return producer
 
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+    async def _get_or_create_producer(self):  # type: ignore[override]
+        producer = self._fake_producer
+        # 设置kafka_client.producer以确保BaseAgent能找到它
+        if not self.kafka_client.producer:
+            self.kafka_client.producer = producer
+        return producer
+
+    async def process_message(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         if self._behavior == "success":
             return {"ok": True, "_topic": "out"}
         if self._behavior == "retriable_then_success":
@@ -93,7 +108,7 @@ class TestAgent(BaseAgent):
 @pytest.mark.asyncio
 async def test_retriable_then_success_commits_once_and_no_dlt():
     msgs = [FakeMessage("t", 0, 0, {}), FakeMessage("t", 0, 1, {})]
-    agent = TestAgent(messages=msgs, behavior="retriable_then_success")
+    agent = FakeAgent(messages=msgs, behavior="retriable_then_success")
 
     # run agent once over messages
     await agent.start()
@@ -111,15 +126,16 @@ async def test_retriable_then_success_commits_once_and_no_dlt():
     # Our behavior causes each message to fail once before succeeding
     assert first_value.get("retries", 0) >= 1
     assert second_value.get("retries", 0) >= 1
-    # metrics
-    assert agent.metrics["retries"] >= 1
-    assert agent.metrics["processed"] == 2
+    # metrics - 使用新的AgentMetrics接口
+    metrics_dict = agent.metrics.get_metrics_dict()
+    assert metrics_dict["retries"] >= 1
+    assert metrics_dict["processed"] == 2
 
 
 @pytest.mark.asyncio
 async def test_non_retriable_goes_direct_to_dlt_and_commit():
     msgs = [FakeMessage("t", 0, 0, {"correlation_id": "c-1"})]
-    agent = TestAgent(messages=msgs, behavior="non_retriable")
+    agent = FakeAgent(messages=msgs, behavior="non_retriable")
 
     await agent.start()
 
@@ -133,15 +149,16 @@ async def test_non_retriable_goes_direct_to_dlt_and_commit():
 
     # Offset committed (either batch or final flush on stop)
     assert len(agent._fake_consumer.commits) >= 1
-    # metrics
-    assert agent.metrics["dlt"] == 1
-    assert agent.metrics["failed"] == 1
+    # metrics - 使用新的AgentMetrics接口
+    metrics_dict = agent.metrics.get_metrics_dict()
+    assert metrics_dict["dlt"] == 1
+    assert metrics_dict["failed"] == 1
 
 
 @pytest.mark.asyncio
 async def test_batch_commit_by_size_and_flush_on_stop():
     msgs = [FakeMessage("t", 0, i, {}) for i in range(3)]
-    agent = TestAgent(messages=msgs, behavior="success")
+    agent = FakeAgent(messages=msgs, behavior="success")
     agent.commit_batch_size = 2
     agent.commit_interval_ms = 10_000
 
@@ -149,5 +166,6 @@ async def test_batch_commit_by_size_and_flush_on_stop():
 
     # Expect at least two commits: one for first two by size, one final flush
     assert len(agent._fake_consumer.commits) >= 1
-    # Ensure processed count matches
-    assert agent.metrics["processed"] == 3
+    # Ensure processed count matches - 使用新的AgentMetrics接口
+    metrics_dict = agent.metrics.get_metrics_dict()
+    assert metrics_dict["processed"] == 3

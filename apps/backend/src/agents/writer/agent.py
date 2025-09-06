@@ -17,22 +17,22 @@ class WriterAgent(BaseAgent):
         consume_topics, produce_topics = get_agent_topics("writer")
         super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
 
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """处理消息"""
         message_type = message.get("type")
         logger.info(f"Writer agent 处理消息类型: {message_type}")
 
         if message_type == "write_chapter":
-            return await self._handle_write_chapter(message)
+            return await self._handle_write_chapter(message, context)
         elif message_type == "write_scene":
-            return await self._handle_write_scene(message)
+            return await self._handle_write_scene(message, context)
         elif message_type == "rewrite_content":
-            return await self._handle_rewrite_content(message)
+            return await self._handle_rewrite_content(message, context)
         else:
             logger.warning(f"未知的消息类型: {message_type}")
             return None
 
-    async def _handle_write_chapter(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_write_chapter(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理章节写作请求"""
         chapter_id = message.get("chapter_id")
         # outline = message.get("outline", {})
@@ -55,7 +55,7 @@ class WriterAgent(BaseAgent):
             "_key": str(chapter_id) if chapter_id is not None else None,
         }
 
-    async def _handle_write_scene(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_write_scene(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理场景写作请求"""
         scene_id = message.get("scene_id")
         # scene_data = message.get("scene_data", {})
@@ -73,7 +73,7 @@ class WriterAgent(BaseAgent):
             "_key": str(scene_id) if scene_id is not None else None,
         }
 
-    async def _handle_rewrite_content(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_rewrite_content(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理内容重写请求"""
         content_id = message.get("content_id")
         # original_content = message.get("original_content")

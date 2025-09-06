@@ -23,16 +23,16 @@ class DirectorAgent(BaseAgent):
         logger.info(f"Director agent 处理消息类型: {message_type}")
 
         if message_type == "start_project":
-            return await self._handle_start_project(message)
+            return await self._handle_start_project(message, context)
         elif message_type == "review_progress":
-            return await self._handle_review_progress(message)
+            return await self._handle_review_progress(message, context)
         elif message_type == "coordinate_agents":
-            return await self._handle_coordinate_agents(message)
+            return await self._handle_coordinate_agents(message, context)
         else:
             logger.warning(f"未知的消息类型: {message_type}")
             return None
 
-    async def _handle_start_project(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_start_project(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理项目启动"""
         project_id = message.get("project_id")
         project_config = message.get("config", {})
@@ -57,7 +57,7 @@ class DirectorAgent(BaseAgent):
 
         return outline_request
 
-    async def _handle_review_progress(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_review_progress(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理进度审查"""
         project_id = message.get("project_id")
 
@@ -78,7 +78,7 @@ class DirectorAgent(BaseAgent):
             "_key": str(project_id) if project_id is not None else None,
         }
 
-    async def _handle_coordinate_agents(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_coordinate_agents(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理 agent 协调"""
         task_type = message.get("task_type")
         agents_involved = message.get("agents", [])

@@ -123,7 +123,7 @@ class AgentLauncher:
         """加载指定的 agents,如果未指定则加载所有 agents"""
         # Validate agent configuration at startup
         validate_agent_config()
-        
+
         if agent_names is None:
             agent_names = AVAILABLE_AGENTS
 

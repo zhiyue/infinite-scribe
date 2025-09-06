@@ -31,7 +31,7 @@ class TemplateAgent(BaseAgent):
 
         # TODO: 初始化 agent 特定的配置和资源（模型、数据库、缓存等）
 
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """处理消息
 
         Args:
@@ -39,9 +39,10 @@ class TemplateAgent(BaseAgent):
                 - type: 消息类型
                 - content: 消息内容
                 - metadata: 元数据
+            context: 消息上下文with metadata
 
         Returns:
-            处理结果字典
+            处理结果字典, 或 None 如果不需要响应
         """
         logger.info(f"{self.name} 正在处理消息: {message.get('type', 'unknown')}")
 
@@ -49,7 +50,7 @@ class TemplateAgent(BaseAgent):
         message_type = message.get("type")
 
         if message_type == "example_type":
-            return await self._handle_example_type(message)
+            return await self._handle_example_type(message, context)
         else:
             logger.warning(f"未知的消息类型: {message_type}")
             return {
@@ -58,7 +59,7 @@ class TemplateAgent(BaseAgent):
                 "message": f"未知的消息类型: {message_type}",
             }
 
-    async def _handle_example_type(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_example_type(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
         """处理特定类型的消息"""
         # TODO: 实现具体的处理逻辑
         # 如需不可重试错误，抛出 NonRetriableError

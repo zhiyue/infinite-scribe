@@ -50,8 +50,8 @@ class OrchestratorAgent(BaseAgent):
         if "event_type" in message and "aggregate_id" in message:
             return await self._handle_domain_event(message)
 
-        # Capability event envelope
-        msg_type = message.get("type")
+        # Capability event envelope - 从context中获取type而非message
+        msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
         if msg_type:
             return await self._handle_capability_event(msg_type, message, context or {})
 
@@ -115,13 +115,14 @@ class OrchestratorAgent(BaseAgent):
     async def _handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
     ) -> dict[str, Any] | None:
-        data = message.get("data") or message  # Envelope or raw
+        data = message.get("data") or message  # 保持原有逻辑：优先从data字段获取，回退到message本身
         session_id = str(data.get("session_id") or data.get("aggregate_id") or "")
-        topic = (context or {}).get("topic") or ""
+        topic = context.get("topic") or ""
         # infer scope from topic prefix (e.g., genesis.outline.events)
         scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else "GENESIS"
         scope_type = scope_prefix
-        correlation_id = data.get("correlation_id")
+        # 优先从context['meta']读取correlation_id，回退到data
+        correlation_id = context.get("meta", {}).get("correlation_id") or data.get("correlation_id")
 
         # Try different event handlers in sequence
         handlers = [
