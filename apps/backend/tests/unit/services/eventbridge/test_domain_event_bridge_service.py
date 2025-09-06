@@ -50,6 +50,8 @@ class TestDomainEventBridgeService:
         # Mock async methods
         self.offset_manager.flush_pending_offsets = AsyncMock()
         self.offset_manager.record_offset_and_maybe_commit = AsyncMock()
+        self.kafka_client_manager.stop_consumer = AsyncMock()
+        self.redis_sse_service.close = AsyncMock()
 
         # Create service
         self.service = DomainEventBridgeService(
@@ -328,15 +330,10 @@ class TestDomainEventBridgeService:
     @pytest.mark.asyncio
     async def test_event_bridge_shutdown_cleanup(self):
         """Test event bridge cleans up resources on shutdown."""
-        # Mock cleanup methods
-        self.kafka_client_manager.stop_consumer = Mock()
-        self.redis_sse_service.close = AsyncMock()
-
-        await self.service.shutdown()
-
         # Set consumer reference for proper shutdown
         self.service.set_consumer(self.consumer)
 
+        # Call shutdown
         await self.service.shutdown()
 
         # Verify cleanup was called

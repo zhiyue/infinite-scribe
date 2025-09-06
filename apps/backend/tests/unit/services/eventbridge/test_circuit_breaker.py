@@ -93,19 +93,26 @@ class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_circuit_breaker_half_open_failure_reopens(self):
         """Test half-open circuit reopens on failed operation."""
-        # Open the circuit first
-        self.circuit_breaker.record_failure()
-        self.circuit_breaker.record_failure()
-        assert self.circuit_breaker.state == CircuitState.OPEN
+        # Create a circuit breaker with shorter interval for this test
+        short_cb = CircuitBreaker(
+            window_seconds=1,
+            failure_threshold=0.5,
+            half_open_interval_seconds=1,  # 1 second interval
+        )
+
+        # Open the circuit first - record enough failures to exceed threshold
+        short_cb.record_failure()
+        short_cb.record_failure()
+        assert short_cb.state == CircuitState.OPEN
 
         # Wait for half-open interval
-        await asyncio.sleep(2.1)
-        self.circuit_breaker.record_attempt()
-        assert self.circuit_breaker.state == CircuitState.HALF_OPEN
+        await asyncio.sleep(1.1)  # Wait a bit more than interval
+        short_cb.record_attempt()
+        assert short_cb.state == CircuitState.HALF_OPEN
 
         # Failure in half-open should reopen the circuit
-        self.circuit_breaker.record_failure()
-        assert self.circuit_breaker.state == CircuitState.OPEN
+        short_cb.record_failure()
+        assert short_cb.state == CircuitState.OPEN
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_consumer_pause_resume(self):
