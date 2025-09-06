@@ -456,15 +456,14 @@ async def create_round(
 )
 async def get_round(
     session_id: UUID,
+    response: Response,
     round_id: str = Path(..., description="Round path, e.g., 1 or 2.1"),
-    response: Response | None = None,
     x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ) -> ApiResponse[RoundResponse]:
     corr_id = _get_or_create_correlation_id(x_correlation_id)
-    if response:
-        _set_common_headers(response, correlation_id=corr_id)
+    _set_common_headers(response, correlation_id=corr_id)
     result = await conversation_service.get_round(db, current_user.id, session_id, round_id)
     if not result.get("success"):
         code = result.get("code", 404)

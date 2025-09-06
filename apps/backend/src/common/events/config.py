@@ -48,16 +48,19 @@ DEFAULT_DOMAIN_TOPIC: Final[str] = "conversation.session.events"
 
 def get_domain_prefix(scope_type: str | ScopeType) -> str:
     key = scope_type.value if isinstance(scope_type, ScopeType) else str(scope_type)
+    key = key.upper()
     return SCOPE_EVENT_PREFIX.get(key, "Conversation.Session")
 
 
 def get_aggregate_type(scope_type: str | ScopeType) -> str:
     key = scope_type.value if isinstance(scope_type, ScopeType) else str(scope_type)
+    key = key.upper()
     return SCOPE_AGGREGATE_TYPE.get(key, "ConversationSession")
 
 
 def get_domain_topic(scope_type: str | ScopeType) -> str:
     key = scope_type.value if isinstance(scope_type, ScopeType) else str(scope_type)
+    key = key.upper()
     return SCOPE_DOMAIN_TOPIC.get(key, DEFAULT_DOMAIN_TOPIC)
 
 

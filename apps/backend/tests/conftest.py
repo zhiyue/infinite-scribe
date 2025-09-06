@@ -15,10 +15,8 @@ from pymilvus import connections, utility
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from src.api.main import app
 from src.database import get_db
 from src.models.base import Base
-from testcontainers.milvus import MilvusContainer
 
 # Configure remote Docker host if requested
 if os.environ.get("USE_REMOTE_DOCKER", "false").lower() == "true":
@@ -296,6 +294,12 @@ CONNECT_TIMEOUT_S = int(os.getenv("MILVUS_CONNECT_TIMEOUT", "60"))
 @pytest.fixture(scope="session")
 def milvus_service():
     """Provide Milvus connection (skip gracefully if container healthcheck fails)."""
+    # Lazy import to avoid hard dependency for unit tests
+    try:
+        from testcontainers.milvus import MilvusContainer
+    except Exception as e:
+        pytest.skip(f"Milvus testcontainer not available: {e}")
+
     container = None
     try:
         container = MilvusContainer(MILVUS_IMAGE)
@@ -503,6 +507,9 @@ def client(test_session):
     def override_get_db():
         return test_session
 
+    # Lazy import app to avoid heavy dependencies at module import time
+    from src.api.main import app
+
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
@@ -519,6 +526,7 @@ async def async_client(test_session):
     def override_get_db():
         return test_session
 
+    from src.api.main import app
     app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(app=app, base_url="http://test") as ac:

@@ -104,7 +104,7 @@ class AgentLauncher:
 
             # 创建一个匿名的 Agent 类
             class GenericAgent(BaseAgent):
-                async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+                async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
                     logger.info(f"{agent_name} 处理消息: {message.get('type', 'unknown')}")
                     # 通用处理逻辑
                     return {

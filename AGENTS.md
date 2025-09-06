@@ -1,5 +1,174 @@
 # Repository Guidelines
 
+# Development Guidelines
+
+## Philosophy
+
+### Core Beliefs
+
+- **Incremental progress over big bangs** - Small changes that compile and pass
+  tests
+- **Learning from existing code** - Study and plan before implementing
+- **Pragmatic over dogmatic** - Adapt to project reality
+- **Clear intent over clever code** - Be boring and obvious
+- Follow SOLID principles and prefer composition over inheritance
+- Use dependency injection for testability
+- Apply repository pattern for data access and strategy pattern for algorithms
+
+### Simplicity Means
+
+- Single responsibility per function/class
+- Avoid premature abstractions
+- No clever tricks - choose the boring solution
+- If you need to explain it, it's too complex
+
+## Process
+
+### 1. Planning & Staging
+
+Break complex work into 3-5 stages. Document in `IMPLEMENTATION_PLAN.md`:
+
+```markdown
+## Stage N: [Name]
+
+**Goal**: [Specific deliverable] **Success Criteria**: [Testable outcomes]
+**Tests**: [Specific test cases] **Status**: [Not Started|In Progress|Complete]
+```
+
+- Update status as you progress
+- Remove file when all stages are done
+
+### 2. Implementation Flow
+
+1. **Understand** - Study existing patterns in codebase
+2. **Test** - Write test first (red)
+3. **Implement** - Minimal code to pass (green)
+4. **Refactor** - Clean up with tests passing
+5. **Commit** - With clear message linking to plan
+
+- Search codebase first when uncertain
+- Write tests for core functionality using TDD approach
+- Update documentation when modifying code
+- Make atomic commits for each completed feature stage and push
+
+### 3. When Stuck (After 3 Attempts)
+
+**CRITICAL**: Maximum 3 attempts per issue, then STOP.
+
+1. **Document what failed**:
+   - What you tried
+   - Specific error messages
+   - Why you think it failed
+
+2. **Research alternatives**:
+   - Find 2-3 similar implementations
+   - Note different approaches used
+
+3. **Question fundamentals**:
+   - Is this the right abstraction level?
+   - Can this be split into smaller problems?
+   - Is there a simpler approach entirely?
+
+4. **Try different angle**:
+   - Different library/framework feature?
+   - Different architectural pattern?
+   - Remove abstraction instead of adding?
+
+## Technical Standards
+
+### Architecture Principles
+
+- **Composition over inheritance** - Use dependency injection
+- **Interfaces over singletons** - Enable testing and flexibility
+- **Explicit over implicit** - Clear data flow and dependencies
+- **Test-driven when possible** - Never disable tests, fix them
+
+### Code Quality
+
+- **Every commit must**:
+  - Compile successfully
+  - Pass all existing tests
+  - Include tests for new functionality
+  - Follow project formatting/linting
+
+- **Before committing**:
+  - Run formatters/linters
+  - Self-review changes
+  - Ensure commit message explains "why"
+
+- Use descriptive names and avoid abbreviations or magic numbers
+- Keep functions under 20 lines and maintain concise files
+- Handle all error scenarios with meaningful messages
+- Comment "why" not "what"
+
+### Error Handling
+
+- Fail fast with descriptive messages
+- Include context for debugging
+- Handle errors at appropriate level
+- Never silently swallow exceptions
+
+## Decision Framework
+
+When multiple valid approaches exist, choose based on:
+
+1. **Testability** - Can I easily test this?
+2. **Readability** - Will someone understand this in 6 months?
+3. **Consistency** - Does this match project patterns?
+4. **Simplicity** - Is this the simplest solution that works?
+5. **Reversibility** - How hard to change later?
+
+## Project Integration
+
+### Learning the Codebase
+
+- Find 3 similar features/components
+- Identify common patterns and conventions
+- Use same libraries/utilities when possible
+- Follow existing test patterns
+
+### Tooling
+
+- Use project's existing build system
+- Use project's test framework
+- Use project's formatter/linter settings
+- Don't introduce new tools without strong justification
+
+## Quality Gates
+
+### Definition of Done
+
+- [ ] Tests written and passing
+- [ ] Code follows project conventions
+- [ ] No linter/formatter warnings
+- [ ] Commit messages are clear
+- [ ] Implementation matches plan
+- [ ] No TODOs without issue numbers
+
+### Test Guidelines
+
+- Test behavior, not implementation
+- One assertion per test when possible
+- Clear test names describing scenario
+- Use existing test utilities/helpers
+- Tests should be deterministic
+
+## Important Reminders
+
+**NEVER**:
+
+- Use `--no-verify` to bypass commit hooks
+- Disable tests instead of fixing them
+- Commit code that doesn't compile
+- Make assumptions - verify with existing code
+
+**ALWAYS**:
+
+- Commit working code incrementally
+- Update plan documentation as you go
+- Learn from existing implementations
+- Stop after 3 failed attempts and reassess
+
 ## Project Structure & Module Organization
 
 - `apps/backend/`: FastAPI service and agents. Code in `src/` (API, agents,
@@ -196,15 +365,20 @@ return {
 ### Canonical Agent IDs 与注册表（Registry）
 
 - 命名规范：
-  - Agent ID 使用 `snake_case`（canonical id），例如：`writer`、`director`、`character_expert`、`fact_checker`。
-  - 目录/模块名与 ID 一致（推荐），类名使用 `PascalCase + Agent`，例如：`WriterAgent`、`DirectorAgent`。
+  - Agent ID 使用 `snake_case`（canonical
+    id），例如：`writer`、`director`、`character_expert`、`fact_checker`。
+  - 目录/模块名与 ID 一致（推荐），类名使用
+    `PascalCase + Agent`，例如：`WriterAgent`、`DirectorAgent`。
 
 - 兼容别名（alias）：
-  - 项目提供 `AGENT_ALIASES` 与 `CANONICAL_IDS`（见 `src/agents/agent_config.py`）进行 ID 与现有目录键的兼容映射。
-  - CLI/对外文档与健康输出统一展示 canonical id；内部仍可兼容历史命名（如 `characterexpert`）。
+  - 项目提供 `AGENT_ALIASES` 与 `CANONICAL_IDS`（见
+    `src/agents/agent_config.py`）进行 ID 与现有目录键的兼容映射。
+  - CLI/对外文档与健康输出统一展示 canonical id；内部仍可兼容历史命名（如
+    `characterexpert`）。
 
 - 注册表优先：
-  - 显式注册表位于 `src/agents/registry.py`。在具体 Agent 包的 `__init__.py` 中注册：
+  - 显式注册表位于 `src/agents/registry.py`。在具体 Agent 包的 `__init__.py`
+    中注册：
 
 ```python
 from ..registry import register_agent
@@ -214,20 +388,25 @@ register_agent("writer", WriterAgent)
 ```
 
 - 动态加载策略：
-  - `AgentLauncher` 优先从注册表加载；若未注册，则按 `{snake_to_pascal(id)}Agent` 反射加载；
-  - 如仍未找到，会扫描模块中的第一个 `BaseAgent` 子类作为兜底，最后才降级为 `GenericAgent`。
+  - `AgentLauncher` 优先从注册表加载；若未注册，则按
+    `{snake_to_pascal(id)}Agent` 反射加载；
+  - 如仍未找到，会扫描模块中的第一个 `BaseAgent` 子类作为兜底，最后才降级为
+    `GenericAgent`。
 
 - 主题配置的单一真相源：
   - 统一从 `get_agent_topics(id)` 读取，避免在 Agent 类中硬编码主题；
-  - 后续可迁移至 Settings/TOML（Pydantic 类型化配置），`AGENT_TOPICS` 作为默认值。
+  - 后续可迁移至 Settings/TOML（Pydantic 类型化配置），`AGENT_TOPICS`
+    作为默认值。
 
 ### Error Classification（错误分类钩子）
 
 - 默认策略（BaseAgent.classify_error）：
   - `NonRetriableError` → 直接判定为不可重试，发送到 DLT（Dead Letter Topic）。
-  - 其他异常 → 视为可重试，按指数退避进行最多 `agent_max_retries` 次重试，超限后进入 DLT。
+  - 其他异常 → 视为可重试，按指数退避进行最多 `agent_max_retries`
+    次重试，超限后进入 DLT。
 
-- 业务自定义：Agent 可覆盖 `classify_error(self, error, message)` 钩子，按错误码或内容决定是否可重试。例如：
+- 业务自定义：Agent 可覆盖 `classify_error(self, error, message)`
+  钩子，按错误码或内容决定是否可重试。例如：
 
 ```python
 from typing import Literal
@@ -267,7 +446,8 @@ class DirectorAgent(BaseAgent):
 ```
 
 - 结果消息中的 `retries` 字段：
-  - BaseAgent 在每次成功发送结果时，会自动附加 `retries` 字段（默认值为本次处理的失败重试次数）。
+  - BaseAgent 在每次成功发送结果时，会自动附加 `retries`
+    字段（默认值为本次处理的失败重试次数）。
   - 如业务已设置 `retries`，框架不会覆盖该值。
 
 ## Communication & Language

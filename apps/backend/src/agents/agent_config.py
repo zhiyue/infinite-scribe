@@ -20,7 +20,6 @@ class AgentTopicConfig(TypedDict, total=False):
 AGENT_TOPICS: dict[str, AgentTopicConfig] = {
     # 领域总线（Facts）：genesis.session.events（仅中央协调者消费/产出）
     # 能力总线（Capabilities）：各 Agent 的 tasks/events
-
     # Orchestrator-like director（示例）：消费领域与各能力结果；产出能力任务
     "director": {
         "consume": [
@@ -47,7 +46,36 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
             "genesis.worldsmith.tasks",
         ],
     },
-
+    # Domain Orchestrator: 消费领域事实 + 能力结果；产出能力任务（任务总线）
+    # 明确列出多个域前缀主题（方案B，不使用正则订阅）
+    "orchestrator": {
+        "consume": [
+            # Domain bus
+            "genesis.session.events",
+            # Capability events
+            "genesis.outline.events",
+            "genesis.writer.events",
+            "genesis.review.events",
+            "genesis.world.events",
+            "genesis.character.events",
+            "genesis.plot.events",
+            "genesis.factcheck.events",
+            "genesis.rewriter.events",
+            "genesis.worldsmith.events",
+        ],
+        "produce": [
+            # Capability tasks (agent bus)
+            "genesis.outline.tasks",
+            "genesis.writer.tasks",
+            "genesis.review.tasks",
+            "genesis.world.tasks",
+            "genesis.character.tasks",
+            "genesis.plot.tasks",
+            "genesis.factcheck.tasks",
+            "genesis.rewriter.tasks",
+            "genesis.worldsmith.tasks",
+        ],
+    },
     # Capability agents
     "outliner": {"consume": ["genesis.outline.tasks"], "produce": ["genesis.outline.events"]},
     "writer": {"consume": ["genesis.writer.tasks"], "produce": ["genesis.writer.events"]},

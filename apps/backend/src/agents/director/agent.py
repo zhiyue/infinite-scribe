@@ -17,7 +17,7 @@ class DirectorAgent(BaseAgent):
         consume_topics, produce_topics = get_agent_topics("director")
         super().__init__(name="director", consume_topics=consume_topics, produce_topics=produce_topics)
 
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """处理消息"""
         message_type = message.get("type")
         logger.info(f"Director agent 处理消息类型: {message_type}")

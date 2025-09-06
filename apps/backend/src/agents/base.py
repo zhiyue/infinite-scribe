@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -53,7 +54,7 @@ class BaseAgent(ABC):
         # 手动提交偏移批量状态
         self._pending_offsets: dict[TopicPartition, int] = {}
         self._since_last_commit: int = 0
-        self._last_commit_monotonic: float = asyncio.get_event_loop().time()
+        self._last_commit_monotonic: float = time.monotonic()
 
         # 简易指标
         self.metrics: dict[str, int | float] = {
@@ -89,7 +90,9 @@ class BaseAgent(ABC):
             raise ValueError("agent_commit_interval_ms must be >= 0")
 
     @abstractmethod
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+    async def process_message(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """处理接收到的消息
 
         Args:
@@ -138,7 +141,6 @@ class BaseAgent(ABC):
             acks="all",
             enable_idempotence=True,
             linger_ms=5,
-            retries=5,
         )
         await producer.start()
         self.log.info("producer_started")
@@ -163,6 +165,26 @@ class BaseAgent(ABC):
                     safe_message, meta = decode_message(raw_value)
                     correlation_id = cast(str | None, meta.get("correlation_id"))
                     message_id = cast(str | None, meta.get("message_id") or meta.get("id"))
+                    # 构造上下文，包含 topic/headers 等元数据
+                    headers_list = getattr(msg, "headers", None)
+                    headers_dict: dict[str, Any] | None = None
+                    if headers_list:
+                        try:
+                            headers_dict = {
+                                k: (v.decode("utf-8") if isinstance(v, bytes | bytearray) else v)
+                                for k, v in headers_list
+                            }
+                        except Exception:
+                            headers_dict = None
+                    context = {
+                        "topic": getattr(msg, "topic", None),
+                        "partition": getattr(msg, "partition", None),
+                        "offset": getattr(msg, "offset", None),
+                        "timestamp": getattr(msg, "timestamp", None),
+                        "key": getattr(msg, "key", None),
+                        "headers": headers_dict or headers_list,
+                        "meta": meta,
+                    }
 
                     # 记录接收到的消息
                     self.log.debug(
@@ -182,7 +204,7 @@ class BaseAgent(ABC):
                     start = asyncio.get_event_loop().time()
                     while True:
                         try:
-                            result: dict[str, Any] | None = await self.process_message(safe_message)
+                            result: dict[str, Any] | None = await self.process_message(safe_message, context)
                             if result:
                                 await self._send_result(
                                     result, retries=attempt, correlation_id=correlation_id, message_id=message_id
@@ -282,7 +304,7 @@ class BaseAgent(ABC):
         if consumer is None:
             return
         tp = TopicPartition(msg.topic, msg.partition)
-        offsets = {tp: OffsetAndMetadata(msg.offset + 1, None)}
+        offsets = {tp: OffsetAndMetadata(msg.offset + 1, "")}
         await consumer.commit(offsets=offsets)
         self.log.debug("offset_committed", topic=msg.topic, partition=msg.partition, offset=msg.offset)
 
@@ -307,7 +329,7 @@ class BaseAgent(ABC):
         interval_exceeded = (now - self._last_commit_monotonic) * 1000.0 >= self.commit_interval_ms
         size_exceeded = self._since_last_commit >= self.commit_batch_size
         if force or interval_exceeded or size_exceeded:
-            offsets = {tp: OffsetAndMetadata(offset, None) for tp, offset in self._pending_offsets.items()}
+            offsets = {tp: OffsetAndMetadata(offset, "") for tp, offset in self._pending_offsets.items()}
             await consumer.commit(offsets=offsets)
             self.log.debug(
                 "offsets_batch_committed", offsets={f"{tp.topic}:{tp.partition}": off for tp, off in offsets.items()}
