@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -66,10 +67,10 @@ class CommandInbox(Base):
     )
     error_message: Mapped[str | None] = mapped_column(Text, comment="错误信息，当状态为FAILED时必填")
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="重试次数，用于失败重试机制")
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="命令接收时间"
     )
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )
 
@@ -131,16 +132,16 @@ class AsyncTask(Base):
     execution_node: Mapped[str | None] = mapped_column(Text, comment="执行任务的节点标识，用于分布式任务调度")
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="当前重试次数")
     max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3, comment="最大重试次数，默认3次")
-    started_at: Mapped[DateTime | None] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="任务开始执行时间，状态为RUNNING时必填"
     )
-    completed_at: Mapped[DateTime | None] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="任务完成时间，状态为COMPLETED或FAILED时必填"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="任务创建时间"
     )
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )
 
@@ -184,11 +185,11 @@ class EventOutbox(Base):
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="当前重试次数")
     max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=5, comment="最大重试次数，默认5次")
     last_error: Mapped[str | None] = mapped_column(Text, comment="最后一次发送失败的错误信息")
-    scheduled_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), comment="计划发送时间，用于延迟消息")
-    sent_at: Mapped[DateTime | None] = mapped_column(
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), comment="计划发送时间，用于延迟消息")
+    sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="实际发送成功时间，状态为SENT时必填"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="消息创建时间"
     )
 
@@ -233,15 +234,15 @@ class FlowResumeHandle(Base):
     resume_payload: Mapped[dict | None] = mapped_column(JSONB, comment="恢复时的载荷数据，包含用户输入或外部事件数据")
     timeout_seconds: Mapped[int | None] = mapped_column(Integer, comment="超时时间（秒），超时后工作流将自动恢复或失败")
     context_data: Mapped[dict | None] = mapped_column(JSONB, comment="上下文数据，存储工作流暂停时的业务上下文")
-    expires_at: Mapped[DateTime | None] = mapped_column(
+    expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="句柄过期时间，过期后不能再恢复"
     )
-    resumed_at: Mapped[DateTime | None] = mapped_column(
+    resumed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="实际恢复时间，状态为RESUMED时必填"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="句柄创建时间"
     )
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="最后更新时间"
     )

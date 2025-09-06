@@ -253,7 +253,7 @@ class OrchestratorAgent(BaseAgent):
         aggregate_type = get_aggregate_type(scope_type)
         topic = get_domain_topic(scope_type)
 
-        async with create_sql_session() as db:  # type: AsyncSession
+        async with create_sql_session() as db:
             # Idempotency: check existing DomainEvent by (correlation_id, event_type)
             existing = None
             if correlation_id:

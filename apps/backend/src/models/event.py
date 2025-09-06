@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -55,7 +56,7 @@ class DomainEvent(Base):
     event_metadata: Mapped[dict | None] = mapped_column(
         "metadata", JSONB, comment="事件元数据，如用户ID、时间戳、来源等"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="事件创建时间，不可修改"
     )
 

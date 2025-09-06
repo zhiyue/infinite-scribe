@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -61,10 +62,10 @@ class Chapter(Base):
         PGUUID(as_uuid=True), comment="指向当前已发布版本的ID，外键将在chapter_versions表创建后添加"
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="乐观锁版本号，用于并发控制")
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="章节创建时间"
     )
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
@@ -115,7 +116,7 @@ class ChapterVersion(Base):
     version_metadata: Mapped[dict | None] = mapped_column(
         "metadata", JSONB, comment="存储与此版本相关的额外元数据，JSONB格式"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="版本创建时间"
     )
 
@@ -155,7 +156,7 @@ class Review(Base):
     issues_found: Mapped[list[str] | None] = mapped_column(
         ARRAY(Text), comment='发现的问题列表，如["时间线冲突", "角色性格不一致"]'
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="评审创建时间，不会更新"
     )
 
