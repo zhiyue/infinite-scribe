@@ -1,68 +1,11 @@
 """Integration tests for SSE token authentication endpoints."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
 from jose import jwt
-from src.api.main import app
 from src.core.config import settings
-from src.database import get_db
-from tests.unit.test_mocks import mock_email_service, mock_redis
-
-
-@pytest.fixture
-async def test_user(postgres_test_session):
-    """Create a test user for authentication tests."""
-    from sqlalchemy import select
-    from src.common.utils.datetime_utils import utc_now
-    from src.models.user import User
-
-    # Check if user already exists
-    result = await postgres_test_session.execute(select(User).where(User.id == 123))
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
-        yield existing_user
-    else:
-        test_user = User(
-            id=123,
-            username="testuser",
-            email="testuser@example.com",
-            password_hash="$2b$12$test_hash",
-            created_at=utc_now(),
-            updated_at=utc_now(),
-        )
-
-        postgres_test_session.add(test_user)
-        await postgres_test_session.commit()
-        await postgres_test_session.refresh(test_user)
-
-        yield test_user
-
-
-@pytest.fixture
-async def client_with_mocks(postgres_test_session, test_user):
-    """Create async test client with mocked dependencies using PostgreSQL."""
-
-    def override_get_db():
-        return postgres_test_session
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    with (
-        patch("src.common.services.jwt_service.jwt_service._redis_client", mock_redis),
-        patch("src.common.services.email_service.EmailService") as mock_email_cls,
-    ):
-        mock_email_cls.return_value = mock_email_service
-        async with AsyncClient(app=app, base_url="http://test") as test_client:
-            yield test_client
-
-    # Cleanup
-    app.dependency_overrides.clear()
-    mock_redis.clear()
-    mock_email_service.clear()
 
 
 @pytest.fixture
@@ -79,13 +22,13 @@ class TestSSETokenEndpoints:
     """Integration tests for SSE token endpoints."""
 
     @pytest.mark.asyncio
-    async def test_create_sse_token_endpoint_success(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_create_sse_token_endpoint_success(self, async_client: AsyncClient, valid_access_token: str):
         """Test successful SSE token creation via API endpoint."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response.status_code == 200
@@ -113,28 +56,28 @@ class TestSSETokenEndpoints:
         assert "iat" in decoded_payload
 
     @pytest.mark.asyncio
-    async def test_create_sse_token_endpoint_unauthorized(self, client_with_mocks: AsyncClient):
+    async def test_create_sse_token_endpoint_unauthorized(self, async_client: AsyncClient):
         """Test SSE token creation fails without authentication."""
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token")
+        response = await async_client.post("/api/v1/auth/sse-token")
 
         # Assert
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_create_sse_token_endpoint_invalid_token(self, client_with_mocks: AsyncClient):
+    async def test_create_sse_token_endpoint_invalid_token(self, async_client: AsyncClient):
         """Test SSE token creation fails with invalid authentication token."""
         # Arrange
         headers = {"Authorization": "Bearer invalid_token"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_create_sse_token_endpoint_expired_token(self, client_with_mocks: AsyncClient):
+    async def test_create_sse_token_endpoint_expired_token(self, async_client: AsyncClient):
         """Test SSE token creation fails with expired authentication token."""
         # Arrange - Create an expired JWT token
         expired_payload = {
@@ -150,19 +93,19 @@ class TestSSETokenEndpoints:
         headers = {"Authorization": f"Bearer {expired_token}"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_create_sse_token_response_structure(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_create_sse_token_response_structure(self, async_client: AsyncClient, valid_access_token: str):
         """Test SSE token response has correct structure and expiration."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response.status_code == 200
@@ -181,14 +124,14 @@ class TestSSETokenEndpoints:
         assert time_diff < 5  # Allow 5 second tolerance for network/processing time
 
     @pytest.mark.asyncio
-    async def test_create_multiple_sse_tokens(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_create_multiple_sse_tokens(self, async_client: AsyncClient, valid_access_token: str):
         """Test creating multiple SSE tokens for the same user."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act - Create multiple tokens
-        response1 = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
-        response2 = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response1 = await async_client.post("/api/v1/auth/sse-token", headers=headers)
+        response2 = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response1.status_code == 200
@@ -208,13 +151,13 @@ class TestSSETokenEndpoints:
         assert payload1["token_type"] == payload2["token_type"] == "sse"
 
     @pytest.mark.asyncio
-    async def test_sse_token_can_be_verified(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_sse_token_can_be_verified(self, async_client: AsyncClient, valid_access_token: str):
         """Test that created SSE token can be successfully verified."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act - Create SSE token
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
         assert response.status_code == 200
 
         sse_token = response.json()["sse_token"]
@@ -229,13 +172,13 @@ class TestSSETokenEndpoints:
         assert isinstance(user_id, str)
 
     @pytest.mark.asyncio
-    async def test_sse_token_short_expiration(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_sse_token_short_expiration(self, async_client: AsyncClient, valid_access_token: str):
         """Test that SSE tokens have short expiration as configured."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
         assert response.status_code == 200
 
         sse_token = response.json()["sse_token"]
@@ -257,13 +200,13 @@ class TestSSETokenEndpoints:
         assert token_lifetime_seconds == settings.auth.sse_token_expire_seconds
 
     @pytest.mark.asyncio
-    async def test_sse_token_security_headers(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_sse_token_security_headers(self, async_client: AsyncClient, valid_access_token: str):
         """Test that SSE token endpoint returns appropriate security headers."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Act
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
 
         # Assert
         assert response.status_code == 200
@@ -282,14 +225,14 @@ class TestSSETokenSecurity:
 
     @pytest.mark.asyncio
     async def test_sse_token_different_secret_fails_verification(
-        self, client_with_mocks: AsyncClient, valid_access_token: str
+        self, async_client: AsyncClient, valid_access_token: str
     ):
         """Test that SSE tokens signed with different secrets fail verification."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Create SSE token normally
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
         assert response.status_code == 200
 
         # Create a malicious token with different secret
@@ -336,13 +279,13 @@ class TestSSETokenSecurity:
             verify_sse_token(unsigned_token)
 
     @pytest.mark.asyncio
-    async def test_sse_token_payload_tampering(self, client_with_mocks: AsyncClient, valid_access_token: str):
+    async def test_sse_token_payload_tampering(self, async_client: AsyncClient, valid_access_token: str):
         """Test that tampered token payloads are rejected."""
         # Arrange
         headers = {"Authorization": f"Bearer {valid_access_token}"}
 
         # Create legitimate SSE token
-        response = await client_with_mocks.post("/api/v1/auth/sse-token", headers=headers)
+        response = await async_client.post("/api/v1/auth/sse-token", headers=headers)
         assert response.status_code == 200
 
         legitimate_token = response.json()["sse_token"]

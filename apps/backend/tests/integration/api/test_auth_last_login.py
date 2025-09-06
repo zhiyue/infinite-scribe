@@ -18,12 +18,12 @@ class TestAuthLastLogin:
 
     @pytest.mark.asyncio
     async def test_login_updates_last_login_at_in_database(
-        self, postgres_async_client: httpx.AsyncClient, postgres_test_session
+        self, async_client: httpx.AsyncClient, postgres_test_session
     ):
         """测试成功登录时 last_login_at 在数据库中被更新。"""
         # 创建并验证测试用户
         register_data = await create_and_verify_test_user_with_registration(
-            postgres_async_client,
+            async_client,
             postgres_test_session,
             username="lastloginuser",
             email="lastlogin@example.com",
@@ -45,7 +45,7 @@ class TestAuthLastLogin:
 
         # 执行登录
         status_code, response_data = await perform_login(
-            postgres_async_client, register_data["email"], register_data["password"]
+            async_client, register_data["email"], register_data["password"]
         )
         assert status_code == 200
         assert "access_token" in response_data
@@ -70,7 +70,7 @@ class TestAuthLastLogin:
 
         # 第二次登录
         status_code, response_data = await perform_login(
-            postgres_async_client, register_data["email"], register_data["password"]
+            async_client, register_data["email"], register_data["password"]
         )
         assert status_code == 200
 
@@ -85,12 +85,12 @@ class TestAuthLastLogin:
 
     @pytest.mark.asyncio
     async def test_failed_login_does_not_update_last_login_at(
-        self, postgres_async_client: httpx.AsyncClient, postgres_test_session
+        self, async_client: httpx.AsyncClient, postgres_test_session
     ):
         """测试登录失败时不更新 last_login_at。"""
         # 创建并验证测试用户
         register_data = await create_and_verify_test_user_with_registration(
-            postgres_async_client,
+            async_client,
             postgres_test_session,
             username="failedloginuser",
             email="failedlogin@example.com",
@@ -101,7 +101,7 @@ class TestAuthLastLogin:
 
         # 成功登录一次以设置 last_login_at
         status_code, response_data = await perform_login(
-            postgres_async_client, register_data["email"], register_data["password"]
+            async_client, register_data["email"], register_data["password"]
         )
         assert status_code == 200
 
@@ -115,7 +115,7 @@ class TestAuthLastLogin:
 
         # 使用错误密码尝试登录
         status_code, response_data = await perform_login(
-            postgres_async_client, register_data["email"], "WrongPassword123!"
+            async_client, register_data["email"], "WrongPassword123!"
         )
         assert status_code == 401
 
@@ -130,7 +130,7 @@ class TestAuthLastLogin:
 
     @pytest.mark.asyncio
     async def test_unverified_user_login_does_not_update_last_login_at(
-        self, postgres_async_client: httpx.AsyncClient, postgres_test_session
+        self, async_client: httpx.AsyncClient, postgres_test_session
     ):
         """测试未验证用户登录时不更新 last_login_at。"""
         # 注册新用户但不验证邮箱
@@ -142,7 +142,7 @@ class TestAuthLastLogin:
             "last_name": "User",
         }
 
-        response = await postgres_async_client.post("/api/v1/auth/register", json=register_data)
+        response = await async_client.post("/api/v1/auth/register", json=register_data)
         assert response.status_code == 201
 
         # 检查用户初始状态
@@ -152,7 +152,7 @@ class TestAuthLastLogin:
 
         # 尝试登录
         status_code, response_data = await perform_login(
-            postgres_async_client, register_data["email"], register_data["password"]
+            async_client, register_data["email"], register_data["password"]
         )
         assert status_code == 403
         error_detail = response_data["detail"]

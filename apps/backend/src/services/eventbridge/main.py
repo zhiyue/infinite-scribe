@@ -10,6 +10,7 @@ import signal
 import sys
 
 from src.core.logging import get_logger
+
 try:
     # aiokafka requires listener to be instance of this ABC
     from aiokafka.abc import ConsumerRebalanceListener  # type: ignore
@@ -250,8 +251,8 @@ class EventBridgeApplication:
         kafka_client_manager.subscribe_consumer(listener=_AIOKafkaRebalanceAdapter(rebalance_listener, self.logger))
 
         consume_topics = self.factory.eventbridge_config.domain_topics
-        self.logger.info("Kafka consumer setup complete", 
-                        topics=consume_topics, 
+        self.logger.info("Kafka consumer setup complete",
+                        topics=consume_topics,
                         with_rebalance_listener=True,
                         service="eventbridge")
         return consumer

@@ -150,7 +150,7 @@ class TestEventBridgeE2EIntegration:
             message_batch = await consumer.getmany(timeout_ms=2000)
 
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message
                         result = await self.bridge_service._process_event(message)
@@ -206,7 +206,7 @@ class TestEventBridgeE2EIntegration:
             message_batch = await consumer.getmany(timeout_ms=2000)
 
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message
                         result = await self.bridge_service._process_event(message)
@@ -254,7 +254,7 @@ class TestEventBridgeE2EIntegration:
             message_batch = await consumer.getmany(timeout_ms=2000)
 
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message - should not fail despite Redis error
                         result = await self.bridge_service._process_event(message)
@@ -304,7 +304,7 @@ class TestEventBridgeE2EIntegration:
             message_batch = await consumer.getmany(timeout_ms=3000)
 
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process each message
                         result = await self.bridge_service._process_event(message)
@@ -359,7 +359,7 @@ class TestEventBridgeE2EIntegration:
             # Process messages
             message_batch = await consumer.getmany(timeout_ms=2000)
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         result = await test_service._process_event(message)
                         assert result is True
@@ -406,7 +406,7 @@ class TestEventBridgeE2EIntegration:
             message_batch = await consumer.getmany(timeout_ms=2000)
 
             if message_batch:
-                for topic_partition, messages in message_batch.items():
+                for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process should continue despite malformed message
                         result = await self.bridge_service._process_event(message)

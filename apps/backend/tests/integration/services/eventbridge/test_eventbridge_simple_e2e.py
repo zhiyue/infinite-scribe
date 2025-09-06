@@ -145,11 +145,11 @@ class TestEventBridgeSimpleE2E:
                 result = await self.redis_client.xread({stream_key: "0"}, count=10, block=1000)
 
                 if result:
-                    for stream_name, messages in result:
-                        for message_id, fields in messages:
+                    for _stream_name, messages in result:
+                        for _message_id, fields in messages:
                             # Convert Redis hash to dict
                             message_data = {}
-                            
+
                             # fields is already a dictionary from Redis
                             for key_bytes, value_bytes in fields.items():
                                 key = key_bytes.decode("utf-8") if isinstance(key_bytes, bytes) else key_bytes

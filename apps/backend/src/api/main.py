@@ -46,6 +46,20 @@ async def lifespan(app: FastAPI):
         else:
             logger.error("Failed to establish Redis connection")
 
+        # Initialize SSE provider (app-scoped)
+        try:
+            from src.services.sse.provider import SSEProvider
+
+            logger.info("Initializing SSE provider...")
+            app.state.sse_provider = SSEProvider(redis_service)
+            # Eagerly initialize to catch errors early
+            await app.state.sse_provider.get_redis_sse_service()
+            await app.state.sse_provider.get_connection_manager()
+            logger.info("SSE provider initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize SSE provider: {e}")
+            app.state.sse_provider = None
+
         # Initialize launcher components
         logger.info("Initializing launcher components...")
         try:
@@ -74,10 +88,14 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Shutting down services...")
 
-        # Clean up SSE services if initialized
-        from src.api.routes.v1.events import cleanup_sse_services
-
-        await cleanup_sse_services()
+        # Clean up SSE provider if initialized
+        try:
+            sse_provider = getattr(app.state, "sse_provider", None)
+            if sse_provider is not None:
+                await sse_provider.close()
+                app.state.sse_provider = None
+        except Exception as e:
+            logger.error(f"Unexpected error during SSE provider cleanup: {e}")
 
         # Cleanup launcher components
         if hasattr(app.state, "orchestrator") and app.state.orchestrator:

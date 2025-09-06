@@ -31,7 +31,7 @@ class TestEventBridgeIntegration:
 
     def test_factory_configuration(self):
         """Test factory uses proper configuration."""
-        factory = get_event_bridge_factory()
+        get_event_bridge_factory()
         settings = get_settings()
         config = settings.eventbridge
 

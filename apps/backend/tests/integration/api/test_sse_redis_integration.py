@@ -11,7 +11,6 @@ from contextlib import suppress
 from datetime import timedelta
 
 import pytest
-from src.common.services.redis_service import redis_service
 from src.common.utils.datetime_utils import utc_now
 from src.schemas.sse import EventScope, SSEMessage
 from src.services.sse import RedisSSEService
@@ -124,10 +123,10 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
     settings.database.redis_host = redis_service["host"]
     settings.database.redis_port = redis_service["port"]
     settings.database.redis_password = redis_service["password"]
-    
+
     # Configure JWT service with testcontainer Redis
-    from src.common.services.jwt_service import jwt_service
     import redis
+    from src.common.services.jwt_service import jwt_service
     jwt_service._redis_client = redis.Redis(
         host=redis_service["host"],
         port=redis_service["port"],

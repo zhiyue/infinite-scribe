@@ -9,8 +9,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.api.routes.v1.auth_sse_token import verify_sse_token
-from src.common.services.redis_service import redis_service
 from src.services.sse import RedisSSEService, SSEConnectionManager
+from src.services.sse.provider import SSEProvider, get_default_provider
 
 logger = logging.getLogger(__name__)
 
@@ -39,80 +39,27 @@ class SSEHealthResponse(BaseModel):
     version: str
 
 
-# Service instances - managed singleton pattern with cleanup
-_redis_sse_service: RedisSSEService | None = None
-_sse_connection_manager: SSEConnectionManager | None = None
+async def get_redis_sse_service(request: Request) -> RedisSSEService:
+    """Resolve Redis SSE service via provider.
 
-
-async def get_redis_sse_service() -> RedisSSEService:
-    """Get or create Redis SSE service instance."""
-    global _redis_sse_service
-    if _redis_sse_service is None:
-        _redis_sse_service = RedisSSEService(redis_service)
-        await _redis_sse_service.init_pubsub_client()
-    return _redis_sse_service
+    Prefers app-scoped provider (`app.state.sse_provider`),
+    falls back to process default provider for non-web contexts.
+    """
+    provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+    if provider is None:
+        provider = get_default_provider()
+    return await provider.get_redis_sse_service()
 
 
 async def get_sse_connection_manager(
+    request: Request,
     redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
 ) -> SSEConnectionManager:
-    """Get or create SSE connection manager instance."""
-    global _sse_connection_manager
-    if _sse_connection_manager is None:
-        _sse_connection_manager = SSEConnectionManager(redis_sse_service)
-    return _sse_connection_manager
-
-
-async def cleanup_sse_services():
-    """
-    Clean up SSE services during application shutdown.
-
-    This includes:
-    - Cleaning up active connections
-    - Resetting the global connection counter to prevent drift
-    - Closing Redis SSE service
-    """
-    global _redis_sse_service, _sse_connection_manager
-
-    try:
-        # First, cleanup connection manager and reset global counter
-        if _sse_connection_manager is not None:
-            logger.info("Cleaning up SSE connection manager...")
-
-            try:
-                # Clean up any stale connections first
-                stale_count = await _sse_connection_manager.cleanup_stale_connections()
-                if stale_count > 0:
-                    logger.info(f"Cleaned up {stale_count} stale connections during shutdown")
-
-                # Reset global connection counter to prevent drift after restart
-                if _sse_connection_manager.redis_sse._pubsub_client:
-                    global_key = "global:sse_connections_count"
-                    await _sse_connection_manager.redis_sse._pubsub_client.delete(global_key)
-                    logger.info("Reset global connection counter to prevent drift")
-
-            except Exception as cleanup_error:
-                logger.error(f"Error during connection manager cleanup: {cleanup_error}")
-            finally:
-                _sse_connection_manager = None
-
-        # Then close Redis SSE service
-        if _redis_sse_service is not None:
-            logger.info("Closing Redis SSE service...")
-            try:
-                await _redis_sse_service.close()
-            except Exception as redis_error:
-                logger.error(f"Error closing Redis SSE service: {redis_error}")
-            finally:
-                _redis_sse_service = None
-
-        logger.info("SSE services cleaned up successfully")
-
-    except Exception as e:
-        logger.error(f"Unexpected error during SSE services cleanup: {e}")
-        # Ensure services are still reset even if cleanup fails
-        _redis_sse_service = None
-        _sse_connection_manager = None
+    """Resolve SSE connection manager via provider."""
+    provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+    if provider is None:
+        provider = get_default_provider()
+    return await provider.get_connection_manager()
 
 
 @router.get("/stream")
@@ -136,12 +83,12 @@ async def sse_stream(
 
 
 @router.get("/health", response_model=SSEHealthResponse)
-async def sse_health():
+async def sse_health(request: Request):
     """SSE service health check endpoint."""
     try:
-        # Initialize services
-        redis_sse_service = await get_redis_sse_service()
-        sse_connection_manager = await get_sse_connection_manager(redis_sse_service)
+        # Initialize services from app state (or lazy init)
+        redis_sse_service = await get_redis_sse_service(request)
+        sse_connection_manager = await get_sse_connection_manager(request, redis_sse_service)
 
         # Get connection statistics
         connection_stats = await _get_connection_stats(sse_connection_manager)

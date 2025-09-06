@@ -96,7 +96,7 @@ class TestKafkaBasicIntegration:
             for attempt in range(5):
                 msg_pack = await consumer.getmany(timeout_ms=5000)
                 if msg_pack:
-                    for topic_partition, messages in msg_pack.items():
+                    for _topic_partition, messages in msg_pack.items():
                         if messages:
                             consumed_message = messages[0]
                             break
@@ -150,10 +150,10 @@ class TestKafkaBasicIntegration:
             await asyncio.sleep(2.0)
 
             # Try to consume all messages
-            for attempt in range(10):  # More attempts for multiple messages
+            for _attempt in range(10):  # More attempts for multiple messages
                 msg_pack = await consumer.getmany(timeout_ms=3000)
                 if msg_pack:
-                    for topic_partition, messages in msg_pack.items():
+                    for _topic_partition, messages in msg_pack.items():
                         consumed_messages.extend(messages)
 
                 if len(consumed_messages) >= len(test_messages):
