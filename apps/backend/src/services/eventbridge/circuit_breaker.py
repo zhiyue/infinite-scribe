@@ -102,7 +102,7 @@ class CircuitBreaker:
             "Circuit breaker partitions updated after rebalance",
             old_partitions_count=old_count,
             new_partitions_count=new_count,
-            service="eventbridge"
+            service="eventbridge",
         )
 
     def record_success(self) -> None:

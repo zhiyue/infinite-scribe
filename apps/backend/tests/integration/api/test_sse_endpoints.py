@@ -49,9 +49,7 @@ class TestSSEAuthenticationFlow:
     @pytest.mark.asyncio
     async def test_token_creation_with_invalid_jwt(self, async_client):
         """Token creation should validate JWT tokens."""
-        response = await async_client.post(
-            "/api/v1/auth/sse-token", headers={"Authorization": "Bearer invalid_jwt"}
-        )
+        response = await async_client.post("/api/v1/auth/sse-token", headers={"Authorization": "Bearer invalid_jwt"})
         assert response.status_code == 401
 
 
@@ -95,6 +93,7 @@ class TestSSEHealthIntegration:
         """Configure Redis service for health endpoint testing."""
         # Configure global settings with testcontainer Redis
         from src.core.config import get_settings
+
         settings = get_settings()
         settings.database.redis_host = redis_service["host"]
         settings.database.redis_port = redis_service["port"]
@@ -116,6 +115,7 @@ class TestSSEHealthIntegration:
         """Configure Redis service for health endpoint testing without auth."""
         # Configure global settings with testcontainer Redis
         from src.core.config import get_settings
+
         settings = get_settings()
         settings.database.redis_host = redis_service["host"]
         settings.database.redis_port = redis_service["port"]
@@ -132,9 +132,7 @@ class TestSSEServiceIntegration:
     @pytest.mark.asyncio
     @patch("src.services.sse.connection_manager.SSEConnectionManager.add_connection")
     @patch("src.api.routes.v1.events.verify_sse_token")
-    async def test_stream_connection_with_valid_token(
-        self, mock_verify_token, mock_add_connection, async_client
-    ):
+    async def test_stream_connection_with_valid_token(self, mock_verify_token, mock_add_connection, async_client):
         """Test successful SSE connection with valid token."""
         # Mock successful token verification
         mock_verify_token.return_value = "123"

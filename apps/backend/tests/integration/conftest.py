@@ -75,4 +75,3 @@ async def sse_provider_override():
     provider = SSEProvider()
     async with override_provider(provider) as p:
         yield p
-

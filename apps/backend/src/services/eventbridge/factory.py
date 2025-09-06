@@ -127,7 +127,7 @@ class EventBridgeServiceFactory:
                 consume_topics=self.eventbridge_config.domain_topics,
                 produce_topics=[],  # EventBridge doesn't produce to Kafka
                 group_id=f"{self.settings.kafka_group_id_prefix}-{self.eventbridge_config.group_id_suffix}-group",
-                logger_context={"service": "event-bridge"}
+                logger_context={"service": "event-bridge"},
             ),
             "KafkaClientManager",
         )

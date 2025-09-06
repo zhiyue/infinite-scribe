@@ -155,9 +155,9 @@ class TestConversationMigration:
         ), "conversation_rounds should have unique constraint on (session_id, round_path) via PRIMARY KEY"
 
         # Verify the primary key covers the required columns
-        pk_columns = [c[1] for c in unique_constraints if c[0] == 'pk_conversation_rounds']
-        assert 'session_id' in pk_columns, "Primary key should include session_id"
-        assert 'round_path' in pk_columns, "Primary key should include round_path"
+        pk_columns = [c[1] for c in unique_constraints if c[0] == "pk_conversation_rounds"]
+        assert "session_id" in pk_columns, "Primary key should include session_id"
+        assert "round_path" in pk_columns, "Primary key should include round_path"
 
     async def test_conversation_indexes_exist(self, postgres_test_session: AsyncSession):
         """Test that required indexes exist for performance."""
@@ -187,14 +187,14 @@ class TestConversationMigration:
 
         # Performance indexes should exist
         expected_indexes = [
-            'idx_conversation_sessions_scope',
-            'idx_conversation_sessions_status',
-            'idx_conversation_sessions_updated_at',
-            'idx_conversation_sessions_scope_status',
-            'idx_conversation_rounds_session_id',
-            'idx_conversation_rounds_correlation_id',
-            'idx_conversation_rounds_created_at',
-            'idx_conversation_rounds_role'
+            "idx_conversation_sessions_scope",
+            "idx_conversation_sessions_status",
+            "idx_conversation_sessions_updated_at",
+            "idx_conversation_sessions_scope_status",
+            "idx_conversation_rounds_session_id",
+            "idx_conversation_rounds_correlation_id",
+            "idx_conversation_rounds_created_at",
+            "idx_conversation_rounds_role",
         ]
 
         for expected_idx in expected_indexes:

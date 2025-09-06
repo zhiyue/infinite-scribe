@@ -119,9 +119,7 @@ class TestNovelEndpointsIntegration:
             "theme": "Updated Fantasy",
             "version": 1,
         }
-        update_response = await async_client.put(
-            f"/api/v1/novels/{novel_id}", json=update_data, headers=auth_headers
-        )
+        update_response = await async_client.put(f"/api/v1/novels/{novel_id}", json=update_data, headers=auth_headers)
         assert update_response.status_code == 200
         updated_novel = update_response.json()
         assert updated_novel["title"] == "Updated Workflow Novel"
@@ -189,9 +187,7 @@ class TestNovelEndpointsIntegration:
         assert len(data) == 3
 
     @pytest.mark.asyncio
-    async def test_list_novels_with_status_filter(
-        self, async_client: AsyncClient, auth_headers, pg_session, test_user
-    ):
+    async def test_list_novels_with_status_filter(self, async_client: AsyncClient, auth_headers, pg_session, test_user):
         """Test novel listing with status filter."""
         # Create novel with GENESIS status (default)
         novel_data = {"title": "Genesis Novel", "target_chapters": 10}
@@ -370,9 +366,7 @@ class TestNovelEndpointsIntegration:
             assert response.status_code == 422  # Validation error for invalid UUID
 
         # Test PUT and DELETE with invalid UUID
-        response = await async_client.put(
-            f"/api/v1/novels/{invalid_id}", json={"title": "test"}, headers=auth_headers
-        )
+        response = await async_client.put(f"/api/v1/novels/{invalid_id}", json={"title": "test"}, headers=auth_headers)
         assert response.status_code == 422
 
         response = await async_client.delete(f"/api/v1/novels/{invalid_id}", headers=auth_headers)

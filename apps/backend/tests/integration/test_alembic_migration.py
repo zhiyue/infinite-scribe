@@ -26,4 +26,3 @@ async def test_database_migrations_applied_successfully(postgres_test_session: A
     result = await postgres_test_session.execute(text("SELECT version_num FROM alembic_version;"))
     version = result.scalar()
     assert version is not None, "Database should have a migration version"
-

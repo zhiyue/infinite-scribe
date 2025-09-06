@@ -21,6 +21,7 @@ async def test_pubsub_realtime_event_flow(redis_service):
     """验证通过 Pub/Sub 订阅能收到 publish_event 推送的事件。"""
     # Configure global settings with testcontainer Redis
     from src.core.config import get_settings
+
     settings = get_settings()
     settings.database.redis_host = redis_service["host"]
     settings.database.redis_port = redis_service["port"]
@@ -28,6 +29,7 @@ async def test_pubsub_realtime_event_flow(redis_service):
 
     # Reconnect redis_service with new settings
     from src.common.services.redis_service import redis_service as global_redis_service
+
     await global_redis_service.disconnect()
     await global_redis_service.connect()
 
@@ -81,6 +83,7 @@ async def test_streams_history_returns_published_events(redis_service):
     """验证通过 Streams 可获取历史事件。"""
     # Configure global settings with testcontainer Redis
     from src.core.config import get_settings
+
     settings = get_settings()
     settings.database.redis_host = redis_service["host"]
     settings.database.redis_port = redis_service["port"]
@@ -88,6 +91,7 @@ async def test_streams_history_returns_published_events(redis_service):
 
     # Reconnect redis_service with new settings
     from src.common.services.redis_service import redis_service as global_redis_service
+
     await global_redis_service.disconnect()
     await global_redis_service.connect()
 
@@ -119,6 +123,7 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
     """验证黑名单键的 TTL 真实生效（过期后不再被视为黑名单）。"""
     # Configure global settings with testcontainer Redis
     from src.core.config import get_settings
+
     settings = get_settings()
     settings.database.redis_host = redis_service["host"]
     settings.database.redis_port = redis_service["port"]
@@ -127,11 +132,12 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
     # Configure JWT service with testcontainer Redis
     import redis
     from src.common.services.jwt_service import jwt_service
+
     jwt_service._redis_client = redis.Redis(
         host=redis_service["host"],
         port=redis_service["port"],
         password=redis_service["password"] or None,
-        decode_responses=True
+        decode_responses=True,
     )
 
     # 造一个短期过期的时间点（1 秒）

@@ -31,7 +31,9 @@ class TemplateAgent(BaseAgent):
 
         # TODO: 初始化 agent 特定的配置和资源（模型、数据库、缓存等）
 
-    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def process_message(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """处理消息
 
         Args:
@@ -59,7 +61,9 @@ class TemplateAgent(BaseAgent):
                 "message": f"未知的消息类型: {message_type}",
             }
 
-    async def _handle_example_type(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _handle_example_type(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """处理特定类型的消息"""
         # TODO: 实现具体的处理逻辑
         # 如需不可重试错误，抛出 NonRetriableError

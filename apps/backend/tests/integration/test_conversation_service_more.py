@@ -44,9 +44,9 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
         alembic_command.upgrade(cfg, "head")
 
         engine = create_async_engine(async_url)
-        Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-        async with Session() as db:
+        async with session_factory() as db:
             user = User(username="u3", email="u3@example.com", password_hash="x")
             db.add(user)
             await db.flush()
@@ -54,14 +54,14 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
             db.add(novel)
             await db.commit()
 
-        async with Session() as db:
+        async with session_factory() as db:
             sres = await conversation_service.create_session(db, user.id, ScopeType.GENESIS, str(novel.id))
             assert sres["success"]
             session = sres["session"]
             sid = session.id if hasattr(session, "id") else session["id"]
 
         corr = str(uuid4())
-        async with Session() as db:
+        async with session_factory() as db:
             r1 = await conversation_service.create_round(
                 db,
                 user_id=user.id,
@@ -72,7 +72,7 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
                 correlation_id=corr,
             )
             assert r1["success"]
-        async with Session() as db:
+        async with session_factory() as db:
             # replay with same correlation id
             r2 = await conversation_service.create_round(
                 db,
@@ -85,7 +85,7 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
             )
             assert r2["success"] and r2.get("idempotent", False) or True
 
-        async with Session() as db:
+        async with session_factory() as db:
             # ensure only one round exists
             total = await db.scalar(
                 select(func.count()).select_from(ConversationRound).where(ConversationRound.session_id == sid)
@@ -121,9 +121,9 @@ async def test_update_session_occ_conflict(tmp_path: Path):
         alembic_command.upgrade(cfg, "head")
 
         engine = create_async_engine(async_url)
-        Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-        async with Session() as db:
+        async with session_factory() as db:
             user = User(username="u4", email="u4@example.com", password_hash="x")
             db.add(user)
             await db.flush()
@@ -131,12 +131,12 @@ async def test_update_session_occ_conflict(tmp_path: Path):
             db.add(novel)
             await db.commit()
 
-        async with Session() as db:
+        async with session_factory() as db:
             sres = await conversation_service.create_session(db, user.id, ScopeType.GENESIS, str(novel.id))
             session = sres["session"]
             sid = session.id if hasattr(session, "id") else session["id"]
 
-        async with Session() as db:
+        async with session_factory() as db:
             # OCC conflict with wrong version
             ures = await conversation_service.update_session(
                 db,
@@ -147,7 +147,7 @@ async def test_update_session_occ_conflict(tmp_path: Path):
             )
             assert not ures["success"] and ures.get("code") == 412
 
-        async with Session() as db:
+        async with session_factory() as db:
             # Read current version
             ver = await db.scalar(select(ConversationSession.version).where(ConversationSession.id == sid))
             uok = await conversation_service.update_session(

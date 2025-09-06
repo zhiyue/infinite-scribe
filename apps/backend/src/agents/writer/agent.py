@@ -14,7 +14,9 @@ class WriterAgent(BaseAgent):
         consume_topics, produce_topics = get_agent_topics("writer")
         super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
 
-    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def process_message(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """处理消息"""
         message_type = message.get("type")
         self.log.info("processing_message", message_type=message_type)
@@ -29,7 +31,9 @@ class WriterAgent(BaseAgent):
             self.log.warning("unknown_message_type", message_type=message_type)
             return None
 
-    async def _handle_write_chapter(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _handle_write_chapter(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """处理章节写作请求"""
         chapter_id = message.get("chapter_id")
         # outline = message.get("outline", {})
@@ -52,7 +56,9 @@ class WriterAgent(BaseAgent):
             "_key": str(chapter_id) if chapter_id is not None else None,
         }
 
-    async def _handle_write_scene(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _handle_write_scene(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """处理场景写作请求"""
         scene_id = message.get("scene_id")
         # scene_data = message.get("scene_data", {})
@@ -70,7 +76,9 @@ class WriterAgent(BaseAgent):
             "_key": str(scene_id) if scene_id is not None else None,
         }
 
-    async def _handle_rewrite_content(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _handle_rewrite_content(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """处理内容重写请求"""
         content_id = message.get("content_id")
         # original_content = message.get("original_content")

@@ -138,9 +138,9 @@ class TestPublisher:
         envelope = self._create_test_envelope()
 
         # Mock Redis failure
-        self.redis_sse_service.publish_event.side_effect = Exception("Redis connection failed")
+        self.redis_sse_service.publish_event.side_effect = ConnectionError("Redis connection failed")
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(ConnectionError) as exc_info:
             await self.publisher.publish(envelope)
 
         assert "Redis connection failed" in str(exc_info.value)

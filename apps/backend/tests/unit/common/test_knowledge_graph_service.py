@@ -151,7 +151,9 @@ async def test_consistency_validation():
         mock_session.return_value.__aenter__.return_value = mock_session_instance
         mock_session.return_value.__aexit__.return_value = None
 
-        with patch("src.common.services.knowledge_graph.knowledge_graph_service.ConsistencyValidator") as mock_validator_class:
+        with patch(
+            "src.common.services.knowledge_graph.knowledge_graph_service.ConsistencyValidator"
+        ) as mock_validator_class:
             # Mock 一致性报告
             from src.common.services.knowledge_graph.consistency_validator import ConsistencyReport
 

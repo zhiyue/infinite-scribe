@@ -1,2 +1,1 @@
 """Knowledge graph service package."""
-

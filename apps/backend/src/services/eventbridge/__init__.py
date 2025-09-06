@@ -42,13 +42,11 @@ from src.services.eventbridge.publisher import Publisher
 __all__ = [
     # Main service
     "DomainEventBridgeService",
-
     # Components
     "EventFilter",
     "CircuitBreaker",
     "CircuitState",
     "Publisher",
-
     # Factory
     "EventBridgeServiceFactory",
     "create_event_bridge_service",

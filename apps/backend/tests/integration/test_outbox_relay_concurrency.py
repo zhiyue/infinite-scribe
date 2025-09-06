@@ -55,7 +55,6 @@ class TestOutboxRelayServiceConcurrency:
         as the integration tests, but with a separate session to avoid conflicts.
         """
 
-
         # Get the same engine as the test
         engine = db_session.bind
 
@@ -357,6 +356,7 @@ class TestOutboxRelayServiceConcurrency:
                         workers.append(worker)
 
                     try:
+
                         async def tagged_worker(worker, worker_id):
                             # Tag the current task with worker ID for failure simulation
                             asyncio.current_task().worker_id = worker_id
@@ -421,10 +421,9 @@ class TestOutboxRelayServiceConcurrency:
             base_time = datetime.now(UTC)
             for i in range(5):
                 # Mix of immediate (ready) and future scheduled times
-                if i < 3:
-                    scheduled_time = None  # Use immediate processing for "ready" messages
-                else:
-                    scheduled_time = base_time + timedelta(hours=1)  # Future
+                scheduled_time = (
+                    None if i < 3 else base_time + timedelta(hours=1)
+                )  # Mix of immediate (ready) and future scheduled times
 
                 message_data = {
                     "id": uuid4(),
@@ -458,12 +457,13 @@ class TestOutboxRelayServiceConcurrency:
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     # Run multiple workers concurrently
                     workers = []
-                    for i in range(2):
+                    for _i in range(2):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
 
                     try:
+
                         async def race_worker(worker):
                             total_processed = 0
                             for _ in range(8):  # Multiple cycles for race conditions
@@ -539,68 +539,70 @@ class TestOutboxRelayServiceConcurrency:
 
                 return SessionMonitor(session_wrapper)
 
-            with patch("src.services.outbox.relay.create_sql_session", side_effect=monitored_create_session):
-                with patch("src.services.outbox.relay.AIOKafkaProducer") as mock_producer_class:
+            with (
+                patch("src.services.outbox.relay.create_sql_session", side_effect=monitored_create_session),
+                patch("src.services.outbox.relay.AIOKafkaProducer") as mock_producer_class,
+            ):
 
-                    async def simulate_processing_delay(topic, **kwargs):
-                        # Variable delays to create more lock contention scenarios
-                        topic_index = int(topic.split(".")[-1])
-                        delay = 0.002 + (topic_index % 3) * 0.001
-                        await asyncio.sleep(delay)
+                async def simulate_processing_delay(topic, **kwargs):
+                    # Variable delays to create more lock contention scenarios
+                    topic_index = int(topic.split(".")[-1])
+                    delay = 0.002 + (topic_index % 3) * 0.001
+                    await asyncio.sleep(delay)
 
-                    mock_producer = AsyncMock()
-                    mock_producer.start = AsyncMock()
-                    mock_producer.stop = AsyncMock()
-                    mock_producer.send_and_wait = simulate_processing_delay
-                    mock_producer_class.return_value = mock_producer
+                mock_producer = AsyncMock()
+                mock_producer.start = AsyncMock()
+                mock_producer.stop = AsyncMock()
+                mock_producer.send_and_wait = simulate_processing_delay
+                mock_producer_class.return_value = mock_producer
 
-                    # Create many concurrent workers to maximize contention
-                    workers = []
-                    for _i in range(5):
-                        worker = OutboxRelayService()
-                        await worker.start()
-                        workers.append(worker)
+                # Create many concurrent workers to maximize contention
+                workers = []
+                for _i in range(5):
+                    worker = OutboxRelayService()
+                    await worker.start()
+                    workers.append(worker)
 
-                    try:
+                try:
 
-                        async def contention_worker(worker):
-                            total_processed = 0
-                            for _ in range(8):
-                                try:
-                                    processed = await worker._drain_once()
-                                    total_processed += processed
-                                except Exception as e:
-                                    # Count database-related errors
-                                    if "lock" in str(e).lower() or "deadlock" in str(e).lower():
-                                        nonlocal lock_conflicts
-                                        lock_conflicts += 1
-                            return total_processed
+                    async def contention_worker(worker):
+                        total_processed = 0
+                        for _ in range(8):
+                            try:
+                                processed = await worker._drain_once()
+                                total_processed += processed
+                            except Exception as e:
+                                # Count database-related errors
+                                if "lock" in str(e).lower() or "deadlock" in str(e).lower():
+                                    nonlocal lock_conflicts
+                                    lock_conflicts += 1
+                        return total_processed
 
-                        # Run all workers simultaneously for maximum contention
-                        tasks = [asyncio.create_task(contention_worker(worker)) for worker in workers]
+                    # Run all workers simultaneously for maximum contention
+                    tasks = [asyncio.create_task(contention_worker(worker)) for worker in workers]
 
-                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                        # Count successful results
-                        successful_results = [r for r in results if isinstance(r, int)]
-                        total_processed = sum(successful_results)
+                    # Count successful results
+                    successful_results = [r for r in results if isinstance(r, int)]
+                    total_processed = sum(successful_results)
 
-                        # All messages should eventually be processed
-                        assert total_processed == len(test_messages)
+                    # All messages should eventually be processed
+                    assert total_processed == len(test_messages)
 
-                        # Verify database operations completed without major issues
-                        len([op for op in database_operations if op.startswith("session_start")])
-                        session_commits = len([op for op in database_operations if op == "session_commit"])
+                    # Verify database operations completed without major issues
+                    len([op for op in database_operations if op.startswith("session_start")])
+                    session_commits = len([op for op in database_operations if op == "session_commit"])
 
-                        # Should have many successful commits
-                        assert session_commits > 0
+                    # Should have many successful commits
+                    assert session_commits > 0
 
-                        # Lock conflicts should be minimal due to SKIP LOCKED
-                        assert lock_conflicts <= 2  # Allow some minor conflicts
+                    # Lock conflicts should be minimal due to SKIP LOCKED
+                    assert lock_conflicts <= 2  # Allow some minor conflicts
 
-                    finally:
-                        for worker in workers:
-                            await worker.stop()
+                finally:
+                    for worker in workers:
+                        await worker.stop()
 
     @pytest.mark.asyncio
     async def test_worker_graceful_shutdown_during_high_load(self, mock_kafka_settings, clean_outbox_table, db_session):
@@ -745,12 +747,13 @@ class TestOutboxRelayServiceConcurrency:
                 # Create multiple workers for concurrent processing
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     workers = []
-                    for i in range(4):
+                    for _i in range(4):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
 
                     try:
+
                         async def memory_efficient_worker(worker):
                             processed = 0
                             for _ in range(5):

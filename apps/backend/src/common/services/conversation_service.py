@@ -611,8 +611,12 @@ class ConversationService:
             "stage": session.stage,
             "state": session.state or {},
             "version": session.version,
-            "created_at": getattr(session.created_at, "isoformat", lambda: str(session.created_at))() if hasattr(session, "created_at") else None,
-            "updated_at": getattr(session.updated_at, "isoformat", lambda: str(session.updated_at))() if hasattr(session, "updated_at") else None,
+            "created_at": getattr(session.created_at, "isoformat", lambda: str(session.created_at))()
+            if hasattr(session, "created_at")
+            else None,
+            "updated_at": getattr(session.updated_at, "isoformat", lambda: str(session.updated_at))()
+            if hasattr(session, "updated_at")
+            else None,
         }
 
     @staticmethod
@@ -627,7 +631,9 @@ class ConversationService:
             "output": rnd.output,
             "model": rnd.model,
             "correlation_id": rnd.correlation_id,
-            "created_at": getattr(rnd.created_at, "isoformat", lambda: str(rnd.created_at))() if hasattr(rnd, "created_at") else None,
+            "created_at": getattr(rnd.created_at, "isoformat", lambda: str(rnd.created_at))()
+            if hasattr(rnd, "created_at")
+            else None,
         }
 
 

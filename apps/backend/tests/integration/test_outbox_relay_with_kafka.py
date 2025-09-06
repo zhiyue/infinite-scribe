@@ -285,7 +285,7 @@ class TestOutboxRelayServiceRealKafka:
                 [payload for _, payload in test_messages]
 
                 # Messages should be in order (though Kafka ordering within partition is guaranteed)
-                for i, consumed_payload in enumerate(consumed_payloads):
+                for _i, consumed_payload in enumerate(consumed_payloads):
                     assert consumed_payload["data"]["batch"] == "multi_kafka"
                     assert consumed_payload["event"].startswith("multi_test_")
 
@@ -310,11 +310,10 @@ class TestOutboxRelayServiceRealKafka:
 
             service = OutboxRelayService()
 
-            try:
-                await service.start()
-            except Exception:
-                # Expected to fail with invalid Kafka configuration
-                pass
+            from contextlib import suppress
+
+            with suppress(Exception):
+                await service.start()  # Expected to fail with invalid Kafka configuration
 
             # The service should fail to start with invalid Kafka config
             # Let's test with proper Kafka but temporary processing failure
@@ -410,9 +409,7 @@ class TestOutboxRelayServiceRealKafka:
                 await service1.start()
                 await service2.start()
                 # Run both workers concurrently
-                results = await asyncio.gather(
-                    service1._drain_once(), service2._drain_once(), return_exceptions=True
-                )
+                results = await asyncio.gather(service1._drain_once(), service2._drain_once(), return_exceptions=True)
 
                 # Total processed should equal number of messages (no duplication)
                 total_processed = sum(r for r in results if isinstance(r, int))
@@ -614,7 +611,6 @@ class TestOutboxRelayServiceRealKafka:
                     process_task.cancel()
                     # Timeout is acceptable for graceful shutdown test
                     pass
-
 
                 # Verify shutdown was reasonably quick
                 shutdown_duration = (shutdown_end - shutdown_start).total_seconds()

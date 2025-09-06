@@ -78,20 +78,29 @@ def test_quality_review_decision_paths(monkeypatch):
     monkeypatch.setattr(agent, "_complete_async_task", fake_complete)
 
     # Pass
-    msg_pass = {"type": "Review.Quality.Evaluated", "data": {"session_id": "s1", "score": 8.0, "target_type": "character"}}
+    msg_pass = {
+        "type": "Review.Quality.Evaluated",
+        "data": {"session_id": "s1", "score": 8.0, "target_type": "character"},
+    }
     assert asyncio.run(agent.process_message(msg_pass, {"topic": "genesis.review.events"})) is None
     assert any(a[0] == "Character.Confirmed" for a in calls.persist)
 
     calls.persist.clear()
     # Retry
-    msg_retry = {"type": "Review.Quality.Evaluated", "data": {"session_id": "s1", "score": 6.0, "attempts": 0, "max_attempts": 3, "target_type": "theme"}}
+    msg_retry = {
+        "type": "Review.Quality.Evaluated",
+        "data": {"session_id": "s1", "score": 6.0, "attempts": 0, "max_attempts": 3, "target_type": "theme"},
+    }
     out = asyncio.run(agent.process_message(msg_retry, {"topic": "genesis.review.events"}))
     assert any(a[0] == "Theme.RegenerationRequested" for a in calls.persist)
     assert out and out.get("_topic") == "genesis.outline.tasks"
 
     calls.persist.clear()
     # Fail after max attempts
-    msg_fail = {"type": "Review.Quality.Evaluated", "data": {"session_id": "s1", "score": 5.0, "attempts": 2, "max_attempts": 3, "target_type": "character"}}
+    msg_fail = {
+        "type": "Review.Quality.Evaluated",
+        "data": {"session_id": "s1", "score": 5.0, "attempts": 2, "max_attempts": 3, "target_type": "character"},
+    }
     assert asyncio.run(agent.process_message(msg_fail, {"topic": "genesis.review.events"})) is None
     assert any(a[0] == "Character.Failed" for a in calls.persist)
 

@@ -9,7 +9,7 @@ from alembic.config import Config as AlembicConfig
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from src.api.main import app as fastapi_app
-from src.api.routes.v1.conversations import get_db as api_get_db
+from src.database import get_db as api_get_db
 from src.middleware.auth import require_auth as api_require_auth
 from src.models.event import DomainEvent
 from src.models.novel import Novel
@@ -18,14 +18,23 @@ from src.models.workflow import EventOutbox
 from testcontainers.postgres import PostgresContainer
 
 
-def _build_urls(sync_url: str) -> tuple[str, str]:
-    if "+" in sync_url:
-        base = sync_url.split("+", 1)[1]
-        sync = "postgresql+psycopg2+" + base
+def _build_urls(base_url: str) -> tuple[str, str]:
+    """Convert a base postgresql URL to sync (psycopg2) and async (asyncpg) URLs."""
+    # Handle different input formats
+    if "postgresql+psycopg2://" in base_url:
+        # Already psycopg2, create asyncpg version
+        sync_url = base_url
+        async_url = base_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+    elif "postgresql+asyncpg://" in base_url:
+        # Already asyncpg, create psycopg2 version
+        async_url = base_url
+        sync_url = base_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
     else:
-        sync = sync_url.replace("postgresql://", "postgresql+psycopg2://")
-    async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://")
-    return sync, async_url
+        # Plain postgresql://, create both versions
+        sync_url = base_url.replace("postgresql://", "postgresql+psycopg2://")
+        async_url = base_url.replace("postgresql://", "postgresql+asyncpg://")
+    
+    return sync_url, async_url
 
 
 @asynccontextmanager
@@ -77,10 +86,10 @@ async def test_conversations_api_endpoints_flow(tmp_path: Path):
 
         # 3) Engine + Session
         engine = create_async_engine(async_url)
-        Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
         # 4) Seed user/novel
-        async with Session() as db:
+        async with session_factory() as db:
             user = User(username="apiu", email="apiu@example.com", password_hash="x", is_verified=True)
             db.add(user)
             await db.flush()
@@ -90,7 +99,7 @@ async def test_conversations_api_endpoints_flow(tmp_path: Path):
 
         # 5) Override get_db & require_auth; Stub out lifespan external services via monkeypatch at import level
         # We bypass lifespan heavy deps by not starting the app lifespan in test client (httpx's ASGITransport does not run lifespan by default)
-        async with override_db_dep(Session), override_auth_dep(user):
+        async with override_db_dep(session_factory), override_auth_dep(user):
             async with AsyncClient(transport=None, base_url="http://testserver") as _:
                 pass  # noop to satisfy type checker
             # Use httpx>=0.24's ASGITransport to avoid lifespan
@@ -127,7 +136,7 @@ async def test_conversations_api_endpoints_flow(tmp_path: Path):
                 assert resp3.status_code in (200, 201)
 
         # 6) Validate DomainEvent + Outbox exist for both operations
-        async with Session() as db:
+        async with session_factory() as db:
             # Command.Received exists
             from sqlalchemy import select
 

@@ -7,12 +7,12 @@ class MockRedisClass:
     def __init__(self):
         self.data = {}
 
-    def set(self, key: str, value: str, ex: int | None = None):
+    def set(self, key: str, value: str, _ex: int | None = None):
         """Mock set method."""
         self.data[key] = value
         return True
 
-    def setex(self, key: str, ex: int, value: str):
+    def setex(self, key: str, _ex: int, value: str):
         """Mock setex method."""
         self.data[key] = value
         return True

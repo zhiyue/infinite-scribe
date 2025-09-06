@@ -1,6 +1,7 @@
 """Error handling and retry logic for agent message processing."""
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
@@ -123,8 +124,6 @@ class ErrorHandler:
 
     def record_error_metrics(self, error_type: str) -> None:
         """Record error metrics."""
-        try:
+        with contextlib.suppress(Exception):
             inc_error(self.agent_name, error_type)
             inc_dlt(self.agent_name)
-        except Exception:
-            pass

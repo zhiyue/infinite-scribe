@@ -242,19 +242,15 @@ class EventBridgeApplication:
             raise RuntimeError("Failed to create Kafka consumer")
 
         # Create rebalance listener for partition management
-        rebalance_listener = EventBridgeRebalanceListener(
-            bridge_service=self.bridge_service,
-            logger=self.logger
-        )
+        rebalance_listener = EventBridgeRebalanceListener(bridge_service=self.bridge_service, logger=self.logger)
 
         # Subscribe to topics with rebalance listener (aiokafka requires a specific ABC)
         kafka_client_manager.subscribe_consumer(listener=_AIOKafkaRebalanceAdapter(rebalance_listener, self.logger))
 
         consume_topics = self.factory.eventbridge_config.domain_topics
-        self.logger.info("Kafka consumer setup complete",
-                        topics=consume_topics,
-                        with_rebalance_listener=True,
-                        service="eventbridge")
+        self.logger.info(
+            "Kafka consumer setup complete", topics=consume_topics, with_rebalance_listener=True, service="eventbridge"
+        )
         return consumer
 
     def _initialize_loop_state(self) -> dict:

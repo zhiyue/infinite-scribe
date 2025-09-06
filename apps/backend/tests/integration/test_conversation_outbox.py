@@ -51,9 +51,9 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
 
         # 3) Create async engine/sessionmaker
         engine = create_async_engine(async_url)
-        Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-        async with Session() as db:
+        async with session_factory() as db:
             # 4) Seed minimal user + novel
             user = User(username="u1", email="u1@example.com", password_hash="x")
             db.add(user)
@@ -62,7 +62,7 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
             db.add(novel)
             await db.commit()
 
-        async with Session() as db:
+        async with session_factory() as db:
             # 5) Create session (scope=GENESIS)
             create_res = await conversation_service.create_session(
                 db, user_id=user.id, scope_type=ScopeType.GENESIS, scope_id=str(novel.id)
@@ -71,7 +71,7 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
             session_obj = create_res["session"]
             str(getattr(session_obj, "id", session_obj["id"]))
 
-        async with Session() as db:
+        async with session_factory() as db:
             # 6) Enqueue Stage.Validate command (atomic: CommandInbox + DomainEvent + Outbox)
             cmd_res = await conversation_service.enqueue_command(
                 db,
@@ -85,7 +85,7 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
             cmd = cmd_res["command"]
             correlation_id = getattr(cmd, "id", None)
 
-        async with Session() as db:
+        async with session_factory() as db:
             # 7) Verify DomainEvent
             from sqlalchemy import select
 
@@ -126,9 +126,9 @@ async def test_create_round_persists_round_created_and_outbox(tmp_path: Path):
         alembic_command.upgrade(cfg, "head")
 
         engine = create_async_engine(async_url)
-        Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-        async with Session() as db:
+        async with session_factory() as db:
             user = User(username="u2", email="u2@example.com", password_hash="x")
             db.add(user)
             await db.flush()
@@ -136,7 +136,7 @@ async def test_create_round_persists_round_created_and_outbox(tmp_path: Path):
             db.add(novel)
             await db.commit()
 
-        async with Session() as db:
+        async with session_factory() as db:
             sres = await conversation_service.create_session(
                 db, user_id=user.id, scope_type=ScopeType.GENESIS, scope_id=str(novel.id)
             )
@@ -144,7 +144,7 @@ async def test_create_round_persists_round_created_and_outbox(tmp_path: Path):
             sid = session_obj.id if hasattr(session_obj, "id") else session_obj["id"]
 
         corr = str(uuid4())
-        async with Session() as db:
+        async with session_factory() as db:
             rres = await conversation_service.create_round(
                 db,
                 user_id=user.id,
@@ -156,7 +156,7 @@ async def test_create_round_persists_round_created_and_outbox(tmp_path: Path):
             )
             assert rres["success"] is True
 
-        async with Session() as db:
+        async with session_factory() as db:
             from sqlalchemy import select
 
             dom_evt = await db.scalar(

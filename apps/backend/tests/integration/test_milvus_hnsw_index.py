@@ -16,7 +16,7 @@ class TestMilvusHNSWIndex:
     async def test_create_hnsw_index_with_correct_parameters(self, milvus_service):
         """Test creation of HNSW index with M=32, efConstruction=200, COSINE similarity."""
         try:
-            from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
+            from pymilvus import Collection, connections, utility
             from src.db.vector.milvus import MilvusSchemaManager
 
             connections.connect(alias="default", host=milvus_service["host"], port=str(milvus_service["port"]))

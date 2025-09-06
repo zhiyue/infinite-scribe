@@ -9,7 +9,7 @@ from launcher.adapters.base import BaseAdapter
 from launcher.types import ServiceStatus
 
 
-class ConcreteConcreteTestAdapter(BaseAdapter):
+class ConcreteTestAdapter(BaseAdapter):
     """Test implementation of BaseAdapter for testing"""
 
     def __init__(self, name: str = "test", config: dict[str, Any] | None = None):
@@ -38,7 +38,7 @@ def test_base_adapter_is_abstract():
 
 def test_base_adapter_inheritance():
     """Test BaseAdapter can be inherited from"""
-    adapter = ConcreteConcreteTestAdapter("test", {"key": "value"})
+    adapter = ConcreteTestAdapter("test", {"key": "value"})
     assert isinstance(adapter, BaseAdapter)
     assert isinstance(adapter, ABC)
 

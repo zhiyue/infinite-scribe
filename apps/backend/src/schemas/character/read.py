@@ -22,6 +22,7 @@ class CharacterResponse(BaseSchema, TimestampMixin):
     goals: list[str] | None = Field(None, description="角色的主要目标列表")
     version: int = Field(..., description="乐观锁版本号")
 
+
 class CharacterSummary(BaseSchema, TimestampMixin):
     """角色摘要模型 - 用于列表展示"""
 

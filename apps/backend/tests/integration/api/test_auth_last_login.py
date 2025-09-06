@@ -114,9 +114,7 @@ class TestAuthLastLogin:
         await asyncio.sleep(0.1)
 
         # 使用错误密码尝试登录
-        status_code, response_data = await perform_login(
-            async_client, register_data["email"], "WrongPassword123!"
-        )
+        status_code, response_data = await perform_login(async_client, register_data["email"], "WrongPassword123!")
         assert status_code == 401
 
         # 刷新用户信息

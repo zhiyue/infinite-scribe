@@ -24,6 +24,7 @@ class ChapterResponse(BaseSchema, TimestampMixin):
     published_version_id: UUID | None = Field(None, description="指向当前已发布版本的ID")
     version: int = Field(..., description="乐观锁版本号")
 
+
 class ChapterSummary(BaseSchema, TimestampMixin):
     """章节摘要模型 - 用于列表展示"""
 

@@ -1,6 +1,7 @@
 """Process management utilities for adapters"""
 
 import asyncio
+import contextlib
 import os
 import signal
 import sys
@@ -43,15 +44,14 @@ class ProcessManager:
 
         except (TimeoutError, ProcessLookupError):
             logger.warning(f"Process {process.pid} didn't respond gracefully, force killing")
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 # Force kill
                 if os.name != "nt":
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                 else:
                     process.kill()
                 await process.wait()
-            except ProcessLookupError:
-                pass  # Already dead
+                # If ProcessLookupError occurs, process is already dead
 
     @staticmethod
     def build_uvicorn_command(host: str, port: int, reload: bool = False) -> list[str]:
