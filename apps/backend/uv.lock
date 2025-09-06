@@ -1307,6 +1307,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-pythonpath" },
     { name = "pytest-timeout" },
     { name = "rich" },
     { name = "ruff" },
@@ -1367,6 +1368,7 @@ dev = [
     { name = "pytest-asyncio", specifier = "~=0.24.0" },
     { name = "pytest-cov", specifier = "~=6.0.0" },
     { name = "pytest-mock", specifier = "~=3.14.0" },
+    { name = "pytest-pythonpath", specifier = ">=0.7.3" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "rich", specifier = "~=13.9.2" },
     { name = "ruff", specifier = "~=0.7.2" },
@@ -2767,6 +2769,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/71/28/67172c96ba684058a
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/05/77b60e520511c53d1c1ca75f1930c7dd8e971d0c4379b7f4b3f9644685ba/pytest_mock-3.14.1-py3-none-any.whl", hash = "sha256:178aefcd11307d874b4cd3100344e7e2d888d9791a6a1d9bfe90fbc1b74fd1d0", size = 9923, upload-time = "2025-05-26T13:58:43.487Z" },
 ]
+
+[[package]]
+name = "pytest-pythonpath"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/46/c1/4b784495bb316962962df191b3c1b2302c60236301406283a9de1470786f/pytest-pythonpath-0.7.3.tar.gz", hash = "sha256:63fc546ace7d2c845c1ee289e8f7a6362c2b6bae497d10c716e58e253e801d62", size = 4498, upload-time = "2018-08-22T18:50:23.847Z" }
 
 [[package]]
 name = "pytest-timeout"
