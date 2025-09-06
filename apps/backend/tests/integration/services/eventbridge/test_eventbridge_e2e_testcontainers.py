@@ -198,6 +198,7 @@ class TestEventBridgeE2ETestcontainers:
         # Start Prometheus metrics server
         metrics_server = PrometheusMetricsServer(host="localhost", port=9091)
         metrics_started = metrics_server.start()
+        app_task = None
 
         try:
             # Create and start EventBridge application
@@ -251,7 +252,7 @@ class TestEventBridgeE2ETestcontainers:
 
         finally:
             # Cleanup EventBridge
-            if 'app_task' in locals() and not app_task.done():
+            if app_task and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task
@@ -262,6 +263,7 @@ class TestEventBridgeE2ETestcontainers:
         # Create test event
         event_data = self._create_genesis_theme_proposed_event()
         user_id = event_data["payload"]["user_id"]
+        app_task = None
 
         # Start EventBridge application
         eventbridge_app = EventBridgeApplication()
@@ -303,7 +305,7 @@ class TestEventBridgeE2ETestcontainers:
 
         finally:
             # Cleanup
-            if 'app_task' in locals() and not app_task.done():
+            if app_task and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task
@@ -311,6 +313,8 @@ class TestEventBridgeE2ETestcontainers:
     @pytest.mark.asyncio
     async def test_eventbridge_filters_non_genesis_events(self):
         """Test EventBridge correctly filters out non-Genesis events."""
+        app_task = None
+
         # Create non-Genesis event
         non_genesis_event = {
             "event_id": str(uuid4()),
@@ -359,7 +363,7 @@ class TestEventBridgeE2ETestcontainers:
             print("✓ Genesis event was correctly processed after filtering test")
 
         finally:
-            if not app_task.done():
+            if app_task and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task
@@ -367,6 +371,8 @@ class TestEventBridgeE2ETestcontainers:
     @pytest.mark.asyncio
     async def test_eventbridge_prometheus_metrics_integration(self):
         """Test EventBridge exports Prometheus metrics correctly."""
+        app_task = None
+
         # Enable Prometheus metrics
         os.environ["EVENTBRIDGE__PROMETHEUS_ENABLED"] = "true"
         os.environ["EVENTBRIDGE__PROMETHEUS_PORT"] = "9092"
@@ -400,7 +406,7 @@ class TestEventBridgeE2ETestcontainers:
             # and verify specific metric values, but that requires additional dependencies
 
         finally:
-            if not app_task.done():
+            if app_task and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task
@@ -408,6 +414,8 @@ class TestEventBridgeE2ETestcontainers:
     @pytest.mark.asyncio
     async def test_eventbridge_handles_malformed_messages(self):
         """Test EventBridge handles malformed Kafka messages gracefully."""
+        app_task = None
+
         # Create malformed message (missing required fields)
         malformed_event = {
             "incomplete": "data",
@@ -436,7 +444,7 @@ class TestEventBridgeE2ETestcontainers:
             print("✓ EventBridge handled malformed message gracefully and continued processing")
 
         finally:
-            if not app_task.done():
+            if app_task and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task

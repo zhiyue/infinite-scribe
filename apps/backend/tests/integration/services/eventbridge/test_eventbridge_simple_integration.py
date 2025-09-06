@@ -166,7 +166,7 @@ class TestEventBridgeSimpleIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message through EventBridge
-                        result = await bridge_service._process_event(message)
+                        result = await bridge_service.process_event(message)
                         assert result is True
                         processed = True
                         break
@@ -238,7 +238,7 @@ class TestEventBridgeSimpleIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message through EventBridge
-                        result = await bridge_service._process_event(message)
+                        result = await bridge_service.process_event(message)
                         assert result is True  # Processing continues
                         processed = True
                         break
@@ -292,7 +292,7 @@ class TestEventBridgeSimpleIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process should not fail despite Redis error
-                        result = await bridge_service._process_event(message)
+                        result = await bridge_service.process_event(message)
                         assert result is True
                         processed = True
                         break

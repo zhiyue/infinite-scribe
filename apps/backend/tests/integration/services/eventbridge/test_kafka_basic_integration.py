@@ -107,6 +107,7 @@ class TestKafkaBasicIntegration:
 
             # Verify we got the message
             assert consumed_message is not None, "Failed to consume message from Kafka"
+            assert consumed_message.value is not None, "Message value is None"
             assert consumed_message.value["id"] == test_message["id"]
             assert consumed_message.value["message"] == test_message["message"]
             print("Message consumed successfully")
