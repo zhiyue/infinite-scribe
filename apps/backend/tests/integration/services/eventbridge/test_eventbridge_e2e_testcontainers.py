@@ -251,7 +251,7 @@ class TestEventBridgeE2ETestcontainers:
 
         finally:
             # Cleanup EventBridge
-            if not app_task.done():
+            if 'app_task' in locals() and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task
@@ -303,7 +303,7 @@ class TestEventBridgeE2ETestcontainers:
 
         finally:
             # Cleanup
-            if not app_task.done():
+            if 'app_task' in locals() and not app_task.done():
                 app_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await app_task

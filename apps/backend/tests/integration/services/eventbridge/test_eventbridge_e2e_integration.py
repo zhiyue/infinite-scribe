@@ -153,7 +153,7 @@ class TestEventBridgeE2EIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message
-                        result = await self.bridge_service._process_event(message)
+                        result = await self.bridge_service.process_event(message)
                         assert result is True
 
                         # Verify Redis SSE was called
@@ -209,7 +209,7 @@ class TestEventBridgeE2EIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message
-                        result = await self.bridge_service._process_event(message)
+                        result = await self.bridge_service.process_event(message)
                         assert result is True
 
                         # Verify Redis SSE was NOT called (event was filtered)
@@ -257,7 +257,7 @@ class TestEventBridgeE2EIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process the message - should not fail despite Redis error
-                        result = await self.bridge_service._process_event(message)
+                        result = await self.bridge_service.process_event(message)
                         assert result is True
 
                         # Verify circuit breaker recorded the failure
@@ -307,7 +307,7 @@ class TestEventBridgeE2EIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process each message
-                        result = await self.bridge_service._process_event(message)
+                        result = await self.bridge_service.process_event(message)
                         assert result is True
                         processed_count += 1
 
@@ -315,7 +315,7 @@ class TestEventBridgeE2EIntegration:
                 assert processed_count == len(events)
 
                 # Trigger offset commit
-                await self.bridge_service._commit_processed_offsets()
+                await self.bridge_service.commit_processed_offsets()
 
                 # Verify Redis SSE was called for each event
                 assert mock_redis_sse.publish_event.call_count == len(events)
@@ -361,7 +361,7 @@ class TestEventBridgeE2EIntegration:
             if message_batch:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
-                        result = await test_service._process_event(message)
+                        result = await test_service.process_event(message)
                         assert result is True
                         break
                     break
@@ -409,7 +409,7 @@ class TestEventBridgeE2EIntegration:
                 for _topic_partition, messages in message_batch.items():
                     for message in messages:
                         # Process should continue despite malformed message
-                        result = await self.bridge_service._process_event(message)
+                        result = await self.bridge_service.process_event(message)
                         assert result is True  # Should continue processing
 
                         # Verify Redis SSE was NOT called (malformed message filtered)
