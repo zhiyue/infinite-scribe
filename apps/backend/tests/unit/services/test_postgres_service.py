@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from src.common.services.postgres_service import PostgreSQLService, postgres_service
-from tests.conftest import create_async_context_mock
+from tests.fixtures.clients import create_async_context_mock
 
 
 class TestPostgreSQLService:

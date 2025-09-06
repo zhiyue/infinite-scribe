@@ -16,7 +16,7 @@ async def test_knowledge_graph_service_bootstrap():
     # 同时 Mock create_neo4j_session / Neo4jSchemaManager / execute_query，避免真实连接
     with (
         patch("src.common.services.knowledge_graph.knowledge_graph_service.create_neo4j_session") as mock_session,
-        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jSchemaManager") as MockSchemaManager,
+        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jSchemaManager") as mock_schema_manager,
         patch("src.common.services.knowledge_graph.knowledge_graph_service.execute_query") as mock_execute,
     ):
         mock_execute.return_value = []
@@ -27,7 +27,7 @@ async def test_knowledge_graph_service_bootstrap():
         mock_session.return_value.__aexit__.return_value = None
 
         # 准备 SchemaManager
-        mock_schema_mgr = MockSchemaManager.return_value
+        mock_schema_mgr = mock_schema_manager.return_value
         mock_schema_mgr.initialize_schema = AsyncMock()
 
         kg = KnowledgeGraphService()  # 不再需要 Neo4jService 参数
@@ -51,11 +51,11 @@ async def test_knowledge_graph_service_enhanced_methods():
     # Mock the entire src.db.graph.schema module to avoid real database calls
     with (
         patch("src.common.services.knowledge_graph.knowledge_graph_service.create_neo4j_session") as mock_session,
-        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jSchemaManager") as MockSchemaManager,
-        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jNodeCreator") as MockNodeCreator,
+        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jSchemaManager") as mock_schema_manager,
+        patch("src.common.services.knowledge_graph.knowledge_graph_service.Neo4jNodeCreator") as mock_node_creator,
         patch(
             "src.common.services.knowledge_graph.knowledge_graph_service.Neo4jRelationshipManager"
-        ) as MockRelationshipManager,
+        ) as mock_relationship_manager,
     ):
         # Setup session mock
         mock_session_instance = AsyncMock()
@@ -63,19 +63,19 @@ async def test_knowledge_graph_service_enhanced_methods():
         mock_session.return_value.__aexit__.return_value = None
 
         # Setup schema manager mock
-        mock_schema_mgr = MockSchemaManager.return_value
+        mock_schema_mgr = mock_schema_manager.return_value
         mock_schema_mgr.initialize_schema = AsyncMock()
         mock_schema_mgr.verify_schema = AsyncMock(return_value=True)
 
         # Setup node creator mock
-        mock_node_creator = MockNodeCreator.return_value
-        mock_node_creator.create_novel_node = AsyncMock(return_value={"id": "novel-1"})
-        mock_node_creator.create_character_node = AsyncMock(return_value={"id": "char-1"})
-        mock_node_creator.create_world_rule_node = AsyncMock(return_value={"id": "rule-1"})
-        mock_node_creator.create_location_node = AsyncMock(return_value={"id": "loc-1"})
+        mock_node_creator_instance = mock_node_creator.return_value
+        mock_node_creator_instance.create_novel_node = AsyncMock(return_value={"id": "novel-1"})
+        mock_node_creator_instance.create_character_node = AsyncMock(return_value={"id": "char-1"})
+        mock_node_creator_instance.create_world_rule_node = AsyncMock(return_value={"id": "rule-1"})
+        mock_node_creator_instance.create_location_node = AsyncMock(return_value={"id": "loc-1"})
 
         # Setup relationship manager mock
-        mock_rel_mgr = MockRelationshipManager.return_value
+        mock_rel_mgr = mock_relationship_manager.return_value
         mock_rel_mgr.create_character_relationship = AsyncMock(return_value=True)
         mock_rel_mgr.create_world_rule_conflict = AsyncMock(return_value=True)
 
@@ -84,14 +84,14 @@ async def test_knowledge_graph_service_enhanced_methods():
         # Test schema initialization
         result = await kg.initialize_genesis_schema()
         assert result is True
-        MockSchemaManager.assert_called_once()
+        mock_schema_manager.assert_called_once()
         mock_schema_mgr.initialize_schema.assert_called_once()
         mock_schema_mgr.verify_schema.assert_called_once()
 
         # Test node creation methods
         result = await kg.create_novel_node("novel-1", "Test Novel")
         assert result is True
-        MockNodeCreator.assert_called()
+        mock_node_creator.assert_called()
 
         result = await kg.create_character_node(
             character_id="char-1", novel_id="novel-1", name="Hero", appearance="Tall and strong", personality="Brave"
@@ -111,7 +111,7 @@ async def test_knowledge_graph_service_enhanced_methods():
             character1_id="char-1", character2_id="char-2", strength=8, rel_type="friend"
         )
         assert result is True
-        MockRelationshipManager.assert_called()
+        mock_relationship_manager.assert_called()
 
         result = await kg.create_world_rule_conflict(rule1_id="rule-1", rule2_id="rule-2", severity="major")
         assert result is True
@@ -122,12 +122,12 @@ async def test_knowledge_graph_service_query_builder():
     """测试查询构建器创建。"""
 
     # create_query_builder 不再依赖全局 driver，直接构造 GraphQueryBuilder()
-    with patch("src.common.services.knowledge_graph.knowledge_graph_service.GraphQueryBuilder") as MockQueryBuilder:
+    with patch("src.common.services.knowledge_graph.knowledge_graph_service.GraphQueryBuilder") as mock_query_builder:
         kg = KnowledgeGraphService()
         kg.create_query_builder()
 
         # 验证 GraphQueryBuilder 被正确初始化（无参）
-        MockQueryBuilder.assert_called_once_with()
+        mock_query_builder.assert_called_once_with()
 
 
 @pytest.mark.asyncio
@@ -151,13 +151,13 @@ async def test_consistency_validation():
         mock_session.return_value.__aenter__.return_value = mock_session_instance
         mock_session.return_value.__aexit__.return_value = None
 
-        with patch("src.common.services.knowledge_graph.knowledge_graph_service.ConsistencyValidator") as MockValidator:
+        with patch("src.common.services.knowledge_graph.knowledge_graph_service.ConsistencyValidator") as mock_validator_class:
             # Mock 一致性报告
             from src.common.services.knowledge_graph.consistency_validator import ConsistencyReport
 
             mock_report = ConsistencyReport(violations=[], score=10.0, total_checks=5, passed_checks=5)
 
-            mock_validator = MockValidator.return_value
+            mock_validator = mock_validator_class.return_value
             # validate_all 是异步方法，需要使用 AsyncMock
             mock_validator.validate_all = AsyncMock(return_value=mock_report)
 

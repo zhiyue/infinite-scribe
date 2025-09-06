@@ -9,7 +9,7 @@ from launcher.adapters.base import BaseAdapter
 from launcher.types import ServiceStatus
 
 
-class TestAdapter(BaseAdapter):
+class ConcreteConcreteTestAdapter(BaseAdapter):
     """Test implementation of BaseAdapter for testing"""
 
     def __init__(self, name: str = "test", config: dict[str, Any] | None = None):
@@ -38,7 +38,7 @@ def test_base_adapter_is_abstract():
 
 def test_base_adapter_inheritance():
     """Test BaseAdapter can be inherited from"""
-    adapter = TestAdapter("test", {"key": "value"})
+    adapter = ConcreteConcreteTestAdapter("test", {"key": "value"})
     assert isinstance(adapter, BaseAdapter)
     assert isinstance(adapter, ABC)
 
@@ -46,7 +46,7 @@ def test_base_adapter_inheritance():
 def test_base_adapter_initialization():
     """Test BaseAdapter initialization with name and config"""
     config = {"host": "127.0.0.1", "port": 8000}
-    adapter = TestAdapter("api", config)
+    adapter = ConcreteTestAdapter("api", config)
 
     assert adapter.name == "api"
     assert adapter.config == config
@@ -57,7 +57,7 @@ def test_base_adapter_initialization():
 @pytest.mark.asyncio
 async def test_base_adapter_abstract_methods_implemented():
     """Test that concrete implementation provides required methods"""
-    adapter = TestAdapter()
+    adapter = ConcreteTestAdapter()
 
     # Test start method
     result = await adapter.start()
@@ -77,7 +77,7 @@ async def test_base_adapter_abstract_methods_implemented():
 
 def test_base_adapter_get_status():
     """Test get_status method returns current status"""
-    adapter = TestAdapter()
+    adapter = ConcreteTestAdapter()
     assert adapter.get_status() == ServiceStatus.STOPPED
 
     adapter.status = ServiceStatus.RUNNING
@@ -87,7 +87,7 @@ def test_base_adapter_get_status():
 def test_base_adapter_config_access():
     """Test configuration access"""
     config = {"timeout": 30, "retry_count": 3}
-    adapter = TestAdapter("service", config)
+    adapter = ConcreteTestAdapter("service", config)
 
     assert adapter.config["timeout"] == 30
     assert adapter.config["retry_count"] == 3
@@ -95,6 +95,6 @@ def test_base_adapter_config_access():
 
 def test_base_adapter_empty_config():
     """Test adapter works with empty config"""
-    adapter = TestAdapter("service", {})
+    adapter = ConcreteTestAdapter("service", {})
     assert adapter.config == {}
     assert adapter.name == "service"

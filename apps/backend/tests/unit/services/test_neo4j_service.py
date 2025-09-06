@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from src.common.services.neo4j_service import Neo4jService, neo4j_service
-from tests.conftest import create_async_context_mock
+from tests.fixtures.clients import create_async_context_mock
 
 
 class TestNeo4jService:

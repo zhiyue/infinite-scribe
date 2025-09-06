@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 from aiokafka import AIOKafkaConsumer
+from aiokafka.errors import KafkaError
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.workflow import EventOutbox
@@ -572,7 +573,7 @@ class TestOutboxRelayServiceRealKafka:
             service = OutboxRelayService()
 
             # Service should fail to start with invalid Kafka configuration
-            with pytest.raises(Exception):  # Could be ConnectionError or similar
+            with pytest.raises((KafkaError, ConnectionError)):  # Could be KafkaError or ConnectionError
                 await service.start()
                 # Give it a moment to fail
                 await asyncio.sleep(0.1)

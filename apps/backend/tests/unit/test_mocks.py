@@ -1,7 +1,7 @@
 """Mock services for testing."""
 
 
-class MockRedis:
+class MockRedisClass:
     """Mock Redis client for testing."""
 
     def __init__(self):
@@ -37,7 +37,7 @@ class MockRedis:
         self.data.clear()
 
 
-class MockEmailService:
+class MockEmailServiceClass:
     """Mock email service for testing."""
 
     def __init__(self):
@@ -64,5 +64,5 @@ class MockEmailService:
 
 
 # Global mock instances for test session
-mock_redis = MockRedis()
-mock_email_service = MockEmailService()
+mock_redis = MockRedisClass()
+mock_email_service = MockEmailServiceClass()

@@ -154,8 +154,8 @@ class TestNovelService:
         mock_db.refresh = AsyncMock()
 
         # Mock the novel creation
-        with patch("src.common.services.novel_service.Novel") as MockNovel:
-            MockNovel.return_value = sample_novel
+        with patch("src.common.services.novel_service.Novel") as mock_novel:
+            mock_novel.return_value = sample_novel
 
             # Act
             result = await novel_service.create_novel(mock_db, user_id=1, novel_data=sample_create_request)

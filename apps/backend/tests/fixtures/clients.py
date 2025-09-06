@@ -159,21 +159,21 @@ async def client_with_lifespan(pg_session):
         patch.object(redis_service, "disconnect", AsyncMock(return_value=None)),
 
         # 3) SSEProvider stub
-        patch("src.services.sse.provider.SSEProvider") as MockSSEProvider,
+        patch("src.services.sse.provider.SSEProvider") as mock_sse_provider,
 
         # 4) Launcher 组件 stub
-        patch("src.launcher.orchestrator.Orchestrator") as MockOrchestrator,
-        patch("src.launcher.health.HealthMonitor") as MockHealthMonitor,
+        patch("src.launcher.orchestrator.Orchestrator") as mock_orchestrator,
+        patch("src.launcher.health.HealthMonitor") as mock_health_monitor,
         patch("src.common.services.email_service.EmailService") as mock_email_cls,
     ):
         sse_instance = MagicMock()
         sse_instance.get_redis_sse_service = AsyncMock()
         sse_instance.get_connection_manager = AsyncMock()
         sse_instance.close = AsyncMock()
-        MockSSEProvider.return_value = sse_instance
+        mock_sse_provider.return_value = sse_instance
 
-        MockOrchestrator.return_value = MagicMock()
-        MockHealthMonitor.return_value = MagicMock()
+        mock_orchestrator.return_value = MagicMock()
+        mock_health_monitor.return_value = MagicMock()
         mock_email_cls.return_value = mock_email_service
         # 避免加载 admin 路由
         settings.launcher.admin_enabled = False

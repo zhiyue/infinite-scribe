@@ -70,7 +70,7 @@ class DatabaseSettings(BaseModel):
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
 
-class MockSettings(BaseSettings):
+class TestSettings(BaseSettings):
     """Test-specific Settings class that doesn't load from .env file."""
 
     model_config = SettingsConfigDict(
@@ -204,7 +204,7 @@ def clean_environment():
 
 def test_default_settings():
     """Test default settings are loaded correctly."""
-    settings = MockSettings()
+    settings = TestSettings()
 
     assert settings.service_name == "infinite-scribe-backend"
     assert settings.service_type == "api-gateway"
@@ -219,7 +219,7 @@ def test_default_settings():
 
 def test_nested_auth_settings():
     """Test nested authentication settings."""
-    settings = MockSettings()
+    settings = TestSettings()
 
     assert settings.auth.jwt_secret_key == "test_secret_key"
     assert settings.auth.jwt_algorithm == "HS256"
@@ -229,14 +229,14 @@ def test_nested_auth_settings():
 
 def test_postgres_url_generation():
     """Test PostgreSQL URL is generated correctly."""
-    settings = MockSettings()
+    settings = TestSettings()
     expected_url = "postgresql+asyncpg://postgres:postgres@localhost:5432/infinite_scribe"
     assert expected_url == settings.database.postgres_url
 
 
 def test_neo4j_url_generation():
     """Test Neo4j URL is generated correctly."""
-    settings = MockSettings()
+    settings = TestSettings()
     expected_url = "bolt://localhost:7687"
     assert expected_url == settings.database.neo4j_url
 
@@ -244,13 +244,13 @@ def test_neo4j_url_generation():
 def test_neo4j_url_with_uri_override():
     """Test Neo4j URL uses neo4j_uri if provided."""
     with patch.dict(os.environ, {"DATABASE__NEO4J_URI": "bolt://custom-neo4j:7688"}):
-        settings = MockSettings()
+        settings = TestSettings()
         assert settings.database.neo4j_url == "bolt://custom-neo4j:7688"
 
 
 def test_redis_url_generation():
     """Test Redis URL is generated correctly."""
-    settings = MockSettings()
+    settings = TestSettings()
     expected_url = "redis://localhost:6379/0"  # No password by default
     assert expected_url == settings.database.redis_url
 
@@ -258,7 +258,7 @@ def test_redis_url_generation():
 def test_redis_url_with_password():
     """Test Redis URL with password is generated correctly."""
     with patch.dict(os.environ, {"DATABASE__REDIS_PASSWORD": "testpass"}):
-        settings = MockSettings()
+        settings = TestSettings()
         expected_url = "redis://:testpass@localhost:6379/0"
         assert expected_url == settings.database.redis_url
 
@@ -278,7 +278,7 @@ def test_nested_environment_variable_override():
     }
 
     with patch.dict(os.environ, env_vars):
-        settings = MockSettings()
+        settings = TestSettings()
 
         assert settings.service_name == "test-service"
         assert settings.api_port == 9000
@@ -294,7 +294,7 @@ def test_nested_environment_variable_override():
 
 def test_allowed_origins_list():
     """Test allowed_origins is properly parsed as a list."""
-    settings = MockSettings()
+    settings = TestSettings()
     assert isinstance(settings.allowed_origins, list)
     assert settings.allowed_origins == ["*"]
 
@@ -302,14 +302,14 @@ def test_allowed_origins_list():
 def test_case_sensitive_environment_variables():
     """Test that environment variables are case sensitive."""
     with patch.dict(os.environ, {"api_port": "9000", "API_PORT": "8080"}):
-        settings = MockSettings()
+        settings = TestSettings()
         # Should use API_PORT (uppercase) due to case_sensitive=True
         assert settings.api_port == 8080
 
 
 def test_litellm_configuration():
     """Test LiteLLM configuration."""
-    settings = MockSettings()
+    settings = TestSettings()
 
     # Test default values
     assert settings.litellm_api_host == ""
@@ -318,7 +318,7 @@ def test_litellm_configuration():
 
     # Test with environment variable override
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com", "LITELLM_API_KEY": "test-key"}):
-        settings = MockSettings()
+        settings = TestSettings()
         assert settings.litellm_api_host == "https://api.example.com"
         assert settings.litellm_api_key == "test-key"
         assert settings.litellm_api_url == "https://api.example.com/"
@@ -327,9 +327,9 @@ def test_litellm_configuration():
 def test_litellm_url_with_trailing_slash():
     """Test LiteLLM URL formatting with trailing slash."""
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com/"}):
-        settings = MockSettings()
+        settings = TestSettings()
         assert settings.litellm_api_url == "https://api.example.com/"
 
     with patch.dict(os.environ, {"LITELLM_API_HOST": "https://api.example.com"}):
-        settings = MockSettings()
+        settings = TestSettings()
         assert settings.litellm_api_url == "https://api.example.com/"

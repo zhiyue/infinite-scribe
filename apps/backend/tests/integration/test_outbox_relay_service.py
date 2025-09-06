@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, insert, select, update
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.sql.session import create_sql_session
 from src.models.workflow import EventOutbox
@@ -702,12 +703,12 @@ class TestOutboxRelayServiceIntegration:
 
             # Mock database session to raise connection error
             with patch("src.services.outbox.relay.create_sql_session") as mock_create_session:
-                mock_create_session.side_effect = Exception("Database connection failed")
+                mock_create_session.side_effect = DatabaseError("Database connection failed", None, None)
 
                 await service.start()
 
                 # Database error should propagate from _drain_once()
-                with pytest.raises(Exception, match="Database connection failed"):
+                with pytest.raises(DatabaseError, match="Database connection failed"):
                     await service._drain_once()
 
                 await service.stop()
