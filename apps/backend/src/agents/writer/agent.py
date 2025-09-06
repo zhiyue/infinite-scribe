@@ -1,12 +1,9 @@
 """Writer Agent 实现"""
 
-import logging
 from typing import Any
 
 from ..agent_config import get_agent_topics
 from ..base import BaseAgent
-
-logger = logging.getLogger(__name__)
 
 
 class WriterAgent(BaseAgent):
@@ -20,7 +17,7 @@ class WriterAgent(BaseAgent):
     async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """处理消息"""
         message_type = message.get("type")
-        logger.info(f"Writer agent 处理消息类型: {message_type}")
+        self.log.info("processing_message", message_type=message_type)
 
         if message_type == "write_chapter":
             return await self._handle_write_chapter(message, context)
@@ -29,7 +26,7 @@ class WriterAgent(BaseAgent):
         elif message_type == "rewrite_content":
             return await self._handle_rewrite_content(message, context)
         else:
-            logger.warning(f"未知的消息类型: {message_type}")
+            self.log.warning("unknown_message_type", message_type=message_type)
             return None
 
     async def _handle_write_chapter(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -37,7 +34,7 @@ class WriterAgent(BaseAgent):
         chapter_id = message.get("chapter_id")
         # outline = message.get("outline", {})
 
-        logger.info(f"开始写作章节: {chapter_id}")
+        self.log.info("writing_chapter", chapter_id=chapter_id)
 
         # TODO: 调用 LLM 生成章节内容
         # content = await self._generate_chapter_content(outline)
@@ -60,7 +57,7 @@ class WriterAgent(BaseAgent):
         scene_id = message.get("scene_id")
         # scene_data = message.get("scene_data", {})
 
-        logger.info(f"开始写作场景: {scene_id}")
+        self.log.info("writing_scene", scene_id=scene_id)
 
         # TODO: 调用 LLM 生成场景内容
         content = f"场景 {scene_id} 内容..."
@@ -79,7 +76,7 @@ class WriterAgent(BaseAgent):
         # original_content = message.get("original_content")
         feedback = message.get("feedback", [])
 
-        logger.info(f"重写内容: {content_id}")
+        self.log.info("rewriting_content", content_id=content_id)
 
         # TODO: 基于反馈重写内容
         rewritten_content = f"重写后的内容 (基于 {len(feedback)} 条反馈)..."
@@ -94,10 +91,10 @@ class WriterAgent(BaseAgent):
 
     async def on_start(self):
         """启动时的初始化"""
-        logger.info("Writer agent 正在初始化...")
+        self.log.info("writer_agent_starting")
         # TODO: 加载模型、初始化资源等
 
     async def on_stop(self):
         """停止时的清理"""
-        logger.info("Writer agent 正在清理资源...")
+        self.log.info("writer_agent_stopping")
         # TODO: 保存状态、释放资源等

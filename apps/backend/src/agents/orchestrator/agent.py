@@ -13,7 +13,6 @@ Notes:
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 from uuid import UUID
 
@@ -29,8 +28,6 @@ from src.schemas.enums import OutboxStatus, TaskStatus
 
 from .command_strategies import command_registry
 from .event_handlers import CapabilityEventHandlers
-
-logger = logging.getLogger(__name__)
 
 
 class OrchestratorAgent(BaseAgent):
