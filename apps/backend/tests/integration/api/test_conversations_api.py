@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -91,7 +91,6 @@ async def test_conversations_api_endpoints_flow(tmp_path: Path):
         # 5) Override get_db & require_auth; Stub out lifespan external services via monkeypatch at import level
         # We bypass lifespan heavy deps by not starting the app lifespan in test client (httpx's ASGITransport does not run lifespan by default)
         async with override_db_dep(Session), override_auth_dep(user):
-            transport_kwargs = {"app": fastapi_app}
             async with AsyncClient(transport=None, base_url="http://testserver") as _:
                 pass  # noop to satisfy type checker
             # Use httpx>=0.24's ASGITransport to avoid lifespan
@@ -149,7 +148,5 @@ async def test_conversations_api_endpoints_flow(tmp_path: Path):
 
         await engine.dispose()
     finally:
-        try:
+        with suppress(Exception):
             pg.stop()
-        except Exception:
-            pass

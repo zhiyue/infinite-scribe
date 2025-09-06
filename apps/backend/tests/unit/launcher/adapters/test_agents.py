@@ -55,7 +55,7 @@ def test_agents_adapter_load_all_agents(agents_adapter):
     """Test loading all available agents"""
     agents_adapter.load(None)
     # Should load default agents
-    expected_agents = ["worldsmith", "plotmaster", "director", "writer"]
+    expected_agents = ["orchestrator", "worldsmith", "plotmaster", "director", "writer"]
     assert agents_adapter._loaded_agents == expected_agents
 
 
