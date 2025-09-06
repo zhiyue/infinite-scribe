@@ -1,7 +1,6 @@
 """Base Agent class for all agent services."""
 
 import asyncio
-import logging
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
@@ -12,8 +11,6 @@ from .error_handler import ErrorHandler
 from .kafka_client import KafkaClientManager
 from .message_processor import MessageProcessor
 from .offset_manager import OffsetManager
-
-logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
@@ -185,7 +182,7 @@ class BaseAgent(ABC):
                     self.metrics.increment_consumed()
 
                     # Process message with retry logic - 使用薄封装方法
-                    success = await self.message_processor.process_message_with_retry(
+                    result = await self.message_processor.process_message_with_retry(
                         msg=msg,
                         safe_message=safe_message,
                         context=context,
@@ -196,12 +193,14 @@ class BaseAgent(ABC):
                         agent_metrics=self.metrics,
                     )
 
-                    if success:
-                        # Record offset and maybe commit
+                    if result["handled"]:
+                        # Record offset and maybe commit for any handled message
                         await self.offset_manager.record_offset_and_maybe_commit(consumer, msg)
-                        # 成功处理后更新processed计数并清除错误状态
-                        self.metrics.increment_processed()
-                        self.metrics.clear_error()
+
+                        # Only increment processed count and clear error for truly successful processing
+                        if result["success"]:
+                            self.metrics.increment_processed()
+                            self.metrics.clear_error()
 
                 except Exception as e:
                     self.log.error("message_loop_error", error=str(e), exc_info=True)

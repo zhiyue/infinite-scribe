@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 from aiokafka.errors import KafkaError
 
 from ..core.logging.config import get_logger
+from .agent_metrics import AgentMetrics
 from .error_handler import ErrorHandler
 from .message import decode_message, encode_message
 from .metrics import record_latency
@@ -76,12 +77,14 @@ class MessageProcessor:
         message_id: str | None,
         process_func: Callable[[dict[str, Any], dict[str, Any] | None], Any],
         producer_func: Callable[[], Any],
-        agent_metrics: Any,  # AgentMetrics对象
-    ) -> bool:
+        agent_metrics: AgentMetrics,
+    ) -> dict[str, Any]:
         """Process message with retry logic and error handling.
 
         Returns:
-            True if message was processed successfully or sent to DLT
+            dict with keys:
+            - handled: bool - True if message was processed (successfully or sent to DLT)
+            - success: bool - True only if message was processed successfully
         """
         attempt = 0
         start = asyncio.get_event_loop().time()
@@ -107,7 +110,7 @@ class MessageProcessor:
                 with suppress(Exception):
                     record_latency(self.agent_name, end - start)
 
-                return True
+                return {"handled": True, "success": True}
 
             except asyncio.CancelledError:
                 raise
@@ -119,7 +122,7 @@ class MessageProcessor:
                     await self._handle_non_retriable_error(
                         msg, safe_message, e, attempt, correlation_id, message_id, producer_func, agent_metrics
                     )
-                    return True
+                    return {"handled": True, "success": False}
                 else:
                     attempt += 1
                     if await self.error_handler.handle_retry(e, attempt, message_id, correlation_id):
@@ -130,7 +133,7 @@ class MessageProcessor:
                         await self._handle_exhausted_retries(
                             msg, safe_message, e, attempt, correlation_id, message_id, producer_func, agent_metrics
                         )
-                        return True
+                        return {"handled": True, "success": False}
 
     async def _handle_non_retriable_error(
         self,
