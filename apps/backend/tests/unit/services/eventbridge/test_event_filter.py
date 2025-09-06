@@ -54,6 +54,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(invalid_envelope)
         assert is_valid is False
+        assert reason is not None
         assert "event_type must start with 'Genesis.Session'" in reason
 
     def test_event_filter_validates_required_fields(self):
@@ -72,6 +73,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(incomplete_envelope)
         assert is_valid is False
+        assert reason is not None
         assert "Missing required field: event_id" in reason
 
     def test_event_filter_validates_payload_required_fields(self):
@@ -90,6 +92,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(envelope_missing_user)
         assert is_valid is False
+        assert reason is not None
         assert "Missing required payload field: user_id" in reason
 
     def test_event_filter_white_list_patterns(self):
@@ -139,6 +142,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(envelope_no_payload)
         assert is_valid is False
+        assert reason is not None
         assert "Missing required field: payload" in reason
 
         # Payload is not a dict
@@ -152,6 +156,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(envelope_invalid_payload)
         assert is_valid is False
+        assert reason is not None
         assert "payload must be a dictionary" in reason
 
     def test_event_filter_validates_uuid_format(self):
@@ -170,6 +175,7 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(envelope_invalid_uuid)
         assert is_valid is False
+        assert reason is not None
         assert "event_id must be a valid UUID" in reason
 
     def test_event_filter_allows_optional_novel_id(self):
@@ -225,4 +231,5 @@ class TestEventFilter:
 
         is_valid, reason = self.event_filter.validate(envelope_invalid_timestamp)
         assert is_valid is False
+        assert reason is not None
         assert "timestamp must be a valid ISO format" in reason
