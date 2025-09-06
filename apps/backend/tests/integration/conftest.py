@@ -2,52 +2,20 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 # 使用 PostgreSQL 的集成测试专用 fixtures
 
-
-@pytest.fixture(autouse=True)
-def _patch_outbox_relay_database_session(request: pytest.FixtureRequest):
-    """Patch OutboxRelayService to use the test database session.
-
-    This ensures that the OutboxRelayService uses the same testcontainer database
-    as the integration tests, rather than the configured production database.
-    """
-    # Only apply this patch for integration tests that involve OutboxRelay
-    test_name = request.node.name
-    if "outbox" not in test_name.lower() and "relay" not in test_name.lower():
-        yield
-        return
-
-    from contextlib import asynccontextmanager
-
-    # Get the test database session from the request
-    postgres_test_session_fixture = None
-    for fixture_name in request.fixturenames:
-        if fixture_name == "postgres_test_session":
-            postgres_test_session_fixture = request.getfixturevalue("postgres_test_session")
-            break
-
-    if postgres_test_session_fixture is None:
-        yield
-        return
-
-    # Create a mock create_sql_session that uses the test database
-    @asynccontextmanager
-    async def mock_create_sql_session():
-        # Use the test database session instead of creating a new one
-        try:
-            yield postgres_test_session_fixture
-            # Don't commit here since it's handled by the test session management
-        except Exception:
-            await postgres_test_session_fixture.rollback()
-            raise
-
-    with patch("src.services.outbox.relay.create_sql_session", mock_create_sql_session):
-        yield
+pytest_plugins = [
+    "tests.integration.fixtures.config",
+    "tests.integration.fixtures.redis",
+    "tests.integration.fixtures.postgres",
+    "tests.integration.fixtures.services",
+    "tests.integration.fixtures.clients",
+    "tests.integration.fixtures.app_env",
+    "tests.integration.fixtures.mocks",
+    "tests.integration.fixtures.asyncio_loop",
+]
 
 
 @pytest.fixture

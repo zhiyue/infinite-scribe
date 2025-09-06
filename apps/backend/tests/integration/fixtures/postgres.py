@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator, Generator
-from typing import Any, Iterator, Dict, List
+from collections.abc import AsyncGenerator, Generator, Iterator
+from typing import Any
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, create_engine as create_sync_engine
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
 
 
 # ---------- 1) 会话级容器 ----------
 @pytest.fixture(scope="session")
-def postgres_container() -> Generator[Dict[str, str], Any, None]:
+def postgres_container() -> Generator[dict[str, str], Any, None]:
     """
     启动 Postgres testcontainer 并导出连接信息（host/port/user/password/db）。
     """
@@ -33,20 +33,20 @@ def postgres_container() -> Generator[Dict[str, str], Any, None]:
 
 
 # ---------- 2) 运行 Alembic 迁移（会话一次） ----------
-def _build_urls(info: Dict[str, str]) -> tuple[str, str]:
+def _build_urls(info: dict[str, str]) -> tuple[str, str]:
     # async URL 供应用/测试使用；sync URL 供 Alembic 使用
     async_url = (
-        f"postgresql+asyncpg://{info['user']}:{info['password']}"
-        f"@{info['host']}:{info['port']}/{info['database']}"
+        f"postgresql+asyncpg://{info['user']}:{info['password']}" f"@{info['host']}:{info['port']}/{info['database']}"
     )
     sync_url = async_url.replace("+asyncpg", "")
     return async_url, sync_url
 
 
 def _run_alembic_upgrade_head(sync_db_url: str) -> None:
+    from pathlib import Path
+
     from alembic import command
     from alembic.config import Config
-    from pathlib import Path
 
     # 假设项目根有 alembic.ini，脚本在 alembic/ 目录
     project_root = Path(__file__).resolve().parents[2]
@@ -68,7 +68,7 @@ def _run_alembic_upgrade_head(sync_db_url: str) -> None:
 
 
 @pytest.fixture(scope="session")
-def migrated_database(postgres_container) -> Iterator[Dict[str, str]]:
+def migrated_database(postgres_container) -> Iterator[dict[str, str]]:
     """
     会话开始时对空库执行 Alembic 迁移到 head。
     """
@@ -125,7 +125,7 @@ async def _truncate_all_tables(session: AsyncSession) -> None:
               AND tablename <> 'alembic_version'
         """)
     )
-    tables: List[str] = [r[0] for r in res.fetchall()]
+    tables: list[str] = [r[0] for r in res.fetchall()]
     if tables:
         names = ", ".join(f'"{t}"' for t in tables)  # 引号避免大小写/关键字冲突
         # RESTART IDENTITY 重置自增；CASCADE 处理外键

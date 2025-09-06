@@ -3,18 +3,16 @@
 import os
 import re
 import uuid
-from collections.abc import Generator
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import redis as redislib  # Sync Redis for JWT service
 import redis.asyncio as aioredis  # Async Redis for main services
-from testcontainers.redis import RedisContainer
-
-from tests.helpers.prefix_client import PrefixedRedis, AsyncPrefixedRedis
-from src.core.config import settings
 import src.common.services.redis_service as redis_mod
 from src.common.services.redis_service import RedisService
+from src.core.config import settings
+from testcontainers.redis import RedisContainer
+from tests.helpers.prefix_client import AsyncPrefixedRedis, PrefixedRedis
 
 
 @pytest.fixture(scope="session")
@@ -40,7 +38,6 @@ def _get_redis_host_port_password(c: RedisContainer) -> tuple[str, int, str | No
     return host, port, password
 
 
-
 @pytest.fixture(scope="session")
 def redis_connection_info(redis_container: RedisContainer) -> dict[str, str]:
     """
@@ -54,6 +51,7 @@ def redis_connection_info(redis_container: RedisContainer) -> dict[str, str]:
         "url": (f"redis://:{password}@{host}:{port}/0" if password else f"redis://{host}:{port}/0"),
     }
     return info
+
 
 @pytest.fixture(scope="session")
 def redis_url(redis_connection_info: dict[str, str]) -> str:
@@ -71,7 +69,6 @@ def redis_session_client(redis_container: RedisContainer) -> redislib.Redis:
     # 触发一次 PING 确认就绪
     client.ping()
     return client
-
 
 
 @pytest.fixture(scope="session")
@@ -176,6 +173,7 @@ async def redis_async_client(
         await redis_async_session_client.flushdb()
     else:
         await prefixed.delete_prefixed()
+
 
 @pytest.fixture(scope="function")
 async def redis_service_test(
