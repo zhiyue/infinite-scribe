@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException, status
 from src.api.routes.v1.novels import (
     create_novel,
     delete_novel,
@@ -357,6 +356,7 @@ class TestNovelRoutes:
 
             # Assert
             from src.schemas.base import ApiResponse
+
             assert isinstance(result, ApiResponse)
             assert result.code == 404
             assert result.msg == "Novel not found"
@@ -379,6 +379,7 @@ class TestNovelRoutes:
 
             # Assert
             from src.schemas.base import ApiResponse
+
             assert isinstance(result, ApiResponse)
             assert result.code == 500
             assert result.msg == "Database connection failed"
@@ -400,6 +401,7 @@ class TestNovelRoutes:
 
             # Assert
             from src.schemas.base import ApiResponse
+
             assert isinstance(result, ApiResponse)
             assert result.code == 500
             assert "获取小说详情时发生错误" in result.msg
@@ -424,6 +426,7 @@ class TestNovelRoutes:
 
             # Assert
             from src.schemas.base import ApiResponse
+
             assert isinstance(result, ApiResponse)
             assert result.code == 0
             assert result.data.title == "Test Novel"
@@ -447,6 +450,7 @@ class TestNovelRoutes:
 
             # Assert
             from src.schemas.base import ApiResponse
+
             assert isinstance(result, ApiResponse)
             assert result.code == 404
             assert result.msg == "Novel not found"
@@ -471,12 +475,16 @@ class TestNovelRoutes:
         with patch("src.api.routes.v1.novels.novel_service") as mock_service:
             mock_service.update_novel = AsyncMock(return_value=error_result)
 
-            # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
-                await update_novel(novel_id, update_request, mock_db, mock_user)
+            # Act
+            result = await update_novel(novel_id, update_request, mock_db, mock_user)
 
-            assert exc_info.value.status_code == status.HTTP_409_CONFLICT
-            assert "modified by another process" in exc_info.value.detail
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 409
+            assert "modified by another process" in result.msg
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_update_novel_service_error(self, mock_user, sample_update_request):
@@ -490,12 +498,16 @@ class TestNovelRoutes:
         with patch("src.api.routes.v1.novels.novel_service") as mock_service:
             mock_service.update_novel = AsyncMock(return_value=error_result)
 
-            # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
-                await update_novel(novel_id, sample_update_request, mock_db, mock_user)
+            # Act
+            result = await update_novel(novel_id, sample_update_request, mock_db, mock_user)
 
-            assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-            assert exc_info.value.detail == "Database connection failed"
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 500
+            assert result.msg == "Database connection failed"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_update_novel_exception(self, mock_user, sample_update_request):
@@ -508,12 +520,16 @@ class TestNovelRoutes:
         with patch("src.api.routes.v1.novels.novel_service") as mock_service:
             mock_service.update_novel = AsyncMock(side_effect=Exception("Unexpected error"))
 
-            # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
-                await update_novel(novel_id, sample_update_request, mock_db, mock_user)
+            # Act
+            result = await update_novel(novel_id, sample_update_request, mock_db, mock_user)
 
-            assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-            assert "An error occurred while updating the novel" in exc_info.value.detail
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 500
+            assert "更新小说时发生错误" in result.msg
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_delete_novel_success(self, mock_user):
@@ -521,18 +537,23 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_novel = Mock()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_novel
-        mock_db.execute.return_value = mock_result
+        expected_result = {"success": True}
 
-        # Act
-        result = await delete_novel(novel_id, mock_db, mock_user)
+        # Mock novel_service.delete_novel
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.delete_novel = AsyncMock(return_value=expected_result)
 
-        # Assert - DELETE now returns None (204 No Content)
-        assert result is None
-        mock_db.delete.assert_called_once_with(mock_novel)
-        mock_db.commit.assert_called_once()
+            # Act
+            result = await delete_novel(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 0
+            assert result.msg == "删除小说成功"
+            assert result.data is None
+            mock_service.delete_novel.assert_called_once_with(mock_db, mock_user.id, novel_id)
 
     @pytest.mark.asyncio
     async def test_delete_novel_not_found(self, mock_user):
@@ -540,16 +561,22 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
+        error_result = {"success": False, "error": "Novel not found"}
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_novel(novel_id, mock_db, mock_user)
+        # Mock novel_service.delete_novel to return not found
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.delete_novel = AsyncMock(return_value=error_result)
 
-        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-        assert exc_info.value.detail == "Novel not found"
+            # Act
+            result = await delete_novel(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 404
+            assert result.msg == "Novel not found"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_delete_novel_database_error(self, mock_user):
@@ -557,20 +584,21 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_novel = Mock()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = mock_novel
-        mock_db.execute.return_value = mock_result
-        mock_db.delete.side_effect = Exception("Database error")
-        mock_db.rollback = AsyncMock()
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_novel(novel_id, mock_db, mock_user)
+        # Mock novel_service.delete_novel to raise exception
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.delete_novel = AsyncMock(side_effect=Exception("Database error"))
 
-        assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "An error occurred while deleting the novel" in exc_info.value.detail
-        mock_db.rollback.assert_called_once()
+            # Act
+            result = await delete_novel(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 500
+            assert "删除小说时发生错误" in result.msg
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_get_novel_chapters_success(self, mock_user):
@@ -579,33 +607,33 @@ class TestNovelRoutes:
         mock_db = AsyncMock()
         novel_id = uuid4()
 
-        # Mock novel ownership check
-        mock_novel_result = Mock()
-        mock_novel_result.scalar_one_or_none.return_value = Mock()
+        mock_chapter_data = {
+            "id": uuid4(),
+            "chapter_number": 1,
+            "title": "Chapter 1",
+            "status": "PUBLISHED",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        expected_result = {"success": True, "chapters": [mock_chapter_data]}
 
-        # Mock chapters result
-        mock_chapter = Mock()
-        mock_chapter.id = uuid4()
-        mock_chapter.chapter_number = 1
-        mock_chapter.title = "Chapter 1"
-        mock_chapter.status = "PUBLISHED"
-        mock_chapter.created_at = datetime.now(UTC)
-        mock_chapter.updated_at = datetime.now(UTC)
+        # Mock novel_service.get_novel_chapters
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_chapters = AsyncMock(return_value=expected_result)
 
-        mock_chapters_result = Mock()
-        mock_chapters_result.scalars.return_value.all.return_value = [mock_chapter]
+            # Act
+            result = await get_novel_chapters(novel_id, mock_db, mock_user)
 
-        mock_db.execute.side_effect = [mock_novel_result, mock_chapters_result]
+            # Assert
+            from src.schemas.base import ApiResponse
 
-        # Act
-        result = await get_novel_chapters(novel_id, mock_db, mock_user)
-
-        # Assert
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["title"] == "Chapter 1"
-        assert result[0]["chapter_number"] == 1
-        assert mock_db.execute.call_count == 2
+            assert isinstance(result, ApiResponse)
+            assert result.code == 0
+            assert result.msg == "获取章节列表成功"
+            assert len(result.data) == 1
+            assert result.data[0]["title"] == "Chapter 1"
+            assert result.data[0]["chapter_number"] == 1
+            mock_service.get_novel_chapters.assert_called_once_with(mock_db, mock_user.id, novel_id)
 
     @pytest.mark.asyncio
     async def test_get_novel_chapters_novel_not_found(self, mock_user):
@@ -613,16 +641,22 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
+        error_result = {"success": False, "error": "Novel not found"}
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await get_novel_chapters(novel_id, mock_db, mock_user)
+        # Mock novel_service.get_novel_chapters to return not found
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_chapters = AsyncMock(return_value=error_result)
 
-        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-        assert exc_info.value.detail == "Novel not found"
+            # Act
+            result = await get_novel_chapters(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 404
+            assert result.msg == "Novel not found"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_get_novel_characters_success(self, mock_user):
@@ -631,35 +665,35 @@ class TestNovelRoutes:
         mock_db = AsyncMock()
         novel_id = uuid4()
 
-        # Mock novel ownership check
-        mock_novel_result = Mock()
-        mock_novel_result.scalar_one_or_none.return_value = Mock()
+        mock_character_data = {
+            "id": uuid4(),
+            "name": "Test Character",
+            "role": "PROTAGONIST",
+            "description": "A test character",
+            "personality_traits": ["brave", "kind"],
+            "goals": ["save the world"],
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        expected_result = {"success": True, "characters": [mock_character_data]}
 
-        # Mock characters result
-        mock_character = Mock()
-        mock_character.id = uuid4()
-        mock_character.name = "Test Character"
-        mock_character.role = "PROTAGONIST"
-        mock_character.description = "A test character"
-        mock_character.personality_traits = ["brave", "kind"]
-        mock_character.goals = ["save the world"]
-        mock_character.created_at = datetime.now(UTC)
-        mock_character.updated_at = datetime.now(UTC)
+        # Mock novel_service.get_novel_characters
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_characters = AsyncMock(return_value=expected_result)
 
-        mock_characters_result = Mock()
-        mock_characters_result.scalars.return_value.all.return_value = [mock_character]
+            # Act
+            result = await get_novel_characters(novel_id, mock_db, mock_user)
 
-        mock_db.execute.side_effect = [mock_novel_result, mock_characters_result]
+            # Assert
+            from src.schemas.base import ApiResponse
 
-        # Act
-        result = await get_novel_characters(novel_id, mock_db, mock_user)
-
-        # Assert
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["name"] == "Test Character"
-        assert result[0]["role"] == "PROTAGONIST"
-        assert mock_db.execute.call_count == 2
+            assert isinstance(result, ApiResponse)
+            assert result.code == 0
+            assert result.msg == "获取角色列表成功"
+            assert len(result.data) == 1
+            assert result.data[0]["name"] == "Test Character"
+            assert result.data[0]["role"] == "PROTAGONIST"
+            mock_service.get_novel_characters.assert_called_once_with(mock_db, mock_user.id, novel_id)
 
     @pytest.mark.asyncio
     async def test_get_novel_characters_novel_not_found(self, mock_user):
@@ -667,16 +701,22 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
+        error_result = {"success": False, "error": "Novel not found"}
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await get_novel_characters(novel_id, mock_db, mock_user)
+        # Mock novel_service.get_novel_characters to return not found
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_characters = AsyncMock(return_value=error_result)
 
-        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-        assert exc_info.value.detail == "Novel not found"
+            # Act
+            result = await get_novel_characters(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 404
+            assert result.msg == "Novel not found"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_get_novel_stats_success(self, mock_user):
@@ -685,36 +725,36 @@ class TestNovelRoutes:
         mock_db = AsyncMock()
         novel_id = uuid4()
 
-        # Mock novel
-        mock_novel = Mock()
-        mock_novel.id = novel_id
-        mock_novel.target_chapters = 10
-        mock_novel.updated_at = datetime.now(UTC)
+        mock_stats = NovelProgress(
+            novel_id=novel_id,
+            total_chapters=5,
+            published_chapters=3,
+            target_chapters=10,
+            progress_percentage=30.0,
+            last_updated=datetime.now(UTC),
+        )
+        expected_result = {"success": True, "stats": mock_stats}
 
-        # Mock novel ownership check
-        mock_novel_result = Mock()
-        mock_novel_result.scalar_one_or_none.return_value = mock_novel
+        # Mock novel_service.get_novel_stats
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_stats = AsyncMock(return_value=expected_result)
 
-        # Mock chapter count queries
-        mock_total_count_result = Mock()
-        mock_total_count_result.scalar.return_value = 5
+            # Act
+            result = await get_novel_stats(novel_id, mock_db, mock_user)
 
-        mock_published_count_result = Mock()
-        mock_published_count_result.scalar.return_value = 3
+            # Assert
+            from src.schemas.base import ApiResponse
 
-        mock_db.execute.side_effect = [mock_novel_result, mock_total_count_result, mock_published_count_result]
-
-        # Act
-        result = await get_novel_stats(novel_id, mock_db, mock_user)
-
-        # Assert
-        assert isinstance(result, NovelProgress)
-        assert result.novel_id == novel_id
-        assert result.total_chapters == 5
-        assert result.published_chapters == 3
-        assert result.target_chapters == 10
-        assert result.progress_percentage == 30.0  # 3/10 * 100
-        assert mock_db.execute.call_count == 3
+            assert isinstance(result, ApiResponse)
+            assert result.code == 0
+            assert result.msg == "获取统计信息成功"
+            assert isinstance(result.data, NovelProgress)
+            assert result.data.novel_id == novel_id
+            assert result.data.total_chapters == 5
+            assert result.data.published_chapters == 3
+            assert result.data.target_chapters == 10
+            assert result.data.progress_percentage == 30.0
+            mock_service.get_novel_stats.assert_called_once_with(mock_db, mock_user.id, novel_id)
 
     @pytest.mark.asyncio
     async def test_get_novel_stats_novel_not_found(self, mock_user):
@@ -722,16 +762,22 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
+        error_result = {"success": False, "error": "Novel not found"}
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await get_novel_stats(novel_id, mock_db, mock_user)
+        # Mock novel_service.get_novel_stats to return not found
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_stats = AsyncMock(return_value=error_result)
 
-        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-        assert exc_info.value.detail == "Novel not found"
+            # Act
+            result = await get_novel_stats(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 404
+            assert result.msg == "Novel not found"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_get_novel_stats_database_error(self, mock_user):
@@ -739,11 +785,18 @@ class TestNovelRoutes:
         # Arrange
         mock_db = AsyncMock()
         novel_id = uuid4()
-        mock_db.execute.side_effect = Exception("Database error")
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await get_novel_stats(novel_id, mock_db, mock_user)
+        # Mock novel_service.get_novel_stats to raise exception
+        with patch("src.api.routes.v1.novels.novel_service") as mock_service:
+            mock_service.get_novel_stats = AsyncMock(side_effect=Exception("Database error"))
 
-        assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "An error occurred while retrieving novel statistics" in exc_info.value.detail
+            # Act
+            result = await get_novel_stats(novel_id, mock_db, mock_user)
+
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 500
+            assert "获取统计信息时发生错误" in result.msg
+            assert result.data is None

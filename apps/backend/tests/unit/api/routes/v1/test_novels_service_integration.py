@@ -69,16 +69,39 @@ class TestNovelRoutesServiceIntegration:
         mock_db = AsyncMock()
 
         with patch("src.api.routes.v1.novels.novel_service") as mock_service:
-            mock_service.list_user_novels = AsyncMock(return_value={"success": True, "novels": [sample_novel_summary]})
+            mock_service.list_user_novels = AsyncMock(
+                return_value={"success": True, "novels": [sample_novel_summary], "total": 1}
+            )
 
             # Act
-            result = await list_user_novels(skip=0, limit=50, status_filter=None, db=mock_db, current_user=mock_user)
+            result = await list_user_novels(
+                page=1,
+                page_size=50,
+                status_filter=None,
+                search=None,
+                sort_by="updated_at",
+                sort_order="desc",
+                db=mock_db,
+                current_user=mock_user,
+            )
 
             # Assert
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert result[0].title == "Test Novel"
-            mock_service.list_user_novels.assert_called_once_with(mock_db, 1, 0, 50, None)
+            from src.schemas.base import PaginatedApiResponse
+
+            assert isinstance(result, PaginatedApiResponse)
+            assert result.code == 0
+            assert len(result.data.items) == 1
+            assert result.data.items[0].title == "Test Novel"
+            mock_service.list_user_novels.assert_called_once_with(
+                db=mock_db,
+                user_id=1,
+                skip=0,
+                limit=50,
+                status_filter=None,
+                search=None,
+                sort_by="updated_at",
+                sort_order="desc",
+            )
 
     @pytest.mark.asyncio
     async def test_list_user_novels_service_error(self, mock_user):
@@ -89,12 +112,25 @@ class TestNovelRoutesServiceIntegration:
         with patch("src.api.routes.v1.novels.novel_service") as mock_service:
             mock_service.list_user_novels.return_value = {"success": False, "error": "Database connection failed"}
 
-            # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
-                await list_user_novels(skip=0, limit=50, status_filter=None, db=mock_db, current_user=mock_user)
+            # Act
+            result = await list_user_novels(
+                page=1,
+                page_size=50,
+                status_filter=None,
+                search=None,
+                sort_by="updated_at",
+                sort_order="desc",
+                db=mock_db,
+                current_user=mock_user,
+            )
 
-            assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-            assert exc_info.value.detail == "Database connection failed"
+            # Assert
+            from src.schemas.base import PaginatedApiResponse
+
+            assert isinstance(result, PaginatedApiResponse)
+            assert result.code == 500
+            assert result.msg == "Database connection failed"
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_create_novel_success(self, mock_user, sample_novel_response):
@@ -110,8 +146,12 @@ class TestNovelRoutesServiceIntegration:
             result = await create_novel(request, mock_db, mock_user)
 
             # Assert
-            assert result.title == "Test Novel"
-            assert result.status == NovelStatus.GENESIS
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 0
+            assert result.data.title == "Test Novel"
+            assert result.data.status == NovelStatus.GENESIS
             mock_service.create_novel.assert_called_once_with(mock_db, 1, request)
 
     @pytest.mark.asyncio
@@ -127,12 +167,16 @@ class TestNovelRoutesServiceIntegration:
                 "error": "Novel creation failed due to data constraints",
             }
 
-            # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
-                await create_novel(request, mock_db, mock_user)
+            # Act
+            result = await create_novel(request, mock_db, mock_user)
 
-            assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-            assert "constraint" in exc_info.value.detail.lower()
+            # Assert
+            from src.schemas.base import ApiResponse
+
+            assert isinstance(result, ApiResponse)
+            assert result.code == 400
+            assert "constraint" in result.msg.lower()
+            assert result.data is None
 
     @pytest.mark.asyncio
     async def test_get_novel_success(self, mock_user, sample_novel_response):
