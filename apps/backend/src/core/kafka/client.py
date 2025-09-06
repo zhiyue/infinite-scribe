@@ -6,8 +6,8 @@ from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
-from ..core.config import settings
-from ..core.logging.config import get_logger
+from ..config import settings
+from ..logging.config import get_logger
 
 logger = logging.getLogger(__name__)
 
