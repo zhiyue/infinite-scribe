@@ -2,9 +2,7 @@
 
 # Unified test script for Infinite Scribe
 # 
-# Infrastructure:
-#   - 192.168.2.201: Development machine (persistent services, NOT for testing)
-#   - TEST_MACHINE_IP env var or 192.168.2.202: Test machine (for ALL tests)
+# All integration tests use testcontainers. Remote Docker supported for CI/CD.
 #
 # Usage: ./scripts/run-tests.sh [options]
 #
@@ -13,8 +11,7 @@
 #   -i, --integration   Run integration tests only (no linting)
 #   -a, --all           Run all tests (unit + integration + linting)
 #   -f, --file <path>   Run specific test file(s) (can be used multiple times)
-#   --remote            Use pre-deployed services on test machine (default: TEST_MACHINE_IP env var or 192.168.2.202)
-#   --docker-host       Use test machine Docker (default: DOCKER_HOST_IP env var or TEST_MACHINE_IP)
+#   --docker-host       Use remote Docker for testcontainers (default: DOCKER_HOST_IP env var or 192.168.2.202:2375)
 #   --coverage          Generate coverage report
 #   --lint              Run only linting and type checking
 #   --no-lint           Skip linting and type checking (when used with --all)
@@ -35,16 +32,12 @@ RUN_UNIT=true
 RUN_INTEGRATION=false
 RUN_LINT=true
 USE_COVERAGE=false
-USE_REMOTE_SERVICES=false
 USE_DOCKER_HOST=false
 LINT_ONLY=false
 TEST_FILES=()
 
-# Test machine configuration (can be overridden by environment variable)
-TEST_MACHINE_IP="${TEST_MACHINE_IP:-192.168.2.202}"
-
-# Docker host configuration (can be overridden by environment variable)
-DOCKER_HOST_IP="${DOCKER_HOST_IP:-${TEST_MACHINE_IP}}"
+# Docker host configuration for remote testcontainers (can be overridden by environment variable)
+DOCKER_HOST_IP="${DOCKER_HOST_IP:-192.168.2.202}"
 DOCKER_HOST_PORT="${DOCKER_HOST_PORT:-2375}"
 
 # Parse command line arguments
@@ -66,10 +59,6 @@ while [[ $# -gt 0 ]]; do
             RUN_UNIT=true
             RUN_INTEGRATION=true
             RUN_LINT=true
-            shift
-            ;;
-        --remote)
-            USE_REMOTE_SERVICES=true
             shift
             ;;
         --docker-host)
@@ -120,28 +109,7 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
 fi
 
 # Configure environment based on options
-if [ "$USE_REMOTE_SERVICES" = true ]; then
-    echo -e "${YELLOW}Using pre-deployed services on TEST machine at ${TEST_MACHINE_IP}${NC}"
-    echo -e "${GREEN}Connecting to manually deployed test services${NC}"
-    
-    # Load .env.test but override host IPs with TEST_MACHINE_IP
-    export $(grep -v '^#' "$PROJECT_ROOT/.env.test" | xargs)
-    export POSTGRES_HOST=${TEST_MACHINE_IP}
-    export NEO4J_HOST=${TEST_MACHINE_IP}
-    export REDIS_HOST=${TEST_MACHINE_IP}
-    export USE_EXTERNAL_SERVICES=true
-    
-    # Check connectivity
-    if command -v nc &> /dev/null; then
-        echo "Checking test services connectivity..."
-        nc -zv ${TEST_MACHINE_IP} 5432 2>&1 | grep -q succeeded && echo "✓ PostgreSQL" || echo "✗ PostgreSQL"
-        nc -zv ${TEST_MACHINE_IP} 7687 2>&1 | grep -q succeeded && echo "✓ Neo4j" || echo "✗ Neo4j"
-        nc -zv ${TEST_MACHINE_IP} 6379 2>&1 | grep -q succeeded && echo "✓ Redis" || echo "✗ Redis"
-    else
-        echo -e "${YELLOW}Warning: 'nc' command not found. Skipping connectivity check.${NC}"
-        echo "Test services are expected to be available at ${TEST_MACHINE_IP}"
-    fi
-elif [ "$USE_DOCKER_HOST" = true ]; then
+if [ "$USE_DOCKER_HOST" = true ]; then
     echo -e "${YELLOW}Using TEST machine Docker host at ${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}${NC}"
     echo -e "${GREEN}Safe for destructive tests - using isolated test environment${NC}"
     export USE_REMOTE_DOCKER=true

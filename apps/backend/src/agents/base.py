@@ -29,7 +29,12 @@ class BaseAgent(ABC):
         self.ready = False
 
         # Initialize component modules
-        self.kafka_client = KafkaClientManager(name, consume_topics, produce_topics)
+        self.kafka_client = KafkaClientManager(
+            client_id=name,
+            consume_topics=consume_topics,
+            produce_topics=produce_topics,
+            logger_context={"agent": name}
+        )
         self.offset_manager = OffsetManager(
             name, self.config.agent_commit_batch_size, self.config.agent_commit_interval_ms
         )

@@ -140,21 +140,17 @@ timeout 120 uv run pytest tests/integration/test_outbox_relay_with_kafka.py -v -
 
 ### Environment Variables
 ```bash
-# Use testcontainers (default)
-export USE_EXTERNAL_SERVICES=false
+# All tests use testcontainers (default)
+# No configuration needed for local Docker
 
 # For remote Docker testing with testcontainers
 export USE_REMOTE_DOCKER=true
 export REMOTE_DOCKER_HOST="tcp://192.168.2.202:2375"
-
-# Alternative: Use external services (no testcontainers)
-export USE_EXTERNAL_SERVICES=true
-export DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/test_db"
 ```
 
-### Testcontainers vs External Services
+### Testcontainer Architecture
 
-**Testcontainers (Recommended)**:
+**All tests use testcontainers**:
 - ✅ **Complete Isolation**: Each test run gets fresh database and Kafka containers
 - ✅ **Consistency**: Same PostgreSQL and Kafka versions across all environments
 - ✅ **No Conflicts**: No interference with local service instances

@@ -90,9 +90,15 @@ class TestSSEHealthIntegration:
         assert response.headers["content-type"].startswith("application/json")
 
     # 真实 Redis 语义：使用 Testcontainers Redis，期望服务健康（200）
-    @pytest.mark.redis_container
     @pytest.mark.asyncio
-    async def test_health_endpoint_structure_with_redis(self, postgres_async_client, use_redis_container):
+    async def test_health_endpoint_structure_with_redis(self, postgres_async_client, redis_service):
+        """Configure Redis service for health endpoint testing."""
+        # Configure global settings with testcontainer Redis
+        from src.core.config import get_settings
+        settings = get_settings()
+        settings.database.redis_host = redis_service["host"]
+        settings.database.redis_port = redis_service["port"]
+        settings.database.redis_password = redis_service["password"]
         """Health endpoint should report healthy with real Redis available."""
         response = await postgres_async_client.get("/api/v1/events/health")
         assert response.status_code == 200
@@ -105,9 +111,15 @@ class TestSSEHealthIntegration:
         assert isinstance(data["connection_statistics"].get("active_connections"), int)
         assert isinstance(data["connection_statistics"].get("redis_connection_counters"), int)
 
-    @pytest.mark.redis_container
     @pytest.mark.asyncio
-    async def test_health_endpoint_no_auth_with_redis(self, postgres_async_client, use_redis_container):
+    async def test_health_endpoint_no_auth_with_redis(self, postgres_async_client, redis_service):
+        """Configure Redis service for health endpoint testing without auth."""
+        # Configure global settings with testcontainer Redis
+        from src.core.config import get_settings
+        settings = get_settings()
+        settings.database.redis_host = redis_service["host"]
+        settings.database.redis_port = redis_service["port"]
+        settings.database.redis_password = redis_service["password"]
         """Health endpoint should be accessible and healthy with real Redis without auth."""
         response = await postgres_async_client.get("/api/v1/events/health")
         assert response.status_code == 200

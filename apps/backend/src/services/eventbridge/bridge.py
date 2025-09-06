@@ -5,18 +5,18 @@ This module implements the main EventBridge service that coordinates all compone
 to bridge domain events from Kafka to SSE channels via Redis.
 """
 
-import logging
 from typing import Any
 
 from src.agents.offset_manager import OffsetManager
 from src.core.kafka.client import KafkaClientManager
+from src.core.logging import get_logger
 from src.services.eventbridge.circuit_breaker import CircuitBreaker
 from src.services.eventbridge.filter import EventFilter
 from src.services.eventbridge.metrics import EventBridgeMetricsCollector
 from src.services.eventbridge.publisher import Publisher
 from src.services.sse.redis_client import RedisSSEService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DomainEventBridgeService:
@@ -72,7 +72,7 @@ class DomainEventBridgeService:
         # Consumer reference for offset management
         self.consumer = None
 
-        logger.info("DomainEventBridge service initialized")
+        logger.info("DomainEventBridge service initialized", service="eventbridge")
 
     def set_consumer(self, consumer) -> None:
         """Set the Kafka consumer reference for offset management."""
@@ -92,11 +92,34 @@ class DomainEventBridgeService:
                     # Register consumer with circuit breaker using actual partitions
                     self.circuit_breaker.register_consumer(self.consumer, partitions)
                     self._circuit_breaker_registered = True
-                    logger.info(f"Circuit breaker registered with {len(partitions)} partitions")
+                    logger.info(
+                        "Circuit breaker registered with consumer",
+                        partitions_count=len(partitions),
+                        service="eventbridge",
+                    )
             except Exception as e:
-                logger.error(f"Failed to register circuit breaker: {e}")
+                logger.error("Failed to register circuit breaker", error=str(e), service="eventbridge")
 
-    async def _process_event(self, message: Any) -> bool:
+    def update_circuit_breaker_partitions(self, new_partitions: list[Any]) -> None:
+        """
+        Update circuit breaker with new partition assignment after rebalance.
+
+        Args:
+            new_partitions: New partition assignment from Kafka rebalance
+        """
+        try:
+            if self.consumer and hasattr(self, "_circuit_breaker_registered"):
+                # Update circuit breaker with new partitions
+                self.circuit_breaker.update_partitions(new_partitions)
+                logger.info(
+                    "Updated circuit breaker partitions after rebalance",
+                    new_partitions_count=len(new_partitions),
+                    service="eventbridge",
+                )
+        except Exception as e:
+            logger.error("Failed to update circuit breaker partitions", error=str(e), service="eventbridge")
+
+    async def process_event(self, message: Any) -> bool:
         """
         Process a single Kafka message through the event pipeline.
 
@@ -151,7 +174,13 @@ class DomainEventBridgeService:
         """
         envelope = self._extract_envelope(message)
         if not envelope:
-            logger.warning(f"Skipping malformed message at {message.topic}:{message.partition}:{message.offset}")
+            logger.warning(
+                "Skipping malformed message",
+                topic=message.topic,
+                partition=message.partition,
+                offset=message.offset,
+                service="eventbridge",
+            )
             return None
         return envelope
 
@@ -168,7 +197,7 @@ class DomainEventBridgeService:
         is_valid, reason = self.event_filter.validate(envelope)
         if not is_valid:
             self.metrics_collector.record_event_filtered()
-            logger.debug(f"Event filtered: {reason}, event_type={envelope.get('event_type')}")
+            logger.debug("Event filtered", reason=reason, event_type=envelope.get("event_type"), service="eventbridge")
             return False
         return True
 
@@ -201,7 +230,12 @@ class DomainEventBridgeService:
             envelope: Event envelope that was dropped
         """
         self.metrics_collector.record_event_dropped()
-        logger.debug(f"Event dropped due to open circuit, event_id={envelope.get('event_id')}")
+        logger.debug(
+            "Event dropped due to open circuit",
+            event_id=envelope.get("event_id"),
+            event_type=envelope.get("event_type"),
+            service="eventbridge",
+        )
 
     async def _publish_event(self, envelope: dict[str, Any]) -> None:
         """
@@ -215,8 +249,11 @@ class DomainEventBridgeService:
         self.circuit_breaker.record_success()
 
         logger.debug(
-            f"Successfully published event {envelope.get('event_type')} "
-            f"for user {envelope.get('payload', {}).get('user_id')}"
+            "Successfully published event",
+            event_type=envelope.get("event_type"),
+            event_id=envelope.get("event_id"),
+            user_id=envelope.get("payload", {}).get("user_id"),
+            service="eventbridge",
         )
 
     def _handle_publish_failure(self, envelope: dict[str, Any], error: Exception) -> None:
@@ -231,12 +268,13 @@ class DomainEventBridgeService:
         self.circuit_breaker.record_failure()
 
         logger.error(
-            f"Failed to publish event {envelope.get('event_type')}: {error}",
-            extra={
-                "event_id": envelope.get("event_id"),
-                "correlation_id": envelope.get("correlation_id"),
-                "user_id": envelope.get("payload", {}).get("user_id"),
-            },
+            "Failed to publish event",
+            event_type=envelope.get("event_type"),
+            event_id=envelope.get("event_id"),
+            correlation_id=envelope.get("correlation_id"),
+            user_id=envelope.get("payload", {}).get("user_id"),
+            error=str(error),
+            service="eventbridge",
         )
         # In degraded mode, we continue processing Kafka but drop SSE
         # This maintains event fact consistency while losing real-time UI updates
@@ -250,20 +288,25 @@ class DomainEventBridgeService:
             error: Exception that occurred
         """
         logger.error(
-            f"Unexpected error processing message at {message.topic}:{message.partition}:{message.offset}: {error}",
+            "Unexpected error processing message",
+            topic=message.topic,
+            partition=message.partition,
+            offset=message.offset,
+            error=str(error),
+            service="eventbridge",
             exc_info=True,
         )
 
-    async def _commit_processed_offsets(self) -> None:
+    async def commit_processed_offsets(self) -> None:
         """Commit processed offsets in batch."""
         try:
             if self.consumer:
                 await self.offset_manager.flush_pending_offsets(self.consumer)
-                logger.debug("Successfully committed processed offsets")
+                logger.debug("Successfully committed processed offsets", service="eventbridge")
             else:
-                logger.warning("Cannot commit offsets: no consumer reference")
+                logger.warning("Cannot commit offsets: no consumer reference", service="eventbridge")
         except Exception as e:
-            logger.error(f"Failed to commit offsets: {e}")
+            logger.error("Failed to commit offsets", error=str(e), service="eventbridge")
 
     async def shutdown(self) -> None:
         """
@@ -274,31 +317,31 @@ class DomainEventBridgeService:
         2. Stop Kafka consumer
         3. Close Redis connections
         """
-        logger.info("Shutting down DomainEventBridge service")
+        logger.info("Shutting down DomainEventBridge service", service="eventbridge")
 
         try:
             # Step 1: Flush pending offsets
             if self.consumer:
                 await self.offset_manager.flush_pending_offsets(self.consumer)
-                logger.info("Flushed pending offsets")
+                logger.info("Flushed pending offsets", service="eventbridge")
             else:
-                logger.warning("Cannot flush offsets during shutdown: no consumer reference")
+                logger.warning("Cannot flush offsets during shutdown: no consumer reference", service="eventbridge")
 
             # Step 2: Stop Kafka consumer
             await self.kafka_client_manager.stop_consumer()
-            logger.info("Stopped Kafka consumer")
+            logger.info("Stopped Kafka consumer", service="eventbridge")
 
             # Step 3: Close Redis connections
             await self.redis_sse_service.close()
-            logger.info("Closed Redis SSE service")
+            logger.info("Closed Redis SSE service", service="eventbridge")
 
             # Log final metrics
             self.metrics_collector.log_final_metrics()
 
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}", exc_info=True)
+            logger.error("Error during shutdown", error=str(e), service="eventbridge", exc_info=True)
 
-        logger.info("DomainEventBridge service shutdown complete")
+        logger.info("DomainEventBridge service shutdown complete", service="eventbridge")
 
     def _extract_envelope(self, message: Any) -> dict[str, Any] | None:
         """
@@ -323,7 +366,7 @@ class DomainEventBridgeService:
             return envelope
 
         except Exception as e:
-            logger.warning(f"Failed to extract envelope from message: {e}")
+            logger.warning("Failed to extract envelope from message", error=str(e), service="eventbridge")
             return None
 
     def get_health_status(self) -> dict[str, Any]:

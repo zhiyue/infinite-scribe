@@ -5,13 +5,14 @@ This module implements event filtering and validation logic for the EventBridge
 service, ensuring only valid Genesis.Session.* events are processed.
 """
 
-import logging
 import re
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class EventFilter:

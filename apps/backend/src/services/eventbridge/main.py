@@ -6,12 +6,108 @@ with proper signal handling, lifecycle management, and graceful shutdown.
 """
 
 import asyncio
-import logging
 import signal
 import sys
 
-from src.core.config import get_settings
+from src.core.logging import get_logger
+try:
+    # aiokafka requires listener to be instance of this ABC
+    from aiokafka.abc import ConsumerRebalanceListener  # type: ignore
+except Exception:  # pragma: no cover - fallback for environments without aiokafka import at import time
+    ConsumerRebalanceListener = object  # type: ignore
 from src.services.eventbridge.factory import get_event_bridge_factory
+
+
+class EventBridgeRebalanceListener:
+    """
+    Kafka consumer rebalance listener for EventBridge.
+
+    Handles partition assignment and revocation events to ensure proper
+    circuit breaker integration and resource management.
+    """
+
+    def __init__(self, bridge_service, logger):
+        """
+        Initialize the rebalance listener.
+
+        Args:
+            bridge_service: DomainEventBridgeService instance
+            logger: Structured logger for event tracking
+        """
+        self.bridge_service = bridge_service
+        self.logger = logger
+
+    def on_partitions_assigned(self, assigned):
+        """
+        Called when partitions are assigned to the consumer.
+
+        Args:
+            assigned: List of TopicPartition objects assigned to consumer
+        """
+        try:
+            partition_info = [f"{tp.topic}:{tp.partition}" for tp in assigned]
+            self.logger.info(
+                "Kafka partitions assigned",
+                partitions_count=len(assigned),
+                partitions=partition_info,
+                service="eventbridge",
+            )
+
+            # Update circuit breaker with new partition assignment
+            if assigned:
+                self.bridge_service.update_circuit_breaker_partitions(assigned)
+
+        except Exception as e:
+            self.logger.error("Error handling partition assignment", error=str(e), service="eventbridge", exc_info=True)
+
+    def on_partitions_revoked(self, revoked):
+        """
+        Called when partitions are revoked from the consumer.
+
+        Args:
+            revoked: List of TopicPartition objects revoked from consumer
+        """
+        try:
+            partition_info = [f"{tp.topic}:{tp.partition}" for tp in revoked]
+            self.logger.info(
+                "Kafka partitions revoked",
+                partitions_count=len(revoked),
+                partitions=partition_info,
+                service="eventbridge",
+            )
+
+            # Circuit breaker will be updated with new assignment in on_partitions_assigned
+            # No specific action needed here as we don't want to lose state during rebalance
+
+        except Exception as e:
+            self.logger.error("Error handling partition revocation", error=str(e), service="eventbridge", exc_info=True)
+
+
+class _AIOKafkaRebalanceAdapter(ConsumerRebalanceListener):
+    """Adapter to conform to aiokafka's ConsumerRebalanceListener interface.
+
+    Wraps our internal listener and forwards events, supporting both sync and async handlers.
+    """
+
+    def __init__(self, inner: EventBridgeRebalanceListener, logger):
+        self._inner = inner
+        self._logger = logger
+
+    async def on_partitions_assigned(self, assigned):  # type: ignore[override]
+        try:
+            result = self._inner.on_partitions_assigned(assigned)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:  # pragma: no cover - defensive logging
+            self._logger.error("Adapter error on partitions assigned", error=str(e))
+
+    async def on_partitions_revoked(self, revoked):  # type: ignore[override]
+        try:
+            result = self._inner.on_partitions_revoked(revoked)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:  # pragma: no cover - defensive logging
+            self._logger.error("Adapter error on partitions revoked", error=str(e))
 
 
 class EventBridgeApplication:
@@ -35,7 +131,7 @@ class EventBridgeApplication:
         self.shutdown_requested = False
         self.factory = get_event_bridge_factory()
         self.bridge_service = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
 
         # Setup signal handlers
         self._setup_signal_handlers()
@@ -84,7 +180,7 @@ class EventBridgeApplication:
         self.bridge_service = self.factory.create_event_bridge_service()
 
         # Initialize Redis SSE service
-        redis_sse_service = self.factory._get_redis_sse_service()
+        redis_sse_service = self.factory.get_redis_sse_service()
         await redis_sse_service.init_pubsub_client()
 
         self.logger.info("EventBridge service initialization complete")
@@ -129,7 +225,7 @@ class EventBridgeApplication:
 
     async def _setup_kafka_consumer(self):
         """
-        Setup Kafka consumer with topic subscription.
+        Setup Kafka consumer with topic subscription and rebalance listener.
 
         Returns:
             Configured Kafka consumer
@@ -137,16 +233,27 @@ class EventBridgeApplication:
         Raises:
             RuntimeError: If consumer creation fails
         """
-        kafka_client_manager = self.factory._get_kafka_client_manager()
+        kafka_client_manager = self.factory.get_kafka_client_manager()
 
+        # Create consumer (without subscribing yet)
         consumer = await kafka_client_manager.create_consumer()
         if not consumer:
             raise RuntimeError("Failed to create Kafka consumer")
 
-        consume_topics = self.factory.eventbridge_config.domain_topics
-        consumer.subscribe(consume_topics)
+        # Create rebalance listener for partition management
+        rebalance_listener = EventBridgeRebalanceListener(
+            bridge_service=self.bridge_service,
+            logger=self.logger
+        )
 
-        self.logger.info(f"Subscribed to topics: {consume_topics}")
+        # Subscribe to topics with rebalance listener (aiokafka requires a specific ABC)
+        kafka_client_manager.subscribe_consumer(listener=_AIOKafkaRebalanceAdapter(rebalance_listener, self.logger))
+
+        consume_topics = self.factory.eventbridge_config.domain_topics
+        self.logger.info("Kafka consumer setup complete", 
+                        topics=consume_topics, 
+                        with_rebalance_listener=True,
+                        service="eventbridge")
         return consumer
 
     def _initialize_loop_state(self) -> dict:
@@ -201,7 +308,7 @@ class EventBridgeApplication:
         Returns:
             True if processing should continue, False to stop
         """
-        continue_processing = await self.bridge_service._process_event(message)
+        continue_processing = await self.bridge_service.process_event(message)
 
         if not continue_processing:
             self.logger.warning("Event processing indicated to stop")
@@ -234,7 +341,7 @@ class EventBridgeApplication:
         Args:
             loop_state: Loop state tracking dictionary
         """
-        await self.bridge_service._commit_processed_offsets()
+        await self.bridge_service.commit_processed_offsets()
         self.logger.debug(f"Processed {loop_state['messages_processed']} messages, committed offsets")
 
     def _check_service_health(self) -> None:
@@ -299,26 +406,16 @@ class EventBridgeApplication:
 
 def setup_logging() -> None:
     """Setup logging configuration for EventBridge."""
-    settings = get_settings()
-    log_level = getattr(logging, settings.eventbridge.log_level.upper(), logging.INFO)
-
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-        ],
-    )
-
-    # Set specific loggers
-    logging.getLogger("src.services.eventbridge").setLevel(log_level)
+    # Note: Logging configuration is handled by src.core.logging
+    # This function is kept for compatibility but does nothing
+    pass
 
 
 async def main() -> None:
     """Main application entry point."""
     # Setup logging
     setup_logging()
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     logger.info("EventBridge service starting up...")
 

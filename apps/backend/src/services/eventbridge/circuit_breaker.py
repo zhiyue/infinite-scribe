@@ -5,13 +5,13 @@ This module implements the circuit breaker pattern to handle Redis failures
 gracefully by pausing/resuming Kafka consumption based on failure rates.
 """
 
-import logging
+from src.core.logging import get_logger
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CircuitState(Enum):
@@ -82,6 +82,27 @@ class CircuitBreaker:
         self.consumer = consumer
         self.partitions = partitions
         logger.info("Consumer registered with circuit breaker")
+
+    def update_partitions(self, new_partitions: list[Any]) -> None:
+        """
+        Update partition assignment after Kafka rebalance.
+        
+        This method handles partition updates when Kafka rebalances the consumer group,
+        ensuring that circuit breaker pause/resume operations work with the new assignment.
+        
+        Args:
+            new_partitions: New list of partitions assigned after rebalance
+        """
+        old_count = len(self.partitions) if self.partitions else 0
+        self.partitions = new_partitions
+        new_count = len(new_partitions)
+        
+        logger.info(
+            "Circuit breaker partitions updated after rebalance",
+            old_partitions_count=old_count,
+            new_partitions_count=new_count,
+            service="eventbridge"
+        )
 
     def record_success(self) -> None:
         """Record a successful operation."""

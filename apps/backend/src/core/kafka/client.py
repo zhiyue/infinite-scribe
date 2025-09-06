@@ -15,17 +15,36 @@ logger = logging.getLogger(__name__)
 class KafkaClientManager:
     """Manages Kafka consumer and producer creation and lifecycle."""
 
-    def __init__(self, agent_name: str, consume_topics: list[str], produce_topics: list[str] | None = None):
-        self.agent_name = agent_name
+    def __init__(
+        self,
+        client_id: str,
+        consume_topics: list[str],
+        produce_topics: list[str] | None = None,
+        group_id: str | None = None,
+        logger_context: dict | None = None,
+    ):
+        """
+        Initialize KafkaClientManager.
+
+        Args:
+            client_id: Unique identifier for this client (e.g., agent name, service name)
+            consume_topics: List of topics to consume from
+            produce_topics: Optional list of topics to produce to
+            group_id: Optional custom group ID. If not provided, defaults to a generated one
+            logger_context: Optional context for structured logging (e.g., {"agent": "name"})
+        """
+        self.client_id = client_id
         self.consume_topics = consume_topics
         self.produce_topics = produce_topics or []
 
         # Kafka configuration
         self.kafka_bootstrap_servers = settings.kafka_bootstrap_servers
-        self.kafka_group_id = f"{settings.kafka_group_id_prefix}-{agent_name}-agent-group"
+        self.kafka_group_id = group_id or f"{settings.kafka_group_id_prefix}-{client_id}-group"
 
-        # Structured logger bound with agent context
-        self.log: Any = get_logger("kafka").bind(agent=agent_name)
+        # Structured logger with configurable context
+        base_logger = get_logger("kafka")
+        context = logger_context or {"client": client_id}
+        self.log: Any = base_logger.bind(**context)
 
         # Client instances
         self.consumer: AIOKafkaConsumer | None = None
@@ -36,13 +55,12 @@ class KafkaClientManager:
         self.assigned_partitions: list[str] = []
 
     async def create_consumer(self) -> AIOKafkaConsumer:
-        """Create and start Kafka consumer."""
+        """Create and start Kafka consumer without subscribing to topics."""
         if not self.consume_topics:
             self.log.warning("consumer_skipped_idle", reason="no_consume_topics")
             raise RuntimeError("No consume topics configured")
 
         consumer = AIOKafkaConsumer(
-            *self.consume_topics,
             bootstrap_servers=self.kafka_bootstrap_servers,
             group_id=self.kafka_group_id,
             value_deserializer=lambda m: json.loads(m.decode("utf-8")),
@@ -52,21 +70,57 @@ class KafkaClientManager:
         await consumer.start()
         self.connected = True
 
-        # Attempt to get current assignment (may be empty until poll)
-        try:
-            assignment = consumer.assignment()
-            self.assigned_partitions = [f"{tp.topic}:{tp.partition}" for tp in assignment] if assignment else []
-        except Exception:
-            self.assigned_partitions = []
+        # Assignment will be available after subscribe() is called
+        self.assigned_partitions = []
 
         self.log.info(
-            "consumer_started",
+            "consumer_created",
             topics=self.consume_topics,
             connected=self.connected,
-            assignment=self.assigned_partitions,
         )
         self.consumer = consumer
         return consumer
+
+    def subscribe_consumer(self, listener=None) -> None:
+        """
+        Subscribe consumer to configured topics with optional rebalance listener.
+
+        Args:
+            listener: Optional rebalance listener for partition management
+        """
+        if not self.consumer:
+            raise RuntimeError("Consumer not created. Call create_consumer() first.")
+
+        if not self.consume_topics:
+            raise RuntimeError("No consume topics configured")
+
+        # Subscribe with or without listener
+        if listener:
+            self.consumer.subscribe(self.consume_topics, listener=listener)
+            self.log.info(
+                "consumer_subscribed_with_listener",
+                topics=self.consume_topics,
+                listener_type=type(listener).__name__,
+            )
+        else:
+            self.consumer.subscribe(self.consume_topics)
+            self.log.info(
+                "consumer_subscribed",
+                topics=self.consume_topics,
+            )
+
+    def update_assigned_partitions(self) -> None:
+        """Update assigned partitions tracking after subscription."""
+        if self.consumer:
+            try:
+                assignment = self.consumer.assignment()
+                self.assigned_partitions = [f"{tp.topic}:{tp.partition}" for tp in assignment] if assignment else []
+                self.log.info(
+                    "consumer_assignment_updated",
+                    assignment=self.assigned_partitions,
+                )
+            except Exception:
+                self.assigned_partitions = []
 
     async def create_producer(self) -> AIOKafkaProducer:
         """Create and start Kafka producer."""

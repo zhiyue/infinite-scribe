@@ -5,7 +5,6 @@ This module implements the Factory pattern for creating and configuring
 EventBridge service instances with proper dependency injection.
 """
 
-import logging
 from collections.abc import Callable
 from typing import TypeVar
 
@@ -13,6 +12,7 @@ from src.agents.offset_manager import OffsetManager
 from src.common.services.redis_service import RedisService
 from src.core.config import get_settings
 from src.core.kafka.client import KafkaClientManager
+from src.core.logging import get_logger
 from src.services.eventbridge.bridge import DomainEventBridgeService
 from src.services.eventbridge.circuit_breaker import CircuitBreaker
 from src.services.eventbridge.filter import EventFilter
@@ -22,7 +22,7 @@ from src.services.sse.redis_client import RedisSSEService
 
 T = TypeVar("T")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EventBridgeServiceFactory:
@@ -123,9 +123,11 @@ class EventBridgeServiceFactory:
         return self._get_or_create_singleton(
             "_kafka_client_manager",
             lambda: KafkaClientManager(
-                agent_name="event-bridge",
+                client_id="event-bridge",
                 consume_topics=self.eventbridge_config.domain_topics,
                 produce_topics=[],  # EventBridge doesn't produce to Kafka
+                group_id=f"{self.settings.kafka_group_id_prefix}-{self.eventbridge_config.group_id_suffix}-group",
+                logger_context={"service": "event-bridge"}
             ),
             "KafkaClientManager",
         )
@@ -178,34 +180,22 @@ class EventBridgeServiceFactory:
         """Get or create EventBridgeMetricsCollector instance."""
         return self._get_or_create_singleton(
             "_metrics_collector",
-            lambda: EventBridgeMetricsCollector(self._get_circuit_breaker()),
+            lambda: EventBridgeMetricsCollector(
+                circuit_breaker=self._get_circuit_breaker(),
+                prometheus_enabled=self.eventbridge_config.prometheus_enabled,
+                metrics_log_interval=self.eventbridge_config.metrics_log_interval,
+            ),
             "EventBridgeMetricsCollector",
         )
 
-    def _setup_circuit_breaker_consumer_integration(self) -> None:
-        """Setup circuit breaker integration with Kafka consumer."""
-        try:
-            kafka_client_manager = self._get_kafka_client_manager()
-            circuit_breaker = self._get_circuit_breaker()
+    # Public accessor methods for EventBridge application
+    def get_kafka_client_manager(self) -> KafkaClientManager:
+        """Get the KafkaClientManager instance."""
+        return self._get_kafka_client_manager()
 
-            # Create consumer to get partitions
-            consumer = kafka_client_manager.create_consumer()
-            if consumer:
-                # Subscribe to topics to get partition assignment
-                consumer.subscribe(self.eventbridge_config.domain_topics)
-
-                # Get assigned partitions (this might be empty initially)
-                partitions = consumer.assignment()
-
-                # Register consumer with circuit breaker
-                circuit_breaker.register_consumer(consumer, partitions)
-
-                logger.info("Circuit breaker integrated with Kafka consumer")
-            else:
-                logger.warning("Could not create consumer for circuit breaker integration")
-
-        except Exception as e:
-            logger.error(f"Failed to setup circuit breaker consumer integration: {e}")
+    def get_redis_sse_service(self) -> RedisSSEService:
+        """Get the RedisSSEService instance."""
+        return self._get_redis_sse_service()
 
     async def cleanup(self) -> None:
         """Cleanup all created resources."""
@@ -220,7 +210,7 @@ class EventBridgeServiceFactory:
                 await self._redis_sse_service.close()
 
             if self._kafka_client_manager:
-                self._kafka_client_manager.stop_all()
+                await self._kafka_client_manager.stop_all()
 
             logger.info("EventBridge factory cleanup completed")
 

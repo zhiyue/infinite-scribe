@@ -18,14 +18,6 @@ from sqlalchemy.pool import StaticPool
 from src.database import get_db
 from src.models.base import Base
 
-# Configure remote Docker host if requested
-if os.environ.get("USE_REMOTE_DOCKER", "false").lower() == "true":
-    remote_docker_host = os.environ.get("REMOTE_DOCKER_HOST", "tcp://192.168.2.202:2375")
-    os.environ["DOCKER_HOST"] = remote_docker_host
-    # Only disable Ryuk if explicitly requested
-    if os.environ.get("DISABLE_RYUK", "false").lower() == "true":
-        os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"
-
 # Add src to Python path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
@@ -77,214 +69,161 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: Tests that take a long time to run")
 
 
-# Service configuration fixtures
-@pytest.fixture(scope="session")
-def use_external_services():
-    """Check if we should use external services instead of testcontainers.
-
-    This fixture determines whether to use:
-    - External services at 192.168.2.201 (when USE_EXTERNAL_SERVICES=true)
-    - Testcontainers with local or remote Docker (when USE_EXTERNAL_SERVICES=false)
-
-    When using testcontainers, you can additionally set:
-    - USE_REMOTE_DOCKER=true to use remote Docker host
-    - REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375 (or other host)
-    - DISABLE_RYUK=true to disable Ryuk if needed (not recommended)
-    """
-    return os.environ.get("USE_EXTERNAL_SERVICES", "false").lower() == "true"
+# Service configuration fixtures - All tests use testcontainers
 
 
 @pytest.fixture(scope="session")
-def postgres_service(use_external_services):
-    """Provide PostgreSQL connection configuration."""
-    if use_external_services:
-        # Use external service configuration from environment
+def postgres_service():
+    """Provide PostgreSQL testcontainer configuration."""
+    from testcontainers.postgres import PostgresContainer
+
+    postgres = None
+    try:
+        postgres = PostgresContainer("postgres:16")
+        postgres.start()
         yield {
-            "host": os.environ.get("POSTGRES_HOST", "localhost"),
-            "port": int(os.environ.get("POSTGRES_PORT", "5432")),
-            "user": os.environ.get("POSTGRES_USER", "postgres"),
-            "password": os.environ.get("POSTGRES_PASSWORD", "postgres"),
-            "database": os.environ.get("POSTGRES_DB", "test_db"),
+            "host": postgres.get_container_host_ip(),
+            "port": postgres.get_exposed_port(5432),
+            "user": postgres.username,
+            "password": postgres.password,
+            "database": postgres.dbname,
         }
-    else:
-        # Use testcontainers for local or remote Docker
-        from testcontainers.postgres import PostgresContainer
-
-        postgres = None
-        try:
-            postgres = PostgresContainer("postgres:16")
-            postgres.start()
-            yield {
-                "host": postgres.get_container_host_ip(),
-                "port": postgres.get_exposed_port(5432),
-                "user": postgres.username,
-                "password": postgres.password,
-                "database": postgres.dbname,
-            }
-        finally:
-            # Ensure cleanup even if Ryuk fails
-            if postgres:
-                try:
-                    postgres.stop()
-                except Exception as e:
-                    print(f"Warning: Failed to stop PostgreSQL container: {e}")
-
-
-@pytest.fixture(scope="session")
-def neo4j_service(use_external_services):
-    """Provide Neo4j connection configuration."""
-    if use_external_services:
-        # Use external service configuration from environment
-        yield {
-            "host": os.environ.get("NEO4J_HOST", "localhost"),
-            "port": int(os.environ.get("NEO4J_PORT", "7687")),
-            "user": os.environ.get("NEO4J_USER", "neo4j"),
-            "password": os.environ.get("NEO4J_PASSWORD", "neo4jtest"),
-        }
-    else:
-        # Use testcontainers for local or remote Docker
-        from testcontainers.neo4j import Neo4jContainer
-
-        neo4j = None
-        try:
-            neo4j = Neo4jContainer("neo4j:5")
-            neo4j.start()
-            yield {
-                "host": neo4j.get_container_host_ip(),
-                "port": neo4j.get_exposed_port(7687),
-                "user": "neo4j",
-                "password": neo4j.password,
-            }
-        finally:
-            # Ensure cleanup even if Ryuk fails
-            if neo4j:
-                try:
-                    neo4j.stop()
-                except Exception as e:
-                    print(f"Warning: Failed to stop Neo4j container: {e}")
-
-
-@pytest.fixture(scope="session")
-def redis_service(use_external_services):
-    """Provide Redis connection configuration."""
-    if use_external_services:
-        # Use external service configuration from environment
-        yield {
-            "host": os.environ.get("REDIS_HOST", "localhost"),
-            "port": int(os.environ.get("REDIS_PORT", "6379")),
-            "password": os.environ.get("REDIS_PASSWORD", ""),
-        }
-    else:
-        # Use testcontainers for local or remote Docker
-        from testcontainers.redis import RedisContainer
-
-        redis = None
-        try:
-            redis = RedisContainer("redis:7-alpine")
-            redis.start()
-            yield {
-                "host": redis.get_container_host_ip(),
-                "port": redis.get_exposed_port(6379),
-                "password": "",
-            }
-        finally:
-            # Ensure cleanup even if Ryuk fails
-            if redis:
-                try:
-                    redis.stop()
-                except Exception as e:
-                    print(f"Warning: Failed to stop Redis container: {e}")
-
-
-@pytest.fixture(scope="session")
-def kafka_service(use_external_services):
-    """Provide Kafka connection configuration with KRaft mode and pre-created topics."""
-    if use_external_services:
-        # Use external Kafka service
-        yield {
-            "bootstrap_servers": [os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")],
-            "host": os.environ.get("KAFKA_HOST", "localhost"),
-            "port": int(os.environ.get("KAFKA_PORT", "9092")),
-        }
-    else:
-        # Use testcontainers for local or remote Docker
-        try:
-            from testcontainers.kafka import KafkaContainer
-        except ImportError:
-            pytest.skip("KafkaContainer not available in testcontainers")
-
-        container = None
-        try:
-            # Start Kafka with KRaft and auto topic creation enabled
-            container = (
-                KafkaContainer()
-                .with_kraft()
-                .with_env("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
-                .with_env("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
-                .with_env("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
-                .with_env("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
-            )
-            container.start()
-
-            bootstrap_server = container.get_bootstrap_server()
-            print(f"Kafka testcontainer started: {bootstrap_server}")
-
-            # Pre-create all topics used by tests and wait briefly for metadata
+    finally:
+        # Ensure cleanup even if Ryuk fails
+        if postgres:
             try:
-                import asyncio as _asyncio
-                import time as _time
-
-                from aiokafka.admin import AIOKafkaAdminClient, NewTopic
-
-                topic_names = set(
-                    [
-                        # Kafka integration test topics
-                        "integration.test.e2e",
-                        "integration.test.multi",
-                        "integration.test.large",
-                        "integration.test.concurrent",
-                        "integration.test.headers",
-                        "integration.test.scheduled",
-                        "integration.test.retry",
-                        "integration.test.shutdown",
-                    ]
-                    + [f"concurrency.test.{i}" for i in range(10)]
-                    + [f"immediate.topic.{i}" for i in range(5)]
-                    + [f"scheduled.topic.{i}" for i in range(3)]
-                    + [f"large.topic.{i}" for i in range(10)]
-                    + [f"test.topic.{i}" for i in range(10)]
-                )
-
-                async def _precreate(_bootstrap: str):
-                    admin = AIOKafkaAdminClient(bootstrap_servers=_bootstrap, request_timeout_ms=30000)
-                    await admin.start()
-                    try:
-                        new_topics = [NewTopic(name=t, num_partitions=1, replication_factor=1) for t in topic_names]
-                        try:
-                            await admin.create_topics(new_topics=new_topics, validate_only=False)
-                        except Exception as e:
-                            # Ignore already exists and transient errors
-                            if "exists" not in str(e).lower():
-                                print(f"Warning: create_topics error: {e}")
-                    finally:
-                        await admin.close()
-
-                _asyncio.run(_precreate(bootstrap_server))
-                # Brief pause to allow metadata propagation
-                _time.sleep(1.0)
+                postgres.stop()
             except Exception as e:
-                print(f"Warning: pre-creating topics failed or skipped: {e}")
+                print(f"Warning: Failed to stop PostgreSQL container: {e}")
 
-            host, port = bootstrap_server.split(":")
-            yield {
-                "bootstrap_servers": [bootstrap_server],
-                "host": host,
-                "port": int(port),
-            }
-        finally:
-            if container:
-                with suppress(Exception):
-                    container.stop()
+
+@pytest.fixture(scope="session")
+def neo4j_service():
+    """Provide Neo4j testcontainer configuration."""
+    from testcontainers.neo4j import Neo4jContainer
+
+    neo4j = None
+    try:
+        neo4j = Neo4jContainer("neo4j:5")
+        neo4j.start()
+        yield {
+            "host": neo4j.get_container_host_ip(),
+            "port": neo4j.get_exposed_port(7687),
+            "user": "neo4j",
+            "password": neo4j.password,
+        }
+    finally:
+        # Ensure cleanup even if Ryuk fails
+        if neo4j:
+            try:
+                neo4j.stop()
+            except Exception as e:
+                print(f"Warning: Failed to stop Neo4j container: {e}")
+
+
+@pytest.fixture(scope="session")
+def redis_service():
+    """Provide Redis testcontainer configuration."""
+    from testcontainers.redis import RedisContainer
+
+    redis = None
+    try:
+        redis = RedisContainer("redis:7-alpine")
+        redis.start()
+        yield {
+            "host": redis.get_container_host_ip(),
+            "port": redis.get_exposed_port(6379),
+            "password": "",
+        }
+    finally:
+        # Ensure cleanup even if Ryuk fails
+        if redis:
+            try:
+                redis.stop()
+            except Exception as e:
+                print(f"Warning: Failed to stop Redis container: {e}")
+
+
+@pytest.fixture(scope="session")
+def kafka_service():
+    """Provide Kafka testcontainer configuration with KRaft mode and pre-created topics."""
+    try:
+        from testcontainers.kafka import KafkaContainer
+    except ImportError:
+        pytest.skip("KafkaContainer not available in testcontainers")
+
+    container = None
+    try:
+        # Start Kafka with KRaft and auto topic creation enabled
+        container = (
+            KafkaContainer()
+            .with_kraft()
+            .with_env("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
+            .with_env("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
+            .with_env("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
+            .with_env("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
+        )
+        container.start()
+
+        bootstrap_server = container.get_bootstrap_server()
+        print(f"Kafka testcontainer started: {bootstrap_server}")
+
+        # Pre-create all topics used by tests and wait briefly for metadata
+        try:
+            import asyncio as _asyncio
+            import time as _time
+
+            from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+
+            topic_names = set(
+                [
+                    # Kafka integration test topics
+                    "integration.test.e2e",
+                    "integration.test.multi",
+                    "integration.test.large",
+                    "integration.test.concurrent",
+                    "integration.test.headers",
+                    "integration.test.scheduled",
+                    "integration.test.retry",
+                    "integration.test.shutdown",
+                ]
+                + [f"concurrency.test.{i}" for i in range(10)]
+                + [f"immediate.topic.{i}" for i in range(5)]
+                + [f"scheduled.topic.{i}" for i in range(3)]
+                + [f"large.topic.{i}" for i in range(10)]
+                + [f"test.topic.{i}" for i in range(10)]
+            )
+
+            async def _precreate(_bootstrap: str):
+                admin = AIOKafkaAdminClient(bootstrap_servers=_bootstrap, request_timeout_ms=30000)
+                await admin.start()
+                try:
+                    new_topics = [NewTopic(name=t, num_partitions=1, replication_factor=1) for t in topic_names]
+                    try:
+                        await admin.create_topics(new_topics=new_topics, validate_only=False)
+                    except Exception as e:
+                        # Ignore already exists and transient errors
+                        if "exists" not in str(e).lower():
+                            print(f"Warning: create_topics error: {e}")
+                finally:
+                    await admin.close()
+
+            _asyncio.run(_precreate(bootstrap_server))
+            # Brief pause to allow metadata propagation
+            _time.sleep(1.0)
+        except Exception as e:
+            print(f"Warning: pre-creating topics failed or skipped: {e}")
+
+        host, port = bootstrap_server.split(":")
+        yield {
+            "bootstrap_servers": [bootstrap_server],
+            "host": host,
+            "port": int(port),
+        }
+    finally:
+        if container:
+            with suppress(Exception):
+                container.stop()
 
 
 MILVUS_IMAGE = os.getenv("MILVUS_IMAGE", "milvusdb/milvus:v2.4.10")  # 固定版本

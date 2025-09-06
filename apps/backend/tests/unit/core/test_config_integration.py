@@ -20,6 +20,24 @@ class TestConfigSystemIntegration:
         """Test launcher config defaults are correct when accessed via Settings"""
         settings = Settings()
         assert settings.launcher.default_mode == LaunchMode.SINGLE
+        assert settings.launcher.components == [
+            ComponentType.API,
+            ComponentType.AGENTS,
+            ComponentType.RELAY,
+            ComponentType.EVENTBRIDGE,
+        ]
+        assert settings.launcher.health_interval == 1.0
+        assert settings.launcher.api.host == "0.0.0.0"
+        assert settings.launcher.api.port == 8000
+        assert settings.launcher.agents.names is None
+
+    def test_launcher_config_model_defaults(self, tmp_path, monkeypatch):
+        """Test LauncherConfigModel defaults without config file influence"""
+        # Change to empty temp directory to avoid loading config.toml
+        monkeypatch.chdir(tmp_path)
+
+        settings = Settings()
+        assert settings.launcher.default_mode == LaunchMode.SINGLE
         assert settings.launcher.components == [ComponentType.API, ComponentType.AGENTS]
         assert settings.launcher.health_interval == 1.0
         assert settings.launcher.api.host == "0.0.0.0"

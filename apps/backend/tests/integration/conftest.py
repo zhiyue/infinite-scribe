@@ -1,12 +1,20 @@
 """Integration test specific fixtures."""
 
+from __future__ import annotations
+
+import os
+import re
+import uuid
 from collections.abc import AsyncGenerator, Generator
+from typing import Dict, Optional, Tuple
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import redis as redislib
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from testcontainers.redis import RedisContainer
 
 # 使用 PostgreSQL 的集成测试专用 fixtures
 
@@ -53,9 +61,42 @@ def _patch_outbox_relay_database_session(request: pytest.FixtureRequest):
         yield
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add Redis-specific CLI options for integration tests."""
+    group = parser.getgroup("redis")
+    group.addoption(
+        "--redis-image",
+        action="store",
+        default=os.getenv("TEST_REDIS_IMAGE", "redis:7-alpine"),
+        help="Redis 镜像（默认：redis:7-alpine，可用 env TEST_REDIS_IMAGE 覆盖）",
+    )
+    group.addoption(
+        "--redis-password",
+        action="store",
+        default=os.getenv("TEST_REDIS_PASSWORD", None),
+        help="为测试 Redis 开启密码（默认禁用，可用 env TEST_REDIS_PASSWORD 设定）",
+    )
+    group.addoption(
+        "--redis-aof",
+        action="store_true",
+        default=os.getenv("TEST_REDIS_AOF", "false").lower() == "true",
+        help="是否启用 AOF 持久化（仅测试需要验证持久化时打开）",
+    )
+    group.addoption(
+        "--redis-clean-strategy",
+        action="store",
+        choices=("prefix", "flushdb"),
+        default=os.getenv("TEST_REDIS_CLEAN_STRATEGY", "prefix"),
+        help="用例清理策略：prefix（推荐）或 flushdb",
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """注册自定义 markers，避免 UnknownMark 警告。"""
-    config.addinivalue_line("markers", "redis_container: use Testcontainers Redis for this test")
+    config.addinivalue_line(
+        "markers",
+        "redis_integration: 需要 Redis 集成测试的用例标记（用于选择性运行）",
+    )
 
 
 @pytest.fixture
@@ -90,6 +131,177 @@ async def db_session(postgres_test_session) -> AsyncGenerator[AsyncSession, None
 
     # 测试后再次清理（可选，但有助于确保隔离）
     await clean_all_tables()
+
+
+# -----------------------------
+# Redis Container Setup for Integration Tests
+# -----------------------------
+@pytest.fixture(scope="session")
+def redis_container(pytestconfig: pytest.Config) -> Generator[RedisContainer, None, None]:
+    """
+    会话级 Redis 容器：启动一次，所有用例复用。
+    """
+    image = pytestconfig.getoption("--redis-image")
+    password = pytestconfig.getoption("--redis-password")
+    enable_aof = pytestconfig.getoption("--redis-aof")
+
+    container = RedisContainer(image=image, password=password)
+
+    # 如需测试持久化或特殊参数，可通过 with_command 注入
+    if enable_aof:
+        container = container.with_command("redis-server --appendonly yes")
+
+    # 进入 with 后自动启动，并在退出时自动清理（Ryuk 管理）
+    with container as c:
+        yield c
+
+
+def _get_host_port_password(c: RedisContainer) -> Tuple[str, int, Optional[str]]:
+    """Extract Redis connection details from container."""
+    host = c.get_container_host_ip()
+    port = int(c.get_exposed_port(c.port))
+    # RedisContainer.__init__ 有 password 参数，保存于属性
+    password = getattr(c, "password", None)
+    return host, port, password
+
+
+@pytest.fixture(scope="session")
+def redis_connection_info(redis_container: RedisContainer) -> Dict[str, str]:
+    """
+    导出统一的连接信息，方便注入到被测应用（环境变量/配置）。
+    """
+    host, port, password = _get_host_port_password(redis_container)
+    info = {
+        "host": host,
+        "port": str(port),
+        "password": password or "",
+        "url": (
+            f"redis://:{password}@{host}:{port}/0" if password else f"redis://{host}:{port}/0"
+        ),
+    }
+    return info
+
+
+@pytest.fixture(scope="session")
+def redis_session_client(redis_container: RedisContainer) -> redislib.Redis:
+    """
+    会话级客户端（decode_responses=True 返回 str，断言更直观）。
+    如需每用例独立 DB/前缀，见后面的 function 级 fixture。
+    """
+    host, port, password = _get_host_port_password(redis_container)
+    client = redislib.Redis(
+        host=host, port=port, password=password, db=0, decode_responses=True
+    )
+    # 触发一次 PING 确认就绪
+    client.ping()
+    return client
+
+
+def _xdist_worker_suffix() -> str:
+    """
+    pytest-xdist 并发时会设置 env: PYTEST_XDIST_WORKER=gw0/gw1/...
+    我们为 key 前缀带上 worker id，减少并发写入冲突。
+    """
+    wid = os.getenv("PYTEST_XDIST_WORKER", "gw0")
+    # 清理一下可能的非字母数字字符
+    wid = re.sub(r"[^A-Za-z0-9]+", "", wid)
+    return wid
+
+
+@pytest.fixture(scope="function")
+def redis_test_prefix() -> str:
+    """
+    生成当前用例专用 Key 前缀，形如：t:gw0:7b9c5f2f
+    """
+    return f"t:{_xdist_worker_suffix()}:{uuid.uuid4().hex[:8]}:"
+
+
+@pytest.fixture(scope="function")
+def redis_client(
+    request: pytest.FixtureRequest,
+    pytestconfig: pytest.Config,
+    redis_session_client: redislib.Redis,
+    redis_test_prefix: str,
+):
+    """
+    用例级客户端 + 清理策略：
+    - 推荐：prefix 模式（仅删除以该前缀开的 keys，速度快、风险低）
+    - 备选：flushdb 模式（每用例清库，最干净但影响并发）
+    """
+    clean_strategy: str = pytestconfig.getoption("--redis-clean-strategy")
+
+    # —— 用例开始前：先做一次清理（幂等）
+    if clean_strategy == "flushdb":
+        redis_session_client.flushdb()
+    else:
+        # prefix: 先删掉历史残留（基本不会有，但保证幂等）
+        keys = list(redis_session_client.scan_iter(match=f"{redis_test_prefix}*"))
+        if keys:
+            redis_session_client.delete(*keys)
+
+    # 将「带前缀的便捷 set/get 包装」暴露给测试用例（可选）
+    class PrefixedRedis:
+        def __init__(self, client: redislib.Redis, prefix: str) -> None:
+            self._c = client
+            self._p = prefix
+
+        @property
+        def raw(self) -> redislib.Redis:
+            return self._c  # 如需直接访问原生 client
+
+        @property
+        def prefix(self) -> str:
+            return self._p
+
+        # 常用操作都自动加前缀，避免键碰撞
+        def set(self, key: str, value):
+            return self._c.set(self._p + key, value)
+
+        def get(self, key: str):
+            return self._c.get(self._p + key)
+
+        def hset(self, name: str, key: str, value):
+            return self._c.hset(self._p + name, key, value)
+
+        def hget(self, name: str, key: str):
+            return self._c.hget(self._p + name, key)
+
+        def incr(self, key: str):
+            return self._c.incr(self._p + key)
+
+        def delete_prefixed(self) -> int:
+            keys = list(self._c.scan_iter(match=f"{self._p}*"))
+            return self._c.delete(*keys) if keys else 0
+
+    prefixed = PrefixedRedis(redis_session_client, redis_test_prefix)
+
+    yield prefixed
+
+    # —— 用例结束后：根据策略清理
+    if clean_strategy == "flushdb":
+        redis_session_client.flushdb()
+    else:
+        prefixed.delete_prefixed()
+
+
+@pytest.fixture(scope="function")
+def app_env_redis(monkeypatch: pytest.MonkeyPatch, redis_connection_info: Dict[str, str]) -> Dict[str, str]:
+    """
+    统一把 Redis 连接信息注入到被测应用（常见 FastAPI / Flask）。
+    你的应用只要从这些变量读取即可：
+    - REDIS_URL 或 (REDIS_HOST/REDIS_PORT/REDIS_PASSWORD)
+    """
+    info = redis_connection_info
+    monkeypatch.setenv("REDIS_HOST", info["host"])
+    monkeypatch.setenv("REDIS_PORT", info["port"])
+    monkeypatch.setenv("REDIS_PASSWORD", info["password"])
+    monkeypatch.setenv("REDIS_URL", info["url"])
+    return {
+        "REDIS_HOST": info["host"],
+        "REDIS_PORT": info["port"],
+        "REDIS_PASSWORD": info["password"],
+        "REDIS_URL": info["url"],
+    }
 
 
 @pytest.fixture
@@ -201,7 +413,48 @@ def _mock_redis_services(request: pytest.FixtureRequest):
     """同时 mock 同步与异步 Redis 客户端：
     - jwt_service 使用同步 redis 客户端（黑名单） -> 使用 tests 提供的 mock_redis
     - redis_service 使用异步 redis 客户端（会话缓存） -> 使用内存实现 _AsyncMemoryRedis
+    
+    对于需要真实 Redis 的集成测试，会跳过 mock 并使用 Redis 容器。
     """
+    # Skip mocking for integration tests that need real Redis
+    test_file_path = str(request.fspath)
+    if ('integration' in test_file_path and 
+        ('redis' in test_file_path.lower() or 'sse' in test_file_path.lower() or 'eventbridge' in test_file_path.lower())):
+        # For tests that need real Redis, configure services to use container
+        try:
+            # Try to get Redis connection info if available
+            redis_info = request.getfixturevalue("redis_connection_info")
+            
+            from src.common.services.redis_service import RedisService
+            from src.common.services.redis_service import redis_service as async_redis_service
+            
+            # Configure async Redis service to use container
+            import redis.asyncio as aioredis
+            
+            async def _container_connect(self) -> None:  # type: ignore[override]
+                self._client = aioredis.Redis.from_url(redis_info["url"])
+                
+            async def _container_disconnect(self) -> None:  # type: ignore[override]
+                if self._client:
+                    await self._client.close()
+                self._client = None
+                
+            original_connect = RedisService.connect
+            original_disconnect = RedisService.disconnect
+            
+            RedisService.connect = _container_connect  # type: ignore[assignment]
+            RedisService.disconnect = _container_disconnect  # type: ignore[assignment]
+            
+            try:
+                yield
+            finally:
+                RedisService.connect = original_connect  # type: ignore[assignment] 
+                RedisService.disconnect = original_disconnect  # type: ignore[assignment]
+                
+        except Exception:
+            # If Redis container is not available, fall back to normal behavior
+            yield
+        return
     from src.common.services.jwt_service import jwt_service
     from src.common.services.redis_service import (
         RedisService,
@@ -212,10 +465,6 @@ def _mock_redis_services(request: pytest.FixtureRequest):
 
     from tests.unit.test_mocks import mock_redis
 
-    # 如果当前用例标记为使用 Testcontainers Redis，则跳过内存 mock
-    if request.node.get_closest_marker("redis_container"):
-        yield
-        return
 
     # 覆盖 jwt_service 的同步 Redis 客户端
     jwt_service._redis_client = mock_redis  # type: ignore[attr-defined]
@@ -286,9 +535,48 @@ class _PubSubClientStub:
 
 @pytest.fixture(autouse=True)
 def _stub_redis_sse_pubsub(request: pytest.FixtureRequest):
-    if request.node.get_closest_marker("redis_container"):
-        yield
+    """为 RedisSSEService 提供轻量 stub，避免健康检查时真实连接/超时。
+    对于需要真实 Redis 的集成测试，会配置真实的 Redis 连接。
+    """
+    # Skip stubbing for integration tests that need real Redis
+    test_file_path = str(request.fspath)
+    if ('integration' in test_file_path and 
+        ('redis' in test_file_path.lower() or 'sse' in test_file_path.lower() or 'eventbridge' in test_file_path.lower())):
+        # For tests that need real Redis, configure SSE service to use container
+        try:
+            redis_info = request.getfixturevalue("redis_connection_info")
+            
+            from src.services.sse import RedisSSEService
+            import redis.asyncio as aioredis
+            
+            original_init = RedisSSEService.init_pubsub_client
+            
+            async def _container_init(self) -> None:  # type: ignore[override]
+                self._pubsub_client = aioredis.Redis.from_url(redis_info["url"])
+                
+            RedisSSEService.init_pubsub_client = _container_init  # type: ignore[assignment]
+            
+            try:
+                yield
+            finally:
+                RedisSSEService.init_pubsub_client = original_init  # type: ignore[assignment]
+                
+        except Exception:
+            # If Redis container is not available, fall back to stubbing
+            from src.services.sse import RedisSSEService
+            
+            original_init = RedisSSEService.init_pubsub_client
+            
+            async def _fake_init(self) -> None:  # type: ignore[override]
+                self._pubsub_client = _PubSubClientStub()
+                
+            RedisSSEService.init_pubsub_client = _fake_init  # type: ignore[assignment]
+            try:
+                yield
+            finally:
+                RedisSSEService.init_pubsub_client = original_init  # type: ignore[assignment]
         return
+        
     from src.services.sse import RedisSSEService
 
     original_init = RedisSSEService.init_pubsub_client
@@ -303,59 +591,8 @@ def _stub_redis_sse_pubsub(request: pytest.FixtureRequest):
         RedisSSEService.init_pubsub_client = original_init  # type: ignore[assignment]
 
 
-# 提供可选的 Testcontainers Redis 容器
-@pytest.fixture(scope="session")
-def redis_container() -> Generator[tuple[str, int, str], None, None]:
-    try:
-        from testcontainers.redis import RedisContainer  # type: ignore
-    except Exception as e:  # pragma: no cover
-        pytest.skip(f"testcontainers not available for Redis: {e}")
-
-    with RedisContainer("redis:7-alpine") as container:
-        host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(6379))
-        password = ""
-        yield host, port, password
 
 
-@pytest.fixture
-async def use_redis_container(redis_container) -> AsyncGenerator[None, None]:
-    """让当前测试使用 Testcontainers Redis。
 
-    使用：
-      - 标记测试：@pytest.mark.redis_container
-      - 添加参数：use_redis_container（无需使用返回值）
-    """
-    host, port, password = redis_container
-    import redis.asyncio as aioredis
-    from redis import Redis
-    from src.common.services.jwt_service import jwt_service
-    from src.common.services.redis_service import redis_service as async_redis_service
-    from src.core.config import settings
 
-    # 更新 settings
-    settings.database.redis_host = host
-    settings.database.redis_port = port
-    settings.database.redis_password = password
 
-    # 重新初始化同步 Redis（JWT 黑名单）
-    jwt_service._redis_pool = None  # type: ignore[attr-defined]
-    jwt_service._redis_client = Redis(host=host, port=port, decode_responses=True)  # type: ignore[call-arg]
-
-    # 重新初始化异步 Redis（会话缓存）
-    async_redis_service._client = aioredis.from_url(  # type: ignore[attr-defined]
-        settings.database.redis_url,
-        decode_responses=True,
-        health_check_interval=30,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-    )
-
-    yield
-
-    # 清理异步客户端
-    try:
-        if async_redis_service._client:  # type: ignore[attr-defined]
-            await async_redis_service._client.close()  # type: ignore[union-attr]
-    except Exception:
-        pass

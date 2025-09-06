@@ -5,13 +5,13 @@ This module implements the Publisher component that transforms Kafka domain even
 into SSE messages and routes them to users via RedisSSEService.
 """
 
-import logging
+from src.core.logging import get_logger
 from typing import Any
 
 from src.schemas.sse import EventScope, SSEMessage
 from src.services.sse.redis_client import RedisSSEService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Publisher:

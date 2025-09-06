@@ -30,6 +30,7 @@
     "api": "node scripts/run.js api",
     "// Most Used (Backwards Compatibility)": "======================",
     "backend:run": "node scripts/run.js backend run",
+    "backend:eventbridge:run": "node scripts/run.js backend eventbridge:run",
     "frontend:run": "node scripts/run.js frontend run",
     "backend:lint": "node scripts/run.js backend lint",
     "backend:install": "node scripts/run.js backend install",

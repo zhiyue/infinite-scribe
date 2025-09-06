@@ -229,6 +229,11 @@ class EventBridgeSettings(BaseModel):
 
     metrics_log_interval: int = Field(default=100, description="Log metrics every N processed events")
 
+    # Prometheus configuration
+    prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics export")
+    prometheus_port: int = Field(default=9090, description="Prometheus metrics server port")
+    prometheus_host: str = Field(default="0.0.0.0", description="Prometheus metrics server host")
+
 
 class Settings(BaseSettings):
     """应用主配置
@@ -286,7 +291,7 @@ class Settings(BaseSettings):
 
     # Outbox Relay (nested)
     relay: RelaySettings = Field(default_factory=RelaySettings)
-    
+
     # EventBridge service (nested)
     eventbridge: EventBridgeSettings = Field(default_factory=EventBridgeSettings)
 

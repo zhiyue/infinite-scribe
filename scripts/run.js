@@ -26,6 +26,7 @@ const CONFIG = {
         install: 'uv sync --all-extras',
         run: 'uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000',
         'relay:run': 'uv run python -m src.services.outbox.relay',
+        'eventbridge:run': 'uv run python -m src.services.eventbridge.main',
         'db:bootstrap': 'uv run is-db-bootstrap',
         lint: 'uv run ruff check src/',
         format: 'uv run ruff format src/',

@@ -40,4 +40,5 @@ class TestComponentTypeEnum:
         assert "api" in values
         assert "agents" in values
         assert "relay" in values
-        assert len(values) == 3  # Exactly three components supported
+        assert "eventbridge" in values
+        assert len(values) == 4  # Four components supported  # Exactly three components supported

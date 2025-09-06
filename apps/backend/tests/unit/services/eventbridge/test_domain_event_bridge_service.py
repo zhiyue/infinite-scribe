@@ -88,7 +88,7 @@ class TestDomainEventBridgeService:
         self.redis_sse_service.publish_event = AsyncMock(return_value="stream-id-123")
 
         # Process the event
-        result = await self.service._process_event(valid_message)
+        result = await self.service.process_event(valid_message)
 
         assert result is True
         self.redis_sse_service.publish_event.assert_called_once()
@@ -117,7 +117,7 @@ class TestDomainEventBridgeService:
         invalid_message.offset = 124
 
         # Process the event
-        result = await self.service._process_event(invalid_message)
+        result = await self.service.process_event(invalid_message)
 
         assert result is True  # Processed (filtered out) successfully
         self.redis_sse_service.publish_event.assert_not_called()
@@ -145,7 +145,7 @@ class TestDomainEventBridgeService:
         self.redis_sse_service.publish_event = AsyncMock(side_effect=Exception("Redis connection failed"))
 
         # Process should continue (degraded mode)
-        result = await self.service._process_event(valid_message)
+        result = await self.service.process_event(valid_message)
 
         assert result is True  # Still returns True to continue processing
 
@@ -169,17 +169,17 @@ class TestDomainEventBridgeService:
 
         # Process all messages
         for msg in messages:
-            result = await self.service._process_event(msg)
+            result = await self.service.process_event(msg)
             assert result is True
 
         # Manually trigger offset commit (normally done by main loop)
-        await self.service._commit_processed_offsets()
+        await self.service.commit_processed_offsets()
 
         # Set consumer reference first
         self.service.set_consumer(self.consumer)
 
         # Manually trigger offset commit (normally done by main loop)
-        await self.service._commit_processed_offsets()
+        await self.service.commit_processed_offsets()
 
         # Verify offset manager was called with consumer
         self.offset_manager.flush_pending_offsets.assert_called_with(self.consumer)
@@ -205,7 +205,7 @@ class TestDomainEventBridgeService:
 
         # Process messages - should open circuit
         for msg in messages:
-            await self.service._process_event(msg)
+            await self.service.process_event(msg)
 
         # Verify circuit is open and consumer was paused
         assert self.circuit_breaker.state == CircuitState.OPEN
@@ -221,7 +221,7 @@ class TestDomainEventBridgeService:
         malformed_message.offset = 300
 
         # Should handle gracefully and continue
-        result = await self.service._process_event(malformed_message)
+        result = await self.service.process_event(malformed_message)
 
         assert result is True  # Continue processing
         self.redis_sse_service.publish_event.assert_not_called()
@@ -238,7 +238,7 @@ class TestDomainEventBridgeService:
         self.redis_sse_service.publish_event = AsyncMock(return_value="stream-id")
 
         # Verify metrics are recorded
-        await self.service._process_event(valid_message)
+        await self.service.process_event(valid_message)
 
         # Verify metrics collector was called
         self.metrics_collector.record_event_consumed.assert_called_once()
@@ -292,14 +292,14 @@ class TestDomainEventBridgeService:
         self.circuit_breaker.register_consumer = Mock()
 
         # Process first message - should trigger circuit breaker integration
-        result = await self.service._process_event(valid_message)
+        result = await self.service.process_event(valid_message)
 
         assert result is True
         # Verify circuit breaker was registered with consumer and partitions
         self.circuit_breaker.register_consumer.assert_called_once_with(mock_consumer, mock_partitions)
 
         # Process second message - should not register again
-        await self.service._process_event(valid_message)
+        await self.service.process_event(valid_message)
         # Still only called once
         assert self.circuit_breaker.register_consumer.call_count == 1
 
@@ -321,7 +321,7 @@ class TestDomainEventBridgeService:
         self.redis_sse_service.publish_event = AsyncMock(return_value="stream-id-123")
 
         # Process message
-        result = await self.service._process_event(valid_message)
+        result = await self.service.process_event(valid_message)
 
         assert result is True
         # Verify offset was recorded
