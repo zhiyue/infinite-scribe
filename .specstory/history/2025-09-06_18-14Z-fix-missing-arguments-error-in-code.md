@@ -146,3 +146,84 @@ Even though these fields are optional in the Pydantic schema, explicitly setting
 
 ---
 
+_**User (2025-09-04 16:36Z)**_
+
+For the code present, we get this error:
+```
+Argument of type "None" cannot be assigned to parameter "orig" of type "BaseException" in function "__init__"
+  "None" is not assignable to "BaseException"
+```
+How can I resolve this? If you propose a fix, please make it concise.
+
+---
+
+_**Assistant**_
+
+<think><details><summary>Thought Process</summary>The error is about the IntegrityError constructor. Let me check the signature of IntegrityError to understand what arguments it expects.
+
+Looking at the error, it says that the "orig" parameter expects a BaseException type, but we're passing None. Let me look at other examples of IntegrityError usage in the codebase to see how it's properly constructed.
+
+From the grep search earlier, I saw:
+```
+mock_db_session.commit.side_effect = IntegrityError("Integrity constraint", None, None)
+```
+
+But that's also giving the same error. Let me check the SQLAlchemy documentation or try a different approach.
+
+IntegrityError typically takes parameters like:
+- statement: the SQL statement 
+- params: the parameters
+- orig: the original exception (which should be a BaseException, not None)
+
+I should either:
+1. Create a proper BaseException for the orig parameter
+2. Use a simpler approach with just the message
+3. Look at how other tests handle this
+
+Let me check the SQLAlchemy IntegrityError constructor more carefully.</details></think>
+
+---
+
+I need to fix the `IntegrityError` constructor. The `orig` parameter expects a `BaseException`, not `None`. Here's the concise fix:
+
+---
+
+<details><summary>Edit file: apps/backend/tests/unit/services/test_novel_service.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -177,5 +177,5 @@
+          # Arrange
+          mock_db.add = Mock()
+-         mock_db.commit = AsyncMock(side_effect=IntegrityError("Integrity constraint violated", None, None))
++         mock_db.commit = AsyncMock(side_effect=IntegrityError("Integrity constraint violated", {}, ValueError("constraint violation")))
+          mock_db.rollback = AsyncMock()
+  
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>The fix I applied changes the IntegrityError constructor to use proper parameters:
+1. First parameter: the SQL statement/message ("Integrity constraint violated")
+2. Second parameter: the parameters dict ({} - empty dict)  
+3. Third parameter: the original exception (ValueError("constraint violation") - a proper BaseException)
+
+This should resolve the linter error since we're now passing a BaseException (ValueError) instead of None for the orig parameter.</details></think>
+
+---
+
+The fix changes the `IntegrityError` constructor to use proper parameters:
+- First parameter: error message 
+- Second parameter: SQL parameters (empty dict `{}`)
+- Third parameter: original exception (a `ValueError` instead of `None`)
+
+This satisfies the type checker requirement that the `orig` parameter must be a `BaseException`.
+
+---
+
