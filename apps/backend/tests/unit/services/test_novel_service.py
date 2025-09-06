@@ -66,10 +66,15 @@ class TestNovelService:
     @pytest.mark.asyncio
     async def test_list_user_novels_success(self, novel_service, mock_db, sample_novel):
         """Test successful listing of user novels."""
-        # Arrange
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = [sample_novel]
-        mock_db.execute.return_value = mock_result
+        # Arrange - Mock both count and data queries
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 1
+
+        mock_data_result = Mock()
+        mock_data_result.scalars.return_value.all.return_value = [sample_novel]
+
+        # Return count result first, then data result
+        mock_db.execute.side_effect = [mock_count_result, mock_data_result]
 
         # Act
         result = await novel_service.list_user_novels(mock_db, user_id=1)
@@ -79,15 +84,21 @@ class TestNovelService:
         assert "novels" in result
         assert len(result["novels"]) == 1
         assert result["novels"][0].title == "Test Novel"
-        mock_db.execute.assert_called_once()
+        assert result["total"] == 1
+        assert mock_db.execute.call_count == 2  # Count + data queries
 
     @pytest.mark.asyncio
     async def test_list_user_novels_with_filters(self, novel_service, mock_db, sample_novel):
         """Test listing novels with status filter."""
-        # Arrange
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = [sample_novel]
-        mock_db.execute.return_value = mock_result
+        # Arrange - Mock both count and data queries
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 1
+
+        mock_data_result = Mock()
+        mock_data_result.scalars.return_value.all.return_value = [sample_novel]
+
+        # Return count result first, then data result
+        mock_db.execute.side_effect = [mock_count_result, mock_data_result]
 
         # Act
         result = await novel_service.list_user_novels(mock_db, user_id=1, skip=5, limit=10, status_filter="GENESIS")
@@ -95,15 +106,21 @@ class TestNovelService:
         # Assert
         assert result["success"] is True
         assert len(result["novels"]) == 1
-        mock_db.execute.assert_called_once()
+        assert result["total"] == 1
+        assert mock_db.execute.call_count == 2  # Count + data queries
 
     @pytest.mark.asyncio
     async def test_list_user_novels_empty_result(self, novel_service, mock_db):
         """Test listing novels with no results."""
-        # Arrange
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_db.execute.return_value = mock_result
+        # Arrange - Mock both count and data queries
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 0
+
+        mock_data_result = Mock()
+        mock_data_result.scalars.return_value.all.return_value = []
+
+        # Return count result first, then data result
+        mock_db.execute.side_effect = [mock_count_result, mock_data_result]
 
         # Act
         result = await novel_service.list_user_novels(mock_db, user_id=1)
@@ -111,7 +128,8 @@ class TestNovelService:
         # Assert
         assert result["success"] is True
         assert result["novels"] == []
-        mock_db.execute.assert_called_once()
+        assert result["total"] == 0
+        assert mock_db.execute.call_count == 2  # Count + data queries
 
     @pytest.mark.asyncio
     async def test_list_user_novels_database_error(self, novel_service, mock_db):
