@@ -15,7 +15,7 @@ from src.services.eventbridge.circuit_breaker import CircuitBreaker, CircuitStat
 logger = get_logger(__name__)
 
 try:
-    from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, start_http_server
+    from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
     PROMETHEUS_AVAILABLE = True
 except ImportError:
