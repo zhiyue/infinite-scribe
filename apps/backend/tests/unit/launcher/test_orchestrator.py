@@ -569,3 +569,67 @@ class TestOrchestratorErrorHandling:
             # Should have called internal method only once (cached)
             mock_build.assert_called_once()
             assert graph1 == graph2
+
+
+class TestOrchestratorAdapterFactory:
+    """Test cases for adapter creation functionality"""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create an orchestrator instance with test configuration"""
+        config = LauncherConfigModel(
+            default_mode=LaunchMode.SINGLE,
+            components=[ComponentType.API, ComponentType.AGENTS, ComponentType.RELAY, ComponentType.EVENTBRIDGE],
+            health_interval=1.0,
+            api=LauncherApiConfig(host="0.0.0.0", port=8000, reload=False),
+            agents=LauncherAgentsConfig(names=["worldsmith"]),
+        )
+        return Orchestrator(config)
+
+    def test_create_api_adapter(self, orchestrator):
+        """Test creation of API adapter"""
+        adapter = orchestrator._create_adapter_by_name("api")
+
+        assert adapter is not None
+        assert adapter.name == "api"
+        assert adapter.__class__.__name__ == "ApiAdapter"
+
+    def test_create_agents_adapter(self, orchestrator):
+        """Test creation of Agents adapter"""
+        adapter = orchestrator._create_adapter_by_name("agents")
+
+        assert adapter is not None
+        assert adapter.name == "agents"
+        assert adapter.__class__.__name__ == "AgentsAdapter"
+
+    def test_create_relay_adapter(self, orchestrator):
+        """Test creation of Relay adapter"""
+        adapter = orchestrator._create_adapter_by_name("relay")
+
+        assert adapter is not None
+        assert adapter.name == "relay"
+        assert adapter.__class__.__name__ == "RelayAdapter"
+
+    def test_create_eventbridge_adapter(self, orchestrator):
+        """Test creation of EventBridge adapter"""
+        adapter = orchestrator._create_adapter_by_name("eventbridge")
+
+        assert adapter is not None
+        assert adapter.name == "eventbridge"
+        assert adapter.__class__.__name__ == "EventBridgeAdapter"
+        assert adapter.config["ready_timeout"] == orchestrator.config.startup_timeout
+
+    def test_create_unknown_adapter(self, orchestrator):
+        """Test creation of unknown adapter returns None"""
+        adapter = orchestrator._create_adapter_by_name("unknown")
+
+        assert adapter is None
+
+    def test_eventbridge_adapter_configuration(self, orchestrator):
+        """Test EventBridge adapter receives correct configuration"""
+        orchestrator.config.startup_timeout = 45
+
+        adapter = orchestrator._create_adapter_by_name("eventbridge")
+
+        assert adapter is not None
+        assert adapter.config["ready_timeout"] == 45

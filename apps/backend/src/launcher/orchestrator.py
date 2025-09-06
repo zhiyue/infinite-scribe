@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from .adapters import AgentsAdapter, ApiAdapter, BaseAdapter, RelayAdapter
+from .adapters import AgentsAdapter, ApiAdapter, BaseAdapter, EventBridgeAdapter, RelayAdapter
 from .config import LauncherConfigModel
 from .errors import OrchestrationError
 from .types import ComponentType, ServiceStatus
@@ -367,6 +367,12 @@ class Orchestrator:
                 "ready_timeout": getattr(self.config, "startup_timeout", 0),
             }
             return RelayAdapter(cfg)
+        if name == ComponentType.EVENTBRIDGE.value:
+            cfg = {
+                # EventBridge reads configuration from Settings.eventbridge
+                "ready_timeout": getattr(self.config, "startup_timeout", 0),
+            }
+            return EventBridgeAdapter(cfg)
         return None
 
     async def update_service_health(self, service_name: str) -> None:

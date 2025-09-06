@@ -67,8 +67,8 @@ async def db_session(postgres_test_session) -> AsyncGenerator[AsyncSession, None
         # 获取所有用户创建的表名
         result = await postgres_test_session.execute(
             text("""
-                SELECT tablename FROM pg_tables 
-                WHERE schemaname = 'public' 
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
                 AND tablename != 'alembic_version'
                 ORDER BY tablename
             """)
@@ -189,7 +189,7 @@ class _AsyncMemoryRedis:
         """Return keys matching pattern (simple * wildcard support)."""
         import fnmatch
 
-        return [key for key in self.data.keys() if fnmatch.fnmatch(key, pattern)]
+        return [key for key in self.data if fnmatch.fnmatch(key, pattern)]
 
     async def close(self):
         self.data.clear()

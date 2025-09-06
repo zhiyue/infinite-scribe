@@ -189,6 +189,47 @@ class RelaySettings(BaseModel):
     max_backoff_ms: int = Field(default=60000, description="Max backoff cap in ms for retry schedule")
 
 
+class EventBridgeSettings(BaseModel):
+    """EventBridge service settings"""
+
+    # Kafka/Domain configuration
+    domain_topics: list[str] = Field(
+        default=["genesis.session.events"],
+        description="Domain event topics to consume from Kafka",
+    )
+
+    group_id_suffix: str = Field(
+        default="event-bridge",
+        description="Consumer group ID suffix (will be prefixed with agent name)",
+    )
+
+    # Circuit breaker configuration
+    cb_window_seconds: int = Field(
+        default=10,
+        description="Circuit breaker failure rate calculation window in seconds",
+    )
+
+    cb_fail_rate_threshold: float = Field(
+        default=0.5,
+        description="Circuit breaker failure rate threshold (0.0-1.0)",
+    )
+
+    cb_half_open_interval_seconds: int = Field(
+        default=30,
+        description="Circuit breaker half-open recovery interval in seconds",
+    )
+
+    # Processing configuration
+    commit_interval_ms: int = Field(default=5000, description="Offset commit interval in milliseconds")
+
+    commit_batch_size: int = Field(default=100, description="Batch size for offset commits")
+
+    # Logging configuration
+    log_level: str = Field(default="INFO", description="Logging level for EventBridge service")
+
+    metrics_log_interval: int = Field(default=100, description="Log metrics every N processed events")
+
+
 class Settings(BaseSettings):
     """应用主配置
 
@@ -245,6 +286,9 @@ class Settings(BaseSettings):
 
     # Outbox Relay (nested)
     relay: RelaySettings = Field(default_factory=RelaySettings)
+    
+    # EventBridge service (nested)
+    eventbridge: EventBridgeSettings = Field(default_factory=EventBridgeSettings)
 
     # MinIO
     minio_endpoint: str = Field(default="localhost:9000")

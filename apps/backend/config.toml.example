@@ -132,8 +132,8 @@ redis_password = "${DATABASE__REDIS_PASSWORD:-}"
 [launcher]
 # 运行模式：single|multi（P3 可选 auto）
 default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
-# 启动组件：可选 api、agents、relay（逗号分隔数组）
-components = ["api", "agents", "relay"]
+# 启动组件：可选 api、agents、relay、eventbridge（逗号分隔数组）
+components = ["api", "agents", "relay", "eventbridge"]
 # 健康检查间隔（秒）：默认 1Hz
 health_interval = 1.0
 # 管理端点开关：生产环境默认关闭，仅限本地调试时开启
@@ -171,3 +171,26 @@ max_retries_default = "${RELAY__MAX_RETRIES_DEFAULT:-3}"
 yield_sleep_ms = "${RELAY__YIELD_SLEEP_MS:-100}"
 loop_error_backoff_ms = "${RELAY__LOOP_ERROR_BACKOFF_MS:-1000}"
 max_backoff_ms = "${RELAY__MAX_BACKOFF_MS:-60000}"
+
+[eventbridge]
+# EventBridge (Kafka -> SSE) 配置
+# 消费的领域事件主题列表
+domain_topics = ["${EVENTBRIDGE__DOMAIN_TOPICS:-genesis.session.events}"]
+# 或者使用 JSON 数组格式支持多主题：
+# domain_topics = ["genesis.session.events", "chapter.session.events", "review.session.events"]
+
+# Kafka 消费组配置
+group_id_suffix = "${EVENTBRIDGE__GROUP_ID_SUFFIX:-event-bridge}"
+
+# 熔断器配置
+cb_window_seconds = "${EVENTBRIDGE__CB_WINDOW_SECONDS:-10}"
+cb_fail_rate_threshold = "${EVENTBRIDGE__CB_FAIL_RATE_THRESHOLD:-0.5}"
+cb_half_open_interval_seconds = "${EVENTBRIDGE__CB_HALF_OPEN_INTERVAL_SECONDS:-30}"
+
+# 偏移量提交配置
+commit_interval_ms = "${EVENTBRIDGE__COMMIT_INTERVAL_MS:-5000}"
+commit_batch_size = "${EVENTBRIDGE__COMMIT_BATCH_SIZE:-100}"
+
+# 日志配置
+log_level = "${EVENTBRIDGE__LOG_LEVEL:-INFO}"
+metrics_log_interval = "${EVENTBRIDGE__METRICS_LOG_INTERVAL:-100}"
