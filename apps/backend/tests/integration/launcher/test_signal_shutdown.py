@@ -18,7 +18,7 @@ class IdleAgent(BaseAgent):
         super().__init__(name="idle", consume_topics=[], produce_topics=[])
         self.stopped = asyncio.Event()
 
-    async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:  # pragma: no cover - not used
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:  # pragma: no cover - not used
         return None
 
     async def on_stop(self):
