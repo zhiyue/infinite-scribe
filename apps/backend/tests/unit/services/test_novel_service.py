@@ -60,6 +60,9 @@ class TestNovelService:
         return NovelUpdateRequest(
             title="Updated Novel",
             theme="Updated Theme",
+            writing_style=None,
+            status=None,
+            target_chapters=None,
             version=1,
         )
 
@@ -173,7 +176,9 @@ class TestNovelService:
         """Test novel creation with integrity error."""
         # Arrange
         mock_db.add = Mock()
-        mock_db.commit = AsyncMock(side_effect=IntegrityError("", "", ""))
+        mock_db.commit = AsyncMock(
+            side_effect=IntegrityError("Integrity constraint violated", {}, ValueError("constraint violation"))
+        )
         mock_db.rollback = AsyncMock()
 
         # Act
@@ -294,7 +299,9 @@ class TestNovelService:
         mock_db.execute.return_value = mock_result
 
         # Create update request with wrong version
-        update_request = NovelUpdateRequest(title="Updated Title", version=999)
+        update_request = NovelUpdateRequest(
+            title="Updated Title", theme=None, writing_style=None, status=None, target_chapters=None, version=999
+        )
 
         # Act
         result = await novel_service.update_novel(
