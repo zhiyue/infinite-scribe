@@ -191,7 +191,7 @@ class OrchestratorAgent(BaseAgent):
             correlation_id: UUID string from envelope meta
             expect_task_prefix: Prefix of task_type to match (e.g., "Character.Design.Generation")
         """
-        from datetime import UTC, datetime
+        from src.common.utils.datetime_utils import utc_now
 
         if not correlation_id:
             return
@@ -199,7 +199,7 @@ class OrchestratorAgent(BaseAgent):
             trig_cmd_id = UUID(str(correlation_id))
         except Exception:
             return
-        async with create_sql_session() as db:  # type: AsyncSession
+        async with create_sql_session() as db:
             # pick most recent RUNNING/PENDING task with matching prefix
             stmt = (
                 select(AsyncTask)
@@ -216,7 +216,7 @@ class OrchestratorAgent(BaseAgent):
             if not task:
                 return
             task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.now(UTC)
+            task.completed_at = utc_now()
             task.result_data = result_data or {}
             db.add(task)
 
