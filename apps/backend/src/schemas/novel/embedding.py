@@ -193,7 +193,7 @@ class SimilaritySearchRequest(BaseSchema):
         """Validate query format"""
         if isinstance(v, str) and not v.strip():
             raise ValueError("Query text cannot be empty")
-        elif isinstance(v, list) and (len(v) == 0 or not all(isinstance(x, (int, float)) for x in v)):
+        elif isinstance(v, list) and (len(v) == 0 or not all(isinstance(x, int | float) for x in v)):
             raise ValueError("Query vector must be non-empty list of numbers")
         return v
 

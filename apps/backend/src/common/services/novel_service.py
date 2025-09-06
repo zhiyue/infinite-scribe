@@ -4,7 +4,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, desc, asc, or_
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,12 +57,7 @@ class NovelService:
             # Add search filter if provided
             if search:
                 search_pattern = f"%{search}%"
-                base_query = base_query.where(
-                    or_(
-                        Novel.title.ilike(search_pattern),
-                        Novel.theme.ilike(search_pattern)
-                    )
-                )
+                base_query = base_query.where(or_(Novel.title.ilike(search_pattern), Novel.theme.ilike(search_pattern)))
 
             # Get total count
             count_query = select(func.count()).select_from(base_query.subquery())

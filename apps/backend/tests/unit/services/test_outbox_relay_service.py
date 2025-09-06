@@ -720,7 +720,7 @@ class TestOutboxRelayService:
                 mock_get_settings.return_value = mock_settings
 
                 # Should not raise exception, just log warning
-                service = OutboxRelayService()
+                OutboxRelayService()
 
                 mock_log.warning.assert_called_once_with("relay_max_backoff_lt_base", max_backoff_ms=500, base_ms=1000)
 

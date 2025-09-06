@@ -10,7 +10,7 @@ from .user_service import UserService
 
 __all__ = [
     "EmbeddingService",
-    "embedding_service", 
+    "embedding_service",
     "Neo4jService",
     "NovelService",
     "novel_service",

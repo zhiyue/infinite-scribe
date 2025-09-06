@@ -1,7 +1,7 @@
 """Unit tests for AgentsAdapter"""
 
-from unittest.mock import AsyncMock, Mock, patch
 from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -176,6 +176,7 @@ async def test_agents_adapter_health_check_stopped(agents_adapter, mock_agent_la
 @pytest.mark.asyncio
 async def test_agents_adapter_health_check_states_and_errors(agents_adapter):
     """health_check returns states/errors with per-agent summaries"""
+
     class DummyAgent:
         def __init__(self, state: str, err: str | None = None):
             self._state = state

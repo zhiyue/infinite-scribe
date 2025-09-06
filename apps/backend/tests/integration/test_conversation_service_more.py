@@ -1,18 +1,19 @@
-import pytest
+import contextlib
 from pathlib import Path
 from uuid import uuid4
+
+import pytest
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from testcontainers.postgres import PostgresContainer
-
 from src.common.services.conversation_service import conversation_service
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
 from src.models.novel import Novel
 from src.models.user import User
 from src.schemas.novel.dialogue import DialogueRole, ScopeType
+from testcontainers.postgres import PostgresContainer
 
 
 def _build_urls(sync_url: str) -> tuple[str, str]:
@@ -98,10 +99,8 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
 
         await engine.dispose()
     finally:
-        try:
+        with contextlib.suppress(Exception):
             pg.stop()
-        except Exception:
-            pass
 
 
 @pytest.mark.asyncio
@@ -162,7 +161,5 @@ async def test_update_session_occ_conflict(tmp_path: Path):
 
         await engine.dispose()
     finally:
-        try:
+        with contextlib.suppress(Exception):
             pg.stop()
-        except Exception:
-            pass

@@ -27,7 +27,7 @@ class TestOutboxRelayServiceConcurrency:
         settings.kafka_bootstrap_servers = ["localhost:9092"]
         settings.environment = "test"
         settings.log_level = "INFO"
-        
+
         settings.relay.batch_size = 5
         settings.relay.poll_interval_seconds = 0.1
         settings.relay.retry_backoff_ms = 100
@@ -54,9 +54,7 @@ class TestOutboxRelayServiceConcurrency:
         This ensures OutboxRelayService uses the same testcontainer database
         as the integration tests, but with a separate session to avoid conflicts.
         """
-        from contextlib import asynccontextmanager
 
-        from sqlalchemy.orm import sessionmaker
 
         # Get the same engine as the test
         engine = db_session.bind
@@ -134,8 +132,7 @@ class TestOutboxRelayServiceConcurrency:
     async def get_all_messages_from_db(self, db_session: AsyncSession) -> list[EventOutbox]:
         """Get all messages from the database."""
         # Create a fresh session to bypass any transaction isolation issues
-        from sqlalchemy.orm import sessionmaker
-        
+
         engine = db_session.bind
         async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)()
         try:
@@ -176,7 +173,7 @@ class TestOutboxRelayServiceConcurrency:
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     # Create multiple worker services
                     workers = []
-                    for i in range(3):
+                    for _i in range(3):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
@@ -220,7 +217,7 @@ class TestOutboxRelayServiceConcurrency:
 
                             try:
                                 msg_batch = await asyncio.wait_for(consumer.getmany(timeout_ms=1000), timeout=2.0)
-                                for topic_partition, messages in msg_batch.items():
+                                for _topic_partition, messages in msg_batch.items():
                                     for message in messages:
                                         consumed_messages.append(
                                             {
@@ -237,7 +234,7 @@ class TestOutboxRelayServiceConcurrency:
 
                         # Verify all indices are unique (no duplicates)
                         consumed_indices = {msg["index"] for msg in consumed_messages if msg["index"] is not None}
-                        expected_indices = {i for i in range(len(test_messages))}
+                        expected_indices = set(range(len(test_messages)))
                         assert consumed_indices == expected_indices
 
                     finally:
@@ -285,7 +282,7 @@ class TestOutboxRelayServiceConcurrency:
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     # Create 4 concurrent workers
                     workers = []
-                    for i in range(4):
+                    for _i in range(4):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
@@ -324,7 +321,7 @@ class TestOutboxRelayServiceConcurrency:
             mock_get_settings.return_value = mock_kafka_settings
 
             # Create test messages
-            test_messages = await self.create_test_messages(db_session, 8)
+            await self.create_test_messages(db_session, 8)
 
             successful_processes = []
             failed_processes = []
@@ -354,7 +351,7 @@ class TestOutboxRelayServiceConcurrency:
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     # Create workers with IDs
                     workers = []
-                    for i in range(3):
+                    for _i in range(3):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
@@ -376,7 +373,7 @@ class TestOutboxRelayServiceConcurrency:
 
                         tasks = [asyncio.create_task(tagged_worker(worker, i)) for i, worker in enumerate(workers)]
 
-                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        await asyncio.gather(*tasks, return_exceptions=True)
 
                         # Some messages should be processed despite worker failures
                         successful_count = len(successful_processes)
@@ -559,7 +556,7 @@ class TestOutboxRelayServiceConcurrency:
 
                     # Create many concurrent workers to maximize contention
                     workers = []
-                    for i in range(5):
+                    for _i in range(5):
                         worker = OutboxRelayService()
                         await worker.start()
                         workers.append(worker)
@@ -592,7 +589,7 @@ class TestOutboxRelayServiceConcurrency:
                         assert total_processed == len(test_messages)
 
                         # Verify database operations completed without major issues
-                        session_starts = len([op for op in database_operations if op.startswith("session_start")])
+                        len([op for op in database_operations if op.startswith("session_start")])
                         session_commits = len([op for op in database_operations if op == "session_commit"])
 
                         # Should have many successful commits
@@ -612,7 +609,7 @@ class TestOutboxRelayServiceConcurrency:
             mock_get_settings.return_value = mock_kafka_settings
 
             # Create many messages for high load
-            test_messages = await self.create_test_messages(db_session, 25)
+            await self.create_test_messages(db_session, 25)
 
             shutdown_events = []
             processed_during_shutdown = []
@@ -636,7 +633,7 @@ class TestOutboxRelayServiceConcurrency:
 
                 # Create workers
                 workers = []
-                for i in range(3):
+                for _i in range(3):
                     worker = OutboxRelayService()
                     await worker.start()
                     workers.append(worker)
@@ -673,7 +670,7 @@ class TestOutboxRelayServiceConcurrency:
                             task.cancel()
 
                     # Wait for worker tasks to complete or cancel
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    await asyncio.gather(*tasks, return_exceptions=True)
 
                     # Verify graceful shutdown timing (should be quick)
                     shutdown_duration = (shutdown_end - shutdown_start).total_seconds()
@@ -745,7 +742,7 @@ class TestOutboxRelayServiceConcurrency:
                 mock_producer.send_and_wait = memory_tracking_send_and_wait
                 mock_producer_class.return_value = mock_producer
 
-                # Create multiple workers for concurrent processing  
+                # Create multiple workers for concurrent processing
                 with patch("src.services.outbox.relay.create_sql_session", self.create_mock_sql_session(db_session)):
                     workers = []
                     for i in range(4):

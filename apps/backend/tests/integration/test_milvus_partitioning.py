@@ -178,7 +178,7 @@ class TestMilvusPartitioning:
             embedding_manager = MilvusEmbeddingManager(schema_manager)
 
             # Insert different data to each partition
-            for i, novel_id in enumerate(novel_ids):
+            for _i, novel_id in enumerate(novel_ids):
                 partition_name = f"partition_{novel_id}"
 
                 for j in range(5):  # 5 items per partition

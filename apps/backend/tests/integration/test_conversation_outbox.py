@@ -1,3 +1,4 @@
+import contextlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -68,7 +69,7 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
             )
             assert create_res["success"] is True
             session_obj = create_res["session"]
-            session_id = str(getattr(session_obj, "id", session_obj["id"]))
+            str(getattr(session_obj, "id", session_obj["id"]))
 
         async with Session() as db:
             # 6) Enqueue Stage.Validate command (atomic: CommandInbox + DomainEvent + Outbox)
@@ -103,10 +104,8 @@ async def test_enqueue_command_persists_domain_event_and_outbox(tmp_path: Path):
 
         await engine.dispose()
     finally:
-        try:
+        with contextlib.suppress(Exception):
             pg.stop()
-        except Exception:
-            pass
 
 
 @pytest.mark.asyncio
@@ -172,7 +171,5 @@ async def test_create_round_persists_round_created_and_outbox(tmp_path: Path):
 
         await engine.dispose()
     finally:
-        try:
+        with contextlib.suppress(Exception):
             pg.stop()
-        except Exception:
-            pass

@@ -76,6 +76,7 @@ class TestOutboxRelayServiceRealKafka:
         as the tests, avoiding cross-DB visibility issues.
         """
         from contextlib import asynccontextmanager
+
         from sqlalchemy.orm import sessionmaker
 
         engine = db_session.bind
@@ -100,8 +101,8 @@ class TestOutboxRelayServiceRealKafka:
         status: OutboxStatus = OutboxStatus.PENDING,
         retry_count: int = 0,
         max_retries: int = 3,
-        scheduled_at: datetime = None,
-        payload: dict = None,
+        scheduled_at: datetime | None = None,
+        payload: dict | None = None,
     ) -> EventOutbox:
         """Create a test message in the outbox table."""
         if payload is None:
@@ -175,7 +176,7 @@ class TestOutboxRelayServiceRealKafka:
                 # Poll for messages
                 try:
                     msg_batch = await asyncio.wait_for(consumer.getmany(timeout_ms=1000), timeout=2.0)
-                    for topic_partition, messages in msg_batch.items():
+                    for _topic_partition, messages in msg_batch.items():
                         for message in messages:
                             consumed_messages.append(
                                 {
@@ -280,7 +281,7 @@ class TestOutboxRelayServiceRealKafka:
 
                 # Verify message ordering and content
                 consumed_payloads = [msg["value"] for msg in consumed_messages]
-                expected_payloads = [payload for _, payload in test_messages]
+                [payload for _, payload in test_messages]
 
                 # Messages should be in order (though Kafka ordering within partition is guaranteed)
                 for i, consumed_payload in enumerate(consumed_payloads):
@@ -425,7 +426,7 @@ class TestOutboxRelayServiceRealKafka:
 
                 # Verify no message duplication in Kafka
                 consumed_indices = {msg["value"]["data"]["index"] for msg in consumed_messages}
-                expected_indices = {i for i in range(len(test_messages))}
+                expected_indices = set(range(len(test_messages)))
                 assert consumed_indices == expected_indices
 
                 await service1.stop()
@@ -465,7 +466,7 @@ class TestOutboxRelayServiceRealKafka:
             }
 
             result = await db_session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
-            test_message = result.scalar_one()
+            result.scalar_one()
             await db_session.commit()
 
             service = OutboxRelayService()
@@ -510,7 +511,7 @@ class TestOutboxRelayServiceRealKafka:
 
             # Create immediate message
             immediate_payload = {"event": "immediate", "data": {"type": "immediate_processing"}}
-            immediate_message = await self.create_test_message(
+            await self.create_test_message(
                 db_session,
                 topic="integration.test.scheduled",
                 payload=immediate_payload,
@@ -519,7 +520,7 @@ class TestOutboxRelayServiceRealKafka:
 
             # Create scheduled message for the past (should process)
             past_payload = {"event": "past_scheduled", "data": {"type": "past_scheduled"}}
-            past_scheduled_message = await self.create_test_message(
+            await self.create_test_message(
                 db_session,
                 topic="integration.test.scheduled",
                 payload=past_payload,
@@ -613,7 +614,7 @@ class TestOutboxRelayServiceRealKafka:
                     # Timeout is acceptable for graceful shutdown test
                     pass
 
-    
+
                 # Verify shutdown was reasonably quick
                 shutdown_duration = (shutdown_end - shutdown_start).total_seconds()
                 assert shutdown_duration < 2.0  # Should shutdown within 2 seconds

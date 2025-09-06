@@ -129,7 +129,7 @@ class ConsistencyValidator:
             MATCH (c2)-[r2:RELATES_TO]->(c1)
             WHERE r2.type = r.type
         }
-        RETURN c1.id as char1_id, c1.name as char1_name, 
+        RETURN c1.id as char1_id, c1.name as char1_name,
                c2.id as char2_id, c2.name as char2_name,
                r.type as rel_type
         """
@@ -154,7 +154,7 @@ class ConsistencyValidator:
         query_transitive = """
         MATCH (c1:Character {novel_id: $novel_id})-[r1:RELATES_TO]->(c2:Character {novel_id: $novel_id})
         MATCH (c2)-[r2:RELATES_TO]->(c3:Character {novel_id: $novel_id})
-        WHERE c1 <> c3 
+        WHERE c1 <> c3
         AND r1.type = r2.type
         AND r1.strength >= 7 AND r2.strength >= 7
         AND NOT EXISTS {
@@ -224,7 +224,7 @@ class ConsistencyValidator:
         # Check for same-dimension rules with conflicting constraints
         query_implicit = """
         MATCH (w1:WorldRule {novel_id: $novel_id}), (w2:WorldRule {novel_id: $novel_id})
-        WHERE w1.dimension = w2.dimension 
+        WHERE w1.dimension = w2.dimension
         AND w1.id <> w2.id
         AND w1.priority = w2.priority
         AND w1.rule CONTAINS 'must' AND w2.rule CONTAINS 'must not'

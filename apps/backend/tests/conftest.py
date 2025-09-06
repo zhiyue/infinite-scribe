@@ -456,8 +456,8 @@ async def postgres_test_engine(postgres_service):
         # Insert the current head revision (from the available heads)
         await conn.execute(
             text("""
-            INSERT INTO alembic_version (version_num) 
-            VALUES ('9de0f061b66e') 
+            INSERT INTO alembic_version (version_num)
+            VALUES ('9de0f061b66e')
             ON CONFLICT (version_num) DO NOTHING
         """)
         )
@@ -527,6 +527,7 @@ async def async_client(test_session):
         return test_session
 
     from src.api.main import app
+
     app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(app=app, base_url="http://test") as ac:
@@ -545,6 +546,8 @@ async def postgres_async_client(postgres_test_session):
 
     def override_get_db():
         return postgres_test_session
+
+    from src.api.main import app
 
     app.dependency_overrides[get_db] = override_get_db
 

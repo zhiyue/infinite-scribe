@@ -22,8 +22,8 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = 'command_inbox'
                 );
                 """
@@ -36,7 +36,7 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT column_name, is_nullable
-                FROM information_schema.columns 
+                FROM information_schema.columns
                 WHERE table_name = 'command_inbox'
                 """
             )
@@ -68,7 +68,7 @@ class TestCQRSPostgresSchema:
                 """
                 SELECT tc.constraint_name
                 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
+                JOIN information_schema.key_column_usage kcu
                   ON tc.constraint_name = kcu.constraint_name
                  AND tc.table_schema = kcu.table_schema
                 WHERE tc.table_name = 'command_inbox'
@@ -85,8 +85,8 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = 'domain_events'
                 );
                 """
@@ -99,7 +99,7 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT column_name, is_nullable
-                FROM information_schema.columns 
+                FROM information_schema.columns
                 WHERE table_name = 'domain_events'
                 """
             )
@@ -130,7 +130,7 @@ class TestCQRSPostgresSchema:
                 """
                 SELECT tc.constraint_name
                 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
+                JOIN information_schema.key_column_usage kcu
                   ON tc.constraint_name = kcu.constraint_name
                  AND tc.table_schema = kcu.table_schema
                 WHERE tc.table_name = 'domain_events'
@@ -165,8 +165,8 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = 'event_outbox'
                 );
                 """
@@ -179,7 +179,7 @@ class TestCQRSPostgresSchema:
             text(
                 """
                 SELECT column_name, is_nullable
-                FROM information_schema.columns 
+                FROM information_schema.columns
                 WHERE table_name = 'event_outbox'
                 """
             )

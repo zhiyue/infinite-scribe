@@ -228,9 +228,9 @@ class KnowledgeGraphService:
         dimension: str,
         rule: str,
         priority: int = 0,
-        scope: dict = None,
-        examples: list = None,
-        constraints: list = None,
+        scope: dict | None = None,
+        examples: list | None = None,
+        constraints: list | None = None,
         **properties,
     ) -> bool:
         """创建世界观规则节点用于一致性检查。

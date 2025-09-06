@@ -13,8 +13,8 @@ async def test_database_migrations_applied_successfully(postgres_test_session: A
         text(
             """
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'alembic_version'
             );
             """

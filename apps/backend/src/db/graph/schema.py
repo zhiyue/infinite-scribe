@@ -194,7 +194,7 @@ class Neo4jNodeCreator:
 
         # Set base fields
         set_clauses = []
-        for field in template["base_fields"].keys():
+        for field in template["base_fields"]:
             if field in params:
                 if params[field] == "datetime()":
                     set_clauses.append(f"{var}.{field} = datetime()")
@@ -268,9 +268,9 @@ class Neo4jNodeCreator:
         dimension: str,
         rule: str,
         priority: int = 0,
-        scope: dict = None,
-        examples: list[str] = None,
-        constraints: list[str] = None,
+        scope: dict | None = None,
+        examples: list[str] | None = None,
+        constraints: list[str] | None = None,
         **properties,
     ) -> dict[str, Any]:
         """Create a WorldRule node."""

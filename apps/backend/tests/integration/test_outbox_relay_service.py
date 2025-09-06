@@ -85,8 +85,8 @@ class TestOutboxRelayServiceIntegration:
         status: OutboxStatus = OutboxStatus.PENDING,
         retry_count: int = 0,
         max_retries: int = 3,
-        scheduled_at: datetime = None,
-        payload: dict = None,
+        scheduled_at: datetime | None = None,
+        payload: dict | None = None,
     ) -> EventOutbox:
         """Create a test message in the outbox table."""
         if payload is None:
@@ -495,7 +495,7 @@ class TestOutboxRelayServiceIntegration:
                 "metadata": {"version": "1.0", "source": "integration_test"},
             }
 
-            test_message = await self.create_test_message(db_session, payload=complex_payload)
+            await self.create_test_message(db_session, payload=complex_payload)
 
             # Mock successful Kafka producer and capture sent data
             sent_data = []
@@ -560,7 +560,7 @@ class TestOutboxRelayServiceIntegration:
 
             async with create_sql_session() as session:
                 result = await session.execute(insert(EventOutbox).values(message_data).returning(EventOutbox))
-                test_message = result.scalar_one()
+                result.scalar_one()
                 await session.commit()
 
             # Mock successful Kafka producer and capture headers
@@ -611,7 +611,7 @@ class TestOutboxRelayServiceIntegration:
             mock_get_settings.return_value = mock_kafka_settings
 
             # Create test message
-            test_message = await self.create_test_message(db_session)
+            await self.create_test_message(db_session)
 
             # Mock Kafka producer with delay to simulate processing time
             with patch("src.services.outbox.relay.AIOKafkaProducer") as mock_producer_class:

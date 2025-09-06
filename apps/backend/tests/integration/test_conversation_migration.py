@@ -22,8 +22,8 @@ class TestConversationMigration:
         result = await postgres_test_session.execute(
             text("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = 'conversation_sessions'
                 );
             """)
@@ -34,7 +34,7 @@ class TestConversationMigration:
         result = await postgres_test_session.execute(
             text("""
                 SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns 
+                FROM information_schema.columns
                 WHERE table_name = 'conversation_sessions'
                 ORDER BY column_name;
             """)
@@ -65,8 +65,8 @@ class TestConversationMigration:
         result = await postgres_test_session.execute(
             text("""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = 'conversation_rounds'
                 );
             """)
@@ -77,7 +77,7 @@ class TestConversationMigration:
         result = await postgres_test_session.execute(
             text("""
                 SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns 
+                FROM information_schema.columns
                 WHERE table_name = 'conversation_rounds'
                 ORDER BY column_name;
             """)
@@ -104,17 +104,17 @@ class TestConversationMigration:
         """Test that conversation_rounds has foreign key to conversation_sessions."""
         result = await postgres_test_session.execute(
             text("""
-                SELECT tc.constraint_name, tc.table_name, kcu.column_name, 
+                SELECT tc.constraint_name, tc.table_name, kcu.column_name,
                        ccu.table_name AS foreign_table_name,
-                       ccu.column_name AS foreign_column_name 
-                FROM information_schema.table_constraints AS tc 
+                       ccu.column_name AS foreign_column_name
+                FROM information_schema.table_constraints AS tc
                 JOIN information_schema.key_column_usage AS kcu
                     ON tc.constraint_name = kcu.constraint_name
                     AND tc.table_schema = kcu.table_schema
                 JOIN information_schema.constraint_column_usage AS ccu
                     ON ccu.constraint_name = tc.constraint_name
                     AND ccu.table_schema = tc.table_schema
-                WHERE tc.constraint_type = 'FOREIGN KEY' 
+                WHERE tc.constraint_type = 'FOREIGN KEY'
                 AND tc.table_name = 'conversation_rounds';
             """)
         )
@@ -138,11 +138,11 @@ class TestConversationMigration:
         result = await postgres_test_session.execute(
             text("""
                 SELECT tc.constraint_name, kcu.column_name
-                FROM information_schema.table_constraints AS tc 
+                FROM information_schema.table_constraints AS tc
                 JOIN information_schema.key_column_usage AS kcu
                     ON tc.constraint_name = kcu.constraint_name
                     AND tc.table_schema = kcu.table_schema
-                WHERE (tc.constraint_type = 'UNIQUE' OR tc.constraint_type = 'PRIMARY KEY') 
+                WHERE (tc.constraint_type = 'UNIQUE' OR tc.constraint_type = 'PRIMARY KEY')
                 AND tc.table_name = 'conversation_rounds'
                 ORDER BY kcu.ordinal_position;
             """)
@@ -153,7 +153,7 @@ class TestConversationMigration:
         assert (
             len(unique_constraints) >= 2
         ), "conversation_rounds should have unique constraint on (session_id, round_path) via PRIMARY KEY"
-        
+
         # Verify the primary key covers the required columns
         pk_columns = [c[1] for c in unique_constraints if c[0] == 'pk_conversation_rounds']
         assert 'session_id' in pk_columns, "Primary key should include session_id"
@@ -163,8 +163,8 @@ class TestConversationMigration:
         """Test that required indexes exist for performance."""
         result = await postgres_test_session.execute(
             text("""
-                SELECT indexname, tablename, indexdef 
-                FROM pg_indexes 
+                SELECT indexname, tablename, indexdef
+                FROM pg_indexes
                 WHERE tablename IN ('conversation_sessions', 'conversation_rounds')
                 AND schemaname = 'public'
                 ORDER BY tablename, indexname;
@@ -184,7 +184,7 @@ class TestConversationMigration:
         assert any(
             "pk_conversation_rounds" in idx for idx in index_names
         ), "Primary key index on conversation_rounds should exist"
-        
+
         # Performance indexes should exist
         expected_indexes = [
             'idx_conversation_sessions_scope',
@@ -196,7 +196,7 @@ class TestConversationMigration:
             'idx_conversation_rounds_created_at',
             'idx_conversation_rounds_role'
         ]
-        
+
         for expected_idx in expected_indexes:
             assert any(expected_idx in idx for idx in index_names), f"Index {expected_idx} should exist"
 
