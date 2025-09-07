@@ -31,7 +31,8 @@ class GraphQueryBuilder:
         """
         async with create_neo4j_session() as session:
             result = await session.run(query, novel_id=novel_id, char_id=character_app_id, depth=depth)
-            return await result.single()
+            record = await result.single()
+            return record.data() if record else None
 
     async def check_timeline_consistency(self, *, novel_id: str) -> list[dict[str, Any]]:
         query = """
@@ -95,4 +96,5 @@ class GraphQueryBuilder:
         """
         async with create_neo4j_session() as session:
             result = await session.run(query, char_id=character_app_id)
-            return await result.single()
+            record = await result.single()
+            return record.data() if record else None

@@ -6,14 +6,14 @@ for the novel genesis system according to ADR-005.
 """
 
 import logging
-from typing import Any
+from typing import Any, LiteralString, cast
 
 from neo4j import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 # Schema definitions as data structures for maintainability
-SCHEMA_CONFIG = {
+SCHEMA_CONFIG: dict[str, dict[str, Any]] = {
     "constraints": {
         "unique_novel_novel_id": ("Novel", "novel_id"),
         "unique_character_id": ("Character", "id"),
@@ -45,7 +45,7 @@ class Neo4jSchemaManager:
     async def _execute_schema_item(self, item_type: str, name: str, query: str) -> None:
         """Execute a single schema item with consistent error handling."""
         try:
-            await self.session.run(query)
+            await self.session.run(cast(LiteralString, query))
             logger.info(f"Created {item_type}: {name}")
         except Exception as e:
             logger.warning(f"{item_type.capitalize()} creation failed or already exists: {e}")
@@ -177,7 +177,7 @@ class Neo4jNodeCreator:
         merge_field = template["merge_field"]
 
         # Build parameters from template defaults and provided values
-        params = {f"{var}_{merge_field}": merge_value}
+        params: dict[str, Any] = {f"{var}_{merge_field}": merge_value}
         for field, default_value in template["base_fields"].items():
             if field in properties:
                 params[field] = properties[field]
@@ -221,7 +221,7 @@ class Neo4jNodeCreator:
         query_parts.append(f"RETURN {var}")
         query = "\n".join(query_parts)
 
-        result = await self.session.run(query, params)
+        result = await self.session.run(cast(LiteralString, query), params)
         record = await result.single()
         return dict(record[var]) if record else {}
 
@@ -324,7 +324,7 @@ class Neo4jRelationshipManager:
         """
 
         params = {"from_id": from_id, "to_id": to_id, **properties}
-        await self.session.run(query, params)
+        await self.session.run(cast(LiteralString, query), params)
 
         # Create reverse relationship if symmetric
         if symmetric:
@@ -333,7 +333,7 @@ class Neo4jRelationshipManager:
             MERGE (to)-[r:{rel_type}]->(from)
             {set_clause}
             """
-            await self.session.run(reverse_query, params)
+            await self.session.run(cast(LiteralString, reverse_query), params)
 
         return True
 

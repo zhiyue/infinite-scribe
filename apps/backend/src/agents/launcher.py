@@ -48,7 +48,10 @@ class AgentLauncher:
             # 优先使用显式注册表
             reg_cls = get_registered_agent(canonical_name)
             if reg_cls is not None and issubclass(reg_cls, BaseAgent):
-                instance = reg_cls()  # No cast needed
+                topics = AGENT_TOPICS.get(module_key, {})
+                consume_topics = topics.get("consume", [])
+                produce_topics = topics.get("produce", [])
+                instance = reg_cls(name=canonical_name, consume_topics=consume_topics, produce_topics=produce_topics)
                 logger.info(f"成功从注册表加载 agent: {canonical_name}")
                 return instance
             # 尝试从 agent 模块导入
@@ -82,8 +85,14 @@ class AgentLauncher:
                             continue
 
                 if agent_class and issubclass(agent_class, BaseAgent):
+                    # 获取主题配置
+                    topics = AGENT_TOPICS.get(module_key, {})
+                    consume_topics = topics.get("consume", [])
+                    produce_topics = topics.get("produce", [])
                     # 创建 agent 实例
-                    agent_instance = agent_class()
+                    agent_instance = agent_class(
+                        name=canonical_name, consume_topics=consume_topics, produce_topics=produce_topics
+                    )
                     logger.info(f"成功加载 agent: {agent_name}")
                     return agent_instance
                 elif agent_class is not None:

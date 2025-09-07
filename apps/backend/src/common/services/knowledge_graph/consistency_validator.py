@@ -10,6 +10,7 @@ use-cases (e.g., batching multiple validations within a single transaction).
 """
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -68,7 +69,7 @@ class ConsistencyValidator:
         self._session = session
 
     @asynccontextmanager
-    async def _get_session(self) -> AsyncSession:
+    async def _get_session(self) -> AsyncIterator[AsyncSession]:
         if self._session is not None:
             # 复用外部传入的会话（不负责关闭）
             yield self._session

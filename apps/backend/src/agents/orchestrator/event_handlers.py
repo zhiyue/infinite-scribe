@@ -170,7 +170,7 @@ class CapabilityEventHandlers:
         # Support three types of judgments: boolean ok/passed; or numeric score >= threshold
         ok = bool(data.get("ok") or data.get("passed"))
         if not ok:
-            score = data.get("score")
+            score = data.get("score") or 0.0
             thr = data.get("threshold") or 1.0
             try:
                 ok = float(score) >= float(thr)

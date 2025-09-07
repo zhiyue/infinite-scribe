@@ -448,7 +448,7 @@ class NovelService:
             published_chapters = result.scalar() or 0
 
             # Calculate progress percentage
-            progress_percentage = 0
+            progress_percentage = 0.0
             if novel.target_chapters > 0:
                 progress_percentage = round((published_chapters / novel.target_chapters) * 100, 2)
 
