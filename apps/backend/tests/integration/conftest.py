@@ -7,8 +7,9 @@ import pytest
 # 使用 PostgreSQL 的集成测试专用 fixtures
 
 pytest_plugins = [
-    "tests.integration.fixtures.config",
+    "tests.integration.fixtures.kafka",
     "tests.integration.fixtures.redis",
+    "tests.integration.fixtures.config",
     "tests.integration.fixtures.postgres",
     "tests.integration.fixtures.services",
     "tests.integration.fixtures.clients",

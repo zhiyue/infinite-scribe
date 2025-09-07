@@ -80,6 +80,7 @@ if cb.can_attempt():
 """
 
 import time
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -141,7 +142,9 @@ class CircuitBreaker:
         self.last_half_open_time: float | None = None
 
         # Operation tracking within sliding window
-        self.operations: list[OperationRecord] = []
+        # Use deque with maxlen to prevent memory leaks
+        max_operations = self.window_seconds * 100  # Assume max 100 ops/sec
+        self.operations: deque[OperationRecord] = deque(maxlen=max_operations)
 
         # Consumer management for pause/resume
         self.consumer = None
@@ -252,7 +255,10 @@ class CircuitBreaker:
         """Remove operations outside the time window."""
         current_time = time.time()
         cutoff_time = current_time - self.window_seconds
-        self.operations = [op for op in self.operations if op.timestamp > cutoff_time]
+
+        # Use deque's efficient popleft() for removing old operations
+        while self.operations and self.operations[0].timestamp <= cutoff_time:
+            self.operations.popleft()
 
     def _calculate_failure_rate(self) -> float:
         """Calculate current failure rate in the time window."""
@@ -272,9 +278,16 @@ class CircuitBreaker:
 
         if self.state == CircuitState.CLOSED:
             # Open circuit if failure rate exceeds threshold and we have enough samples
-            if failure_rate >= self.failure_threshold and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value:
+            if (
+                failure_rate >= self.failure_threshold
+                and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value
+            ):
                 self._open_circuit()
-        elif self.state == CircuitState.OPEN and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value and failure_rate < self.failure_threshold:
+        elif (
+            self.state == CircuitState.OPEN
+            and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value
+            and failure_rate < self.failure_threshold
+        ):
             # Allow circuit to close if failure rate drops below threshold
             # This is more lenient than traditional circuit breakers
             self._close_circuit(clear_history=False)
@@ -296,7 +309,7 @@ class CircuitBreaker:
         self.last_half_open_time = None
         if clear_history:
             # Clear operations to start fresh (for recovery from HALF_OPEN)
-            self.operations = []
+            self.operations.clear()
         logger.info("Circuit breaker closed - service recovered")
         self._resume_consumer()
 

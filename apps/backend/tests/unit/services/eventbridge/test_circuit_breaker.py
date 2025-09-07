@@ -5,6 +5,7 @@ Tests the circuit breaker pattern implementation for EventBridge Redis failures.
 """
 
 import asyncio
+import time
 from unittest.mock import Mock
 
 import pytest
@@ -231,3 +232,67 @@ class TestCircuitBreaker:
 
         # State transitions should still work
         self.circuit_breaker.record_success()  # Won't close from open, but shouldn't error
+
+    def test_circuit_breaker_memory_leak_fix(self):
+        """Test that operations deque doesn't grow beyond max size."""
+        # Create circuit breaker with 1-second window
+        cb = CircuitBreaker(window_seconds=1)
+
+        # The max size should be window_seconds * 100 = 100
+        expected_max_size = 100
+
+        # Add more operations than the max size
+        for i in range(200):
+            cb.record_success()
+            # Small delay to ensure timestamps are different
+            time.sleep(0.01)
+
+        # Check that operations size doesn't exceed expected max
+        assert (
+            len(cb.operations) <= expected_max_size
+        ), f"Operations deque grew to {len(cb.operations)}, expected max {expected_max_size}"
+
+        # Wait for window to pass
+        time.sleep(1.1)
+
+        # Trigger cleanup
+        cb._clean_old_operations()
+
+        # All operations should be cleaned up
+        assert len(cb.operations) == 0, f"Operations not cleaned up, size: {len(cb.operations)}"
+
+    def test_circuit_breaker_deque_efficiency(self):
+        """Test that deque operations are efficient."""
+        cb = CircuitBreaker(window_seconds=10)
+
+        # Add many operations
+        start_time = time.time()
+        for i in range(1000):
+            cb.record_success()
+        add_time = time.time() - start_time
+
+        # Should be very fast
+        assert add_time < 0.1, f"Adding 1000 operations took {add_time:.3f}s, expected < 0.1s"
+
+        # Clean up should also be fast
+        start_time = time.time()
+        cb._clean_old_operations()
+        cleanup_time = time.time() - start_time
+
+        assert cleanup_time < 0.01, f"Cleanup took {cleanup_time:.3f}s, expected < 0.01s"
+
+    def test_circuit_breaker_deque_clear_method(self):
+        """Test that clear() method works properly with deque."""
+        cb = CircuitBreaker(window_seconds=10)
+
+        # Add some operations
+        cb.record_success()
+        cb.record_failure()
+        cb.record_success()
+
+        assert len(cb.operations) == 3
+
+        # Clear should empty the deque
+        cb.operations.clear()
+        assert len(cb.operations) == 0
+        assert cb.get_failure_rate() == 0.0
