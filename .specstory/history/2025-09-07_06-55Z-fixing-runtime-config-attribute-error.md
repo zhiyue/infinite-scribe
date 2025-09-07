@@ -117,7 +117,26 @@ Let me check what the eventbridge_config actually is by looking at the settings 
 
 ---
 
+<think><details><summary>Thought Process</summary>The search timed out. Based on my analysis of the factory code, the issue is clear:
 
+The `EventBridgeServiceFactory` class has `eventbridge_config` attribute (line 46) but no `runtime_config` attribute. The test is trying to access `factory.runtime_config` which doesn't exist.
+
+The fix is simple: replace `factory.runtime_config` with `factory.eventbridge_config`.</details></think>
+
+---
+
+Based on the `EventBridgeServiceFactory` implementation, there is no `runtime_config` attribute. The factory has `eventbridge_config` instead.
+
+**Fix**: Replace `factory.runtime_config` with `factory.eventbridge_config`
+
+```python
+factory = get_event_bridge_factory()
+config = factory.eventbridge_config
+
+assert isinstance(config, EventBridgeRuntimeConfig)
+```
+
+If `EventBridgeRuntimeConfig` doesn't exist, you should check the actual type of `factory.eventbridge_config` (likely from the settings configuration) and update the assertion accordingly.
 
 ---
 
