@@ -357,7 +357,11 @@ I found two similar issues. The problem is that empty lists `[]` don't have expl
 
 ---
 
+<think><details><summary>Thought Process</summary>Great! The fix worked. I replaced the empty list literals `[]` with `list[str]()` to provide explicit typing so the type checker can properly infer the types in the lambda functions. This resolves the type mismatch error where it was expecting `dict[str, list[str]]` but getting `dict[str, list[Never]]`.</details></think>
 
+---
+
+Fixed! I replaced the empty list literals `[]` with `list[str]()` to provide explicit typing. This resolves the type mismatch where the type checker was inferring `list[Never]` instead of `list[str]`.
 
 ---
 
