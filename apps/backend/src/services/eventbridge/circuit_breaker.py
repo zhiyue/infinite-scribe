@@ -70,7 +70,7 @@ class CircuitBreaker:
 
         # Consumer management for pause/resume
         self.consumer = None
-        self.partitions = None
+        self.partitions: list[Any] | None = None
 
     def register_consumer(self, consumer: Any, partitions: list[Any]) -> None:
         """

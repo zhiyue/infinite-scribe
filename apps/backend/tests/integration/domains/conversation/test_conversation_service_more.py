@@ -95,7 +95,7 @@ async def test_create_round_idempotent_replay(tmp_path: Path):
             count_evt = await db.scalar(
                 select(func.count()).select_from(DomainEvent).where(DomainEvent.aggregate_id == str(sid))
             )
-            assert count_evt >= 1
+            assert (count_evt or 0) >= 1
 
         await engine.dispose()
     finally:
@@ -157,7 +157,7 @@ async def test_update_session_occ_conflict(tmp_path: Path):
                 stage="Stage_1",
                 expected_version=ver,
             )
-            assert uok["success"] and getattr(uok["session"], "version", None) == (ver + 1)
+            assert uok["success"] and getattr(uok["session"], "version", None) == ((ver or 0) + 1)
 
         await engine.dispose()
     finally:

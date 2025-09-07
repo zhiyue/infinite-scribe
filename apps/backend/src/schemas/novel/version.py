@@ -61,7 +61,7 @@ class ContentVersionCreate(BaseSchema):
         default_factory=list, description="Parent version IDs (empty for initial, multiple for merge)"
     )
     message: str = Field(..., min_length=1, max_length=500, description="Version commit message")
-    metadata: dict[str, Any] | None = Field(default_factory=dict, description="Additional version metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional version metadata")
 
     @field_validator("parent_ids")
     @classmethod

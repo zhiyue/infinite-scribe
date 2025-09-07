@@ -114,6 +114,7 @@ class Publisher:
             event=envelope["event_type"],
             data=minimal_data,
             id=None,  # Will be set by Redis Streams
+            retry=None,  # No retry delay for SSE messages
             scope=EventScope.USER,
             version="1.0",
         )

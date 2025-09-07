@@ -73,8 +73,9 @@ class SSEProvider:
 
                 try:
                     # Reset global counter to prevent drift
-                    if getattr(manager.redis_sse, "_pubsub_client", None):
-                        await manager.redis_sse._pubsub_client.delete("global:sse_connections_count")
+                    pubsub_client = getattr(manager.redis_sse, "_pubsub_client", None)
+                    if pubsub_client:
+                        await pubsub_client.delete("global:sse_connections_count")
                 except Exception as e:
                     logger.debug(f"Error resetting global SSE counter: {e}")
 

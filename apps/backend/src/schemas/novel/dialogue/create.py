@@ -18,7 +18,7 @@ class ConversationSessionCreate(BaseSchema):
     scope_type: ScopeType = Field(..., description="对话范围类型")
     scope_id: str = Field(..., description="业务实体ID (例如: novel_id, chapter_id)")
     stage: str | None = Field(None, description="范围内的可选阶段")
-    initial_state: dict[str, Any] | None = Field(default_factory=dict, description="初始会话状态/上下文")
+    initial_state: dict[str, Any] = Field(default_factory=dict, description="初始会话状态/上下文")
 
 
 class ConversationRoundCreate(BaseSchema):
@@ -53,7 +53,7 @@ class CreateSessionRequest(BaseSchema):
     scope_type: ScopeType = Field(..., description="对话范围类型", examples=["GENESIS"])
     scope_id: str = Field(..., description="业务实体ID，例如 novel_id")
     stage: str | None = Field(None, description="范围内的可选阶段")
-    initial_state: dict[str, Any] | None = Field(default_factory=dict, description="初始会话状态")
+    initial_state: dict[str, Any] = Field(default_factory=dict, description="初始会话状态")
 
 
 class RoundCreateRequest(BaseSchema):
@@ -69,7 +69,7 @@ class CommandRequest(BaseSchema):
     """命令请求"""
 
     type: str = Field(..., description="命令类型")
-    payload: dict[str, Any] | None = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ContentSearchRequest(BaseSchema):

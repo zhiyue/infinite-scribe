@@ -6,7 +6,7 @@ EventBridge service instances with proper dependency injection.
 """
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from src.agents.offset_manager import OffsetManager
 from src.common.services.redis_service import RedisService
@@ -219,7 +219,7 @@ class EventBridgeServiceFactory:
 
     def get_health_status(self) -> dict:
         """Get health status of created services."""
-        status = {"factory_initialized": True, "services": {}}
+        status: dict[str, Any] = {"factory_initialized": True, "services": {}}
 
         if self._bridge_service:
             status["services"]["bridge"] = self._bridge_service.get_health_status()

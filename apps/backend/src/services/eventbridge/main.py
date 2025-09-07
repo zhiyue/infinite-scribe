@@ -9,13 +9,9 @@ import asyncio
 import signal
 import sys
 
-from src.core.logging import get_logger
+from aiokafka.abc import ConsumerRebalanceListener
 
-try:
-    # aiokafka requires listener to be instance of this ABC
-    from aiokafka.abc import ConsumerRebalanceListener  # type: ignore
-except Exception:  # pragma: no cover - fallback for environments without aiokafka import at import time
-    ConsumerRebalanceListener = object  # type: ignore
+from src.core.logging import get_logger
 from src.services.eventbridge.factory import get_event_bridge_factory
 
 
@@ -55,7 +51,7 @@ class EventBridgeRebalanceListener:
             )
 
             # Update circuit breaker with new partition assignment
-            if assigned:
+            if assigned and self.bridge_service:
                 self.bridge_service.update_circuit_breaker_partitions(assigned)
 
         except Exception as e:
@@ -96,17 +92,13 @@ class _AIOKafkaRebalanceAdapter(ConsumerRebalanceListener):
 
     async def on_partitions_assigned(self, assigned):  # type: ignore[override]
         try:
-            result = self._inner.on_partitions_assigned(assigned)
-            if asyncio.iscoroutine(result):
-                await result
+            self._inner.on_partitions_assigned(assigned)
         except Exception as e:  # pragma: no cover - defensive logging
             self._logger.error("Adapter error on partitions assigned", error=str(e))
 
     async def on_partitions_revoked(self, revoked):  # type: ignore[override]
         try:
-            result = self._inner.on_partitions_revoked(revoked)
-            if asyncio.iscoroutine(result):
-                await result
+            self._inner.on_partitions_revoked(revoked)
         except Exception as e:  # pragma: no cover - defensive logging
             self._logger.error("Adapter error on partitions revoked", error=str(e))
 
@@ -203,6 +195,8 @@ class EventBridgeApplication:
         consumer = await self._setup_kafka_consumer()
 
         # Set consumer reference in bridge service for offset management
+        if not self.bridge_service:
+            raise RuntimeError("Bridge service not initialized")
         self.bridge_service.set_consumer(consumer)
 
         # Initialize loop state
@@ -242,6 +236,8 @@ class EventBridgeApplication:
             raise RuntimeError("Failed to create Kafka consumer")
 
         # Create rebalance listener for partition management
+        if not self.bridge_service:
+            raise RuntimeError("Bridge service not initialized")
         rebalance_listener = EventBridgeRebalanceListener(bridge_service=self.bridge_service, logger=self.logger)
 
         # Subscribe to topics with rebalance listener (aiokafka requires a specific ABC)
@@ -305,6 +301,8 @@ class EventBridgeApplication:
         Returns:
             True if processing should continue, False to stop
         """
+        if not self.bridge_service:
+            return False
         continue_processing = await self.bridge_service.process_event(message)
 
         if not continue_processing:
@@ -338,16 +336,18 @@ class EventBridgeApplication:
         Args:
             loop_state: Loop state tracking dictionary
         """
-        await self.bridge_service.commit_processed_offsets()
+        if self.bridge_service:
+            await self.bridge_service.commit_processed_offsets()
         self.logger.debug(f"Processed {loop_state['messages_processed']} messages, committed offsets")
 
     def _check_service_health(self) -> None:
         """
         Check service health and log warnings if degraded.
         """
-        health_status = self.bridge_service.get_health_status()
-        if not health_status.get("healthy", True):
-            self.logger.warning(f"Service health degraded: {health_status}")
+        if self.bridge_service:
+            health_status = self.bridge_service.get_health_status()
+            if not health_status.get("healthy", True):
+                self.logger.warning(f"Service health degraded: {health_status}")
 
     def _handle_loop_error(self, error: Exception) -> None:
         """

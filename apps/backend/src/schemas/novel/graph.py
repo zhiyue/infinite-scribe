@@ -195,11 +195,12 @@ class CharacterNode(GraphNodeBase):
     background: dict[str, Any] = Field(default_factory=dict, description="Character background and history")
     motivation: dict[str, Any] = Field(default_factory=dict, description="Character motivations and drives")
     goals: dict[str, list[str]] = Field(
-        default_factory=lambda: {"short_term": [], "mid_term": [], "long_term": []},
+        default_factory=lambda: {"short_term": list[str](), "mid_term": list[str](), "long_term": list[str]()},
         description="Character goals (short/mid/long term)",
     )
     obstacles: dict[str, list[str]] = Field(
-        default_factory=lambda: {"internal": [], "external": [], "environmental": []}, description="Character obstacles"
+        default_factory=lambda: {"internal": list[str](), "external": list[str](), "environmental": list[str]()},
+        description="Character obstacles",
     )
     arc: dict[str, Any] = Field(default_factory=dict, description="Character development arc")
     secrets: list[str] = Field(default_factory=list, description="Character secrets and hidden information")
