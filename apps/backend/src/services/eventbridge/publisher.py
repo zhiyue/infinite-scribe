@@ -1,8 +1,55 @@
 """
-Publisher for transforming domain events and publishing to SSE channels.
+将领域事件转换并发布到 SSE 通道的发布器
 
-This module implements the Publisher component that transforms Kafka domain events
-into SSE messages and routes them to users via RedisSSEService.
+本模块实现了发布器组件，将 Kafka 领域事件转换为 SSE 消息，
+并通过 RedisSSEService 路由给用户。
+
+功能概述:
+========
+
+发布器负责将领域事件转换为前端可用的 SSE 消息格式：
+- 从事件信封中提取用户 ID 用于路由
+- 转换数据结构以最小化传输大小
+- 保留相关 ID 用于追踪和调试
+- 处理发布错误并记录详细日志
+
+数据转换:
+========
+
+发布器创建最小化的数据集以优化网络传输：
+- 必需字段：event_id、event_type、session_id、correlation_id、timestamp
+- 可选字段：novel_id、trace_id（如果存在）
+- 载荷内容：包含相关业务数据，排除内部字段
+
+错误处理:
+========
+
+- 缺少 user_id：抛出 ValueError（路由必需）
+- Redis 发布失败：记录详细错误信息并重新抛出
+- 数据格式错误：在转换过程中捕获并记录
+
+使用示例:
+========
+
+```python
+# 创建发布器
+publisher = Publisher(redis_sse_service)
+
+# 发布事件
+try:
+    stream_id = await publisher.publish(event_envelope)
+    logger.info(f"事件已发布，流ID: {stream_id}")
+except Exception as e:
+    logger.error(f"发布失败: {e}")
+```
+
+性能考虑:
+========
+
+- 最小化 JSON 序列化大小
+- 避免不必要的数据拷贝
+- 异步发布以不阻塞事件处理
+- 智能载荷过滤以移除内部字段
 """
 
 from typing import Any

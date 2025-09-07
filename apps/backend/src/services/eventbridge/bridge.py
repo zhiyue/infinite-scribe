@@ -1,8 +1,67 @@
 """
-DomainEventBridgeService - Main service for EventBridge.
+DomainEventBridgeService - EventBridge 主服务
 
-This module implements the main EventBridge service that coordinates all components
-to bridge domain events from Kafka to SSE channels via Redis.
+本模块实现了 EventBridge 的主服务，协调所有组件将 Kafka 中的领域事件
+通过 Redis 桥接到 SSE 通道。
+
+架构概览:
+========
+
+EventBridge 服务采用流水线架构，领域事件流经多个阶段：
+
+1. Kafka 消费者 → 从 Kafka 主题接收领域事件
+2. 事件过滤器 → 根据业务规则验证和过滤事件
+3. 熔断器 → 优雅处理 Redis 故障
+4. 发布器 → 转换事件并发布到 SSE 通道
+5. Redis SSE 服务 → 通过服务器发送事件将事件传递到前端
+
+关键设计原则:
+============
+
+- 优雅降级：如果 Redis 失败，继续处理 Kafka 但丢弃 SSE
+- 容错性：熔断器防止级联故障
+- 数据最小化：只向前端发送必要数据
+- 可观测性：全面的指标和日志记录
+- 可测试性：依赖注入便于模拟测试
+
+事件流程:
+========
+
+1. DomainEventBridgeService.process_event() 接收 Kafka 消息
+2. 验证信封结构和必需字段
+3. EventFilter 检查白名单（仅 Genesis.Session.*）
+4. CircuitBreaker 检查 Redis 是否健康
+5. Publisher 将信封转换为 SSEMessage 格式
+6. RedisSSEService 路由到用户专用通道
+7. OffsetManager 记录进度以保证精确一次语义
+
+错误处理策略:
+============
+
+- 格式错误的消息：记录日志并跳过（继续处理）
+- 验证失败：过滤掉并记录指标
+- Redis 故障：熔断器打开，事件丢弃但 Kafka 处理继续
+- 消费者错误：使用退避和重试处理
+- 配置错误：快速失败并提供清晰的错误消息
+
+指标和监控:
+==========
+
+服务跟踪全面的指标：
+- 事件计数（消费、发布、丢弃、过滤）
+- 熔断器状态和故障率
+- Redis 发布延迟
+- 健康状态计算
+- 可选的 Prometheus 集成
+
+配置:
+====
+
+所有配置都集中在 core/config.py 中，支持环境变量：
+- Kafka 主题和消费者组设置
+- 熔断器阈值和间隔
+- 指标收集设置
+- Redis 连接参数
 """
 
 from typing import Any

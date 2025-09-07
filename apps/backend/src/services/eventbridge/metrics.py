@@ -1,9 +1,75 @@
 """
-Metrics collector for EventBridge service.
+EventBridge 服务的指标收集器
 
-This module implements centralized metrics collection and reporting for the EventBridge
-service, providing observability and health monitoring capabilities with optional
-Prometheus integration.
+本模块实现了 EventBridge 服务的集中化指标收集和报告，
+提供可观测性和健康监控功能，并支持可选的 Prometheus 集成。
+
+功能概述:
+========
+
+指标收集器跟踪和报告处理指标，包括：
+- 事件计数（消费、发布、丢弃、过滤）
+- Redis 发布延迟
+- 熔断器状态
+- 健康状态计算
+- 可选的 Prometheus 指标导出
+
+Prometheus 集成:
+==============
+
+如果启用，收集器会创建以下 Prometheus 指标：
+- eventbridge_events_consumed_total: 消费的事件总数
+- eventbridge_events_published_total: 发布的事件总数
+- eventbridge_events_dropped_total: 丢弃的事件总数
+- eventbridge_events_filtered_total: 过滤的事件总数
+- eventbridge_redis_publish_latency_seconds: Redis 发布延迟
+- eventbridge_circuit_breaker_state: 熔断器状态
+- eventbridge_redis_failure_rate: Redis 故障率
+
+健康状态计算:
+============
+
+健康状态基于以下因素：
+- 熔断器状态（开启则不健康）
+- 故障率（超过 80% 则不健康）
+- 发布成功率
+
+周期性日志:
+==========
+
+每处理一定数量的事件（默认：100）后，记录周期性指标：
+- 事件计数统计
+- 当前熔断器状态
+- 故障率百分比
+- 相关事件和会话 ID
+
+使用示例:
+========
+
+```python
+# 创建指标收集器
+metrics = EventBridgeMetricsCollector(
+    circuit_breaker=cb,
+    prometheus_enabled=True,
+    metrics_log_interval=100
+)
+
+# 记录指标
+metrics.record_event_consumed()
+metrics.record_event_published()
+metrics.record_event_dropped("redis_error")
+
+# 获取健康状态
+health = metrics.get_health_status()
+```
+
+性能考虑:
+========
+
+- 指标记录开销最小化
+- Prometheus 指标按需创建
+- 周期性日志避免日志风暴
+- 内存使用优化（仅保存计数器）
 """
 
 from threading import Thread
@@ -11,6 +77,12 @@ from typing import Any
 
 from src.core.logging import get_logger
 from src.services.eventbridge.circuit_breaker import CircuitBreaker, CircuitState
+from src.services.eventbridge.constants import (
+    CircuitStateValues,
+    EventProcessingDefaults,
+    HealthThresholds,
+    PrometheusDefaults,
+)
 
 logger = get_logger(__name__)
 
@@ -38,7 +110,7 @@ class EventBridgeMetricsCollector:
         self,
         circuit_breaker: CircuitBreaker,
         prometheus_enabled: bool = False,
-        metrics_log_interval: int = 100,
+        metrics_log_interval: int = EventProcessingDefaults.METRICS_LOG_INTERVAL.value,
     ):
         """
         Initialize metrics collector.
@@ -97,7 +169,7 @@ class EventBridgeMetricsCollector:
         self.prom_redis_publish_latency = Histogram(
             "eventbridge_redis_publish_latency_seconds",
             "Time spent publishing events to Redis",
-            buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0],
+            buckets=PrometheusDefaults.HISTOGRAM_BUCKETS.value,
         )
 
         # Circuit breaker state gauge
@@ -178,9 +250,9 @@ class EventBridgeMetricsCollector:
             if hasattr(self, "prom_circuit_state"):
                 circuit_state = self.circuit_breaker.get_state()
                 state_value = {
-                    CircuitState.CLOSED: 0,
-                    CircuitState.OPEN: 1,
-                    CircuitState.HALF_OPEN: 2,
+                    CircuitState.CLOSED: CircuitStateValues.CLOSED.value,
+                    CircuitState.OPEN: CircuitStateValues.OPEN.value,
+                    CircuitState.HALF_OPEN: CircuitStateValues.HALF_OPEN.value,
                 }.get(circuit_state, 0)
                 self.prom_circuit_state.set(state_value)
 
@@ -245,9 +317,7 @@ class EventBridgeMetricsCollector:
         failure_rate = self.circuit_breaker.get_failure_rate()
 
         # Determine overall health
-        is_healthy = (
-            circuit_state != CircuitState.OPEN and failure_rate < 0.8  # Consider unhealthy if >80% failure rate
-        )
+        is_healthy = circuit_state != CircuitState.OPEN and failure_rate < HealthThresholds.FAILURE_RATE_UNHEALTHY.value
 
         # Calculate publish success rate
         eligible_events = max(self.events_consumed - self.events_filtered, 1)
@@ -288,7 +358,7 @@ class PrometheusMetricsServer:
     Manages Prometheus metrics HTTP server.
     """
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 9090):
+    def __init__(self, host: str = PrometheusDefaults.HOST.value, port: int = PrometheusDefaults.PORT.value):
         """
         Initialize Prometheus metrics server.
 

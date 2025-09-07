@@ -1,8 +1,82 @@
 """
-Circuit breaker implementation for EventBridge Redis failures.
+EventBridge Redis 故障的熔断器实现
 
-This module implements the circuit breaker pattern to handle Redis failures
-gracefully by pausing/resuming Kafka consumption based on failure rates.
+本模块实现了熔断器模式，通过根据故障率暂停/恢复 Kafka 消费，
+来优雅地处理 Redis 故障。
+
+熔断器模式:
+==========
+
+熔断器在 Redis 不可用时防止级联故障：
+
+1. 关闭状态：正常操作，所有请求通过
+2. 开启状态：快速失败，不向 Redis 发送请求
+3. 半开状态：使用有限请求测试恢复
+
+状态转换:
+========
+
+关闭 → 开启：当故障率超过阈值（默认：50%）
+开启 → 半开：冷却期后（默认：30秒）
+半开 → 关闭：请求成功时
+半开 → 开启：请求失败时
+
+与 Kafka 消费者集成:
+==================
+
+熔断器与 Kafka 消费者集成以：
+- 熔断器开启时暂停消费（防止消息积压）
+- 熔断器关闭时恢复消费
+- 正确处理分区再平衡
+- 维护消费者组偏移量
+
+故障率计算:
+==========
+
+使用滑动时间窗口（默认：10秒）计算故障率：
+- 只考虑窗口内的近期操作
+- 状态转换需要最小操作数（默认：2）
+- 自动清理旧操作记录
+
+配置:
+====
+
+所有参数都可配置，具有合理的默认值：
+- window_seconds：故障率计算的时间窗口
+- failure_threshold：开启熔断器的故障率（0.0-1.0）
+- half_open_interval_seconds：测试恢复前的冷却时间
+
+使用示例:
+========
+
+```python
+# 创建熔断器
+cb = CircuitBreaker(
+    window_seconds=10,
+    failure_threshold=0.5,
+    half_open_interval_seconds=30
+)
+
+# 注册 Kafka 消费者
+cb.register_consumer(consumer, partitions)
+
+# 在事件处理中使用
+if cb.can_attempt():
+    try:
+        await redis_operation()
+        cb.record_success()
+    except Exception:
+        cb.record_failure()
+```
+
+监控:
+====
+
+熔断器提供：
+- 当前状态（关闭/开启/半开）
+- 故障率百分比
+- 成功/失败计数
+- 状态转换日志
 """
 
 import time
@@ -11,6 +85,7 @@ from enum import Enum
 from typing import Any
 
 from src.core.logging import get_logger
+from src.services.eventbridge.constants import CircuitBreakerDefaults
 
 logger = get_logger(__name__)
 
@@ -44,9 +119,9 @@ class CircuitBreaker:
 
     def __init__(
         self,
-        window_seconds: int = 10,
-        failure_threshold: float = 0.5,
-        half_open_interval_seconds: int = 30,
+        window_seconds: int = CircuitBreakerDefaults.WINDOW_SECONDS.value,
+        failure_threshold: float = CircuitBreakerDefaults.FAILURE_THRESHOLD.value,
+        half_open_interval_seconds: int = CircuitBreakerDefaults.HALF_OPEN_INTERVAL_SECONDS.value,
     ):
         """
         Initialize circuit breaker.
@@ -197,9 +272,9 @@ class CircuitBreaker:
 
         if self.state == CircuitState.CLOSED:
             # Open circuit if failure rate exceeds threshold and we have enough samples
-            if failure_rate >= self.failure_threshold and total_ops >= 2:
+            if failure_rate >= self.failure_threshold and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value:
                 self._open_circuit()
-        elif self.state == CircuitState.OPEN and total_ops >= 2 and failure_rate < self.failure_threshold:
+        elif self.state == CircuitState.OPEN and total_ops >= CircuitBreakerDefaults.MIN_OPERATIONS_FOR_STATE_CHANGE.value and failure_rate < self.failure_threshold:
             # Allow circuit to close if failure rate drops below threshold
             # This is more lenient than traditional circuit breakers
             self._close_circuit(clear_history=False)
