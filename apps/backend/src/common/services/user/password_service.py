@@ -173,7 +173,8 @@ class PasswordService:
                 if seq[i : i + 3] in password_lower:
                     return True
                 # Check reverse
-                if seq[i + 2 : i - 1 : -1] in password_lower:
+                reverse_seq = seq[i : i + 3][::-1]
+                if reverse_seq in password_lower:
                     return True
 
         return False
