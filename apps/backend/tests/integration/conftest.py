@@ -9,9 +9,10 @@ import pytest
 pytest_plugins = [
     "tests.integration.fixtures.kafka",
     "tests.integration.fixtures.redis",
-    "tests.integration.fixtures.config",
+    "tests.integration.fixtures.milvus",
+    "tests.integration.fixtures.neo4j",
     "tests.integration.fixtures.postgres",
-    "tests.integration.fixtures.services",
+    "tests.integration.fixtures.config",
     "tests.integration.fixtures.clients",
     "tests.integration.fixtures.app_env",
     "tests.integration.fixtures.mocks",

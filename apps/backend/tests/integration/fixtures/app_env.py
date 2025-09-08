@@ -1,13 +1,12 @@
-# tests/fixtures/app_env.py
 """Environment injection fixtures for application testing."""
 
 from __future__ import annotations
-from typing import Dict
+
 import pytest
 
 
 @pytest.fixture(scope="function")
-def app_env_redis(monkeypatch: pytest.MonkeyPatch, redis_connection_info: Dict[str, str]) -> Dict[str, str]:
+def app_env_redis(monkeypatch: pytest.MonkeyPatch, redis_connection_info: dict[str, str]) -> dict[str, str]:
     """
     统一把 Redis 连接信息注入到被测应用（常见 FastAPI / Flask）。
     你的应用只要从这些变量读取即可：

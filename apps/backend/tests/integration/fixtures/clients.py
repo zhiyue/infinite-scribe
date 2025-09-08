@@ -1,6 +1,5 @@
 """Test client fixtures for API testing."""
 
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -184,38 +183,3 @@ async def auth_headers():
     # Create token for mock user
     access_token, _, _ = jwt_service.create_access_token("999", {"email": "test@example.com", "username": "testuser"})
     return {"Authorization": f"Bearer {access_token}"}
-
-
-@pytest.fixture(autouse=True)
-def setup_test_env():
-    """Setup test environment variables."""
-    # Set test environment
-    os.environ["NODE_ENV"] = "test"
-
-    # Set required API keys for testing (fake values)
-    os.environ["SECRET_KEY"] = "test_secret_key_at_least_32_characters_long"
-    os.environ["REDIS_URL"] = "redis://fake:6379/0"  # Will be mocked
-    os.environ["FRONTEND_URL"] = "http://localhost:3000"
-    # Some tests rely on default allowed_origins; ensure env override is absent
-    os.environ.pop("ALLOWED_ORIGINS", None)
-
-    # Email settings for testing
-    os.environ["EMAIL_FROM"] = "test@example.com"
-    os.environ["EMAIL_FROM_NAME"] = "Test App"
-    os.environ["RESEND_API_KEY"] = "fake_resend_key"
-
-    yield
-
-    # Cleanup - remove test environment variables
-    test_env_vars = [
-        "NODE_ENV",
-        "SECRET_KEY",
-        "REDIS_URL",
-        "FRONTEND_URL",
-        "EMAIL_FROM",
-        "EMAIL_FROM_NAME",
-        "RESEND_API_KEY",
-    ]
-    for var in test_env_vars:
-        if var in os.environ:
-            del os.environ[var]

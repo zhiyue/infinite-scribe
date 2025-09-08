@@ -9,14 +9,14 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from src.common.services.conversation_cache import ConversationCacheManager
 from src.common.services.redis_service import redis_service
-from src.db.redis.dialogue_cache import DialogueCacheManager
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestRedisCacheMigration:
-    """Test Redis cache migration for dialogue sessions."""
+    """Test Redis cache migration for conversation sessions."""
 
     async def test_redis_connection(self):
         """Test that Redis service is available and accessible."""
@@ -38,9 +38,9 @@ class TestRedisCacheMigration:
         except Exception as e:
             pytest.fail(f"Redis service is not available: {e}")
 
-    async def test_dialogue_cache_manager_creation(self):
-        """Test creation and configuration of dialogue cache manager."""
-        cache_manager = DialogueCacheManager()
+    async def test_conversation_cache_manager_creation(self):
+        """Test creation and configuration of conversation cache manager."""
+        cache_manager = ConversationCacheManager()
 
         # Test connection
         await cache_manager.connect()
@@ -54,7 +54,7 @@ class TestRedisCacheMigration:
 
     async def test_dialogue_session_caching(self):
         """Test caching of dialogue sessions with proper TTL."""
-        cache_manager = DialogueCacheManager()
+        cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
         # Test session data
@@ -106,7 +106,7 @@ class TestRedisCacheMigration:
 
     async def test_dialogue_cache_key_structure(self):
         """Test that cache keys follow the expected naming convention."""
-        cache_manager = DialogueCacheManager()
+        cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
         session_id = str(uuid.uuid4())
@@ -126,7 +126,7 @@ class TestRedisCacheMigration:
 
     async def test_dialogue_round_caching(self):
         """Test caching of individual dialogue rounds."""
-        cache_manager = DialogueCacheManager()
+        cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
         session_id = str(uuid.uuid4())
@@ -166,7 +166,7 @@ class TestRedisCacheMigration:
 
     async def test_dialogue_cache_bulk_operations(self):
         """Test bulk operations on dialogue cache."""
-        cache_manager = DialogueCacheManager()
+        cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
         session_id = str(uuid.uuid4())
@@ -208,7 +208,7 @@ class TestRedisCacheMigration:
 
     async def test_dialogue_cache_expiration_renewal(self):
         """Test TTL renewal and expiration management."""
-        cache_manager = DialogueCacheManager()
+        cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
         session_id = str(uuid.uuid4())
