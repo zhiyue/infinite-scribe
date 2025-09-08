@@ -6,12 +6,10 @@ Clean/Hexagonal architecture principles.
 
 from .base_http import BaseHttpClient
 from .embedding import (
-    EmbeddingClient,
     EmbeddingProvider,
     EmbeddingProviderFactory,
     OllamaEmbeddingProvider,
-    embedding_client,
-    embedding_service,
+    get_embedding_service,
 )
 from .errors import (
     ExternalServiceError,
@@ -30,12 +28,10 @@ __all__ = [
     "BaseHttpClient",
     # Embedding providers
     "EmbeddingProvider",
-    "EmbeddingClient",  # Backward compatibility
     "OllamaEmbeddingProvider",
     "EmbeddingProviderFactory",
-    # Global instances
-    "embedding_client",
-    "embedding_service",  # Legacy alias
+    # Embedding service
+    "get_embedding_service",
     # Exceptions
     "ExternalServiceError",
     "ServiceUnavailableError",

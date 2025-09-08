@@ -3,7 +3,7 @@
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -32,7 +32,7 @@ class BaseHttpClient:
         retry_attempts: int = 3,
         retry_min_wait: float = 1.0,
         retry_max_wait: float = 10.0,
-        metrics_hook: Callable[[str, str, int, float, Exception | None], None] | None = None,
+        metrics_hook: Callable[..., None] | None = None,
     ):
         """Initialize base HTTP client.
 
@@ -62,7 +62,7 @@ class BaseHttpClient:
         # Observability
         self._metrics_hook = metrics_hook
 
-    def _should_retry(self, exception: Exception) -> bool:
+    def _should_retry(self, exception: BaseException) -> bool:
         """Determine if an exception should trigger a retry.
 
         Args:
@@ -78,16 +78,17 @@ class BaseHttpClient:
         # Retry on network/connection errors
         return isinstance(
             exception,
-            (
-                httpx.RequestError,
-                httpx.ConnectError,
-                httpx.TimeoutException,
-                httpx.NetworkError,
-            ),
+            httpx.RequestError | httpx.ConnectError | httpx.TimeoutException | httpx.NetworkError,
         )
 
     def _record_metrics(
-        self, method: str, endpoint: str, status_code: int, duration: float, error: Exception | None = None
+        self,
+        method: str,
+        endpoint: str,
+        status_code: int,
+        duration: float,
+        error: Exception | None = None,
+        **extra_labels: str,
     ) -> None:
         """Record request metrics if hook is configured.
 
@@ -97,10 +98,11 @@ class BaseHttpClient:
             status_code: HTTP status code (0 for errors)
             duration: Request duration in seconds
             error: Exception if request failed
+            **extra_labels: Additional labels (provider, model, etc.)
         """
         if self._metrics_hook:
             try:
-                self._metrics_hook(method, endpoint, status_code, duration, error)
+                self._metrics_hook(method, endpoint, status_code, duration, error, **extra_labels)
             except Exception as e:
                 logger.warning(f"Metrics hook failed: {e}")
 
@@ -150,6 +152,10 @@ class BaseHttpClient:
             if not await self.ensure_connected():
                 return False
 
+            # Ensure client is available after connection attempt
+            if not self._client:
+                return False
+
             response = await self._client.get(f"{self.base_url}{endpoint}")
             is_healthy = response.status_code == 200
 
@@ -162,6 +168,88 @@ class BaseHttpClient:
         except Exception as e:
             logger.warning(f"Health check failed for {self.base_url}: {e}")
             return False
+
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        request_func: Callable[[], Awaitable[httpx.Response]],
+        correlation_id: str | None = None,
+    ) -> httpx.Response:
+        """Perform HTTP request with retry and observability.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint path
+            request_func: Function that performs the actual HTTP request
+            correlation_id: Optional correlation ID for request tracing
+
+        Returns:
+            HTTP response
+
+        Raises:
+            RuntimeError: If client is not connected
+            httpx.HTTPStatusError: For HTTP error responses
+        """
+        if not await self.ensure_connected():
+            raise RuntimeError("HTTP client not connected")
+
+        # Ensure client is available after connection attempt
+        if not self._client:
+            raise RuntimeError("HTTP client not connected")
+
+        request_correlation_id = correlation_id or self._generate_correlation_id()
+        start_time = time.time()
+        error = None
+        response = None
+
+        try:
+            if self._enable_retry:
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(self._retry_attempts),
+                    wait=wait_exponential(
+                        multiplier=1,
+                        min=self._retry_min_wait,
+                        max=self._retry_max_wait,
+                    ),
+                    retry=retry_if_exception_type(Exception) & retry_if_exception(self._should_retry),
+                ):
+                    with attempt:
+                        response = await request_func()
+                        response.raise_for_status()
+            else:
+                response = await request_func()
+                response.raise_for_status()
+
+            duration = time.time() - start_time
+
+            # Ensure response was assigned in the try block
+            assert response is not None
+
+            self._record_metrics(method, endpoint, response.status_code, duration)
+
+            logger.debug(
+                f"{method} {endpoint} completed - "
+                f"status: {response.status_code}, "
+                f"duration: {duration:.3f}s, "
+                f"correlation_id: {request_correlation_id}"
+            )
+
+            return response
+
+        except Exception as e:
+            error = e
+            duration = time.time() - start_time
+            status_code = getattr(getattr(e, "response", None), "status_code", 0)
+            self._record_metrics(method, endpoint, status_code, duration, error)
+
+            logger.warning(
+                f"{method} {endpoint} failed - "
+                f"error: {type(e).__name__}: {e}, "
+                f"duration: {duration:.3f}s, "
+                f"correlation_id: {request_correlation_id}"
+            )
+            raise
 
     async def get(
         self,
@@ -185,62 +273,18 @@ class BaseHttpClient:
             RuntimeError: If client is not connected
             httpx.HTTPStatusError: For HTTP error responses
         """
-        if not await self.ensure_connected():
-            raise RuntimeError("HTTP client not connected")
-
         # Add correlation ID to headers
         request_headers = headers.copy() if headers else {}
         request_correlation_id = correlation_id or self._generate_correlation_id()
         request_headers["X-Correlation-ID"] = request_correlation_id
 
         url = f"{self.base_url}{endpoint}"
-        start_time = time.time()
-        error = None
-        response = None
 
-        try:
-            if self._enable_retry:
-                async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(self._retry_attempts),
-                    wait=wait_exponential(
-                        multiplier=1,
-                        min=self._retry_min_wait,
-                        max=self._retry_max_wait,
-                    ),
-                    retry=retry_if_exception_type(Exception) & retry_if_exception(self._should_retry),
-                ):
-                    with attempt:
-                        response = await self._client.get(url, params=params, headers=request_headers)
-                        response.raise_for_status()
-            else:
-                response = await self._client.get(url, params=params, headers=request_headers)
-                response.raise_for_status()
+        async def request_func() -> httpx.Response:
+            assert self._client is not None
+            return await self._client.get(url, params=params, headers=request_headers)
 
-            duration = time.time() - start_time
-            self._record_metrics("GET", endpoint, response.status_code, duration)
-
-            logger.debug(
-                f"GET {endpoint} completed - "
-                f"status: {response.status_code}, "
-                f"duration: {duration:.3f}s, "
-                f"correlation_id: {request_correlation_id}"
-            )
-
-            return response
-
-        except Exception as e:
-            error = e
-            duration = time.time() - start_time
-            status_code = getattr(getattr(e, "response", None), "status_code", 0)
-            self._record_metrics("GET", endpoint, status_code, duration, error)
-
-            logger.warning(
-                f"GET {endpoint} failed - "
-                f"error: {type(e).__name__}: {e}, "
-                f"duration: {duration:.3f}s, "
-                f"correlation_id: {request_correlation_id}"
-            )
-            raise
+        return await self._request("GET", endpoint, request_func, correlation_id)
 
     async def post(
         self,
@@ -248,14 +292,16 @@ class BaseHttpClient:
         json_data: dict[str, Any] | None = None,
         data: Any | None = None,
         headers: dict[str, str] | None = None,
+        correlation_id: str | None = None,
     ) -> httpx.Response:
-        """Perform POST request.
+        """Perform POST request with retry and observability.
 
         Args:
             endpoint: API endpoint path
             json_data: JSON payload
             data: Form data or raw data
             headers: Request headers
+            correlation_id: Optional correlation ID for request tracing
 
         Returns:
             HTTP response
@@ -264,13 +310,18 @@ class BaseHttpClient:
             RuntimeError: If client is not connected
             httpx.HTTPStatusError: For HTTP error responses
         """
-        if not await self.ensure_connected():
-            raise RuntimeError("HTTP client not connected")
+        # Add correlation ID to headers
+        request_headers = headers.copy() if headers else {}
+        request_correlation_id = correlation_id or self._generate_correlation_id()
+        request_headers["X-Correlation-ID"] = request_correlation_id
 
         url = f"{self.base_url}{endpoint}"
-        response = await self._client.post(url, json=json_data, data=data, headers=headers)
-        response.raise_for_status()
-        return response
+
+        async def request_func() -> httpx.Response:
+            assert self._client is not None
+            return await self._client.post(url, json=json_data, data=data, headers=request_headers)
+
+        return await self._request("POST", endpoint, request_func, correlation_id)
 
     @asynccontextmanager
     async def session(self):

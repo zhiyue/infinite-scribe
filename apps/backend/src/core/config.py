@@ -155,6 +155,16 @@ class EmbeddingSettings(BaseModel):
     timeout: float = Field(default=30.0, description="Request timeout in seconds")
     max_keepalive_connections: int = Field(default=5)
     max_connections: int = Field(default=10)
+    
+    # Retry settings
+    enable_retry: bool = Field(default=True, description="Enable retry mechanism for transient errors")
+    retry_attempts: int = Field(default=3, description="Maximum number of retry attempts")
+    retry_min_wait: float = Field(default=1.0, description="Minimum wait time between retries (seconds)")
+    retry_max_wait: float = Field(default=10.0, description="Maximum wait time between retries (seconds)")
+    
+    # Batch processing settings
+    default_concurrency: int = Field(default=1, description="Default concurrency for batch operations")
+    max_concurrency: int = Field(default=10, description="Maximum allowed concurrency for batch operations")
 
     # Computed properties
     @property
@@ -165,24 +175,35 @@ class EmbeddingSettings(BaseModel):
     @property
     def provider_config(self) -> dict[str, Any]:
         """Get provider-specific configuration"""
+        # Common configuration for all providers
+        common_config = {
+            "timeout": self.timeout,
+            "max_keepalive_connections": self.max_keepalive_connections,
+            "max_connections": self.max_connections,
+            "enable_retry": self.enable_retry,
+            "retry_attempts": self.retry_attempts,
+            "retry_min_wait": self.retry_min_wait,
+            "retry_max_wait": self.retry_max_wait,
+        }
+        
         if self.provider == "ollama":
             return {
                 "base_url": self.ollama_url,
                 "model": self.ollama_model,
-                "timeout": self.timeout,
+                **common_config,
             }
         elif self.provider == "openai":
             return {
                 "api_key": self.openai_api_key,
                 "base_url": self.openai_base_url,
                 "model": self.openai_model,
-                "timeout": self.timeout,
+                **common_config,
             }
         elif self.provider == "anthropic":
             return {
                 "api_key": self.anthropic_api_key,
                 "model": self.anthropic_model,
-                "timeout": self.timeout,
+                **common_config,
             }
         else:
             raise ValueError(f"Unsupported embedding provider: {self.provider}")

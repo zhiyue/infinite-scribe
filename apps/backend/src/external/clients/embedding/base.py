@@ -74,8 +74,3 @@ class EmbeddingProvider(ABC):
         """Name of the embedding model being used."""
         pass
 
-
-class EmbeddingClient(EmbeddingProvider):
-    """Alias for backward compatibility."""
-
-    pass

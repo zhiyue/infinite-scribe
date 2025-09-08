@@ -31,6 +31,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         base_url: str | None = None,
         model: str | None = None,
         timeout: float = 30.0,
+        **kwargs
     ):
         """Initialize Ollama embedding provider.
 
@@ -38,9 +39,23 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             base_url: Base URL for Ollama API (defaults to settings)
             model: Model name for embedding API (defaults to settings)
             timeout: Request timeout in seconds
+            **kwargs: Additional arguments passed to BaseHttpClient
         """
         self.base_url = base_url or settings.embedding_api_url
         self.model = model or settings.embedding_api_model
+
+        # Create enhanced metrics hook that adds provider/model labels
+        original_metrics_hook = kwargs.get('metrics_hook')
+        if original_metrics_hook:
+            def enhanced_metrics_hook(method, endpoint, status_code, duration, error=None, **extra_labels):
+                # Add provider-specific labels
+                enhanced_labels = {
+                    'provider': self.provider_name,
+                    'model': self.model_name,
+                    **extra_labels
+                }
+                return original_metrics_hook(method, endpoint, status_code, duration, error, **enhanced_labels)
+            kwargs['metrics_hook'] = enhanced_metrics_hook
 
         # Initialize the BaseHttpClient
         BaseHttpClient.__init__(
@@ -49,6 +64,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             timeout=timeout,
             max_keepalive_connections=5,
             max_connections=10,
+            **kwargs
         )
 
     @property
@@ -120,12 +136,13 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         except Exception as e:
             raise handle_connection_error("Ollama", e) from e
 
-    async def get_embeddings_batch(self, texts: list[str], concurrency: int = 1) -> list[list[float]]:
+    async def get_embeddings_batch(self, texts: list[str], concurrency: int | None = None) -> list[list[float]]:
         """Get vector representations for multiple texts from Ollama.
 
         Args:
             texts: List of texts to embed
-            concurrency: Maximum concurrent requests (default: 1 for sequential processing)
+            concurrency: Maximum concurrent requests. If None, uses settings default.
+                        Automatically capped at max_concurrency from settings.
 
         Returns:
             List of embedding vectors in same order as input texts
@@ -137,7 +154,14 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         if not texts:
             raise ServiceValidationError("Ollama", "Texts list cannot be empty")
 
-        if concurrency <= 1:
+        # Use configured concurrency with limits
+        if concurrency is None:
+            actual_concurrency = settings.embedding.default_concurrency
+        else:
+            # Respect max_concurrency limit from settings
+            actual_concurrency = min(concurrency, settings.embedding.max_concurrency)
+        
+        if actual_concurrency <= 1:
             # Sequential processing (default behavior for stability)
             embeddings = []
             for text in texts:
@@ -145,7 +169,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
                 embeddings.append(embedding)
         else:
             # Bounded concurrent processing
-            semaphore = asyncio.Semaphore(concurrency)
+            semaphore = asyncio.Semaphore(actual_concurrency)
 
             async def get_embedding_with_semaphore(text: str, index: int) -> tuple[int, list[float]]:
                 """Get embedding with concurrency control and preserve order."""
@@ -166,10 +190,10 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
                 results.sort(key=lambda x: x[0])
                 embeddings = [result[1] for result in results]
             except Exception as e:
-                logger.error(f"Batch embedding failed with concurrency {concurrency}: {e}")
+                logger.error(f"Batch embedding failed with concurrency {actual_concurrency}: {e}")
                 raise
 
-        logger.info(f"Generated embeddings for {len(texts)} texts using Ollama (concurrency: {concurrency})")
+        logger.info(f"Generated embeddings for {len(texts)} texts using Ollama (concurrency: {actual_concurrency})")
         return embeddings
 
     def _extract_embedding_from_response(self, response_data: dict[str, Any]) -> list[float]:
