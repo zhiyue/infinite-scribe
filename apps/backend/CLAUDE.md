@@ -54,17 +54,20 @@ apps/backend/src/
 │   └── ...               # Other domain schemas
 ├── common/
 │   ├── services/         # Business Logic Services
-│   │   ├── postgres_service.py     # PostgreSQL connection
-│   │   ├── redis_service.py        # Redis cache/sessions
-│   │   ├── neo4j_service.py        # Neo4j graph database
 │   │   ├── jwt_service.py          # JWT token management
 │   │   ├── user_service.py         # User business logic
-│   │   └── ...                     # Other services
+│   │   ├── email_service.py        # Email service
+│   │   ├── novel_service.py        # Novel business logic
+│   │   └── ...                     # Other business services
 │   └── utils/            # Shared utilities
-├── db/                   # Database Infrastructure
-│   ├── sql/              # PostgreSQL connections
-│   ├── graph/            # Neo4j connections
-│   └── vector/           # Vector database (future)
+├── db/                   # Database Infrastructure Layer
+│   ├── sql/              # PostgreSQL connections & services
+│   │   └── service.py    # PostgreSQL connection service
+│   ├── redis/            # Redis connections & services
+│   │   └── service.py    # Redis connection service
+│   ├── graph/            # Neo4j connections & services
+│   │   └── service.py    # Neo4j connection service
+│   └── vector/           # Vector database connections
 ├── middleware/           # FastAPI middleware
 └── core/                 # Core configuration
     ├── config.py         # Settings management
