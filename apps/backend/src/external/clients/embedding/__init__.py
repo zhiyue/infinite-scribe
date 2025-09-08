@@ -9,7 +9,7 @@ from .factory import EmbeddingProviderFactory
 from .ollama import OllamaEmbeddingProvider
 
 # Cache for lazy initialization
-_default_provider_cache = None
+_default_provider_cache: EmbeddingProvider | None = None
 
 
 def get_embedding_service() -> EmbeddingProvider:
