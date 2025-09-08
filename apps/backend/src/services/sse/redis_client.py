@@ -30,8 +30,8 @@ from redis.asyncio.client import PubSub
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
-from src.db.redis import RedisService
 from src.core.config import settings
+from src.db.redis import RedisService
 from src.schemas.sse import EventScope, SSEMessage
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,13 @@ class RedisSSEService:
             finally:
                 self._pubsub_client = None
 
+        logger.info(
+            "Initializing Redis Pub/Sub client",
+            extra={
+                "host": settings.database.redis_host,
+                "port": settings.database.redis_port,
+            },
+        )
         self._pubsub_client = redis.from_url(
             settings.database.redis_url,
             decode_responses=True,
@@ -99,6 +106,11 @@ class RedisSSEService:
             socket_timeout=30,
             retry_on_timeout=True,
         )
+        try:
+            await self._pubsub_client.ping()
+            logger.info("Redis Pub/Sub ping successful")
+        except Exception as e:
+            logger.warning(f"Redis Pub/Sub ping failed: {e}")
 
     async def close(self) -> None:
         """Close Pub/Sub client during app shutdown."""

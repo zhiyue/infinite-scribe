@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 class SSEProvider:
     """Provider managing SSE services with explicit lifecycle.
 
-    Instances of this provider are meant to be scoped (e.g., app/process scope)
-    and can be easily swapped in tests.
+    - Lazy initialization with singleflight coordination (ensure_ready)
+    - Thread-safe/Task-safe via asyncio.Lock for state mutations only
+    - No awaiting while holding the lock to avoid deadlocks
     """
 
     def __init__(self, redis_service: RedisService | None = None) -> None:
@@ -35,22 +36,65 @@ class SSEProvider:
         self._redis_sse_service: RedisSSEService | None = None
         self._sse_connection_manager: SSEConnectionManager | None = None
 
-        # Protect lazy init from concurrent calls
+        # Protect state changes; do not await I/O while holding this lock
         self._lock = asyncio.Lock()
 
-    async def get_redis_sse_service(self) -> RedisSSEService:
+        # Singleflight task to coordinate one-time initialization
+        self._init_task: asyncio.Task | None = None
+
+    async def ensure_ready(self) -> None:
+        """Ensure the SSE services are initialized (singleflight).
+
+        Safe for concurrent calls. Only creates one initialization task and
+        awaits it without holding the internal lock.
+        """
+        # Fast path: already initialized
+        if self._redis_sse_service is not None and self._sse_connection_manager is not None:
+            return
+
+        # If an init task exists, await it
+        if self._init_task is not None:
+            await self._init_task
+            return
+
+        # Create the init task under lock if still needed
         async with self._lock:
-            if self._redis_sse_service is None:
-                self._redis_sse_service = RedisSSEService(self._redis_service)
-                await self._redis_sse_service.init_pubsub_client()
-            return self._redis_sse_service
+            if self._redis_sse_service is not None and self._sse_connection_manager is not None:
+                return
+            if self._init_task is None:
+                self._init_task = asyncio.create_task(self._initialize())
+            init_task = self._init_task
+
+        # Await outside lock to avoid deadlocks
+        try:
+            await init_task
+        finally:
+            # Clear init task reference (allow retry if initialization failed)
+            async with self._lock:
+                self._init_task = None
+
+    async def _initialize(self) -> None:
+        """Perform actual initialization work (no locks inside)."""
+        service = RedisSSEService(self._redis_service)
+        await service.init_pubsub_client()
+        manager = SSEConnectionManager(service)
+
+        # Publish state under lock without awaiting I/O
+        async with self._lock:
+            self._redis_sse_service = service
+            self._sse_connection_manager = manager
+
+    async def get_redis_sse_service(self) -> RedisSSEService:
+        """Lazy-get RedisSSEService after ensuring readiness."""
+        await self.ensure_ready()
+        assert self._redis_sse_service is not None
+        return self._redis_sse_service
 
     async def get_connection_manager(self) -> SSEConnectionManager:
-        async with self._lock:
-            if self._sse_connection_manager is None:
-                redis_sse = await self.get_redis_sse_service()
-                self._sse_connection_manager = SSEConnectionManager(redis_sse)
-            return self._sse_connection_manager
+        """Lazy-get SSEConnectionManager after ensuring readiness."""
+        await self.ensure_ready()
+        assert self._sse_connection_manager is not None
+        return self._sse_connection_manager
 
     async def close(self) -> None:
         """Cleanup and close underlying services."""

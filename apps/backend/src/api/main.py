@@ -1,6 +1,8 @@
 """API Gateway main entry point."""
 
 from contextlib import asynccontextmanager
+import time
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,52 +14,97 @@ from src.core.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
-    import logging
-
     from src.db.graph import neo4j_service
     from src.db.redis import redis_service
     from src.db.sql import postgres_service
+    from src.core.logging.config import configure_logging
+    from src.core.logging.context import bind_service_context
 
     logger = logging.getLogger(__name__)
 
     # Startup
     try:
+        # Ensure structured logging is configured (use console in development)
+        try:
+            configure_logging(environment=getattr(settings, "environment", "development"), level="INFO")
+            bind_service_context(service="api-gateway", component="lifespan")
+        except Exception as e:
+            # Fall back silently; uvicorn default logging will still work
+            logger.debug(f"Logging configuration skipped: {e}")
         logger.info("Initializing database connections...")
+
+        # PostgreSQL
+        t0 = time.perf_counter()
+        logger.info(
+            "Connecting to PostgreSQL...",
+            extra={
+                "host": settings.database.postgres_host,
+                "port": settings.database.postgres_port,
+                "db": settings.database.postgres_db,
+            },
+        )
         await postgres_service.connect()
-        await neo4j_service.connect()
-        await redis_service.connect()
-
         postgres_ok = await postgres_service.check_connection()
-        neo4j_ok = await neo4j_service.check_connection()
-        redis_ok = await redis_service.check_connection()
-
-        if postgres_ok:
-            logger.info("PostgreSQL connection established successfully")
-        else:
+        logger.info(
+            "PostgreSQL connection check finished",
+            extra={
+                "ok": postgres_ok,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        if not postgres_ok:
             logger.error("Failed to establish PostgreSQL connection")
 
-        if neo4j_ok:
-            logger.info("Neo4j connection established successfully")
-        else:
+        # Neo4j
+        t1 = time.perf_counter()
+        logger.info(
+            "Connecting to Neo4j...",
+            extra={
+                "host": settings.database.neo4j_host,
+                "port": settings.database.neo4j_port,
+            },
+        )
+        await neo4j_service.connect()
+        neo4j_ok = await neo4j_service.check_connection()
+        logger.info(
+            "Neo4j connection check finished",
+            extra={
+                "ok": neo4j_ok,
+                "elapsed_ms": int((time.perf_counter() - t1) * 1000),
+            },
+        )
+        if not neo4j_ok:
             logger.error("Failed to establish Neo4j connection")
 
-        if redis_ok:
-            logger.info("Redis connection established successfully")
-        else:
+        # Redis (cache)
+        t2 = time.perf_counter()
+        logger.info(
+            "Connecting to Redis...",
+            extra={
+                "host": settings.database.redis_host,
+                "port": settings.database.redis_port,
+            },
+        )
+        await redis_service.connect()
+        redis_ok = await redis_service.check_connection()
+        logger.info(
+            "Redis connection check finished",
+            extra={
+                "ok": redis_ok,
+                "elapsed_ms": int((time.perf_counter() - t2) * 1000),
+            },
+        )
+        if not redis_ok:
             logger.error("Failed to establish Redis connection")
 
-        # Initialize SSE provider (app-scoped)
+        # Initialize SSE provider (app-scoped) - lazy, singleflight ready
         try:
             from src.services.sse.provider import SSEProvider
 
-            logger.info("Initializing SSE provider...")
             app.state.sse_provider = SSEProvider(redis_service)
-            # Eagerly initialize to catch errors early
-            await app.state.sse_provider.get_redis_sse_service()
-            await app.state.sse_provider.get_connection_manager()
-            logger.info("SSE provider initialized successfully")
+            logger.info("SSE provider registered (lazy init, singleflight-coordinated)")
         except Exception as e:
-            logger.error(f"Failed to initialize SSE provider: {e}")
+            logger.error(f"Failed to register SSE provider: {e}")
             app.state.sse_provider = None
 
         # Initialize launcher components

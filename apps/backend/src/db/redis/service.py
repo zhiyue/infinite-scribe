@@ -1,11 +1,14 @@
 """Redis service implementation for caching and session management."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 
 from src.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RedisService:
@@ -18,6 +21,13 @@ class RedisService:
     async def connect(self) -> None:
         """Establish connection to Redis."""
         if not self._client:
+            logger.info(
+                "Connecting to Redis",
+                extra={
+                    "host": settings.database.redis_host,
+                    "port": settings.database.redis_port,
+                },
+            )
             self._client = redis.from_url(
                 settings.database.redis_url,
                 decode_responses=True,
@@ -25,12 +35,18 @@ class RedisService:
                 socket_connect_timeout=5,
                 socket_timeout=5,
             )
+            try:
+                await self._client.ping()
+                logger.info("Redis ping successful (client ready)")
+            except Exception as e:
+                logger.warning(f"Redis ping failed during connect: {e}")
 
     async def disconnect(self) -> None:
         """Close Redis connection."""
         if self._client:
             await self._client.close()
             self._client = None
+            logger.info("Redis client closed")
 
     async def check_connection(self) -> bool:
         """Check if Redis is accessible."""
