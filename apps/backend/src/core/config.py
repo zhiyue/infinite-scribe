@@ -131,6 +131,63 @@ class AuthSettings(BaseModel):
         return _validate_required_in_prod(v, ValidationConstants.DEFAULT_RESEND_DOMAIN, "RESEND_DOMAIN")
 
 
+class EmbeddingSettings(BaseModel):
+    """Embedding service provider settings"""
+
+    # Provider configuration
+    provider: str = Field(default="ollama", description="Embedding provider: ollama, openai, anthropic")
+    
+    # Ollama settings
+    ollama_host: str = Field(default="192.168.1.191")
+    ollama_port: int = Field(default=11434)
+    ollama_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
+    
+    # OpenAI settings
+    openai_api_key: str = Field(default="", description="OpenAI API key for embeddings")
+    openai_model: str = Field(default="text-embedding-ada-002", description="OpenAI embedding model")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
+    
+    # Anthropic settings (future)
+    anthropic_api_key: str = Field(default="", description="Anthropic API key for embeddings")
+    anthropic_model: str = Field(default="", description="Anthropic embedding model")
+    
+    # Connection settings
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    max_keepalive_connections: int = Field(default=5)
+    max_connections: int = Field(default=10)
+
+    # Computed properties
+    @property
+    def ollama_url(self) -> str:
+        """Get Ollama API URL"""
+        return f"http://{self.ollama_host}:{self.ollama_port}"
+
+    @property
+    def provider_config(self) -> dict[str, Any]:
+        """Get provider-specific configuration"""
+        if self.provider == "ollama":
+            return {
+                "base_url": self.ollama_url,
+                "model": self.ollama_model,
+                "timeout": self.timeout,
+            }
+        elif self.provider == "openai":
+            return {
+                "api_key": self.openai_api_key,
+                "base_url": self.openai_base_url,
+                "model": self.openai_model,
+                "timeout": self.timeout,
+            }
+        elif self.provider == "anthropic":
+            return {
+                "api_key": self.anthropic_api_key,
+                "model": self.anthropic_model,
+                "timeout": self.timeout,
+            }
+        else:
+            raise ValueError(f"Unsupported embedding provider: {self.provider}")
+
+
 class DatabaseSettings(BaseModel):
     """Database configuration settings"""
 
@@ -271,6 +328,7 @@ class Settings(BaseSettings):
     # Nested configuration
     auth: AuthSettings = Field(default_factory=AuthSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings, description="Embedding provider configuration")
     launcher: LauncherConfigModel = Field(default_factory=LauncherConfigModel, description="Launcher configuration")
 
     # External services
@@ -311,10 +369,6 @@ class Settings(BaseSettings):
     litellm_api_host: str = Field(default="")
     litellm_api_key: str = Field(default="")
 
-    # Embedding API
-    embedding_api_host: str = Field(default="192.168.1.191")
-    embedding_api_port: int = Field(default=11434)
-    embedding_api_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
 
     # Logging
     log_level: str = Field(default="INFO")
@@ -356,8 +410,13 @@ class Settings(BaseSettings):
 
     @property
     def embedding_api_url(self) -> str:
-        """Get embedding API URL"""
-        return f"http://{self.embedding_api_host}:{self.embedding_api_port}"
+        """Get embedding API URL (backward compatibility)"""
+        return self.embedding.ollama_url
+
+    @property
+    def embedding_api_model(self) -> str:
+        """Get embedding API model (backward compatibility)"""
+        return self.embedding.ollama_model
 
     @property
     def litellm_api_url(self) -> str:

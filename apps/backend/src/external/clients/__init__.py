@@ -5,7 +5,14 @@ Clean/Hexagonal architecture principles.
 """
 
 from .base_http import BaseHttpClient
-from .embedding_client import EmbeddingClient, embedding_client, embedding_service
+from .embedding import (
+    EmbeddingClient,
+    EmbeddingProvider,
+    EmbeddingProviderFactory,
+    OllamaEmbeddingProvider,
+    embedding_client,
+    embedding_service,
+)
 from .errors import (
     ExternalServiceError,
     ServiceAuthenticationError,
@@ -21,8 +28,11 @@ from .errors import (
 __all__ = [
     # Base classes
     "BaseHttpClient",
-    # Client implementations
-    "EmbeddingClient",
+    # Embedding providers
+    "EmbeddingProvider",
+    "EmbeddingClient",  # Backward compatibility
+    "OllamaEmbeddingProvider",
+    "EmbeddingProviderFactory",
     # Global instances
     "embedding_client",
     "embedding_service",  # Legacy alias

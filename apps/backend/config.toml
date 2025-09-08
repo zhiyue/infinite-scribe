@@ -171,3 +171,26 @@ commit_batch_size = "${EVENTBRIDGE__COMMIT_BATCH_SIZE:-100}"
 # 日志配置
 log_level = "${EVENTBRIDGE__LOG_LEVEL:-INFO}"
 metrics_log_interval = "${EVENTBRIDGE__METRICS_LOG_INTERVAL:-100}"
+
+[embedding]
+# Embedding 提供商配置
+provider = "${EMBEDDING__PROVIDER:-ollama}"  # 可选: ollama, openai, anthropic
+
+# Ollama 设置 (默认提供商)
+ollama_host = "${EMBEDDING__OLLAMA_HOST:-localhost}"
+ollama_port = "${EMBEDDING__OLLAMA_PORT:-11434}"
+ollama_model = "${EMBEDDING__OLLAMA_MODEL:-nomic-embed-text}"
+
+# OpenAI 设置 (当 provider = "openai" 时使用)
+openai_api_key = "${EMBEDDING__OPENAI_API_KEY:-}"
+openai_model = "${EMBEDDING__OPENAI_MODEL:-text-embedding-ada-002}"
+openai_base_url = "${EMBEDDING__OPENAI_BASE_URL:-https://api.openai.com/v1}"
+
+# Anthropic 设置 (当 provider = "anthropic" 时使用 - 未来支持)
+anthropic_api_key = "${EMBEDDING__ANTHROPIC_API_KEY:-}"
+anthropic_model = "${EMBEDDING__ANTHROPIC_MODEL:-}"
+
+# 连接设置
+timeout = "${EMBEDDING__TIMEOUT:-30.0}"
+max_keepalive_connections = "${EMBEDDING__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${EMBEDDING__MAX_CONNECTIONS:-10}"

@@ -53,10 +53,6 @@ anthropic_api_key = "${ANTHROPIC_API_KEY:-}"
 litellm_api_host = "${LITELLM_API_HOST:-}"
 litellm_api_key = "${LITELLM_API_KEY:-}"
 
-# Embedding API
-embedding_api_host = "${EMBEDDING_API_HOST:-localhost}"
-embedding_api_port = "${EMBEDDING_API_PORT:-11434}"
-embedding_api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
 
 # Logging
 log_level = "${LOG_LEVEL:-INFO}"
@@ -65,6 +61,29 @@ log_format = "${LOG_FORMAT:-%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # ========================================
 # 嵌套段配置 (对应 Settings 类的嵌套模型)
 # ========================================
+
+[embedding]
+# Embedding 提供商配置
+provider = "${EMBEDDING__PROVIDER:-ollama}"  # 可选: ollama, openai, anthropic
+
+# Ollama 设置 (默认提供商)
+ollama_host = "${EMBEDDING__OLLAMA_HOST:-localhost}"
+ollama_port = "${EMBEDDING__OLLAMA_PORT:-11434}"
+ollama_model = "${EMBEDDING__OLLAMA_MODEL:-nomic-embed-text}"
+
+# OpenAI 设置 (当 provider = "openai" 时使用)
+openai_api_key = "${EMBEDDING__OPENAI_API_KEY:-}"
+openai_model = "${EMBEDDING__OPENAI_MODEL:-text-embedding-ada-002}"
+openai_base_url = "${EMBEDDING__OPENAI_BASE_URL:-https://api.openai.com/v1}"
+
+# Anthropic 设置 (当 provider = "anthropic" 时使用 - 未来支持)
+anthropic_api_key = "${EMBEDDING__ANTHROPIC_API_KEY:-}"
+anthropic_model = "${EMBEDDING__ANTHROPIC_MODEL:-}"
+
+# 连接设置
+timeout = "${EMBEDDING__TIMEOUT:-30.0}"
+max_keepalive_connections = "${EMBEDDING__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${EMBEDDING__MAX_CONNECTIONS:-10}"
 
 [auth]
 # JWT 配置 - 生产环境必须设置安全的密钥！

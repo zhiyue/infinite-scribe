@@ -133,3 +133,4 @@ apps/frontend/test-results/.last-run.json
 .serena/cache/
 .specstory/.what-is-this.md
 deploy/data/
+apps/backend/config.toml
