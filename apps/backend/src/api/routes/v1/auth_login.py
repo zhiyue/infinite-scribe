@@ -14,7 +14,7 @@ from src.api.schemas import (
     UserLoginRequest,
     UserResponse,
 )
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.database import get_db
 from src.middleware.auth import get_current_user
 from src.models.user import User
@@ -175,14 +175,14 @@ async def refresh_access_token(
         authorization = req.headers.get("Authorization")
         old_access_token = None
         if authorization:
-            from src.common.services.jwt_service import jwt_service
+            from src.common.services.user.auth_service import auth_service
 
-            old_access_token = jwt_service.extract_token_from_header(authorization)
+            old_access_token = auth_service.extract_token_from_header(authorization)
 
         # Refresh the token
-        from src.common.services.jwt_service import jwt_service
+        from src.common.services.user.auth_service import auth_service
 
-        result = await jwt_service.refresh_access_token(db, request.refresh_token, old_access_token)
+        result = await auth_service.refresh_access_token(db, request.refresh_token, old_access_token)
 
         if not result["success"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=result["error"])

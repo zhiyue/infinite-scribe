@@ -156,7 +156,7 @@ class RedisBootstrapper(DatabaseBootstrapper):
 
     async def _execute_bootstrap(self) -> None:
         """Check Redis connectivity and cache TTL defaults."""
-        from src.common.services.conversation_cache import ConversationCacheManager
+        from src.common.services.conversation.conversation_cache import ConversationCacheManager
 
         cache = ConversationCacheManager()
         try:

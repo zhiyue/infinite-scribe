@@ -11,7 +11,7 @@ from src.api.schemas import (
     UpdateProfileRequest,
     UserResponse,
 )
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User

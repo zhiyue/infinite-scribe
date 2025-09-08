@@ -9,11 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.services.email_service import email_service
-from src.common.services.email_tasks import email_tasks
-from src.common.services.jwt_service import jwt_service
-from src.common.services.password_service import PasswordService
-from src.common.services.session_service import session_service
+from src.common.services.user.auth_service import auth_service
+from src.common.services.user.password_service import PasswordService
+from src.common.services.user.session_service import session_service
+from src.common.services.user.user_email_service import user_email_service, user_email_tasks
 from src.common.utils.datetime_utils import utc_now
 from src.core.config import settings
 from src.models.email_verification import EmailVerification, VerificationPurpose
@@ -32,8 +31,8 @@ class UserService:
     def __init__(self):
         """Initialize user service."""
         self.password_service = password_service
-        self.jwt_service = jwt_service
-        self.email_service = email_service
+        self.auth_service = auth_service
+        self.user_email_service = user_email_service
         self.frontend_url = settings.frontend_url or "http://localhost:3000"
 
     async def register_user(
@@ -98,7 +97,7 @@ class UserService:
 
             if background_tasks:
                 # 使用异步任务发送邮件
-                await email_tasks.send_verification_email_async(
+                await user_email_tasks.send_verification_email_async(
                     background_tasks,
                     user.email,
                     user.full_name,
@@ -106,7 +105,7 @@ class UserService:
                 )
             else:
                 # 兼容旧代码，同步发送邮件
-                await self.email_service.send_verification_email(
+                await self.user_email_service.send_verification_email(
                     user.email,
                     user.full_name,
                     verification_url,
@@ -208,10 +207,10 @@ class UserService:
             await db.refresh(user)
 
             # Create tokens
-            access_token, jti, access_expires = self.jwt_service.create_access_token(
+            access_token, jti, access_expires = self.auth_service.create_access_token(
                 str(user.id), {"email": user.email, "username": user.username}
             )
-            refresh_token, refresh_expires = self.jwt_service.create_refresh_token(str(user.id))
+            refresh_token, refresh_expires = self.auth_service.create_refresh_token(str(user.id))
 
             # Handle session management strategy
             await self._handle_session_strategy(db, user.id)
@@ -300,14 +299,14 @@ class UserService:
             try:
                 if background_tasks:
                     # 使用异步任务发送邮件
-                    await email_tasks.send_welcome_email_async(
+                    await user_email_tasks.send_welcome_email_async(
                         background_tasks,
                         user.email,
                         user.full_name,
                     )
                 else:
                     # 兼容旧代码，同步发送邮件
-                    await self.email_service.send_welcome_email(
+                    await self.user_email_service.send_welcome_email(
                         user.email,
                         user.full_name,
                     )
@@ -375,7 +374,7 @@ class UserService:
             # 发送验证邮件
             if background_tasks:
                 # 使用异步任务发送邮件
-                await email_tasks.send_verification_email_async(
+                await user_email_tasks.send_verification_email_async(
                     background_tasks,
                     user.email,
                     user.full_name,
@@ -383,7 +382,7 @@ class UserService:
                 )
             else:
                 # 兼容旧代码，同步发送邮件
-                await self.email_service.send_verification_email(
+                await self.user_email_service.send_verification_email(
                     user.email,
                     user.full_name,
                     verification_url,
@@ -443,7 +442,7 @@ class UserService:
 
             if background_tasks:
                 # 使用异步任务发送邮件
-                await email_tasks.send_password_reset_email_async(
+                await user_email_tasks.send_password_reset_email_async(
                     background_tasks,
                     user.email,
                     user.full_name,
@@ -451,7 +450,7 @@ class UserService:
                 )
             else:
                 # 兼容旧代码，同步发送邮件
-                await self.email_service.send_password_reset_email(
+                await self.user_email_service.send_password_reset_email(
                     user.email,
                     user.full_name,
                     reset_url,
@@ -577,21 +576,21 @@ class UserService:
                 session.revoke("Password changed")
                 # Blacklist access tokens
                 if session.jti and session.access_token_expires_at:
-                    self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
+                    await self.auth_service.blacklist_token(session.jti, session.access_token_expires_at)
 
             await db.commit()
 
             # Send password changed notification email
             if background_tasks:
                 # 使用异步任务发送邮件
-                await email_tasks.send_password_changed_email_async(
+                await user_email_tasks.send_password_changed_email_async(
                     background_tasks,
                     user.email,
                     user.full_name,
                 )
             else:
                 # 兼容旧代码，同步发送邮件
-                await self.email_service.send_password_changed_email(
+                await self.user_email_service.send_password_changed_email(
                     user.email,
                     user.full_name,
                 )
@@ -626,7 +625,7 @@ class UserService:
                 await session_service.revoke_session(db, session, "New login - single device policy")
                 # 黑名单旧的访问令牌
                 if session.jti and session.access_token_expires_at:
-                    self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
+                    await self.auth_service.blacklist_token(session.jti, session.access_token_expires_at)
 
         elif strategy == "max_sessions":
             # 限制最大会话数：检查活跃会话数量
@@ -645,7 +644,7 @@ class UserService:
                     await session_service.revoke_session(db, session, f"Max sessions exceeded ({max_sessions})")
                     # 黑名单旧的访问令牌
                     if session.jti and session.access_token_expires_at:
-                        self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
+                        await self.auth_service.blacklist_token(session.jti, session.access_token_expires_at)
 
         # multi_device 策略不需要做任何处理，允许所有会话共存
 
@@ -665,7 +664,7 @@ class UserService:
 
             if session:
                 # Blacklist token
-                self.jwt_service.blacklist_token(session.jti, session.access_token_expires_at)
+                await self.auth_service.blacklist_token(session.jti, session.access_token_expires_at)
 
                 # Revoke session and invalidate cache
                 await session_service.revoke_session(db, session, "User logout")

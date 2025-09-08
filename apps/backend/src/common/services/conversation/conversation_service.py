@@ -19,7 +19,7 @@ from sqlalchemy import and_, asc, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.common.services.conversation_cache import ConversationCacheManager
+from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
 from src.models.novel import Novel

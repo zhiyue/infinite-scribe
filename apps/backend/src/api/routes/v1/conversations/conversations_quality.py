@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.services.conversation_service import conversation_service
+from src.common.services.conversation.conversation_service import conversation_service
 from src.common.utils.api_utils import get_or_create_correlation_id, set_common_headers
 from src.common.utils.datetime_utils import format_iso_datetime, utc_now
 from src.database import get_db

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import ErrorResponse
-from src.common.services.novel_service import novel_service
+from src.common.services.content.novel_service import novel_service
 from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User

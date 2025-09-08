@@ -13,7 +13,7 @@ from src.api.schemas import (
     UserRegisterRequest,
     UserResponse,
 )
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.database import get_db
 
 logger = logging.getLogger(__name__)
