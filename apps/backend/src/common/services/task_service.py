@@ -10,7 +10,7 @@ import logging
 from typing import Any
 from uuid import UUID, uuid4
 
-from src.common.services.postgres_service import postgres_service
+from src.db.sql import postgres_service
 from src.common.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)

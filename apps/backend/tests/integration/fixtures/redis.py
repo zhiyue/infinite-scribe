@@ -8,8 +8,8 @@ from collections.abc import AsyncGenerator, Generator
 import pytest
 import redis as redislib  # Sync Redis for JWT service
 import redis.asyncio as aioredis  # Async Redis for main services
-import src.common.services.redis_service as redis_mod
-from src.common.services.redis_service import RedisService
+import src.db.redis.service as redis_mod
+from src.db.redis import RedisService
 from src.core.config import settings
 from testcontainers.redis import RedisContainer
 from tests.helpers.prefix_client import AsyncPrefixedRedis, PrefixedRedis

@@ -30,7 +30,7 @@ from redis.asyncio.client import PubSub
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
-from src.common.services.redis_service import RedisService
+from src.db.redis import RedisService
 from src.core.config import settings
 from src.schemas.sse import EventScope, SSEMessage
 

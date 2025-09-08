@@ -131,9 +131,9 @@ async def client_with_lifespan(pg_session):
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from src.api.main import app
-    from src.common.services.neo4j_service import neo4j_service
-    from src.common.services.postgres_service import postgres_service
-    from src.common.services.redis_service import redis_service
+    from src.db.graph import neo4j_service
+    from src.db.sql import postgres_service
+    from src.db.redis import redis_service
     from src.core.config import settings
     from tests.unit.test_mocks import mock_email_service
 

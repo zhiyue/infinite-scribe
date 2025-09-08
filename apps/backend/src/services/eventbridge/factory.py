@@ -9,7 +9,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from src.agents.offset_manager import OffsetManager
-from src.common.services.redis_service import RedisService
+from src.db.redis import RedisService
 from src.core.config import get_settings
 from src.core.kafka.client import KafkaClientManager
 from src.core.logging import get_logger

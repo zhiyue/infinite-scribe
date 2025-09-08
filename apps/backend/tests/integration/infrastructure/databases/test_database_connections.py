@@ -5,9 +5,9 @@ from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
 import pytest
-from src.common.services.neo4j_service import Neo4jService
-from src.common.services.postgres_service import PostgreSQLService
-from src.common.services.redis_service import RedisService
+from src.db.graph import Neo4jService
+from src.db.sql import PostgreSQLService
+from src.db.redis import RedisService
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_postgres_connection_success(postgres_service):
     postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
     # Mock settings to use test configuration
-    with patch("src.common.services.postgres_service.settings") as mock_settings:
+    with patch("src.db.sql.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.postgres_url = postgres_url
 
@@ -43,7 +43,7 @@ async def test_postgres_connection_success(postgres_service):
 async def test_postgres_connection_failure():
     """Test PostgreSQL connection failure handling."""
     # Mock settings with invalid PostgreSQL URL
-    with patch("src.common.services.postgres_service.settings") as mock_settings:
+    with patch("src.db.sql.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.postgres_url = "postgresql+asyncpg://invalid:invalid@invalid-host:5432/invalid"
 
@@ -65,7 +65,7 @@ async def test_neo4j_connection_success(neo4j_service):
     config = neo4j_service
 
     # Mock settings for Neo4j
-    with patch("src.common.services.neo4j_service.settings") as mock_settings:
+    with patch("src.db.graph.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.neo4j_url = f"bolt://{config['host']}:{config['port']}"
         mock_settings.database.neo4j_user = config["user"]
@@ -91,7 +91,7 @@ async def test_neo4j_connection_success(neo4j_service):
 async def test_neo4j_connection_failure():
     """Test Neo4j connection failure handling."""
     # Mock settings with invalid Neo4j URL
-    with patch("src.common.services.neo4j_service.settings") as mock_settings:
+    with patch("src.db.graph.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.neo4j_url = "bolt://invalid-host:7687"
         mock_settings.database.neo4j_user = "invalid"
@@ -115,7 +115,7 @@ async def test_redis_connection_success(redis_service):
     config = redis_service
 
     # Mock settings for Redis
-    with patch("src.common.services.redis_service.settings") as mock_settings:
+    with patch("src.db.redis.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.redis_url = f"redis://{config['host']}:{config['port']}"
         if config.get("password"):
@@ -178,9 +178,9 @@ async def test_concurrent_database_connections(postgres_service, neo4j_service, 
 
     # Mock settings for all services
     with (
-        patch("src.common.services.postgres_service.settings") as mock_pg_settings,
-        patch("src.common.services.neo4j_service.settings") as mock_neo4j_settings,
-        patch("src.common.services.redis_service.settings") as mock_redis_settings,
+        patch("src.db.sql.service.settings") as mock_pg_settings,
+        patch("src.db.graph.service.settings") as mock_neo4j_settings,
+        patch("src.db.redis.service.settings") as mock_redis_settings,
     ):
         # Configure mocked settings
         mock_pg_settings.database = MagicMock()
@@ -237,7 +237,7 @@ async def test_postgres_concurrent_queries(postgres_service):
     postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
     # Mock settings to use test configuration
-    with patch("src.common.services.postgres_service.settings") as mock_settings:
+    with patch("src.db.sql.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.postgres_url = postgres_url
 
@@ -268,7 +268,7 @@ async def test_postgres_transaction_success(postgres_service):
     postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
     # Mock settings to use test configuration
-    with patch("src.common.services.postgres_service.settings") as mock_settings:
+    with patch("src.db.sql.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.postgres_url = postgres_url
 
@@ -312,7 +312,7 @@ async def test_postgres_transaction_rollback(postgres_service):
     postgres_url = f"postgresql+asyncpg://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
 
     # Mock settings to use test configuration
-    with patch("src.common.services.postgres_service.settings") as mock_settings:
+    with patch("src.db.sql.service.settings") as mock_settings:
         mock_settings.database = MagicMock()
         mock_settings.database.postgres_url = postgres_url
 

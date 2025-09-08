@@ -242,7 +242,7 @@ uv run uvicorn src.api.main:app --reload --log-level debug
 
 # 查看数据库连接
 uv run python -c "
-from src.common.services.postgres_service import PostgresService
+from src.db.sql import PostgreSQLService as PostgresService
 service = PostgresService()
 print('Database connection successful')
 "

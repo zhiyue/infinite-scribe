@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 import pytest
 from src.common.services.conversation_cache import ConversationCacheManager
-from src.common.services.redis_service import redis_service
+from src.db.redis import redis_service
 
 
 @pytest.mark.asyncio

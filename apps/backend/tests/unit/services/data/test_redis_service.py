@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from src.common.services.redis_service import RedisService
+from src.db.redis import RedisService
 
 
 class TestRedisService:

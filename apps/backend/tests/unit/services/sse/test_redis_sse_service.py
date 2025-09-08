@@ -5,8 +5,8 @@ from contextlib import asynccontextmanager, suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from src.common.services.redis_service import RedisService
 from src.core.config import settings
+from src.db.redis import RedisService
 from src.schemas.sse import EventScope, SSEMessage
 from src.services.sse.redis_client import RedisSSEService
 

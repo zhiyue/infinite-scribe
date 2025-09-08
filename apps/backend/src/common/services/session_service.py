@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.common.services.redis_service import redis_service
+from src.db.redis import redis_service
 from src.models.session import Session
 from src.schemas.session import SessionCacheSchema
 

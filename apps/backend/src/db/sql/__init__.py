@@ -6,6 +6,7 @@ SQL 数据库基础设施层
 
 from .base import Base, metadata
 from .engine import create_engine, engine
+from .service import PostgreSQLService, postgres_service
 from .session import async_session_maker, get_sql_session
 
 __all__ = [
@@ -15,4 +16,6 @@ __all__ = [
     "create_engine",
     "async_session_maker",
     "get_sql_session",
+    "PostgreSQLService",
+    "postgres_service",
 ]

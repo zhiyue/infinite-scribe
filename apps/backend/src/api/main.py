@@ -14,9 +14,9 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     import logging
 
-    from src.common.services.neo4j_service import neo4j_service
-    from src.common.services.postgres_service import postgres_service
-    from src.common.services.redis_service import redis_service
+    from src.db.graph import neo4j_service
+    from src.db.redis import redis_service
+    from src.db.sql import postgres_service
 
     logger = logging.getLogger(__name__)
 

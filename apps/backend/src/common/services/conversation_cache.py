@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any
 
-from src.common.services.redis_service import redis_service
+from src.db.redis import redis_service
 
 logger = logging.getLogger(__name__)
 

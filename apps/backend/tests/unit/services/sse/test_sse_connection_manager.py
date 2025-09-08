@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, Request
-from src.common.services.redis_service import RedisService
+from src.db.redis import RedisService
 from src.schemas.sse import EventScope, SSEMessage
 from src.services.sse.connection_manager import SSEConnectionManager
 from src.services.sse.connection_state import SSEConnectionState

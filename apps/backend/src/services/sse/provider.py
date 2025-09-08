@@ -16,7 +16,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
-from src.common.services.redis_service import RedisService
+from src.db.redis import RedisService
 from src.services.sse.connection_manager import SSEConnectionManager
 from src.services.sse.redis_client import RedisSSEService
 

@@ -28,7 +28,7 @@ async def test_pubsub_realtime_event_flow(redis_service):
     settings.database.redis_password = redis_service["password"]
 
     # Reconnect redis_service with new settings
-    from src.common.services.redis_service import redis_service as global_redis_service
+    from src.db.redis import redis_service as global_redis_service
 
     await global_redis_service.disconnect()
     await global_redis_service.connect()
@@ -90,7 +90,7 @@ async def test_streams_history_returns_published_events(redis_service):
     settings.database.redis_password = redis_service["password"]
 
     # Reconnect redis_service with new settings
-    from src.common.services.redis_service import redis_service as global_redis_service
+    from src.db.redis import redis_service as global_redis_service
 
     await global_redis_service.disconnect()
     await global_redis_service.connect()
