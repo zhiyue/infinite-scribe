@@ -1,6 +1,5 @@
 """Ollama embedding provider implementation."""
 
-import asyncio
 from typing import Any
 
 import httpx
@@ -111,7 +110,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         try:
             payload = {"model": self.model, "input": text}
 
-            response = await self.post("/api/embeddings", json_data=payload, headers={"Content-Type": "application/json"})
+            response = await self.post("/api/embed", json_data=payload, headers={"Content-Type": "application/json"})
 
             result = response.json()
             return self._extract_embedding_from_response(result)
@@ -128,8 +127,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
 
         Args:
             texts: List of texts to embed
-            concurrency: Maximum concurrent requests. If None, uses settings default.
-                        Automatically capped at max_concurrency from settings.
+            concurrency: Maximum concurrent requests (ignored for batch API)
 
         Returns:
             List of embedding vectors in same order as input texts
@@ -141,60 +139,30 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         if not texts:
             raise ServiceValidationError("Ollama", "Texts list cannot be empty")
 
-        # Use configured concurrency with limits
-        if concurrency is None:
-            actual_concurrency = settings.embedding.default_concurrency
-        else:
-            # Respect max_concurrency limit from settings
-            actual_concurrency = min(concurrency, settings.embedding.max_concurrency)
+        try:
+            payload = {"model": self.model, "input": texts}
 
-        if actual_concurrency <= 1:
-            # Sequential processing (default behavior for stability)
-            embeddings = []
-            for text in texts:
-                embedding = await self.get_embedding(text)
-                embeddings.append(embedding)
-        else:
-            # Bounded concurrent processing
-            semaphore = asyncio.Semaphore(actual_concurrency)
+            response = await self.post("/api/embed", json_data=payload, headers={"Content-Type": "application/json"})
 
-            async def get_embedding_with_semaphore(text: str, index: int) -> tuple[int, list[float]]:
-                """Get embedding with concurrency control and preserve order."""
-                async with semaphore:
-                    try:
-                        embedding = await self.get_embedding(text)
-                        return index, embedding
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to get embedding for text",
-                            text_index=index,
-                            error=str(e),
-                            text_preview=text[:50] + "..." if len(text) > 50 else text,
-                        )
-                        raise
+            result = response.json()
 
-            # Process all texts concurrently with bounded semaphore
-            tasks = [get_embedding_with_semaphore(text, i) for i, text in enumerate(texts)]
-
-            try:
-                results = await asyncio.gather(*tasks)
-                # Sort by original index to maintain order
-                results.sort(key=lambda x: x[0])
-                embeddings = [result[1] for result in results]
-            except Exception as e:
-                logger.error(
-                    "Batch embedding failed", concurrency=actual_concurrency, error=str(e), batch_size=len(texts)
+            # Extract batch embeddings from response
+            if "embeddings" in result:
+                embeddings = result["embeddings"]
+                if len(embeddings) != len(texts):
+                    raise ServiceResponseError("Ollama", f"Expected {len(texts)} embeddings but got {len(embeddings)}")
+                return embeddings
+            else:
+                raise ServiceResponseError(
+                    "Ollama", f"Unexpected batch response format, missing 'embeddings' field: {result}"
                 )
-                raise
 
-        logger.info(
-            "Generated embeddings batch",
-            batch_size=len(texts),
-            provider="ollama",
-            concurrency=actual_concurrency,
-            model=self.model,
-        )
-        return embeddings
+        except ServiceResponseError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise handle_http_error("Ollama", e) from e
+        except Exception as e:
+            raise handle_connection_error("Ollama", e) from e
 
     def _extract_embedding_from_response(self, response_data: dict[str, Any]) -> list[float]:
         """Extract embedding vector from Ollama API response.
