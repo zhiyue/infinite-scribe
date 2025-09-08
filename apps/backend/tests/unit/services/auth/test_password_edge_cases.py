@@ -452,7 +452,7 @@ class TestEmailServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_email_smtp_connection_timeout(self, user_service):
         """测试SMTP连接超时的情况."""
-        with patch("src.common.services.user_service.email_service") as mock_email_service:
+        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
             # 模拟SMTP连接超时
             mock_email_service.send_password_changed_email = AsyncMock(
                 side_effect=TimeoutError("SMTP connection timeout")
@@ -467,7 +467,7 @@ class TestEmailServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_email_template_rendering_error(self, user_service):
         """测试邮件模板渲染错误的情况."""
-        with patch("src.common.services.user_service.email_service") as mock_email_service:
+        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
             # 模拟模板渲染错误
             mock_email_service.send_password_changed_email = AsyncMock(
                 side_effect=Exception("Template rendering failed")
@@ -495,7 +495,7 @@ class TestEmailServiceEdgeCases:
             "a" * 100 + "@domain.com",  # 用户名过长
         ]
 
-        with patch("src.common.services.user_service.email_service") as mock_email_service:
+        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
             for email in invalid_emails:
                 # 对于无效邮箱，邮件服务应该返回False或抛出异常
                 mock_email_service.send_password_changed_email = AsyncMock(return_value=False)

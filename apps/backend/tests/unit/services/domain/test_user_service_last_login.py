@@ -36,9 +36,9 @@ class TestUserServiceLastLogin:
 
     @pytest.mark.asyncio
     @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.email_service")
+    @patch("src.common.services.user_service.user_email_service")
     @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.jwt_service")
+    @patch("src.common.services.user_service.auth_service")
     async def test_login_updates_last_login_at(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):
@@ -59,8 +59,8 @@ class TestUserServiceLastLogin:
         # 设置 session 服务
         mock_session_service.create_session = AsyncMock()
         # 直接设置 user_service 实例的服务
-        self.user_service.jwt_service = mock_jwt_service
-        self.user_service.email_service = mock_email_service
+        self.user_service.auth_service = mock_jwt_service
+        self.user_service.user_email_service = mock_email_service
 
         # 设置数据库查询返回用户
         mock_result = Mock()
@@ -139,9 +139,9 @@ class TestUserServiceLastLogin:
 
     @pytest.mark.asyncio
     @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.email_service")
+    @patch("src.common.services.user_service.user_email_service")
     @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.jwt_service")
+    @patch("src.common.services.user_service.auth_service")
     async def test_multiple_logins_update_last_login_at(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):
@@ -162,8 +162,8 @@ class TestUserServiceLastLogin:
         # 设置 session 服务
         mock_session_service.create_session = AsyncMock()
         # 直接设置 user_service 实例的服务
-        self.user_service.jwt_service = mock_jwt_service
-        self.user_service.email_service = mock_email_service
+        self.user_service.auth_service = mock_jwt_service
+        self.user_service.user_email_service = mock_email_service
 
         # 设置数据库查询返回用户
         mock_result = Mock()
@@ -256,9 +256,9 @@ class TestUserServiceLastLogin:
 
     @pytest.mark.asyncio
     @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.email_service")
+    @patch("src.common.services.user_service.user_email_service")
     @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.jwt_service")
+    @patch("src.common.services.user_service.auth_service")
     async def test_login_commit_order(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):
@@ -279,8 +279,8 @@ class TestUserServiceLastLogin:
         # 设置 session 服务
         mock_session_service.create_session = AsyncMock()
         # 直接设置 user_service 实例的服务
-        self.user_service.jwt_service = mock_jwt_service
-        self.user_service.email_service = mock_email_service
+        self.user_service.auth_service = mock_jwt_service
+        self.user_service.user_email_service = mock_email_service
 
         # 设置数据库查询返回用户
         mock_result = Mock()

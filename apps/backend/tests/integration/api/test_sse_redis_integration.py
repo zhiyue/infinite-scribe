@@ -131,9 +131,9 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
 
     # Configure JWT service with testcontainer Redis
     import redis
-    from src.common.services.user.auth_service import jwt_service
+    from src.common.services.user.auth_service import auth_service
 
-    jwt_service._redis_client = redis.Redis(
+    auth_service._redis_client = redis.Redis(
         host=redis_service["host"],
         port=redis_service["port"],
         password=redis_service["password"] or None,
@@ -145,18 +145,18 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
     jti = "jti-integration-ttl"
 
     # 放入黑名单（使用 setex TTL）
-    jwt_service.blacklist_token(jti, expires_at)
+    auth_service.blacklist_token(jti, expires_at)
 
     # 立刻应在黑名单内
-    assert jwt_service.is_token_blacklisted(jti) is True
+    assert auth_service.is_token_blacklisted(jti) is True
 
     # 读取当前 TTL 并等待其过期
     key = f"blacklist:{jti}"
     # Use JWT service's Redis client directly for blacklist operations
-    ttl = jwt_service._redis_client.ttl(key)
+    ttl = auth_service._redis_client.ttl(key)
     # ttl 可能为 -2(不存在)/-1(无过期)/>0(秒)，这里要求应为 >0
     assert isinstance(ttl, int) and ttl > 0
     await asyncio.sleep(ttl + 1)
 
     # 过期后不再在黑名单
-    assert jwt_service.is_token_blacklisted(jti) is False
+    assert auth_service.is_token_blacklisted(jti) is False

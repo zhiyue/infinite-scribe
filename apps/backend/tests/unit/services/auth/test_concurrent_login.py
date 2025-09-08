@@ -222,12 +222,12 @@ class TestLoginWithSessionManagement:
             # 模拟 JWT 创建
             with (
                 patch.object(
-                    self.user_service.jwt_service,
+                    self.user_service.auth_service,
                     "create_access_token",
                     return_value=("access_token", "new_jti", utc_now() + timedelta(minutes=15)),
                 ),
                 patch.object(
-                    self.user_service.jwt_service,
+                    self.user_service.auth_service,
                     "create_refresh_token",
                     return_value=("refresh_token", utc_now() + timedelta(days=7)),
                 ),

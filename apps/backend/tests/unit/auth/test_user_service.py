@@ -40,7 +40,7 @@ class TestUserService:
     @pytest.fixture
     def mock_jwt_service(self):
         """Mock JWT service."""
-        with patch("src.common.services.user_service.jwt_service") as mock:
+        with patch("src.common.services.user_service.auth_service") as mock:
             mock.create_access_token.return_value = (
                 "access_token",
                 "jti123",
@@ -52,7 +52,7 @@ class TestUserService:
     @pytest.fixture
     def mock_email_service(self):
         """Mock email service."""
-        with patch("src.common.services.user_service.email_service") as mock:
+        with patch("src.common.services.user_service.user_email_service") as mock:
             mock.send_verification_email = AsyncMock(return_value=True)
             mock.send_welcome_email = AsyncMock(return_value=True)
             mock.send_password_reset_email = AsyncMock(return_value=True)

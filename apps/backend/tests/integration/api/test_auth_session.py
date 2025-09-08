@@ -5,7 +5,7 @@ import json
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.common.services.user.auth_service import jwt_service
+from src.common.services.user.auth_service import auth_service
 from src.db.redis import redis_service
 from tests.integration.api.auth_test_helpers import (
     create_and_verify_test_user,
@@ -30,7 +30,7 @@ async def test_session_redis_caching(client: AsyncClient, db_session: AsyncSessi
     access_token = response_data["access_token"]
 
     # 从 access token 中提取 JTI
-    payload = jwt_service.verify_token(access_token, "access")
+    payload = auth_service.verify_token(access_token, "access")
     jti = payload["jti"]
 
     # 检查 session 是否被缓存到 Redis
@@ -82,17 +82,17 @@ async def test_token_refresh_with_session_update(client: AsyncClient, db_session
     from jose.exceptions import JWTError
 
     with pytest.raises(JWTError):  # JWT token revocation error
-        jwt_service.verify_token(old_access_token, "access")
+        auth_service.verify_token(old_access_token, "access")
 
     # 或者我们可以从旧令牌中提取 JTI（不验证）来检查黑名单
     from jose import jwt as jose_jwt
 
     old_payload = jose_jwt.decode(old_access_token, "", options={"verify_signature": False})
     old_jti = old_payload["jti"]
-    assert jwt_service.is_token_blacklisted(old_jti)
+    assert auth_service.is_token_blacklisted(old_jti)
 
     # 验证新的 session 被缓存
-    new_payload = jwt_service.verify_token(new_access_token, "access")
+    new_payload = auth_service.verify_token(new_access_token, "access")
     new_jti = new_payload["jti"]
     cache_key = f"session:jti:{new_jti}"
     cached_data = await redis_service.get(cache_key)
@@ -128,7 +128,7 @@ async def test_session_cache_consistency_after_multiple_refreshes(client: AsyncC
         current_refresh_token = refresh_data["refresh_token"]
 
         # 提取并记录JTI
-        payload = jwt_service.verify_token(current_access_token, "access")
+        payload = auth_service.verify_token(current_access_token, "access")
         jti = payload["jti"]
         generated_jtis.append(jti)
 
@@ -175,8 +175,8 @@ async def test_concurrent_sessions_independent_caching(client: AsyncClient, db_s
     access_token2 = response_data2["access_token"]
 
     # 提取两个会话的JTI
-    payload1 = jwt_service.verify_token(access_token1, "access")
-    payload2 = jwt_service.verify_token(access_token2, "access")
+    payload1 = auth_service.verify_token(access_token1, "access")
+    payload2 = auth_service.verify_token(access_token2, "access")
     jti1 = payload1["jti"]
     jti2 = payload2["jti"]
 

@@ -113,9 +113,9 @@ async def async_client(pg_session, redis_session_client):
     app.dependency_overrides[require_auth] = lambda: mock_user
 
     with (
-        patch("src.common.services.jwt_service.jwt_service._redis_client", redis_session_client),
-        patch("src.common.services.email_tasks.email_tasks._send_email_with_retry", new=AsyncMock(return_value=True)),
-        patch("src.common.services.email_service.EmailService") as mock_email_cls,
+        patch("src.common.services.user.auth_service.auth_service._redis", redis_session_client),
+        patch("src.common.services.user.user_email_service.user_email_tasks._send_email_with_retry", new=AsyncMock(return_value=True)),
+        patch("src.external.clients.email.email_client.EmailClient") as mock_email_cls,
     ):
         mock_email_cls.return_value = mock_email_service
         async with AsyncClient(app=app, base_url="http://test") as ac:
@@ -155,7 +155,7 @@ async def client_with_lifespan(pg_session):
         # 4) Launcher 组件 stub
         patch("src.launcher.orchestrator.Orchestrator") as mock_orchestrator,
         patch("src.launcher.health.HealthMonitor") as mock_health_monitor,
-        patch("src.common.services.email_service.EmailService") as mock_email_cls,
+        patch("src.external.clients.email.email_client.EmailClient") as mock_email_cls,
     ):
         sse_instance = MagicMock()
         sse_instance.get_redis_sse_service = AsyncMock()
@@ -178,8 +178,8 @@ async def client_with_lifespan(pg_session):
 @pytest.fixture
 async def auth_headers():
     """Create authentication headers for test user."""
-    from src.common.services.user.auth_service import jwt_service
+    from src.common.services.user.auth_service import auth_service
 
     # Create token for mock user
-    access_token, _, _ = jwt_service.create_access_token("999", {"email": "test@example.com", "username": "testuser"})
+    access_token, _, _ = auth_service.create_access_token("999", {"email": "test@example.com", "username": "testuser"})
     return {"Authorization": f"Bearer {access_token}"}

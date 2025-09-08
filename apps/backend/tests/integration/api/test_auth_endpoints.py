@@ -205,10 +205,10 @@ class TestAuthRefresh:
         # For now, we'll test with invalid token to ensure endpoint works
 
         # Arrange - Create a refresh token using JWT service directly
-        from src.common.services.user.auth_service import jwt_service
+        from src.common.services.user.auth_service import auth_service
 
         user_id = "123"
-        refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        refresh_token, _ = auth_service.create_refresh_token(user_id)
 
         # Act
         data = {"refresh_token": refresh_token}
@@ -282,11 +282,11 @@ class TestAuthRefresh:
     async def test_refresh_with_old_access_token_header(self, async_client):
         """Test refresh endpoint properly extracts old access token from header."""
         # Arrange - Create tokens
-        from src.common.services.user.auth_service import jwt_service
+        from src.common.services.user.auth_service import auth_service
 
         user_id = "123"
-        old_access_token, _, _ = jwt_service.create_access_token(user_id)
-        refresh_token, _ = jwt_service.create_refresh_token(user_id)
+        old_access_token, _, _ = auth_service.create_access_token(user_id)
+        refresh_token, _ = auth_service.create_refresh_token(user_id)
 
         # Act - Send refresh request with old access token in header
         headers = {"Authorization": f"Bearer {old_access_token}"}

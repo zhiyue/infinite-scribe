@@ -43,8 +43,8 @@ def mock_email_service():
     mock.send_welcome_email = AsyncMock(return_value=True)
     mock.send_password_changed_email = AsyncMock(return_value=True)
 
-    # Patch the email_service import in the email_tasks module
-    with patch("src.common.services.email_tasks.email_service", mock):
+    # Patch the user_email_service import in the email_tasks module
+    with patch("src.common.services.email_tasks.user_email_service", mock):
         yield mock
 
 

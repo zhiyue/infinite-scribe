@@ -27,25 +27,25 @@ def _mock_email_tasks_send_with_retry():
         yield
 
 
-# 全局 EmailService 实例方法 mock（覆盖直接调用 email_service 的场景）
+# 全局 EmailClient 实例方法 mock（覆盖直接调用 email_client 的场景）
 @pytest.fixture(autouse=True)
 def _mock_email_service_instance_methods():
-    """统一将 email_service 的发送方法 mock 成快速成功，避免真实网络调用。
+    """统一将 user_email_service 的发送方法 mock 成快速成功，避免真实网络调用。
 
     适用于直接调用 UserService.register_user 等在无 background_tasks 情况下
-    使用 email_service 同步发送邮件的路径。
+    使用 user_email_service 同步发送邮件的路径。
     """
     with (
         patch(
-            "src.common.services.email_service.email_service.send_verification_email", new=AsyncMock(return_value=True)
+            "src.common.services.user_email_service.user_email_service.send_verification_email", new=AsyncMock(return_value=True)
         ),
-        patch("src.common.services.email_service.email_service.send_welcome_email", new=AsyncMock(return_value=True)),
+        patch("src.common.services.user_email_service.user_email_service.send_welcome_email", new=AsyncMock(return_value=True)),
         patch(
-            "src.common.services.email_service.email_service.send_password_reset_email",
+            "src.common.services.user_email_service.user_email_service.send_password_reset_email",
             new=AsyncMock(return_value=True),
         ),
         patch(
-            "src.common.services.email_service.email_service.send_password_changed_email",
+            "src.common.services.user_email_service.user_email_service.send_password_changed_email",
             new=AsyncMock(return_value=True),
         ),
     ):
