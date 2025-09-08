@@ -1,6 +1,8 @@
 """Common services package."""
 
-from src.db.vector.embedding_client import EmbeddingService, embedding_service
+from src.external.clients import EmbeddingClient as EmbeddingService
+from src.external.clients import embedding_service
+
 from .novel_service import NovelService, novel_service
 from .password_service import PasswordService
 from .user_service import UserService

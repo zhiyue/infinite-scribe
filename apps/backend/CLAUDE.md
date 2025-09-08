@@ -18,7 +18,8 @@ InfiniteScribe backend uses a unified service architecture with:
 
 - **API Gateway** (`src/api/`): FastAPI application with authentication and routing
 - **Agent Services** (`src/agents/`): AI agents for different novel writing tasks
-- **Shared Services** (`src/common/services/`): Business logic and external integrations
+- **Shared Services** (`src/common/services/`): Business logic services
+- **External Clients** (`src/external/clients/`): External service adapters (Clean/Hexagonal architecture)
 - **Database Layer** (`src/db/`): Multi-database connection management
 
 ### Directory Structure
@@ -60,6 +61,12 @@ apps/backend/src/
 │   │   ├── novel_service.py        # Novel business logic
 │   │   └── ...                     # Other business services
 │   └── utils/            # Shared utilities
+├── external/             # External Service Clients (Clean/Hexagonal Architecture)
+│   └── clients/          # External service adapters
+│       ├── base_http.py       # Base HTTP client with retry/monitoring
+│       ├── errors.py          # Exception definitions for external services
+│       ├── embedding_client.py # Embedding API client
+│       └── __init__.py        # Unified exports
 ├── db/                   # Database Infrastructure Layer
 │   ├── sql/              # PostgreSQL connections & services
 │   │   └── service.py    # PostgreSQL connection service
@@ -436,6 +443,51 @@ For complex configurations, use TOML files:
 # core/toml_loader.py - Load structured configuration
 config = load_toml_config("config.toml")
 ```
+
+## External Service Integration
+
+### External Client Pattern
+
+External service clients follow Clean/Hexagonal architecture principles:
+
+```python
+# src/external/clients/my_service_client.py
+from .base_http import BaseHttpClient
+from .errors import ServiceValidationError, handle_http_error
+
+class MyServiceClient(BaseHttpClient):
+    def __init__(self, base_url: str = None):
+        super().__init__(base_url or settings.my_service_url)
+    
+    async def call_api(self, data: dict) -> dict:
+        try:
+            response = await self.post("/api/endpoint", json_data=data)
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise handle_http_error("MyService", e) from e
+```
+
+### Best Practices
+
+- **Inherit from BaseHttpClient** for consistent retry/timeout/monitoring
+- **Use structured error handling** with service-specific exceptions
+- **Implement health checks** for service discovery
+- **Create module-level instances** for backward compatibility
+- **Follow naming convention**: `{Service}Client` class, `{service}_client` instance
+
+### Testing Strategy
+
+1. **Unit Tests**: Mock HTTP responses, test logic/error handling
+2. **Integration Tests**: Use testcontainers or real service endpoints 
+3. **Contract Tests**: Validate API contracts remain compatible
+
+### Adding New External Client
+
+1. Create client class inheriting from `BaseHttpClient`
+2. Implement service-specific methods with proper error handling
+3. Add exports to `src/external/clients/__init__.py`
+4. Write comprehensive unit tests
+5. Consider integration tests for critical services
 
 ## Common Development Tasks
 
