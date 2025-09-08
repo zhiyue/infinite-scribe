@@ -4,9 +4,8 @@ This is a template showing how to add new embedding providers.
 This file is not part of the production codebase - it's an example only.
 """
 
-import logging
-
 import httpx
+from src.core.logging import bind_service_context, get_logger
 
 from ..base_http import BaseHttpClient
 from ..errors import (
@@ -17,7 +16,9 @@ from ..errors import (
 )
 from .base import EmbeddingProvider
 
-logger = logging.getLogger(__name__)
+# Initialize service context and logger
+bind_service_context(service="external-clients", component="embedding-openai-example", version="1.0.0")
+logger = get_logger(__name__)
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
@@ -80,7 +81,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             response = await self.get("/models", headers=headers)
             return response.status_code == 200
         except Exception as e:
-            logger.warning(f"OpenAI API connection check failed: {e}")
+            logger.warning("OpenAI API connection check failed", error=str(e), api_url=self.base_url)
             return False
 
     async def get_embedding(self, text: str) -> list[float]:
@@ -146,7 +147,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             for item in result.get("data", []):
                 embeddings.append(item["embedding"])
 
-            logger.info(f"Generated embeddings for {len(texts)} texts using OpenAI")
+            logger.info("Generated embeddings batch", batch_size=len(texts), provider="openai", model=self.model)
             return embeddings
 
         except httpx.HTTPStatusError as e:

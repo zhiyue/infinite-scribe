@@ -75,6 +75,7 @@ dev = [
     "pyright>=1.1.404",
     "pytest-timeout>=2.4.0",
     "pytest-pythonpath>=0.7.3",
+    "aioresponses>=0.7.8",
 ]
 
 [build-system]

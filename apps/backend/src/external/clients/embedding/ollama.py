@@ -1,11 +1,11 @@
 """Ollama embedding provider implementation."""
 
 import asyncio
-import logging
 from typing import Any
 
 import httpx
 from src.core.config import settings
+from src.core.logging import bind_service_context, get_logger
 
 from ..base_http import BaseHttpClient
 from ..errors import (
@@ -16,7 +16,9 @@ from ..errors import (
 )
 from .base import EmbeddingProvider
 
-logger = logging.getLogger(__name__)
+# Initialize service context and logger
+bind_service_context(service="external-clients", component="embedding-ollama", version="1.0.0")
+logger = get_logger(__name__)
 
 
 class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
@@ -26,13 +28,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
     Ollama is a local/self-hosted solution for running embedding models.
     """
 
-    def __init__(
-        self,
-        base_url: str | None = None,
-        model: str | None = None,
-        timeout: float = 30.0,
-        **kwargs
-    ):
+    def __init__(self, base_url: str | None = None, model: str | None = None, timeout: float = 30.0, **kwargs):
         """Initialize Ollama embedding provider.
 
         Args:
@@ -45,26 +41,19 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         self.model = model or settings.embedding_api_model
 
         # Create enhanced metrics hook that adds provider/model labels
-        original_metrics_hook = kwargs.get('metrics_hook')
+        original_metrics_hook = kwargs.get("metrics_hook")
         if original_metrics_hook:
+
             def enhanced_metrics_hook(method, endpoint, status_code, duration, error=None, **extra_labels):
                 # Add provider-specific labels
-                enhanced_labels = {
-                    'provider': self.provider_name,
-                    'model': self.model_name,
-                    **extra_labels
-                }
+                enhanced_labels = {"provider": self.provider_name, "model": self.model_name, **extra_labels}
                 return original_metrics_hook(method, endpoint, status_code, duration, error, **enhanced_labels)
-            kwargs['metrics_hook'] = enhanced_metrics_hook
+
+            kwargs["metrics_hook"] = enhanced_metrics_hook
 
         # Initialize the BaseHttpClient
         BaseHttpClient.__init__(
-            self,
-            base_url=self.base_url,
-            timeout=timeout,
-            max_keepalive_connections=5,
-            max_connections=10,
-            **kwargs
+            self, base_url=self.base_url, timeout=timeout, max_keepalive_connections=5, max_connections=10, **kwargs
         )
 
     @property
@@ -101,7 +90,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             response = await self.get("/api/tags")
             return response.status_code == 200
         except Exception as e:
-            logger.warning(f"Ollama API connection check failed: {e}")
+            logger.warning("Ollama API connection check failed", error=str(e), api_url=self.base_url)
             return False
 
     async def get_embedding(self, text: str) -> list[float]:
@@ -160,7 +149,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         else:
             # Respect max_concurrency limit from settings
             actual_concurrency = min(concurrency, settings.embedding.max_concurrency)
-        
+
         if actual_concurrency <= 1:
             # Sequential processing (default behavior for stability)
             embeddings = []
@@ -178,7 +167,12 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
                         embedding = await self.get_embedding(text)
                         return index, embedding
                     except Exception as e:
-                        logger.warning(f"Failed to get embedding for text at index {index}: {e}")
+                        logger.warning(
+                            "Failed to get embedding for text",
+                            text_index=index,
+                            error=str(e),
+                            text_preview=text[:50] + "..." if len(text) > 50 else text,
+                        )
                         raise
 
             # Process all texts concurrently with bounded semaphore
@@ -190,10 +184,18 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
                 results.sort(key=lambda x: x[0])
                 embeddings = [result[1] for result in results]
             except Exception as e:
-                logger.error(f"Batch embedding failed with concurrency {actual_concurrency}: {e}")
+                logger.error(
+                    "Batch embedding failed", concurrency=actual_concurrency, error=str(e), batch_size=len(texts)
+                )
                 raise
 
-        logger.info(f"Generated embeddings for {len(texts)} texts using Ollama (concurrency: {actual_concurrency})")
+        logger.info(
+            "Generated embeddings batch",
+            batch_size=len(texts),
+            provider="ollama",
+            concurrency=actual_concurrency,
+            model=self.model,
+        )
         return embeddings
 
     def _extract_embedding_from_response(self, response_data: dict[str, Any]) -> list[float]:

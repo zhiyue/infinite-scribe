@@ -1,13 +1,14 @@
 """Factory for creating embedding providers."""
 
-import logging
-
 from src.core.config import settings
+from src.core.logging import bind_service_context, get_logger
 
 from .base import EmbeddingProvider
 from .ollama import OllamaEmbeddingProvider
 
-logger = logging.getLogger(__name__)
+# Initialize service context and logger
+bind_service_context(service="external-clients", component="embedding-factory", version="1.0.0")
+logger = get_logger(__name__)
 
 
 class EmbeddingProviderFactory:
@@ -47,7 +48,7 @@ class EmbeddingProviderFactory:
             raise ValueError(f"Unsupported embedding provider: {provider_type}. " f"Available providers: {available}")
 
         provider_class = cls._providers[provider_type]
-        logger.info(f"Creating {provider_type} embedding provider")
+        logger.info("Creating embedding provider", provider_type=provider_type)
 
         # Collect all parameters for the provider
         provider_kwargs = {}
@@ -83,7 +84,7 @@ class EmbeddingProviderFactory:
             raise ValueError(f"Provider class {provider_class} must implement EmbeddingProvider")
 
         cls._providers[name] = provider_class
-        logger.info(f"Registered new embedding provider: {name}")
+        logger.info("Registered new embedding provider", provider_name=name, provider_class=provider_class.__name__)
 
     @classmethod
     def list_available_providers(cls) -> list[str]:
