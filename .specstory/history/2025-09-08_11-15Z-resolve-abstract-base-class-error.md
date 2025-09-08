@@ -21,7 +21,156 @@ Looking at the code, I can see that there's a `provider` fixture method at line 
 The fix could be one of two approaches:
 
 1. Remove the `ABC` inheritance since this class doesn't really need to be abstract - it's a test base class that can be used as-is with mocking
-2. Mark the `provider` fixture method as abstract using</details></think>
+2. Mark the `provider` fixture method as abstract using `@abstractmethod`
+
+Looking at the usage pattern, it seems like the second approach is more appropriate since subclasses are expected to implement the `provider` fixture method to return their specific provider instance.
+
+Let me propose the concise fix.</details></think>
+
+---
+
+The issue is that `EmbeddingProviderContractTest` inherits from `ABC` but has no abstract methods. Since the `provider` fixture is meant to be implemented by subclasses, mark it as abstract:
+
+---
+
+<details><summary>Edit file: apps/backend/tests/contract/external/clients/test_embedding_provider_contract.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -6,5 +6,5 @@
+  """
+  
+- from abc import ABC
++ from abc import ABC, abstractmethod
+  
+  import pytest
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>Now I need to add the `@abstractmethod` decorator to the `provider` fixture method to make it truly abstract, which will satisfy the ABC requirement.</details></think>
+
+---
+
+<details><summary>Edit file: apps/backend/tests/contract/external/clients/test_embedding_provider_contract.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: undefined
+
+```diff
+@@ -22,4 +22,5 @@
+  
+      @pytest.fixture
++     @abstractmethod
+      def provider(self) -> EmbeddingProvider:
+          """Return an instance of the provider to test.
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>Now let me check for any linter issues in the file to make sure the fix is correct.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>The errors show that the ABC issue is resolved since those errors aren't mentioned anymore. However, there are two warnings about using `X | Y` instead of `(X, Y)` in `isinstance` calls. Let me fix those as well to clean up the code:
+
+Line 137: `assert all(isinstance(x, (int, float)) for x in result)`
+Line 178: `assert all(isinstance(x, (int, float)) for x in embedding)`
+
+These should use the newer union syntax `int | float` instead of tuple `(int, float)`.</details></think>
+
+---
+
+<details><summary>Edit file: apps/backend/tests/contract/external/clients/test_embedding_provider_contract.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -135,5 +135,5 @@
+                  assert isinstance(result, list)
+                  assert len(result) > 0
+-                 assert all(isinstance(x, (int, float)) for x in result)
++                 assert all(isinstance(x, int | float) for x in result)
+  
+              finally:
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>Now let me fix the second instanceof issue on line 178.</details></think>
+
+---
+
+<details><summary>Edit file: apps/backend/tests/contract/external/clients/test_embedding_provider_contract.py</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 1, lines removed: 1
+
+```diff
+@@ -176,5 +176,5 @@
+                      assert isinstance(embedding, list)
+                      assert len(embedding) > 0
+-                     assert all(isinstance(x, (int, float)) for x in embedding)
++                     assert all(isinstance(x, int | float) for x in embedding)
+  
+              finally:
+```
+
+</details>
+
+---
+
+<think><details><summary>Thought Process</summary>Let me check if there are any remaining linter errors after these fixes.</details></think>
+
+---
+
+
+
+---
+
+<think><details><summary>Thought Process</summary>Perfect! The issue has been resolved. Let me summarize the fix for the user.
+
+The original problem was that `EmbeddingProviderContractTest` inherited from `ABC` but had no abstract methods. This is generally a linting error because you should only inherit from ABC if you actually need to enforce abstract method implementation.
+
+The fix was to:
+1. Import `abstractmethod` from the `abc` module
+2. Add the `@abstractmethod` decorator to the `provider` fixture method since it's intended to be implemented by subclasses
+
+I also fixed two additional linting warnings about using the modern union syntax `int | float` instead of the tuple syntax `(int, float)` in isinstance calls.
+
+This fix is concise and addresses the exact issue raised by the linter.</details></think>
+
+---
+
+The fix is to mark the `provider` fixture as abstract since it's meant to be implemented by subclasses:
+
+**Changes made:**
+1. Import `abstractmethod` from `abc`  
+2. Add `@abstractmethod` decorator to the `provider` fixture method
+3. Fix two isinstance warnings to use modern union syntax (`int | float` vs `(int, float)`)
+
+Now the abstract base class properly has an abstract method that subclasses must implement, which satisfies the ABC contract and resolves the linting error.
 
 ---
 

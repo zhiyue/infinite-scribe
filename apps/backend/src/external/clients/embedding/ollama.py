@@ -111,7 +111,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
         try:
             payload = {"model": self.model, "input": text}
 
-            response = await self.post("/api/embed", json_data=payload, headers={"Content-Type": "application/json"})
+            response = await self.post("/api/embeddings", json_data=payload, headers={"Content-Type": "application/json"})
 
             result = response.json()
             return self._extract_embedding_from_response(result)
