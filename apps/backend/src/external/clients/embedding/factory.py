@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingProviderFactory:
     """Factory class for creating embedding providers."""
 
-    _providers = {
+    _providers: dict[str, type[EmbeddingProvider]] = {
         "ollama": OllamaEmbeddingProvider,
         # Future providers can be added here:
         # "openai": OpenAIEmbeddingProvider,
@@ -23,7 +23,7 @@ class EmbeddingProviderFactory:
 
     @classmethod
     def create_provider(
-        self, provider_type: str | None = None, base_url: str | None = None, model: str | None = None, **kwargs
+        cls, provider_type: str | None = None, base_url: str | None = None, model: str | None = None, **kwargs
     ) -> EmbeddingProvider:
         """Create an embedding provider instance.
 
@@ -42,14 +42,22 @@ class EmbeddingProviderFactory:
         """
         provider_type = provider_type or "ollama"
 
-        if provider_type not in self._providers:
-            available = ", ".join(self._providers.keys())
+        if provider_type not in cls._providers:
+            available = ", ".join(cls._providers.keys())
             raise ValueError(f"Unsupported embedding provider: {provider_type}. " f"Available providers: {available}")
 
-        provider_class = self._providers[provider_type]
+        provider_class = cls._providers[provider_type]
         logger.info(f"Creating {provider_type} embedding provider")
 
-        return provider_class(base_url=base_url, model=model, **kwargs)
+        # Collect all parameters for the provider
+        provider_kwargs = {}
+        if base_url is not None:
+            provider_kwargs["base_url"] = base_url
+        if model is not None:
+            provider_kwargs["model"] = model
+        provider_kwargs.update(kwargs)
+
+        return provider_class(**provider_kwargs)
 
     @classmethod
     def get_default_provider(cls) -> EmbeddingProvider:
@@ -59,10 +67,7 @@ class EmbeddingProviderFactory:
             Default embedding provider instance
         """
         config = settings.embedding.provider_config
-        return cls.create_provider(
-            provider_type=settings.embedding.provider,
-            **config
-        )
+        return cls.create_provider(provider_type=settings.embedding.provider, **config)
 
     @classmethod
     def register_provider(cls, name: str, provider_class: type[EmbeddingProvider]) -> None:

@@ -544,14 +544,52 @@ class MyServiceClient(BaseHttpClient):
 
 ### Logging
 
-```python
-import logging
-logger = logging.getLogger(__name__)
+Use the structured logging system provided in `src/core/logging`:
 
-# In service methods
-logger.info(f"Creating user: {user_data.username}")
-logger.error(f"Failed to create user: {error}")
+```python
+from src.core.logging import get_logger, bind_request_context, bind_service_context
+
+# Get structured logger
+logger = get_logger(__name__)
+
+# In API routes - bind request context
+@router.post("/users")
+async def create_user(request: Request, user_data: UserCreate):
+    bind_request_context(
+        request_id=str(uuid.uuid4()),
+        user_id=getattr(request.state, "user_id", None),
+        endpoint="/users"
+    )
+    
+    logger.info("Creating user", username=user_data.username)
+    try:
+        result = await user_service.create_user(user_data)
+        logger.info("User created successfully", user_id=result.id)
+        return result
+    except Exception as error:
+        logger.error("Failed to create user", error=str(error), username=user_data.username)
+        raise
+
+# In service classes - bind service context  
+class UserService:
+    def __init__(self):
+        bind_service_context(
+            service="api-gateway", 
+            component="user-service",
+            version="1.0.0"
+        )
+        self.logger = get_logger(__name__)
+    
+    async def create_user(self, user_data: UserCreate) -> User:
+        self.logger.info("Processing user creation", username=user_data.username)
+        # Business logic here
 ```
+
+**Key Benefits**:
+- Structured JSON logging with consistent formatting
+- Automatic context propagation (request_id, user_id, etc.)
+- Better integration with monitoring and log aggregation systems
+- Type-safe logging interface
 
 ### Performance Monitoring
 
