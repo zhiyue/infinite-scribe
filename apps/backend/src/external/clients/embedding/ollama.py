@@ -52,9 +52,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider, BaseHttpClient):
             kwargs["metrics_hook"] = enhanced_metrics_hook
 
         # Initialize the BaseHttpClient
-        BaseHttpClient.__init__(
-            self, base_url=self.base_url, timeout=timeout, max_keepalive_connections=5, max_connections=10, **kwargs
-        )
+        BaseHttpClient.__init__(self, base_url=self.base_url, timeout=timeout, **kwargs)
 
     @property
     def provider_name(self) -> str:
