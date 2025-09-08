@@ -4,9 +4,10 @@ import logging
 
 from fastapi import BackgroundTasks
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from src.core.config import settings
 from src.external.clients.email import EmailClient
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 

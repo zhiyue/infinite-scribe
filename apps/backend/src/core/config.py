@@ -136,32 +136,32 @@ class EmbeddingSettings(BaseModel):
 
     # Provider configuration
     provider: str = Field(default="ollama", description="Embedding provider: ollama, openai, anthropic")
-    
+
     # Ollama settings
     ollama_host: str = Field(default="192.168.1.191")
     ollama_port: int = Field(default=11434)
     ollama_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
-    
+
     # OpenAI settings
     openai_api_key: str = Field(default="", description="OpenAI API key for embeddings")
     openai_model: str = Field(default="text-embedding-ada-002", description="OpenAI embedding model")
     openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
-    
+
     # Anthropic settings (future)
     anthropic_api_key: str = Field(default="", description="Anthropic API key for embeddings")
     anthropic_model: str = Field(default="", description="Anthropic embedding model")
-    
+
     # Connection settings
     timeout: float = Field(default=30.0, description="Request timeout in seconds")
     max_keepalive_connections: int = Field(default=5)
     max_connections: int = Field(default=10)
-    
+
     # Retry settings
     enable_retry: bool = Field(default=True, description="Enable retry mechanism for transient errors")
     retry_attempts: int = Field(default=3, description="Maximum number of retry attempts")
     retry_min_wait: float = Field(default=1.0, description="Minimum wait time between retries (seconds)")
     retry_max_wait: float = Field(default=10.0, description="Maximum wait time between retries (seconds)")
-    
+
     # Batch processing settings
     default_concurrency: int = Field(default=1, description="Default concurrency for batch operations")
     max_concurrency: int = Field(default=10, description="Maximum allowed concurrency for batch operations")
@@ -185,7 +185,7 @@ class EmbeddingSettings(BaseModel):
             "retry_min_wait": self.retry_min_wait,
             "retry_max_wait": self.retry_max_wait,
         }
-        
+
         if self.provider == "ollama":
             return {
                 "base_url": self.ollama_url,

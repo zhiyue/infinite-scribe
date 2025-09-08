@@ -122,7 +122,7 @@ class TestOllamaEmbeddingProviderComponent:
 
         # Mock successful embedding response
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json=ollama_embeddings_response,
             status_code=200,
         )
@@ -135,7 +135,7 @@ class TestOllamaEmbeddingProviderComponent:
         # Verify request payload
         request = httpx_mock.get_request()
         assert request.method == "POST"
-        assert "/api/embeddings" in request.url.path
+        assert "/api/embed" in request.url.path
 
         payload = json.loads(request.content)
         assert payload == {"model": model_name, "input": text}
@@ -150,7 +150,7 @@ class TestOllamaEmbeddingProviderComponent:
 
         # Mock successful embedding response
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json=ollama_embedding_response,
             status_code=200,
         )
@@ -179,7 +179,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding request with HTTP 400 error."""
         # Mock HTTP 400 error
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"error": "Invalid model name"},
             status_code=400,
         )
@@ -193,7 +193,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding request with HTTP 500 error."""
         # Mock HTTP 500 error
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"error": "Internal server error"},
             status_code=500,
         )
@@ -207,7 +207,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding request with connection error."""
         # Mock connection error
         httpx_mock.add_exception(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             exception=httpx.ConnectError("Connection refused"),
         )
 
@@ -220,7 +220,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding request with timeout error."""
         # Mock timeout error
         httpx_mock.add_exception(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             exception=httpx.TimeoutException("Request timed out"),
         )
 
@@ -233,7 +233,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding with invalid response format."""
         # Mock response with unexpected format
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"unknown_field": "unexpected"},
             status_code=200,
         )
@@ -247,7 +247,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding with empty embeddings array."""
         # Mock response with empty embeddings
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embeddings": []},
             status_code=200,
         )
@@ -261,7 +261,7 @@ class TestOllamaEmbeddingProviderComponent:
         """Test embedding with malformed JSON response."""
         # Mock response with malformed JSON
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             text="invalid json{",
             status_code=200,
         )
@@ -279,7 +279,7 @@ class TestOllamaEmbeddingProviderComponent:
         # Mock responses for each text
         for _, embedding in enumerate(expected_embeddings):
             httpx_mock.add_response(
-                url=f"{base_url}/api/embeddings",
+                url=f"{base_url}/api/embed",
                 json={"embeddings": [embedding]},
                 status_code=200,
             )
@@ -311,7 +311,7 @@ class TestOllamaEmbeddingProviderComponent:
         # Mock responses for each text (order may vary due to concurrency)
         for embedding in expected_embeddings:
             httpx_mock.add_response(
-                url=f"{base_url}/api/embeddings",
+                url=f"{base_url}/api/embed",
                 json={"embeddings": [embedding]},
                 status_code=200,
             )
@@ -346,12 +346,12 @@ class TestOllamaEmbeddingProviderComponent:
 
         # Mock success for first, failure for second
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embeddings": [[0.1, 0.2, 0.3]]},
             status_code=200,
         )
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"error": "Model not found"},
             status_code=404,
         )
@@ -369,7 +369,7 @@ class TestOllamaEmbeddingProviderComponent:
     async def test_embedding_with_custom_headers(self, provider, base_url, httpx_mock):
         """Test embedding request includes proper headers."""
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embedding": [0.1, 0.2, 0.3]},
             status_code=200,
         )
@@ -387,7 +387,7 @@ class TestOllamaEmbeddingProviderComponent:
         text = "Hello 世界! 🌍 Special chars: @#$%^&*()"
 
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embedding": [0.1, 0.2, 0.3]},
             status_code=200,
         )
@@ -408,7 +408,7 @@ class TestOllamaEmbeddingProviderComponent:
         text = "Lorem ipsum " * 1000  # Very long text
 
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embedding": [0.1, 0.2, 0.3]},
             status_code=200,
         )
@@ -425,7 +425,7 @@ class TestOllamaEmbeddingProviderComponent:
         provider = OllamaEmbeddingProvider(base_url=base_url, model=model_name, metrics_hook=metrics_hook)
 
         httpx_mock.add_response(
-            url=f"{base_url}/api/embeddings",
+            url=f"{base_url}/api/embed",
             json={"embedding": [0.1, 0.2, 0.3]},
             status_code=200,
         )

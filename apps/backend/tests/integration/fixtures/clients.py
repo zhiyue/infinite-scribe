@@ -131,10 +131,10 @@ async def client_with_lifespan(pg_session):
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from src.api.main import app
-    from src.db.graph import neo4j_service
-    from src.db.sql import postgres_service
-    from src.db.redis import redis_service
     from src.core.config import settings
+    from src.db.graph import neo4j_service
+    from src.db.redis import redis_service
+    from src.db.sql import postgres_service
     from tests.unit.test_mocks import mock_email_service
 
     app.dependency_overrides[get_db] = lambda: pg_session

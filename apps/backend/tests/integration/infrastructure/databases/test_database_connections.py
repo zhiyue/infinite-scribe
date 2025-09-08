@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from src.db.graph import Neo4jService
-from src.db.sql import PostgreSQLService
 from src.db.redis import RedisService
+from src.db.sql import PostgreSQLService
 
 
 @pytest.mark.asyncio

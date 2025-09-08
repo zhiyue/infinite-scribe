@@ -1,8 +1,8 @@
 """API Gateway main entry point."""
 
-from contextlib import asynccontextmanager
-import time
 import logging
+import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,11 +14,11 @@ from src.core.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
+    from src.core.logging.config import configure_logging
+    from src.core.logging.context import bind_service_context
     from src.db.graph import neo4j_service
     from src.db.redis import redis_service
     from src.db.sql import postgres_service
-    from src.core.logging.config import configure_logging
-    from src.core.logging.context import bind_service_context
 
     logger = logging.getLogger(__name__)
 

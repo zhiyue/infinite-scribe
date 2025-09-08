@@ -5,6 +5,6 @@ from .conversation_service import ConversationService, conversation_service
 
 __all__ = [
     "ConversationCacheManager",
-    "ConversationService", 
+    "ConversationService",
     "conversation_service",
 ]

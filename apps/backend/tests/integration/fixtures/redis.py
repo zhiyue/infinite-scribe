@@ -9,8 +9,8 @@ import pytest
 import redis as redislib  # Sync Redis for JWT service
 import redis.asyncio as aioredis  # Async Redis for main services
 import src.db.redis.service as redis_mod
-from src.db.redis import RedisService
 from src.core.config import settings
+from src.db.redis import RedisService
 from testcontainers.redis import RedisContainer
 from tests.helpers.prefix_client import AsyncPrefixedRedis, PrefixedRedis
 
