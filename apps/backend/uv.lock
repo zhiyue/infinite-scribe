@@ -110,19 +110,6 @@ wheels = [
 ]
 
 [[package]]
-name = "aioresponses"
-version = "0.7.8"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/03/532bbc645bdebcf3b6af3b25d46655259d66ce69abba7720b71ebfabbade/aioresponses-0.7.8.tar.gz", hash = "sha256:b861cdfe5dc58f3b8afac7b0a6973d5d7b2cb608dd0f6253d16b8ee8eaf6df11", size = 40253, upload-time = "2025-01-19T18:14:03.222Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/b7/584157e43c98aa89810bc2f7099e7e01c728ecf905a66cf705106009228f/aioresponses-0.7.8-py2.py3-none-any.whl", hash = "sha256:b73bd4400d978855e55004b23a3a84cb0f018183bcf066a85ad392800b5b9a94", size = 12518, upload-time = "2025-01-19T18:13:59.633Z" },
-]
-
-[[package]]
 name = "aiosignal"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1310,7 +1297,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aioresponses" },
     { name = "black" },
     { name = "ipdb" },
     { name = "kafka-python" },
@@ -1320,6 +1306,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytest-httpx" },
     { name = "pytest-mock" },
     { name = "pytest-pythonpath" },
     { name = "pytest-timeout" },
@@ -1372,7 +1359,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aioresponses", specifier = ">=0.7.8" },
     { name = "black", specifier = "~=24.10.0" },
     { name = "ipdb", specifier = "~=0.13.13" },
     { name = "kafka-python", specifier = "~=2.0.2" },
@@ -1382,6 +1368,7 @@ dev = [
     { name = "pytest", specifier = "~=8.3.3" },
     { name = "pytest-asyncio", specifier = "~=0.24.0" },
     { name = "pytest-cov", specifier = "~=6.0.0" },
+    { name = "pytest-httpx", specifier = ">=0.34.0" },
     { name = "pytest-mock", specifier = "~=3.14.0" },
     { name = "pytest-pythonpath", specifier = ">=0.7.3" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
@@ -2771,6 +2758,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/be/45/9b538de8cef30e17c7b45ef42f538a94889ed6a16f2387a6c89e73220651/pytest-cov-6.0.0.tar.gz", hash = "sha256:fde0b595ca248bb8e2d76f020b465f3b107c9632e6a1d1705f17834c89dcadc0", size = 66945, upload-time = "2024-10-29T20:13:35.363Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/36/3b/48e79f2cd6a61dbbd4807b4ed46cb564b4fd50a76166b1c4ea5c1d9e2371/pytest_cov-6.0.0-py3-none-any.whl", hash = "sha256:eee6f1b9e61008bd34975a4d5bab25801eb31898b032dd55addc93e96fcaaa35", size = 22949, upload-time = "2024-10-29T20:13:33.215Z" },
+]
+
+[[package]]
+name = "pytest-httpx"
+version = "0.34.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/08/d0be3fe5645c6cd9396093a9ddf97d60814a3b066fd5b38ddced34a13d14/pytest_httpx-0.34.0.tar.gz", hash = "sha256:3ca4b0975c0f93b985f17df19e76430c1086b5b0cce32b1af082d8901296a735", size = 54108, upload-time = "2024-11-18T18:49:56.442Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/72/7138a0faf5d780d6b9ceedef22da0b66ae8e22a676a12fd55a05c0cdd979/pytest_httpx-0.34.0-py3-none-any.whl", hash = "sha256:42cf0a66f7b71b9111db2897e8b38a903abd33a27b11c48aff4a3c7650313af2", size = 19440, upload-time = "2024-11-18T18:49:55.384Z" },
 ]
 
 [[package]]
