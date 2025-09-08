@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 # Import UserService without models to avoid circular import
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.models.email_verification import VerificationPurpose
 
 

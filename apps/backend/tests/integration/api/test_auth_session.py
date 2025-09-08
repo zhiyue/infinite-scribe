@@ -5,7 +5,7 @@ import json
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.common.services.jwt_service import jwt_service
+from src.common.services.user.auth_service import jwt_service
 from src.db.redis import redis_service
 from tests.integration.api.auth_test_helpers import (
     create_and_verify_test_user,

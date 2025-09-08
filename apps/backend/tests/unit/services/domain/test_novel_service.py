@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.common.services.novel_service import NovelService
+from src.common.services.content.novel_service import NovelService
 from src.models.novel import Novel
 from src.schemas.enums import NovelStatus
 from src.schemas.novel.create import NovelCreateRequest

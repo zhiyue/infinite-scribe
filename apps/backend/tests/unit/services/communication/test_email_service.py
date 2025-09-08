@@ -3,16 +3,16 @@
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from src.common.services.email_service import EmailService
+from src.external.clients.email.email_client import EmailClient
 
 
-class TestEmailService:
-    """Test cases for EmailService."""
+class TestEmailClient:
+    """Test cases for EmailClient."""
 
     @pytest.fixture
-    def email_service(self):
+    def email_client(self):
         """Create email service instance."""
-        with patch("src.common.services.email_service.settings") as mock_settings:
+        with patch("src.common.services.email_client.settings") as mock_settings:
             mock_settings.node_env = "development"
             mock_settings.auth.use_maildev = True
             mock_settings.auth.resend_api_key = "test_api_key"
@@ -22,17 +22,17 @@ class TestEmailService:
             mock_settings.frontend_url = "http://localhost:3000"
             mock_settings.auth.password_reset_expire_hours = 1
 
-            with patch("src.common.services.email_service.EmailService.__init__", return_value=None):
-                service = EmailService()
+            with patch("src.common.services.email_client.EmailClient.__init__", return_value=None):
+                service = EmailClient()
                 service.is_development = True
                 service.use_maildev = True
                 service.template_env = MagicMock()
                 return service
 
     @pytest.fixture
-    def production_email_service(self):
+    def production_email_client(self):
         """Create email service instance for production (Resend)."""
-        with patch("src.common.services.email_service.settings") as mock_settings:
+        with patch("src.common.services.email_client.settings") as mock_settings:
             mock_settings.node_env = "production"
             mock_settings.auth.use_maildev = False
             mock_settings.auth.resend_api_key = "test_api_key"
@@ -41,24 +41,24 @@ class TestEmailService:
             mock_settings.auth.password_reset_expire_hours = 1
 
             with (
-                patch("src.common.services.email_service.EmailService.__init__", return_value=None),
+                patch("src.common.services.email_client.EmailClient.__init__", return_value=None),
                 patch("resend.api_key"),
             ):
-                service = EmailService()
+                service = EmailClient()
                 service.is_development = False
                 service.use_maildev = False
                 service.template_env = MagicMock()
                 return service
 
     @pytest.mark.asyncio
-    async def test_send_email_via_maildev_success(self, email_service):
+    async def test_send_email_via_maildev_success(self, email_client):
         """Test successful email sending via Maildev."""
         # Arrange
-        with patch.object(email_service, "_send_via_maildev", new_callable=AsyncMock) as mock_send:
+        with patch.object(email_client, "_send_via_maildev", new_callable=AsyncMock) as mock_send:
             mock_send.return_value = True
 
             # Act
-            result = await email_service.send_email(
+            result = await email_client.send_email(
                 to=["test@example.com"],
                 subject="Test Subject",
                 html_content="<p>Test HTML</p>",
@@ -72,14 +72,14 @@ class TestEmailService:
             )
 
     @pytest.mark.asyncio
-    async def test_send_email_via_maildev_failure(self, email_service):
+    async def test_send_email_via_maildev_failure(self, email_client):
         """Test email sending failure via Maildev."""
         # Arrange
         with patch("smtplib.SMTP") as mock_smtp:
             mock_smtp.side_effect = Exception("SMTP connection failed")
 
             # Act
-            result = await email_service.send_email(
+            result = await email_client.send_email(
                 to=["test@example.com"], subject="Test Subject", html_content="<p>Test HTML</p>"
             )
 
@@ -88,13 +88,13 @@ class TestEmailService:
 
     @pytest.mark.asyncio
     @patch("resend.Emails.send")
-    async def test_send_email_via_resend_success(self, mock_resend_send, production_email_service):
+    async def test_send_email_via_resend_success(self, mock_resend_send, production_email_client):
         """Test successful email sending via Resend."""
         # Arrange
         mock_resend_send.return_value = {"id": "test_id"}
 
         # Act
-        result = await production_email_service.send_email(
+        result = await production_email_client.send_email(
             to=["test@example.com"],
             subject="Test Subject",
             html_content="<p>Test HTML</p>",
@@ -116,13 +116,13 @@ class TestEmailService:
 
     @pytest.mark.asyncio
     @patch("resend.Emails.send")
-    async def test_send_email_via_resend_failure(self, mock_resend_send, production_email_service):
+    async def test_send_email_via_resend_failure(self, mock_resend_send, production_email_client):
         """Test email sending failure via Resend."""
         # Arrange
         mock_resend_send.side_effect = Exception("API error")
 
         # Act
-        result = await production_email_service.send_email(
+        result = await production_email_client.send_email(
             to=["test@example.com"], subject="Test Subject", html_content="<p>Test HTML</p>"
         )
 
@@ -134,10 +134,10 @@ class TestEmailService:
         """Test that development headers are added in development mode."""
         # Arrange
         with (
-            patch("src.common.services.email_service.EmailService.__init__", return_value=None),
+            patch("src.common.services.email_client.EmailClient.__init__", return_value=None),
             patch("resend.api_key"),
         ):
-            service = EmailService()
+            service = EmailClient()
             service.is_development = True
             service.use_maildev = False  # Force Resend in dev
             service.template_env = MagicMock()
@@ -156,14 +156,14 @@ class TestEmailService:
                 mock_send.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_verification_email(self, email_service):
+    async def test_send_verification_email(self, email_client):
         """Test sending verification email."""
         # Arrange
-        with patch.object(email_service, "send_email", new_callable=AsyncMock) as mock_send:
+        with patch.object(email_client, "send_email", new_callable=AsyncMock) as mock_send:
             mock_send.return_value = True
 
             # Mock template rendering
-            with patch.object(email_service.template_env, "get_template") as mock_get_template:
+            with patch.object(email_client.template_env, "get_template") as mock_get_template:
                 mock_html_template = Mock()
                 mock_text_template = Mock()
                 mock_html_template.render.return_value = "<p>Verify HTML</p>"
@@ -172,7 +172,7 @@ class TestEmailService:
                 mock_get_template.side_effect = [mock_html_template, mock_text_template]
 
                 # Act
-                result = await email_service.send_verification_email(
+                result = await email_client.send_verification_email(
                     user_email="test@example.com", user_name="Test User", verification_url="http://example.com/verify"
                 )
 
@@ -192,14 +192,14 @@ class TestEmailService:
                 assert html_render_call["app_name"] == "Infinite Scribe"
 
     @pytest.mark.asyncio
-    async def test_send_password_reset_email(self, email_service):
+    async def test_send_password_reset_email(self, email_client):
         """Test sending password reset email."""
         # Arrange
-        with patch.object(email_service, "send_email", new_callable=AsyncMock) as mock_send:
+        with patch.object(email_client, "send_email", new_callable=AsyncMock) as mock_send:
             mock_send.return_value = True
 
             # Mock template rendering
-            with patch.object(email_service.template_env, "get_template") as mock_get_template:
+            with patch.object(email_client.template_env, "get_template") as mock_get_template:
                 mock_html_template = Mock()
                 mock_text_template = Mock()
                 mock_html_template.render.return_value = "<p>Reset HTML</p>"
@@ -208,7 +208,7 @@ class TestEmailService:
                 mock_get_template.side_effect = [mock_html_template, mock_text_template]
 
                 # Act
-                result = await email_service.send_password_reset_email(
+                result = await email_client.send_password_reset_email(
                     user_email="test@example.com", user_name="Test User", reset_url="http://example.com/reset"
                 )
 
@@ -229,14 +229,14 @@ class TestEmailService:
                 assert html_render_call["expire_hours"] == 1
 
     @pytest.mark.asyncio
-    async def test_send_welcome_email(self, email_service):
+    async def test_send_welcome_email(self, email_client):
         """Test sending welcome email."""
         # Arrange
-        with patch.object(email_service, "send_email", new_callable=AsyncMock) as mock_send:
+        with patch.object(email_client, "send_email", new_callable=AsyncMock) as mock_send:
             mock_send.return_value = True
 
             # Mock template rendering
-            with patch.object(email_service.template_env, "get_template") as mock_get_template:
+            with patch.object(email_client.template_env, "get_template") as mock_get_template:
                 mock_html_template = Mock()
                 mock_text_template = Mock()
                 mock_html_template.render.return_value = "<p>Welcome HTML</p>"
@@ -245,7 +245,7 @@ class TestEmailService:
                 mock_get_template.side_effect = [mock_html_template, mock_text_template]
 
                 # Act
-                result = await email_service.send_welcome_email(user_email="test@example.com", user_name="Test User")
+                result = await email_client.send_welcome_email(user_email="test@example.com", user_name="Test User")
 
                 # Assert
                 assert result is True
@@ -263,14 +263,14 @@ class TestEmailService:
                 assert html_render_call["app_url"] == "http://localhost:5173"
 
     @pytest.mark.asyncio
-    async def test_send_email_exception_handling(self, email_service):
+    async def test_send_email_exception_handling(self, email_client):
         """Test that send_email handles exceptions gracefully."""
         # Arrange
-        with patch.object(email_service, "_send_via_maildev", new_callable=AsyncMock) as mock_send:
+        with patch.object(email_client, "_send_via_maildev", new_callable=AsyncMock) as mock_send:
             mock_send.side_effect = Exception("Unexpected error")
 
             # Act
-            result = await email_service.send_email(to=["test@example.com"], subject="Test", html_content="<p>Test</p>")
+            result = await email_client.send_email(to=["test@example.com"], subject="Test", html_content="<p>Test</p>")
 
             # Assert
             assert result is False
@@ -278,14 +278,14 @@ class TestEmailService:
     def test_initialization_with_resend_api_key(self):
         """Test email service initialization with Resend API key."""
         # Arrange
-        with patch("src.common.services.email_service.settings") as mock_settings:
+        with patch("src.common.services.email_client.settings") as mock_settings:
             mock_settings.node_env = "production"
             mock_settings.auth.use_maildev = False
             mock_settings.auth.resend_api_key = "test_api_key"
 
             with patch("resend.api_key"):
                 # Act
-                service = EmailService()
+                service = EmailClient()
 
                 # Assert
                 assert service.is_development is False

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.common.utils.datetime_utils import utc_now
 from src.models.user import User
 

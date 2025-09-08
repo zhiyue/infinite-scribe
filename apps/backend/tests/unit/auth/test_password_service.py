@@ -1,7 +1,7 @@
 """Unit tests for password service."""
 
 import pytest
-from src.common.services.password_service import PasswordService
+from src.common.services.user.password_service import PasswordService
 
 
 class TestPasswordService:

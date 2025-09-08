@@ -131,7 +131,7 @@ async def test_blacklist_ttl_expiration_with_real_redis(redis_service):
 
     # Configure JWT service with testcontainer Redis
     import redis
-    from src.common.services.jwt_service import jwt_service
+    from src.common.services.user.auth_service import jwt_service
 
     jwt_service._redis_client = redis.Redis(
         host=redis_service["host"],

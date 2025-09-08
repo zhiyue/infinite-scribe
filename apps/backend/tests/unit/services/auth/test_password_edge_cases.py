@@ -8,7 +8,7 @@ import pytest
 from fastapi import BackgroundTasks
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.models.email_verification import VerificationPurpose
 
 

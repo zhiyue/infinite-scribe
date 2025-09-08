@@ -3,7 +3,7 @@
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.common.services.user_service import UserService
+from src.common.services.user.user_service import UserService
 from src.models.email_verification import EmailVerification, VerificationPurpose
 from src.models.user import User
 

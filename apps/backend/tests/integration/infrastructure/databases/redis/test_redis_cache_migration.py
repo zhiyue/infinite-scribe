@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from src.common.services.conversation_cache import ConversationCacheManager
+from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.db.redis import redis_service
 
 

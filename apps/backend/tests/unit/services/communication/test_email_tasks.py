@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
-from src.common.services.email_tasks import EmailTasks
+from src.common.services.user.user_email_service import UserEmailTasks
 
 
 @pytest.fixture

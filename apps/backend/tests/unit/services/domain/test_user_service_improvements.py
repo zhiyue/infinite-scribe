@@ -5,8 +5,8 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from src.common.services.session_service import SessionService
-from src.common.services.user_service import UserService
+from src.common.services.user.session_service import SessionService
+from src.common.services.user.user_service import UserService
 from src.common.utils.datetime_utils import utc_now
 from src.core.config import settings
 from src.models.session import Session

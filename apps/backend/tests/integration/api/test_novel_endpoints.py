@@ -282,7 +282,7 @@ class TestNovelEndpointsIntegration:
         await pg_session.refresh(user2)
 
         # Create auth headers for both users
-        from src.common.services.jwt_service import jwt_service
+        from src.common.services.user.auth_service import jwt_service
 
         access_token1, _, _ = jwt_service.create_access_token(
             str(user1.id), {"email": user1.email, "username": user1.username}

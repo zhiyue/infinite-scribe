@@ -178,7 +178,7 @@ async def client_with_lifespan(pg_session):
 @pytest.fixture
 async def auth_headers():
     """Create authentication headers for test user."""
-    from src.common.services.jwt_service import jwt_service
+    from src.common.services.user.auth_service import jwt_service
 
     # Create token for mock user
     access_token, _, _ = jwt_service.create_access_token("999", {"email": "test@example.com", "username": "testuser"})

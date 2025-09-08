@@ -7,7 +7,7 @@ from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from src.common.events.config import build_event_type, get_domain_topic
-from src.common.services.conversation_service import conversation_service
+from src.common.services.conversation.conversation_service import conversation_service
 from src.models.event import DomainEvent
 from src.models.novel import Novel
 from src.models.user import User

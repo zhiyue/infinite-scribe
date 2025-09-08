@@ -11,7 +11,7 @@ from src.core.config import settings
 @pytest.fixture
 def valid_access_token():
     """Create a valid access token for testing."""
-    from src.common.services.jwt_service import jwt_service
+    from src.common.services.user.auth_service import jwt_service
 
     user_id = "123"  # Use string representation of integer ID
     access_token, _, _ = jwt_service.create_access_token(user_id)
