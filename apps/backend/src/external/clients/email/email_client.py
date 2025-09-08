@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from typing import TYPE_CHECKING
 
 import resend
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 if TYPE_CHECKING:
     from resend.emails._emails import Emails
@@ -143,7 +142,7 @@ class EmailClient:
             return False
 
 
-# Create instance for backward compatibility  
+# Create instance for backward compatibility
 email_client = EmailClient()
 
 
