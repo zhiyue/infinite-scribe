@@ -1,4 +1,12 @@
-"""Embedding service implementation for text vectorization."""
+"""Embedding API client for generating text vectors.
+
+This module provides an async HTTP client wrapper to call the external
+embedding service and return embedding vectors. It is intentionally
+kept independent from the vector database access layer so callers can
+compose generation + storage according to their needs.
+"""
+
+from __future__ import annotations
 
 import httpx
 
@@ -6,14 +14,13 @@ from src.core.config import settings
 
 
 class EmbeddingService:
-    """Service for interacting with embedding API."""
+    """Client for interacting with the embedding HTTP API."""
 
-    def __init__(self):
-        """Initialize embedding service."""
+    def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
 
     async def connect(self) -> None:
-        """Establish HTTP client for embedding API."""
+        """Create the underlying HTTP client if not present."""
         if not self._client:
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0),
@@ -21,27 +28,26 @@ class EmbeddingService:
             )
 
     async def disconnect(self) -> None:
-        """Close HTTP client."""
+        """Close and dispose the HTTP client."""
         if self._client:
             await self._client.aclose()
             self._client = None
 
     async def check_connection(self) -> bool:
-        """Check if embedding API is accessible."""
+        """Simple health check against the embedding API."""
         try:
             if not self._client:
                 await self.connect()
 
             assert self._client is not None, "Client should be initialized after connect()"
 
-            # 发送健康检查请求
             response = await self._client.get(f"{settings.embedding_api_url}/api/tags")
             return response.status_code == 200
         except Exception:
             return False
 
     async def get_embedding(self, text: str) -> list[float]:
-        """获取文本的向量表示."""
+        """Get the embedding vector for a single text input."""
         if not self._client:
             await self.connect()
 
@@ -57,7 +63,7 @@ class EmbeddingService:
             response.raise_for_status()
 
             result = response.json()
-            # 根据 API 返回格式提取向量
+            # Handle both common response formats
             if "embeddings" in result:
                 return result["embeddings"][0] if result["embeddings"] else []
             elif "embedding" in result:
@@ -71,13 +77,14 @@ class EmbeddingService:
             raise RuntimeError(f"Failed to get embedding: {e!s}") from e
 
     async def get_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量获取文本的向量表示."""
-        embeddings = []
+        """Get embeddings for a list of texts sequentially."""
+        embeddings: list[list[float]] = []
         for text in texts:
             embedding = await self.get_embedding(text)
             embeddings.append(embedding)
         return embeddings
 
 
-# 创建全局实例
+# Module-level singleton for convenience (matches previous usage)
 embedding_service = EmbeddingService()
+

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.common.services.embedding_service import embedding_service
+from src.db.vector.embedding_client import embedding_service
 from src.db.graph import neo4j_service
 from src.db.redis import redis_service
 from src.db.sql import postgres_service

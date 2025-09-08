@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from src.common.services.embedding_service import EmbeddingService, embedding_service
+from src.db.vector.embedding_client import EmbeddingService, embedding_service
 
 
 class TestEmbeddingService:
@@ -20,7 +20,7 @@ class TestEmbeddingService:
         assert service._client is None
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.httpx.AsyncClient")
+    @patch("src.db.vector.embedding_client.httpx.AsyncClient")
     async def test_connect_creates_client(self, mock_client_class, service):
         """Test connect creates HTTP client."""
         # Setup
@@ -77,7 +77,7 @@ class TestEmbeddingService:
         assert service._client is None
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     @patch.object(EmbeddingService, "connect")
     async def test_check_connection_success(self, mock_connect, mock_settings, service):
         """Test successful connection check."""
@@ -98,7 +98,7 @@ class TestEmbeddingService:
         mock_client.get.assert_called_once_with("http://localhost:11434/api/tags")
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     @patch.object(EmbeddingService, "connect")
     async def test_check_connection_calls_connect(self, mock_connect, mock_settings, service):
         """Test connection check calls connect when no client."""
@@ -125,7 +125,7 @@ class TestEmbeddingService:
         mock_connect.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_check_connection_api_error(self, mock_settings, service):
         """Test connection check when API returns error."""
         # Setup
@@ -158,7 +158,7 @@ class TestEmbeddingService:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     @patch.object(EmbeddingService, "connect")
     async def test_get_embedding_success_embeddings_format(self, mock_connect, mock_settings, service):
         """Test successful embedding retrieval with 'embeddings' format."""
@@ -184,7 +184,7 @@ class TestEmbeddingService:
         )
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_get_embedding_success_embedding_format(self, mock_settings, service):
         """Test successful embedding retrieval with 'embedding' format."""
         # Setup
@@ -204,7 +204,7 @@ class TestEmbeddingService:
         assert result == [0.4, 0.5, 0.6]
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_get_embedding_empty_embeddings_list(self, mock_settings, service):
         """Test embedding retrieval with empty embeddings list."""
         # Setup
@@ -224,7 +224,7 @@ class TestEmbeddingService:
         assert result == []
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_get_embedding_unexpected_format(self, mock_settings, service):
         """Test embedding retrieval with unexpected response format."""
         # Setup
@@ -254,7 +254,7 @@ class TestEmbeddingService:
         mock_connect.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_get_embedding_http_status_error(self, mock_settings, service):
         """Test embedding retrieval with HTTP status error."""
         # Setup
@@ -273,7 +273,7 @@ class TestEmbeddingService:
             await service.get_embedding("test text")
 
     @pytest.mark.asyncio
-    @patch("src.common.services.embedding_service.settings")
+    @patch("src.db.vector.embedding_client.settings")
     async def test_get_embedding_general_exception(self, mock_settings, service):
         """Test embedding retrieval with general exception."""
         # Setup
