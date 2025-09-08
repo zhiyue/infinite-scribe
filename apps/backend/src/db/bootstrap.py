@@ -7,7 +7,7 @@ novel genesis stage:
 - PostgreSQL: apply Alembic migrations (tables, constraints, indexes)
 - Neo4j: create required constraints and indexes
 - Milvus: create novel_embeddings_v1 collection (768-dim) and index
-- Redis: connectivity + cache TTL sanity (DialogueCacheManager)
+- Redis: connectivity + cache TTL sanity (ConversationCacheManager)
 
 Usage (from apps/backend):
   uv run python -m src.db.bootstrap
@@ -156,13 +156,13 @@ class RedisBootstrapper(DatabaseBootstrapper):
 
     async def _execute_bootstrap(self) -> None:
         """Check Redis connectivity and cache TTL defaults."""
-        from src.db.redis.dialogue_cache import DialogueCacheManager
+        from src.common.services.conversation_cache import ConversationCacheManager
 
-        cache = DialogueCacheManager()
+        cache = ConversationCacheManager()
         try:
             is_connected = await cache.connect()
             if not is_connected:
-                raise ConnectionError("Failed to connect to Redis for DialogueCacheManager")
+                raise ConnectionError("Failed to connect to Redis for ConversationCacheManager")
 
             self._validate_cache_configuration(cache)
         finally:

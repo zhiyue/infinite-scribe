@@ -52,8 +52,8 @@ class TestRedisCacheMigration:
 
         await cache_manager.disconnect()
 
-    async def test_dialogue_session_caching(self):
-        """Test caching of dialogue sessions with proper TTL."""
+    async def test_conversation_session_caching(self):
+        """Test caching of conversation sessions with proper TTL."""
         cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
@@ -104,7 +104,7 @@ class TestRedisCacheMigration:
         await cache_manager.delete_session(session_id)
         await cache_manager.disconnect()
 
-    async def test_dialogue_cache_key_structure(self):
+    async def test_conversation_cache_key_structure(self):
         """Test that cache keys follow the expected naming convention."""
         cache_manager = ConversationCacheManager()
         await cache_manager.connect()
@@ -112,20 +112,20 @@ class TestRedisCacheMigration:
         session_id = str(uuid.uuid4())
 
         # Test key generation
-        expected_key = f"dialogue:session:{session_id}"
+        expected_key = f"conversation:session:{session_id}"
         actual_key = cache_manager.get_session_key(session_id)
         assert actual_key == expected_key, "Session key should follow naming convention"
 
         # Test round cache key
         round_path = "1.2.3"
-        expected_round_key = f"dialogue:session:{session_id}:round:{round_path}"
+        expected_round_key = f"conversation:session:{session_id}:round:{round_path}"
         actual_round_key = cache_manager.get_round_key(session_id, round_path)
         assert actual_round_key == expected_round_key, "Round key should follow naming convention"
 
         await cache_manager.disconnect()
 
-    async def test_dialogue_round_caching(self):
-        """Test caching of individual dialogue rounds."""
+    async def test_conversation_round_caching(self):
+        """Test caching of individual conversation rounds."""
         cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
@@ -164,8 +164,8 @@ class TestRedisCacheMigration:
         await cache_manager.delete_round(session_id, round_path)
         await cache_manager.disconnect()
 
-    async def test_dialogue_cache_bulk_operations(self):
-        """Test bulk operations on dialogue cache."""
+    async def test_conversation_cache_bulk_operations(self):
+        """Test bulk operations on conversation cache."""
         cache_manager = ConversationCacheManager()
         await cache_manager.connect()
 
@@ -206,7 +206,7 @@ class TestRedisCacheMigration:
 
         await cache_manager.disconnect()
 
-    async def test_dialogue_cache_expiration_renewal(self):
+    async def test_conversation_cache_expiration_renewal(self):
         """Test TTL renewal and expiration management."""
         cache_manager = ConversationCacheManager()
         await cache_manager.connect()

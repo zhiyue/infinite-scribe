@@ -3,7 +3,7 @@ Conversation service (persistent) for Genesis conversation flows.
 
 Implements CRUD for conversation sessions and rounds with:
 - PostgreSQL persistence via SQLAlchemy ORM
-- Write-through cache to Redis (DialogueCacheManager)
+- Write-through cache to Redis (ConversationCacheManager)
 - Optimistic concurrency control using version column
 - Idempotency for rounds via correlation_id and for commands via idempotency_key
 """
@@ -19,7 +19,7 @@ from sqlalchemy import and_, asc, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.db.redis.dialogue_cache import DialogueCacheManager
+from src.common.services.conversation_cache import ConversationCacheManager
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
 from src.models.novel import Novel
@@ -34,7 +34,7 @@ class ConversationService:
     """Service for conversation sessions and rounds."""
 
     def __init__(self) -> None:
-        self.cache = DialogueCacheManager()
+        self.cache = ConversationCacheManager()
 
     # ---------- Session ----------
 

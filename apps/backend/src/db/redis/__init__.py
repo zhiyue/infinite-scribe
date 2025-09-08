@@ -4,8 +4,8 @@ Redis database module for InfiniteScribe.
 Provides Redis-based caching and session management.
 """
 
-from .dialogue_cache import DialogueCacheManager
+from src.common.services.conversation_cache import ConversationCacheManager
 
 __all__ = [
-    "DialogueCacheManager",
+    "ConversationCacheManager",
 ]

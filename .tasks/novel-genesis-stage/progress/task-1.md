@@ -107,7 +107,7 @@
   - [x] PostgreSQL：Alembic 迁移已覆盖 command_inbox/domain_events/event_outbox 与索引
   - [x] Neo4j：通过 Neo4jSchemaManager 初始化全部约束与索引
   - [x] Milvus：创建 novel_embeddings_v1（768 维）并建立 IVF_FLAT 索引（IP）
-  - [x] Redis：DialogueCacheManager 默认 30 天 TTL 与命名规范验证
+  - [x] Redis：ConversationCacheManager 默认 30 天 TTL 与命名规范验证
   - [x] 新增一键引导脚本：`uv run is-db-bootstrap`
 - **使用的库接口**: Alembic、neo4j-driver、pymilvus、redis.asyncio
 - **代码位置**: apps/backend/src/db/bootstrap.py

@@ -1,7 +1,7 @@
 """
-Dialogue Cache Manager for Redis
+Conversation Cache Manager for Redis
 
-Manages Redis-based caching for dialogue sessions and rounds
+Manages Redis-based caching for conversation sessions and rounds
 with proper TTL management as specified in Task 1.
 """
 
@@ -14,11 +14,11 @@ from src.common.services.redis_service import redis_service
 logger = logging.getLogger(__name__)
 
 
-class DialogueCacheManager:
-    """Manages dialogue session and round caching with Redis."""
+class ConversationCacheManager:
+    """Manages conversation session and round caching with Redis."""
 
     def __init__(self):
-        """Initialize dialogue cache manager."""
+        """Initialize conversation cache manager."""
         # 30 days TTL as specified in Task 1
         self.default_session_ttl = 30 * 24 * 60 * 60  # 30 days in seconds
         self.default_round_ttl = 30 * 24 * 60 * 60  # Same as session TTL
@@ -30,10 +30,10 @@ class DialogueCacheManager:
             await redis_service.connect()
             self._connected = await redis_service.check_connection()
             if self._connected:
-                logger.info("DialogueCacheManager connected to Redis")
+                logger.info("ConversationCacheManager connected to Redis")
             return self._connected
         except Exception as e:
-            logger.error(f"Failed to connect DialogueCacheManager to Redis: {e}")
+            logger.error(f"Failed to connect ConversationCacheManager to Redis: {e}")
             return False
 
     async def disconnect(self) -> None:
@@ -41,28 +41,28 @@ class DialogueCacheManager:
         try:
             await redis_service.disconnect()
             self._connected = False
-            logger.info("DialogueCacheManager disconnected from Redis")
+            logger.info("ConversationCacheManager disconnected from Redis")
         except Exception as e:
-            logger.warning(f"Error during DialogueCacheManager disconnect: {e}")
+            logger.warning(f"Error during ConversationCacheManager disconnect: {e}")
 
     async def is_connected(self) -> bool:
         """Check if connected to Redis."""
         return self._connected and await redis_service.check_connection()
 
     def get_session_key(self, session_id: str) -> str:
-        """Generate Redis key for dialogue session."""
-        return f"dialogue:session:{session_id}"
+        """Generate Redis key for conversation session."""
+        return f"conversation:session:{session_id}"
 
     def get_round_key(self, session_id: str, round_path: str) -> str:
-        """Generate Redis key for dialogue round."""
-        return f"dialogue:session:{session_id}:round:{round_path}"
+        """Generate Redis key for conversation round."""
+        return f"conversation:session:{session_id}:round:{round_path}"
 
     def get_session_rounds_pattern(self, session_id: str) -> str:
         """Generate Redis key pattern for all rounds in a session."""
-        return f"dialogue:session:{session_id}:round:*"
+        return f"conversation:session:{session_id}:round:*"
 
     async def cache_session(self, session_id: str, session_data: dict[str, Any], ttl: int | None = None) -> bool:
-        """Cache dialogue session data with TTL."""
+        """Cache conversation session data with TTL."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -80,7 +80,7 @@ class DialogueCacheManager:
             return False
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
-        """Retrieve cached dialogue session data."""
+        """Retrieve cached conversation session data."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -97,7 +97,7 @@ class DialogueCacheManager:
             return None
 
     async def delete_session(self, session_id: str) -> bool:
-        """Delete cached dialogue session."""
+        """Delete cached conversation session."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -148,7 +148,7 @@ class DialogueCacheManager:
     async def cache_round(
         self, session_id: str, round_path: str, round_data: dict[str, Any], ttl: int | None = None
     ) -> bool:
-        """Cache dialogue round data with TTL."""
+        """Cache conversation round data with TTL."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -166,7 +166,7 @@ class DialogueCacheManager:
             return False
 
     async def get_round(self, session_id: str, round_path: str) -> dict[str, Any] | None:
-        """Retrieve cached dialogue round data."""
+        """Retrieve cached conversation round data."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -183,7 +183,7 @@ class DialogueCacheManager:
             return None
 
     async def delete_round(self, session_id: str, round_path: str) -> bool:
-        """Delete cached dialogue round."""
+        """Delete cached conversation round."""
         try:
             if not await self.is_connected():
                 await self.connect()
@@ -276,8 +276,8 @@ class DialogueCacheManager:
                 # Get basic Redis info
                 info = await client.info()
 
-                # Count dialogue-related keys
-                session_keys = await client.keys("dialogue:session:*")
+                # Count conversation-related keys
+                session_keys = await client.keys("conversation:session:*")
                 session_count = len([k for k in session_keys if ":round:" not in k])
                 round_count = len([k for k in session_keys if ":round:" in k])
 
@@ -297,8 +297,8 @@ class DialogueCacheManager:
                     "redis_version": info.get("redis_version", "unknown"),
                     "total_keys": total_keys,
                     "used_memory": info.get("used_memory_human", "unknown"),
-                    "dialogue_sessions": session_count,
-                    "dialogue_rounds": round_count,
+                    "conversation_sessions": session_count,
+                    "conversation_rounds": round_count,
                     "default_session_ttl_days": self.default_session_ttl / (24 * 60 * 60),
                 }
 
@@ -307,9 +307,9 @@ class DialogueCacheManager:
             return {
                 "redis_connected": False,
                 "error": str(e),
-                "dialogue_sessions": 0,
-                "dialogue_rounds": 0,
+                "conversation_sessions": 0,
+                "conversation_rounds": 0,
             }
 
 
-__all__ = ["DialogueCacheManager"]
+__all__ = ["ConversationCacheManager"]

@@ -18,7 +18,7 @@ Redis缓存结构设计与TTL策略配置
 
 基于实现进度分析：
 - **复用组件**: 
-  - DialogueCacheManager (已实现30天TTL会话缓存)
+  - ConversationCacheManager (已实现30天TTL会话缓存)
   - RedisSSEService (已实现Pub/Sub + Streams架构)
   - RedisService (已实现连接池和健康检查)
 - **集成方式**: 扩展现有Redis基础设施，添加embedding缓存功能
