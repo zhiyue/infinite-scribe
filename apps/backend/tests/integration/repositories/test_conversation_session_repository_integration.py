@@ -141,20 +141,22 @@ class TestConversationSessionRepositoryIntegration:
             status=SessionStatus.ACTIVE,
         )
         await postgres_test_session.commit()
+        
+        original_version = session.version  # Store the original version
 
         # First update
-        await repository.update(
+        updated_session = await repository.update(
             session_id=session.id,
-            version=session.version,
+            version=original_version,
             status=SessionStatus.PROCESSING,
         )
         await postgres_test_session.commit()
 
-        # Act & Assert - Second update with stale version
+        # Act & Assert - Second update with stale version should fail
         with pytest.raises(ValueError, match="Version conflict"):
             await repository.update(
                 session_id=session.id,
-                version=session.version,  # Stale version
+                version=original_version,  # Use the original stale version
                 status=SessionStatus.COMPLETED,
             )
 

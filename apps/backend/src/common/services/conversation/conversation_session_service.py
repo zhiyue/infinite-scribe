@@ -7,11 +7,9 @@ Handles CRUD operations for conversation sessions with caching and access contro
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.repositories.conversation import ConversationSessionRepository, SqlAlchemyConversationSessionRepository
@@ -19,7 +17,6 @@ from src.common.services.conversation.conversation_access_control import Convers
 from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
-from src.models.conversation import ConversationSession
 from src.schemas.novel.dialogue import ScopeType, SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -66,9 +63,7 @@ class ConversationSessionService:
         try:
             if scope_type != ScopeType.GENESIS:
                 return ConversationErrorHandler.validation_error(
-                    "Only GENESIS scope is supported", 
-                    logger_instance=logger, 
-                    context="Create session validation"
+                    "Only GENESIS scope is supported", logger_instance=logger, context="Create session validation"
                 )
 
             # Verify access to the scope
@@ -85,11 +80,11 @@ class ConversationSessionService:
                 return ConversationErrorHandler.conflict_error(
                     "An active session already exists for this novel",
                     logger_instance=logger,
-                    context="Create session conflict"
+                    context="Create session conflict",
                 )
 
-            # Create new session with transaction context manager
-            async with db.begin():
+            # Create new session with nested transaction support
+            async with db.begin_nested() if db.in_transaction() else db.begin():
                 session = await repository.create(
                     scope_type=scope_type.value,
                     scope_id=str(scope_id),
@@ -109,8 +104,7 @@ class ConversationSessionService:
             except Exception as cache_error:
                 # Cache failure should not affect main business flow
                 logger.warning(
-                    f"Failed to cache session {session.id}: {cache_error}",
-                    extra={"session_id": str(session.id)}
+                    f"Failed to cache session {session.id}: {cache_error}", extra={"session_id": str(session.id)}
                 )
 
             return ConversationErrorHandler.success_response({"session": serialized_session})
@@ -121,8 +115,8 @@ class ConversationSessionService:
                 logger_instance=logger,
                 context="Create session error",
                 exception=e,
-                session_id=str(session.id) if 'session' in locals() else None,
-                user_id=user_id
+                session_id=str(session.id) if "session" in locals() else None,
+                user_id=user_id,
             )
 
     async def get_session(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:
@@ -155,9 +149,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found",
-                    logger_instance=logger,
-                    context="Get session not found"
+                    "Session not found", logger_instance=logger, context="Get session not found"
                 )
 
             # Verify access to the found session
@@ -177,8 +169,7 @@ class ConversationSessionService:
             except Exception as cache_error:
                 # Cache failure should not affect main business flow
                 logger.warning(
-                    f"Failed to cache session {session.id}: {cache_error}",
-                    extra={"session_id": str(session.id)}
+                    f"Failed to cache session {session.id}: {cache_error}", extra={"session_id": str(session.id)}
                 )
 
             return ConversationErrorHandler.success_response({"session": serialized_session})
@@ -190,7 +181,7 @@ class ConversationSessionService:
                 context="Get session error",
                 exception=e,
                 session_id=str(session_id),
-                user_id=user_id
+                user_id=user_id,
             )
 
     async def update_session(
@@ -227,9 +218,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found",
-                    logger_instance=logger,
-                    context="Update session not found"
+                    "Session not found", logger_instance=logger, context="Update session not found"
                 )
 
             # Verify access to the found session
@@ -245,8 +234,8 @@ class ConversationSessionService:
                 serialized_session = self.serializer.serialize_session(session)
                 return ConversationErrorHandler.success_response({"session": serialized_session})
 
-            # Update with optimistic concurrency control using transaction context manager
-            async with db.begin():
+            # Update with optimistic concurrency control using nested transaction support
+            async with db.begin_nested() if db.in_transaction() else db.begin():
                 updated_session = await repository.update(
                     session_id=session_id,
                     status=status.value if status else None,
@@ -259,7 +248,7 @@ class ConversationSessionService:
                     return ConversationErrorHandler.precondition_failed_error(
                         "Version mismatch or conflict",
                         logger_instance=logger,
-                        context="Update session version conflict"
+                        context="Update session version conflict",
                     )
 
             # Serialize ORM object to dict at service boundary
@@ -273,7 +262,7 @@ class ConversationSessionService:
                 # Cache failure should not affect main business flow
                 logger.warning(
                     f"Failed to update cache for session {updated_session.id}: {cache_error}",
-                    extra={"session_id": str(updated_session.id)}
+                    extra={"session_id": str(updated_session.id)},
                 )
 
             return ConversationErrorHandler.success_response({"session": serialized_updated})
@@ -285,7 +274,7 @@ class ConversationSessionService:
                 context="Update session error",
                 exception=e,
                 session_id=str(session_id),
-                user_id=user_id
+                user_id=user_id,
             )
 
     async def delete_session(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:
@@ -308,9 +297,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found",
-                    logger_instance=logger,
-                    context="Delete session not found"
+                    "Session not found", logger_instance=logger, context="Delete session not found"
                 )
 
             # Verify access to the found session
@@ -320,14 +307,12 @@ class ConversationSessionService:
             if not access_result["success"]:
                 return access_result
 
-            # Delete session using transaction context manager
-            async with db.begin():
+            # Delete session using nested transaction support
+            async with db.begin_nested() if db.in_transaction() else db.begin():
                 success = await repository.delete(session_id)
                 if not success:
                     return ConversationErrorHandler.not_found_error(
-                        "Session not found during deletion",
-                        logger_instance=logger,
-                        context="Delete session failed"
+                        "Session not found during deletion", logger_instance=logger, context="Delete session failed"
                     )
 
             # Clear cache (best effort)
@@ -338,7 +323,7 @@ class ConversationSessionService:
                 # Cache failure should not affect main business flow
                 logger.warning(
                     f"Failed to clear cache for session {session_id}: {cache_error}",
-                    extra={"session_id": str(session_id)}
+                    extra={"session_id": str(session_id)},
                 )
 
             return ConversationErrorHandler.success_response()
@@ -350,5 +335,5 @@ class ConversationSessionService:
                 context="Delete session error",
                 exception=e,
                 session_id=str(session_id),
-                user_id=user_id
+                user_id=user_id,
             )

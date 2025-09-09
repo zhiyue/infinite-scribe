@@ -30,7 +30,7 @@ class ConversationSessionRepository(ABC):
         self,
         scope_type: str,
         scope_id: str,
-        status: str = SessionStatus.ACTIVE.value,
+        status: str | SessionStatus = SessionStatus.ACTIVE,
         stage: str | None = None,
         state: dict[str, Any] | None = None,
         version: int = 1,
@@ -45,6 +45,7 @@ class ConversationSessionRepository(ABC):
         status: str | None = None,
         stage: str | None = None,
         state: dict[str, Any] | None = None,
+        version: int | None = None,
         expected_version: int | None = None,
     ) -> ConversationSession | None:
         """
@@ -92,16 +93,22 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
         self,
         scope_type: str,
         scope_id: str,
-        status: str = SessionStatus.ACTIVE.value,
+        status: str | SessionStatus = SessionStatus.ACTIVE,
         stage: str | None = None,
         state: dict[str, Any] | None = None,
         version: int = 1,
     ) -> ConversationSession:
         """Create a new conversation session."""
+        # Handle enum conversion
+        if isinstance(status, SessionStatus):
+            status_value = status.value
+        else:
+            status_value = status
+
         session = ConversationSession(
             scope_type=scope_type,
             scope_id=scope_id,
-            status=status,
+            status=status_value,
             stage=stage,
             state=state or {},
             version=version,
@@ -116,17 +123,29 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
     async def update(
         self,
         session_id: UUID,
-        status: str | None = None,
+        status: str | SessionStatus | None = None,
         stage: str | None = None,
         state: dict[str, Any] | None = None,
-        expected_version: int | None = None,
-    ) -> ConversationSession | None:
+        version: int | None = None,  # Added version parameter for test compatibility
+        expected_version: int | None = None,  # Keep for backward compatibility
+    ) -> ConversationSession:
         """Update a conversation session with optimistic concurrency control."""
+        # Handle both parameter names for backward compatibility
+        version_to_check = version or expected_version
+
+        # Handle enum conversion
+        if isinstance(status, SessionStatus):
+            status_value = status.value
+        elif status is not None:
+            status_value = status
+        else:
+            status_value = None
+
         # Build update values, only including non-None values
         update_values = {"version": ConversationSession.version + 1}
 
-        if status is not None:
-            update_values["status"] = status
+        if status_value is not None:
+            update_values["status"] = status_value
         if stage is not None:
             update_values["stage"] = stage
         if state is not None:
@@ -134,8 +153,8 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
 
         # Build where conditions
         conditions = [ConversationSession.id == session_id]
-        if expected_version is not None:
-            conditions.append(ConversationSession.version == expected_version)
+        if version_to_check is not None:
+            conditions.append(ConversationSession.version == version_to_check)
 
         # Execute update with version check
         result = await self.db.execute(
@@ -145,7 +164,18 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             .returning(ConversationSession)
         )
 
-        return result.scalar_one_or_none()
+        updated_session = result.scalar_one_or_none()
+
+        # If no rows were updated and we expected a version, it's a version conflict
+        if updated_session is None and version_to_check is not None:
+            # Check if session exists at all
+            existing = await self.find_by_id(session_id)
+            if existing is None:
+                raise ValueError(f"Session with ID {session_id} not found")
+            else:
+                raise ValueError("Version conflict: The session has been modified by another process")
+
+        return updated_session
 
     async def delete(self, session_id: UUID) -> bool:
         """Delete a conversation session."""

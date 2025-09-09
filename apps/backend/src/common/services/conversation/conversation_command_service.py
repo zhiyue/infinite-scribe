@@ -120,7 +120,7 @@ class ConversationCommandService:
             CommandInbox instance or None if failed
         """
         try:
-            async with db.begin():
+            async with db.begin_nested() if db.in_transaction() else db.begin():
                 # 1. Fetch or create CommandInbox (idempotent)
                 cmd = await self._get_or_create_command(db, session.id, command_type, payload, idempotency_key)
 

@@ -17,9 +17,11 @@ class SessionStatus(str, Enum):
     """会话生命周期状态"""
 
     ACTIVE = "ACTIVE"  # 会话当前活跃
+    PROCESSING = "PROCESSING"  # 会话正在处理中
     COMPLETED = "COMPLETED"  # 会话成功完成
+    FAILED = "FAILED"  # 会话处理失败
     ABANDONED = "ABANDONED"  # 会话被放弃
-    PAUSED = "PAUSED"  # 会话已暂停
+    PAUSED = "PAUSED"  # 会话已暂停  # 会话已暂停
 
 
 class DialogueRole(str, Enum):

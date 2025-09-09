@@ -46,7 +46,7 @@ dependencies = [
     "ecdsa!=0.19.1", # Avoid vulnerable version CVE-2024-23342
     "numpy>=2.3.2",
     "pact-python>=3.0.0a1",
-    "testcontainers>=4.8.2",
+    "testcontainers[kafka]>=4.8.2",
 ]
 
 [project.scripts]

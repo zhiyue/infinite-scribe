@@ -46,9 +46,9 @@ class ConversationRoundRepository(ABC):
         self,
         session_id: UUID,
         round_path: str,
-        role: str,
-        input_data: dict[str, Any] | None = None,
-        output_data: dict[str, Any] | None = None,
+        role: str | DialogueRole,
+        input: dict[str, Any] | None = None,
+        output: dict[str, Any] | None = None,
         model: str | None = None,
         correlation_id: str | None = None,
     ) -> ConversationRound:
@@ -120,34 +120,36 @@ class SqlAlchemyConversationRoundRepository(ConversationRoundRepository):
 
     async def count_by_session(self, session_id: UUID) -> int:
         """Count the total number of rounds in a session."""
-        result = await self.db.execute(
-            select(func.count(ConversationRound.id)).where(ConversationRound.session_id == session_id)
-        )
+        result = await self.db.execute(select(func.count()).where(ConversationRound.session_id == session_id))
         return result.scalar() or 0
 
     async def create(
         self,
         session_id: UUID,
         round_path: str,
-        role: str,
-        input_data: dict[str, Any] | None = None,
-        output_data: dict[str, Any] | None = None,
+        role: str | DialogueRole,
+        input: dict[str, Any] | None = None,  # Changed from input_data to input
+        output: dict[str, Any] | None = None,  # Changed from output_data to output
         model: str | None = None,
         correlation_id: str | None = None,
     ) -> ConversationRound:
         """Create a new conversation round."""
+        # Handle enum conversion
+        role_value = role.value if isinstance(role, DialogueRole) else role
+
         round_obj = ConversationRound(
             session_id=session_id,
             round_path=round_path,
-            role=role,
-            input=input_data or {},
-            output=output_data or {},
+            role=role_value,
+            input=input or {},
+            output=output or {},
             model=model,
             correlation_id=correlation_id,
         )
 
         self.db.add(round_obj)
-        await self.db.flush()  # Flush to get generated ID
-        await self.db.refresh(round_obj)
+        # Note: ConversationRound uses composite primary key (session_id, round_path)
+        # so no need to flush for ID generation, and refresh() can cause issues with composite keys
+        await self.db.flush()  # Flush to ensure the object is persisted and constraints are checked
 
         return round_obj

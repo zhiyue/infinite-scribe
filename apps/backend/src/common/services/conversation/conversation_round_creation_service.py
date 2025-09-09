@@ -147,7 +147,7 @@ class ConversationRoundCreationService:
             # Initialize repository if not provided
             repository = self.repository or SqlAlchemyConversationRoundRepository(db)
 
-            async with db.begin():
+            async with db.begin_nested() if db.in_transaction() else db.begin():
                 created_round = None
 
                 # Check for idempotent creation via correlation_id
@@ -235,8 +235,8 @@ class ConversationRoundCreationService:
             session_id=session.id,
             round_path=round_path,
             role=role.value,
-            input_data=input_data,
-            output_data=None,
+            input=input_data,
+            output=None,
             model=model,
             correlation_id=correlation_id,
         )
