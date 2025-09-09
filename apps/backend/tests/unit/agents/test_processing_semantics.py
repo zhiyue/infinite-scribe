@@ -21,7 +21,7 @@ class FakeConsumer:
     def __init__(self, messages: list[FakeMessage]):
         self._messages = messages
         self._i = 0
-        self.commits: list[dict[Any, Any]] = []
+        self.commits: list[dict[Any, Any] | None] = []
 
     async def start(self) -> None:  # pragma: no cover - not used directly
         pass
@@ -72,20 +72,20 @@ class FakeAgent(BaseAgent):
     async def _create_consumer(self):  # type: ignore[override]
         consumer = self._fake_consumer
         # 设置kafka_client.consumer以确保BaseAgent能找到它
-        self.kafka_client.consumer = consumer
+        self.kafka_client.consumer = consumer  # type: ignore[assignment]
         return consumer
 
     async def _create_producer(self):  # type: ignore[override]
         producer = self._fake_producer
         # 设置kafka_client.producer以确保BaseAgent能找到它
-        self.kafka_client.producer = producer
+        self.kafka_client.producer = producer  # type: ignore[assignment]
         return producer
 
     async def _get_or_create_producer(self):  # type: ignore[override]
         producer = self._fake_producer
         # 设置kafka_client.producer以确保BaseAgent能找到它
         if not self.kafka_client.producer:
-            self.kafka_client.producer = producer
+            self.kafka_client.producer = producer  # type: ignore[assignment]
         return producer
 
     async def process_message(
@@ -265,7 +265,7 @@ async def test_batch_commit_by_size_and_flush_on_stop():
     ), f"Expected exactly 3 outputs for 3 inputs, got {len(agent._fake_producer.sent)}"
 
     # Verify all outputs are successful
-    for i, (topic, value, key) in enumerate(agent._fake_producer.sent):
+    for i, (topic, value, _) in enumerate(agent._fake_producer.sent):
         assert topic == "out", f"Message {i}: expected topic 'out', got '{topic}'"
         assert isinstance(value, dict), f"Message {i}: expected dict value, got {type(value)}"
         assert value["status"] == "ok", f"Message {i}: expected status 'ok', got '{value['status']}'"
