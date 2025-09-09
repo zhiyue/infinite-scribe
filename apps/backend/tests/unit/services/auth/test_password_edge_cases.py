@@ -114,7 +114,7 @@ class TestPasswordChangeEdgeCases:
 
         with (
             patch.object(user_service, "password_service") as mock_password_service,
-            patch("src.common.services.user_service.email_tasks") as mock_email_tasks,
+            patch("src.common.services.user.user_service.user_email_tasks") as mock_email_tasks,
         ):
             # Mock verify_password to return different values for different calls
             # First call for current password should return True
@@ -362,7 +362,7 @@ class TestPasswordResetEdgeCases:
         deactivated_user.is_verified = True
         deactivated_user.full_name = "Test User"
 
-        with patch("src.common.services.user_service.password_service") as mock_password_service:
+        with patch("src.common.services.user.user_service.password_service") as mock_password_service:
             mock_password_service.validate_password_strength.return_value = {
                 "is_valid": True,
                 "score": 4,
@@ -390,7 +390,7 @@ class TestPasswordResetEdgeCases:
         self, user_service, mock_db_session, mock_user, mock_verification
     ):
         """测试令牌并发使用的情况."""
-        with patch("src.common.services.user_service.password_service") as mock_password_service:
+        with patch("src.common.services.user.user_service.password_service") as mock_password_service:
             mock_password_service.validate_password_strength.return_value = {
                 "is_valid": True,
                 "score": 4,
@@ -419,7 +419,7 @@ class TestPasswordResetEdgeCases:
     @pytest.mark.asyncio
     async def test_reset_password_database_corruption(self, user_service, mock_db_session, mock_verification):
         """测试数据库损坏或不一致的情况."""
-        with patch("src.common.services.user_service.password_service") as mock_password_service:
+        with patch("src.common.services.user.user_service.password_service") as mock_password_service:
             mock_password_service.validate_password_strength.return_value = {
                 "is_valid": True,
                 "score": 4,
@@ -452,7 +452,7 @@ class TestEmailServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_email_smtp_connection_timeout(self, user_service):
         """测试SMTP连接超时的情况."""
-        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
+        with patch("src.common.services.user.user_service.user_email_service") as mock_email_service:
             # 模拟SMTP连接超时
             mock_email_service.send_password_changed_email = AsyncMock(
                 side_effect=TimeoutError("SMTP connection timeout")
@@ -467,7 +467,7 @@ class TestEmailServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_email_template_rendering_error(self, user_service):
         """测试邮件模板渲染错误的情况."""
-        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
+        with patch("src.common.services.user.user_service.user_email_service") as mock_email_service:
             # 模拟模板渲染错误
             mock_email_service.send_password_changed_email = AsyncMock(
                 side_effect=Exception("Template rendering failed")
@@ -495,7 +495,7 @@ class TestEmailServiceEdgeCases:
             "a" * 100 + "@domain.com",  # 用户名过长
         ]
 
-        with patch("src.common.services.user_service.user_email_service") as mock_email_service:
+        with patch("src.common.services.user.user_service.user_email_service") as mock_email_service:
             for email in invalid_emails:
                 # 对于无效邮箱，邮件服务应该返回False或抛出异常
                 mock_email_service.send_password_changed_email = AsyncMock(return_value=False)

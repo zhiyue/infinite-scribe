@@ -35,10 +35,10 @@ class TestUserServiceLastLogin:
         )
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.user_email_service")
-    @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.auth_service")
+    @patch("src.common.services.user.user_service.session_service")
+    @patch("src.common.services.user.user_service.user_email_service")
+    @patch("src.common.services.user.user_service.password_service")
+    @patch("src.common.services.user.user_service.auth_service")
     async def test_login_updates_last_login_at(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):
@@ -106,7 +106,7 @@ class TestUserServiceLastLogin:
         assert len(commit_calls) > 0, "数据库 commit 应该被调用"
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.password_service")
+    @patch("src.common.services.user.user_service.password_service")
     async def test_login_failure_does_not_update_last_login(self, mock_password_service):
         """测试登录失败时不更新 last_login_at。"""
         # 设置密码验证失败
@@ -138,10 +138,10 @@ class TestUserServiceLastLogin:
         assert self.mock_user.failed_login_attempts == 1
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.user_email_service")
-    @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.auth_service")
+    @patch("src.common.services.user.user_service.session_service")
+    @patch("src.common.services.user.user_service.user_email_service")
+    @patch("src.common.services.user.user_service.password_service")
+    @patch("src.common.services.user.user_service.auth_service")
     async def test_multiple_logins_update_last_login_at(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):
@@ -255,10 +255,10 @@ class TestUserServiceLastLogin:
         assert self.mock_user.last_login_ip is None
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.session_service")
-    @patch("src.common.services.user_service.user_email_service")
-    @patch("src.common.services.user_service.password_service")
-    @patch("src.common.services.user_service.auth_service")
+    @patch("src.common.services.user.user_service.session_service")
+    @patch("src.common.services.user.user_service.user_email_service")
+    @patch("src.common.services.user.user_service.password_service")
+    @patch("src.common.services.user.user_service.auth_service")
     async def test_login_commit_order(
         self, mock_jwt_service, mock_password_service, mock_email_service, mock_session_service
     ):

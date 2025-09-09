@@ -45,7 +45,7 @@ class TestConcurrentLogin:
         self.mock_db.execute.return_value = mock_result
 
         # 模拟 select 函数
-        with patch("src.common.services.user_service.select", return_value=mock_query):
+        with patch("src.common.services.user.user_service.select", return_value=mock_query):
             # 第5次失败尝试应该触发锁定
             result = await self.user_service.login(
                 self.mock_db, "test@example.com", "WrongPassword", "127.0.0.1", "TestAgent"
@@ -71,7 +71,7 @@ class TestSessionManagementStrategies:
         self.mock_db = AsyncMock()
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.settings.auth.session_strategy", "single_device")
+    @patch("src.common.services.user.user_service.settings.auth.session_strategy", "single_device")
     async def test_single_device_strategy(self):
         """测试单设备登录策略。"""
         user_id = 1
@@ -88,7 +88,7 @@ class TestSessionManagementStrategies:
         self.mock_db.execute.return_value = mock_result
 
         # 模拟 session_service
-        with patch("src.common.services.user_service.session_service") as mock_session_service:
+        with patch("src.common.services.user.user_service.session_service") as mock_session_service:
             mock_session_service.revoke_session = AsyncMock()
 
             # 执行会话策略处理
@@ -103,8 +103,8 @@ class TestSessionManagementStrategies:
             assert "single device policy" in call[0][2]
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.settings.auth.session_strategy", "max_sessions")
-    @patch("src.common.services.user_service.settings.auth.max_sessions_per_user", 3)
+    @patch("src.common.services.user.user_service.settings.auth.session_strategy", "max_sessions")
+    @patch("src.common.services.user.user_service.settings.auth.max_sessions_per_user", 3)
     async def test_max_sessions_strategy(self):
         """测试最大会话数限制策略。"""
         user_id = 1
@@ -124,7 +124,7 @@ class TestSessionManagementStrategies:
         self.mock_db.execute.return_value = mock_result
 
         # 模拟 session_service
-        with patch("src.common.services.user_service.session_service") as mock_session_service:
+        with patch("src.common.services.user.user_service.session_service") as mock_session_service:
             mock_session_service.revoke_session = AsyncMock()
 
             # 执行会话策略处理
@@ -139,13 +139,13 @@ class TestSessionManagementStrategies:
         assert set(revoked_jtis) == {"jti_0", "jti_1", "jti_2"}
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.settings.auth.session_strategy", "multi_device")
+    @patch("src.common.services.user.user_service.settings.auth.session_strategy", "multi_device")
     async def test_multi_device_strategy(self):
         """测试多设备登录策略（默认）。"""
         user_id = 1
 
         # 模拟 session_service
-        with patch("src.common.services.user_service.session_service") as mock_session_service:
+        with patch("src.common.services.user.user_service.session_service") as mock_session_service:
             mock_session_service.revoke_session = AsyncMock()
 
             # 执行会话策略处理
@@ -179,9 +179,9 @@ class TestLoginWithSessionManagement:
         self.mock_user.to_dict = Mock(return_value={"id": 1, "email": "test@example.com", "username": "testuser"})
 
     @pytest.mark.asyncio
-    @patch("src.common.services.user_service.settings.auth.session_strategy", "max_sessions")
-    @patch("src.common.services.user_service.settings.auth.max_sessions_per_user", 2)
-    @patch("src.common.services.user_service.session_service")
+    @patch("src.common.services.user.user_service.settings.auth.session_strategy", "max_sessions")
+    @patch("src.common.services.user.user_service.settings.auth.max_sessions_per_user", 2)
+    @patch("src.common.services.user.user_service.session_service")
     async def test_login_with_max_sessions_policy(self, mock_session_service):
         """测试带有最大会话数限制的登录。"""
         # 模拟密码验证成功
@@ -231,7 +231,7 @@ class TestLoginWithSessionManagement:
                     "create_refresh_token",
                     return_value=("refresh_token", utc_now() + timedelta(days=7)),
                 ),
-                patch("src.common.services.user_service.select", return_value=mock_query),
+                patch("src.common.services.user.user_service.select", return_value=mock_query),
             ):
                 # 模拟 session 创建
                 mock_session_service.create_session = AsyncMock(return_value=Mock(spec=Session))

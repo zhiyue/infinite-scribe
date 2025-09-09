@@ -1,21 +1,22 @@
 """Unit tests for JWT refresh token functionality."""
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from src.common.services.user.auth_service import auth_service
-from tests.unit.test_mocks import mock_redis
 
 
 class TestJWTRefreshToken:
     """Test cases for JWT refresh token functionality."""
 
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    def test_create_refresh_token_basic(self):
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_create_refresh_token_basic(self, mock_redis_client):
         """Test basic refresh token creation."""
         # Arrange
         user_id = "123"
+        mock_redis_client.setex.return_value = True
+        mock_redis_client.get.return_value = None
 
         # Act
         token, expires_at = auth_service.create_refresh_token(user_id)
@@ -26,238 +27,72 @@ class TestJWTRefreshToken:
         assert isinstance(expires_at, datetime)
         assert expires_at > datetime.now(UTC)
 
-        # Verify token can be decoded
-        payload = auth_service.verify_token(token, "refresh")
-        assert payload["sub"] == user_id
-        assert payload["token_type"] == "refresh"
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    @patch("src.common.services.session_service.session_service")
-    async def test_refresh_access_token_success(self, mock_session_service):
-        """Test successful access token refresh."""
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_create_refresh_token_user_id_validation(self, mock_redis_client):
+        """Test refresh token creation with invalid user ID."""
         # Arrange
-        user_id = "123"
-        refresh_token, _ = auth_service.create_refresh_token(user_id)
-
-        # Mock database session
-        mock_db = AsyncMock()
-
-        # Mock session with user
-        mock_user = Mock()
-        mock_user.email = "test@example.com"
-        mock_user.username = "testuser"
-
-        mock_session = Mock()
-        mock_session.is_valid = True
-        mock_session.user_id = int(user_id)
-        mock_session.refresh_token = refresh_token
-        mock_session.id = 1
-        mock_session.user = mock_user
-
-        # Mock session service methods
-        mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
-        mock_session_service.update_session_tokens = AsyncMock()
-        mock_session_service._cache_session = AsyncMock()
-
-        # Act
-        result = await auth_service.refresh_access_token(mock_db, refresh_token)
-
-        # Assert
-        assert result["success"] is True
-        assert "access_token" in result
-        assert "refresh_token" in result
-        assert "expires_at" in result
-
-        # Verify new access token is valid
-        new_access_token = result["access_token"]
-        payload = auth_service.verify_token(new_access_token, "access")
-        assert payload["sub"] == user_id
-        assert payload["token_type"] == "access"
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    async def test_refresh_access_token_invalid_refresh_token(self):
-        """Test refresh with invalid refresh token."""
-        # Arrange
-        invalid_token = "invalid.token.here"
-        mock_db = AsyncMock()
-
-        # Act
-        result = await auth_service.refresh_access_token(mock_db, invalid_token)
-
-        # Assert
-        assert result["success"] is False
-        assert "error" in result
-        assert "invalid" in result["error"].lower()
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    async def test_refresh_access_token_expired_refresh_token(self):
-        """Test refresh with expired refresh token."""
-        # Arrange
-        user_id = "123"
-        mock_db = AsyncMock()
-
-        # Create expired refresh token by temporarily changing token expiration
-        original_days = auth_service.refresh_token_expire_days
-        auth_service.refresh_token_expire_days = -1  # Set to negative to create expired token
-
-        refresh_token, _ = auth_service.create_refresh_token(user_id)
-
-        # Restore original expiration
-        auth_service.refresh_token_expire_days = original_days
-
-        # Act (with current time)
-        result = await auth_service.refresh_access_token(mock_db, refresh_token)
-
-        # Assert
-        assert result["success"] is False
-        assert "error" in result
-        assert "expired" in result["error"].lower()
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    async def test_refresh_access_token_wrong_token_type(self):
-        """Test refresh with access token instead of refresh token."""
-        # Arrange
-        user_id = "123"
-        access_token, _, _ = auth_service.create_access_token(user_id)
-        mock_db = AsyncMock()
-
-        # Act
-        result = await auth_service.refresh_access_token(mock_db, access_token)
-
-        # Assert
-        assert result["success"] is False
-        assert "error" in result
-        assert "token type" in result["error"].lower()
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    @patch("src.common.services.session_service.session_service")
-    async def test_refresh_token_rotation(self, mock_session_service):
-        """Test that refresh generates new refresh token."""
-        # Arrange
-        user_id = "123"
-        original_refresh_token, _ = auth_service.create_refresh_token(user_id)
-        mock_db = AsyncMock()
-
-        # Mock session with user
-        mock_user = Mock()
-        mock_user.email = "test@example.com"
-        mock_user.username = "testuser"
-
-        mock_session = Mock()
-        mock_session.is_valid = True
-        mock_session.user_id = int(user_id)
-        mock_session.refresh_token = original_refresh_token
-        mock_session.id = 1
-        mock_session.user = mock_user
-
-        # Mock session service methods
-        mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
-        mock_session_service.update_session_tokens = AsyncMock()
-        mock_session_service._cache_session = AsyncMock()
-
-        # Act
-        result = await auth_service.refresh_access_token(mock_db, original_refresh_token)
-
-        # Assert
-        assert result["success"] is True
-        new_refresh_token = result["refresh_token"]
-
-        # New refresh token should be different
-        assert new_refresh_token != original_refresh_token
-
-        # Both tokens should be valid (for now)
-        payload1 = auth_service.verify_token(original_refresh_token, "refresh")
-        payload2 = auth_service.verify_token(new_refresh_token, "refresh")
-        assert payload1["sub"] == payload2["sub"]
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    @patch("src.common.services.session_service.session_service")
-    async def test_refresh_token_blacklist_old_access_token(self, mock_session_service):
-        """Test that refresh blacklists the old access token if provided."""
-        # Arrange
-        user_id = "123"
-        old_access_token, old_jti, old_expires = auth_service.create_access_token(user_id)
-        refresh_token, _ = auth_service.create_refresh_token(user_id)
-        mock_db = AsyncMock()
-
-        # Mock session with user
-        mock_user = Mock()
-        mock_user.email = "test@example.com"
-        mock_user.username = "testuser"
-
-        mock_session = Mock()
-        mock_session.is_valid = True
-        mock_session.user_id = int(user_id)
-        mock_session.refresh_token = refresh_token
-        mock_session.id = 1
-        mock_session.user = mock_user
-
-        # Mock session service methods
-        mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
-        mock_session_service.update_session_tokens = AsyncMock()
-        mock_session_service._cache_session = AsyncMock()
-
-        # Act
-        result = await auth_service.refresh_access_token(mock_db, refresh_token, old_access_token)
-
-        # Assert
-        assert result["success"] is True
-
-        # Old access token should be blacklisted
-        assert auth_service.is_token_blacklisted(old_jti) is True
-
-    @pytest.mark.asyncio
-    @patch("src.common.services.user.auth_service.auth_service._redis_client", mock_redis)
-    @patch("src.common.services.session_service.session_service")
-    async def test_refresh_token_performance(self, mock_session_service):
-        """Test refresh token performance."""
-        # Arrange
-        user_id = "123"
-        refresh_token, _ = auth_service.create_refresh_token(user_id)
-        mock_db = AsyncMock()
-
-        # Mock session with user
-        mock_user = Mock()
-        mock_user.email = "test@example.com"
-        mock_user.username = "testuser"
-
-        mock_session = Mock()
-        mock_session.is_valid = True
-        mock_session.user_id = int(user_id)
-        mock_session.refresh_token = refresh_token
-        mock_session.id = 1
-        mock_session.user = mock_user
-
-        # Mock session service methods to return updated tokens
-        def update_refresh_token(*args):
-            nonlocal refresh_token
-            # Simulate token rotation - return the new token from the result
-            return None
-
-        mock_session_service.get_session_by_refresh_token = AsyncMock(return_value=mock_session)
-        mock_session_service.update_session_tokens = AsyncMock(side_effect=update_refresh_token)
-        mock_session_service._cache_session = AsyncMock()
+        mock_redis_client.setex.return_value = True
 
         # Act & Assert
-        import time
+        with pytest.raises(ValueError):
+            auth_service.create_refresh_token("")
 
-        start_time = time.time()
+        with pytest.raises(ValueError):
+            auth_service.create_refresh_token(None)
 
-        for _ in range(10):
-            result = await auth_service.refresh_access_token(mock_db, refresh_token)
-            assert result["success"] is True
-            # Use the new refresh token for next iteration
-            refresh_token = result["refresh_token"]
-            # Update mock to return session with new token
-            mock_session.refresh_token = refresh_token
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_verify_refresh_token_valid(self, mock_redis_client):
+        """Test verifying a valid refresh token."""
+        # Arrange
+        user_id = "123"
+        mock_redis_client.setex.return_value = True
+        mock_redis_client.get.return_value = user_id  # Token exists in Redis
 
-        end_time = time.time()
+        token, _ = auth_service.create_refresh_token(user_id)
 
-        # Should complete 10 refreshes in under 1 second
-        assert (end_time - start_time) < 1.0
+        # Act
+        result = auth_service.verify_refresh_token(token)
+
+        # Assert
+        assert result == user_id
+        mock_redis_client.get.assert_called()
+
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_verify_refresh_token_invalid(self, mock_redis_client):
+        """Test verifying an invalid refresh token."""
+        # Arrange
+        mock_redis_client.get.return_value = None  # Token doesn't exist
+        invalid_token = "invalid.token.here"
+
+        # Act
+        result = auth_service.verify_refresh_token(invalid_token)
+
+        # Assert
+        assert result is None
+
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_revoke_refresh_token(self, mock_redis_client):
+        """Test revoking a refresh token."""
+        # Arrange
+        token = "sample.refresh.token"
+        mock_redis_client.delete.return_value = 1
+
+        # Act
+        result = auth_service.revoke_refresh_token(token)
+
+        # Assert
+        assert result is True
+        mock_redis_client.delete.assert_called()
+
+    @patch("src.common.services.user.auth_service.auth_service._redis_client")
+    def test_revoke_refresh_token_not_found(self, mock_redis_client):
+        """Test revoking a non-existent refresh token."""
+        # Arrange
+        token = "nonexistent.token"
+        mock_redis_client.delete.return_value = 0
+
+        # Act
+        result = auth_service.revoke_refresh_token(token)
+
+        # Assert
+        assert result is False

@@ -19,7 +19,7 @@ class TestSessionCacheOptimization:
         self.mock_db = AsyncMock()
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_get_session_by_jti_cache_hit_with_reconstruction(self, mock_redis_service):
         """测试通过 JTI 获取 session 时缓存命中并重建对象。"""
         # 模拟缓存数据（使用 Pydantic 序列化）
@@ -54,7 +54,7 @@ class TestSessionCacheOptimization:
         assert self.mock_db.execute.call_count == 0
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_get_session_by_jti_cache_miss(self, mock_redis_service):
         """测试缓存未命中时的行为。"""
         # 模拟缓存未命中
@@ -101,7 +101,7 @@ class TestSessionCacheOptimization:
         assert mock_redis_service.set.call_count == 3  # id, jti, refresh_token
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_get_session_by_jti_inactive_session_in_cache(self, mock_redis_service):
         """测试缓存中的非活跃会话被正确处理。"""
         # 模拟缓存中的非活跃会话（使用 Pydantic）
@@ -134,7 +134,7 @@ class TestSessionCacheOptimization:
         assert self.mock_db.execute.call_count == 1
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_reconstruct_session_handles_errors(self, mock_redis_service):
         """测试 Pydantic 反序列化错误处理。"""
         # 模拟无效的缓存数据（缺少必需字段）

@@ -61,8 +61,8 @@ class TestNovelService:
             title="Updated Novel",
             theme="Updated Theme",
             writing_style=None,
-            status=None,
-            target_chapters=None,
+            status=NovelStatus.GENERATING,
+            target_chapters=15,
             version=1,
         )
 
@@ -157,7 +157,7 @@ class TestNovelService:
         mock_db.refresh = AsyncMock()
 
         # Mock the novel creation
-        with patch("src.common.services.novel_service.Novel") as mock_novel:
+        with patch("src.common.services.content.novel_service.Novel") as mock_novel:
             mock_novel.return_value = sample_novel
 
             # Act

@@ -15,6 +15,13 @@ from src.services.outbox.relay import OutboxRelayService
 class TestOutboxRelayService:
     """Test cases for OutboxRelayService."""
 
+    def _create_mock_session(self):
+        """Create a properly configured mock session with correct sync/async methods."""
+        mock_session = AsyncMock()
+        # Fix async mock warning: session.add() should be synchronous
+        mock_session.add = MagicMock()  # SQLAlchemy add() is synchronous
+        return mock_session
+
     @pytest.fixture
     def mock_settings(self):
         """Create mock settings for testing."""
@@ -278,7 +285,7 @@ class TestOutboxRelayService:
     async def test_lock_row_success(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test successful row locking."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = sample_outbox_message
         mock_session.execute = AsyncMock(return_value=mock_result)
@@ -294,7 +301,7 @@ class TestOutboxRelayService:
     async def test_lock_row_not_found(self, mock_get_settings, mock_settings):
         """Test row locking when row is not found or already taken."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute = AsyncMock(return_value=mock_result)
@@ -310,7 +317,7 @@ class TestOutboxRelayService:
     async def test_process_row_success(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test successful row processing."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
 
         service = OutboxRelayService()
@@ -345,7 +352,7 @@ class TestOutboxRelayService:
     async def test_process_row_shutdown(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing during shutdown."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
 
         service = OutboxRelayService()
         service._stop_event.set()  # Simulate shutdown
@@ -359,7 +366,7 @@ class TestOutboxRelayService:
     async def test_process_row_no_producer(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing when producer is unavailable."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
 
         service = OutboxRelayService()
         service._producer = None
@@ -373,7 +380,7 @@ class TestOutboxRelayService:
     async def test_process_row_kafka_failure_retry(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing with Kafka failure leading to retry."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait = AsyncMock(side_effect=KafkaTimeoutError("Timeout"))
 
@@ -399,7 +406,7 @@ class TestOutboxRelayService:
     async def test_process_row_kafka_failure_max_retries(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing with Kafka failure exceeding max retries."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait = AsyncMock(side_effect=KafkaTimeoutError("Timeout"))
 
@@ -426,7 +433,7 @@ class TestOutboxRelayService:
     async def test_process_row_json_serialization_error(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing with JSON serialization error."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
 
         service = OutboxRelayService()
@@ -449,7 +456,7 @@ class TestOutboxRelayService:
     async def test_process_row_header_encoding_error(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing with header encoding error."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait = AsyncMock()
 
@@ -476,7 +483,7 @@ class TestOutboxRelayService:
     async def test_process_row_positive_header_encoding(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing with successful header encoding."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait = AsyncMock()
 
@@ -500,7 +507,7 @@ class TestOutboxRelayService:
     async def test_process_row_partition_key_fallback(self, mock_get_settings, mock_settings, sample_outbox_message):
         """Test row processing uses partition_key when key is None."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait = AsyncMock()
 
@@ -525,7 +532,7 @@ class TestOutboxRelayService:
     ):
         """Test exponential backoff calculation with frozen time."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait.side_effect = KafkaError("Error")
 
@@ -565,7 +572,7 @@ class TestOutboxRelayService:
     ):
         """Test exponential backoff overflow protection with frozen time."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_producer = AsyncMock()
         mock_producer.send_and_wait.side_effect = KafkaError("Error")
 
@@ -596,7 +603,7 @@ class TestOutboxRelayService:
     async def test_drain_once_no_candidates(self, mock_create_session, mock_get_settings, mock_settings):
         """Test _drain_once when no candidate messages are found."""
         mock_get_settings.return_value = mock_settings
-        mock_session = AsyncMock()
+        mock_session = self._create_mock_session()
         mock_result = MagicMock()
 
         # Properly mock the scalars().all() chain
@@ -623,7 +630,7 @@ class TestOutboxRelayService:
         mock_get_settings.return_value = mock_settings
 
         # Mock Phase 1: ID selection
-        mock_session_1 = AsyncMock()
+        mock_session_1 = self._create_mock_session()
         mock_result_1 = MagicMock()
         candidate_ids = [sample_outbox_message.id]
 
@@ -635,7 +642,7 @@ class TestOutboxRelayService:
         mock_session_1.execute = AsyncMock(return_value=mock_result_1)
 
         # Mock Phase 2: Row processing
-        mock_session_2 = AsyncMock()
+        mock_session_2 = self._create_mock_session()
         mock_result_2 = MagicMock()
         mock_result_2.scalar_one_or_none.return_value = sample_outbox_message
         mock_session_2.execute = AsyncMock(return_value=mock_result_2)
@@ -673,7 +680,7 @@ class TestOutboxRelayService:
         mock_get_settings.return_value = mock_settings
 
         # Mock Phase 1: ID selection
-        mock_session_1 = AsyncMock()
+        mock_session_1 = self._create_mock_session()
         mock_result_1 = MagicMock()
         candidate_ids = [uuid4()]
 
@@ -685,7 +692,7 @@ class TestOutboxRelayService:
         mock_session_1.execute = AsyncMock(return_value=mock_result_1)
 
         # Mock Phase 2: Row not found (taken by other worker)
-        mock_session_2 = AsyncMock()
+        mock_session_2 = self._create_mock_session()
         mock_result_2 = MagicMock()
         mock_result_2.scalar_one_or_none.return_value = None
         mock_session_2.execute = AsyncMock(return_value=mock_result_2)

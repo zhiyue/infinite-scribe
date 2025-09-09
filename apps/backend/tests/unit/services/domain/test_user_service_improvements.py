@@ -98,10 +98,12 @@ class TestSessionServiceCaching:
         """设置测试环境。"""
         self.session_service = SessionService()
         self.mock_db = AsyncMock()
+        # Fix async mock warning: db.add() should be synchronous
+        self.mock_db.add = Mock()  # SQLAlchemy add() is synchronous
         self.mock_redis = AsyncMock()
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_create_session_with_caching(self, mock_redis_service):
         """测试创建 session 时缓存到 Redis。"""
         # 模拟 Redis 服务
@@ -149,7 +151,7 @@ class TestSessionServiceCaching:
         assert any("session:refresh:test_refresh_token" in key for key in cache_keys)
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_get_session_by_jti_with_cache_hit(self, mock_redis_service):
         """测试通过 JTI 获取 session 时命中缓存。"""
         # 模拟缓存命中
@@ -176,7 +178,7 @@ class TestSessionServiceCaching:
         mock_redis_service.get.assert_called_once_with("session:jti:test_jti")
 
     @pytest.mark.asyncio
-    @patch("src.common.services.session_service.redis_service", new_callable=AsyncMock)
+    @patch("src.common.services.user.session_service.redis_service", new_callable=AsyncMock)
     async def test_revoke_session_invalidates_cache(self, mock_redis_service):
         """测试撤销 session 时使缓存失效。"""
         # 创建模拟 session
