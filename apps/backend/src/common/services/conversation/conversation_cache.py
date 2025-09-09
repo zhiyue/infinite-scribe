@@ -1,315 +1,205 @@
 """
-Conversation Cache Manager for Redis
+Cache manager for conversation operations.
 
-Manages Redis-based caching for conversation sessions and rounds
-with proper TTL management as specified in Task 1.
+Facade that coordinates specialized session and round cache strategies.
 """
 
-import json
+from __future__ import annotations
+
 import logging
 from typing import Any
 
-from src.db.redis import redis_service
+from src.common.services.conversation.conversation_round_cache import ConversationRoundCache
+from src.common.services.conversation.conversation_session_cache import ConversationSessionCache
+from src.db.redis.service import RedisService
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationCacheManager:
-    """Manages conversation session and round caching with Redis."""
+    """
+    Facade for conversation caching operations.
 
-    def __init__(self):
-        """Initialize conversation cache manager."""
-        # 30 days TTL as specified in Task 1
-        self.default_session_ttl = 30 * 24 * 60 * 60  # 30 days in seconds
-        self.default_round_ttl = 30 * 24 * 60 * 60  # Same as session TTL
+    Delegates to specialized cache strategies while maintaining backward compatibility.
+    """
+
+    def __init__(self, session_ttl: int = 2592000, round_ttl: int = 1800) -> None:  # 30 days = 2,592,000 seconds
+        self.redis = RedisService()
+        self.session_cache = ConversationSessionCache(default_ttl=session_ttl)
+        self.round_cache = ConversationRoundCache(default_ttl=round_ttl)
+        self.default_session_ttl = session_ttl
+        self.default_round_ttl = round_ttl
         self._connected = False
 
+    # ---------- Connection Management ----------
+
     async def connect(self) -> bool:
-        """Connect to Redis service."""
+        """Connect to Redis."""
         try:
-            await redis_service.connect()
-            self._connected = await redis_service.check_connection()
-            if self._connected:
-                logger.info("ConversationCacheManager connected to Redis")
-            return self._connected
+            # First establish Redis connection, then ping
+            await self.redis.connect()
+            await self.redis.ping()
+            self._connected = True
+            logger.debug("Connected to conversation cache")
+            return True
         except Exception as e:
-            logger.error(f"Failed to connect ConversationCacheManager to Redis: {e}")
+            logger.error(f"Cache connection error: {e}")
+            self._connected = False
             return False
 
     async def disconnect(self) -> None:
-        """Disconnect from Redis service."""
+        """Disconnect from Redis."""
         try:
-            await redis_service.disconnect()
+            # Properly disconnect from Redis service
+            await self.redis.disconnect()
             self._connected = False
-            logger.info("ConversationCacheManager disconnected from Redis")
+            logger.debug("Disconnected from conversation cache")
         except Exception as e:
-            logger.warning(f"Error during ConversationCacheManager disconnect: {e}")
+            logger.error(f"Cache disconnection error: {e}")
 
     async def is_connected(self) -> bool:
         """Check if connected to Redis."""
-        return self._connected and await redis_service.check_connection()
+        return self._connected
 
-    def get_session_key(self, session_id: str) -> str:
-        """Generate Redis key for conversation session."""
-        return f"conversation:session:{session_id}"
+    # ---------- Key Generation (Backward Compatibility) ----------
 
-    def get_round_key(self, session_id: str, round_path: str) -> str:
-        """Generate Redis key for conversation round."""
-        return f"conversation:session:{session_id}:round:{round_path}"
+    @staticmethod
+    def get_session_key(session_id: str) -> str:
+        """Generate cache key for session."""
+        return f"conv:session:{session_id}"
 
-    def get_session_rounds_pattern(self, session_id: str) -> str:
-        """Generate Redis key pattern for all rounds in a session."""
-        return f"conversation:session:{session_id}:round:*"
+    @staticmethod
+    def get_round_key(session_id: str, round_path: str) -> str:
+        """Generate cache key for round."""
+        return f"conv:round:{session_id}:{round_path}"
+
+    @staticmethod
+    def get_session_rounds_pattern(session_id: str) -> str:
+        """Generate pattern for all rounds in a session."""
+        return f"conv:round:{session_id}:*"
+
+    # ---------- Session Operations ----------
 
     async def cache_session(self, session_id: str, session_data: dict[str, Any], ttl: int | None = None) -> bool:
-        """Cache conversation session data with TTL."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_session_key(session_id)
-            data_json = json.dumps(session_data)
-            expire_seconds = ttl or self.default_session_ttl
-
-            await redis_service.set(key, data_json, expire=expire_seconds)
-            logger.debug(f"Cached session {session_id} with TTL {expire_seconds}s")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to cache session {session_id}: {e}")
-            return False
+        """Cache session data with TTL."""
+        return await self.session_cache.cache_session(session_id, session_data, ttl)
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
-        """Retrieve cached conversation session data."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_session_key(session_id)
-            data_json = await redis_service.get(key)
-
-            if data_json:
-                return json.loads(data_json)
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to get session {session_id}: {e}")
-            return None
+        """Get cached session data."""
+        return await self.session_cache.get_session(session_id)
 
     async def delete_session(self, session_id: str) -> bool:
-        """Delete cached conversation session."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
+        """Delete cached session."""
+        return await self.session_cache.delete_session(session_id)
 
-            key = self.get_session_key(session_id)
-            await redis_service.delete(key)
-            logger.debug(f"Deleted session {session_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to delete session {session_id}: {e}")
-            return False
-
-    async def get_session_ttl(self, session_id: str) -> int:
-        """Get TTL for cached session."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_session_key(session_id)
-
-            async with redis_service.acquire() as client:
-                ttl = await client.ttl(key)
-                return ttl if ttl > 0 else 0
-
-        except Exception as e:
-            logger.error(f"Failed to get TTL for session {session_id}: {e}")
-            return 0
+    async def get_session_ttl(self, session_id: str) -> int | None:
+        """Get remaining TTL for session."""
+        return await self.session_cache.get_session_ttl(session_id)
 
     async def renew_session_ttl(self, session_id: str, ttl: int | None = None) -> bool:
-        """Renew TTL for cached session."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
+        """Renew session TTL."""
+        return await self.session_cache.renew_session_ttl(session_id, ttl)
 
-            key = self.get_session_key(session_id)
-            expire_seconds = ttl or self.default_session_ttl
-
-            async with redis_service.acquire() as client:
-                await client.expire(key, expire_seconds)
-                logger.debug(f"Renewed TTL for session {session_id} to {expire_seconds}s")
-                return True
-
-        except Exception as e:
-            logger.error(f"Failed to renew TTL for session {session_id}: {e}")
-            return False
+    # ---------- Round Operations ----------
 
     async def cache_round(
         self, session_id: str, round_path: str, round_data: dict[str, Any], ttl: int | None = None
     ) -> bool:
-        """Cache conversation round data with TTL."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_round_key(session_id, round_path)
-            data_json = json.dumps(round_data)
-            expire_seconds = ttl or self.default_round_ttl
-
-            await redis_service.set(key, data_json, expire=expire_seconds)
-            logger.debug(f"Cached round {session_id}:{round_path} with TTL {expire_seconds}s")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to cache round {session_id}:{round_path}: {e}")
-            return False
+        """Cache round data with TTL."""
+        return await self.round_cache.cache_round(session_id, round_path, round_data, ttl)
 
     async def get_round(self, session_id: str, round_path: str) -> dict[str, Any] | None:
-        """Retrieve cached conversation round data."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_round_key(session_id, round_path)
-            data_json = await redis_service.get(key)
-
-            if data_json:
-                return json.loads(data_json)
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to get round {session_id}:{round_path}: {e}")
-            return None
+        """Get cached round data."""
+        return await self.round_cache.get_round(session_id, round_path)
 
     async def delete_round(self, session_id: str, round_path: str) -> bool:
-        """Delete cached conversation round."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
+        """Delete cached round."""
+        return await self.round_cache.delete_round(session_id, round_path)
 
-            key = self.get_round_key(session_id, round_path)
-            await redis_service.delete(key)
-            logger.debug(f"Deleted round {session_id}:{round_path}")
-            return True
+    async def get_round_ttl(self, session_id: str, round_path: str) -> int | None:
+        """Get remaining TTL for round."""
+        return await self.round_cache.get_round_ttl(session_id, round_path)
 
-        except Exception as e:
-            logger.error(f"Failed to delete round {session_id}:{round_path}: {e}")
-            return False
-
-    async def get_round_ttl(self, session_id: str, round_path: str) -> int:
-        """Get TTL for cached round."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            key = self.get_round_key(session_id, round_path)
-
-            async with redis_service.acquire() as client:
-                ttl = await client.ttl(key)
-                return ttl if ttl > 0 else 0
-
-        except Exception as e:
-            logger.error(f"Failed to get TTL for round {session_id}:{round_path}: {e}")
-            return 0
+    # ---------- Batch Operations ----------
 
     async def get_session_rounds(self, session_id: str) -> list[dict[str, Any]]:
-        """Retrieve all cached rounds for a session."""
+        """Get all cached rounds for a session."""
+        return await self.round_cache.get_session_rounds(session_id)
+
+    async def clear_session(self, session_id: str) -> dict[str, Any]:
+        """
+        Clear all cached data for a session (session + rounds).
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Dict with operation results
+        """
         try:
-            if not await self.is_connected():
-                await self.connect()
+            session_deleted = await self.session_cache.delete_session(session_id)
+            rounds_cleared = await self.round_cache.clear_session_rounds(session_id)
 
-            pattern = self.get_session_rounds_pattern(session_id)
-
-            async with redis_service.acquire() as client:
-                # Get all keys matching the pattern
-                keys = await client.keys(pattern)
-
-                if not keys:
-                    return []
-
-                # Get all values for the keys
-                rounds = []
-                for key in keys:
-                    data_json = await client.get(key)
-                    if data_json:
-                        rounds.append(json.loads(data_json))
-
-                return rounds
-
+            return {
+                "success": True,
+                "session_deleted": session_deleted,
+                "rounds_cleared": rounds_cleared,
+            }
         except Exception as e:
-            logger.error(f"Failed to get session rounds for {session_id}: {e}")
-            return []
+            logger.error(f"Session clearing error: {e}")
+            return {"success": False, "error": str(e)}
 
-    async def clear_session(self, session_id: str) -> bool:
-        """Clear all cached data for a session (session + all rounds)."""
-        try:
-            if not await self.is_connected():
-                await self.connect()
-
-            # Delete session
-            session_key = self.get_session_key(session_id)
-            await redis_service.delete(session_key)
-
-            # Delete all rounds for this session
-            pattern = self.get_session_rounds_pattern(session_id)
-
-            async with redis_service.acquire() as client:
-                keys = await client.keys(pattern)
-                if keys:
-                    await client.delete(*keys)
-
-            logger.debug(f"Cleared all cached data for session {session_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to clear session {session_id}: {e}")
-            return False
+    # ---------- Statistics ----------
 
     async def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
+        """
+        Get cache statistics using SCAN for performance.
+
+        Returns:
+            Dict with cache statistics
+        """
         try:
-            if not await self.is_connected():
-                await self.connect()
+            info = await self.redis.info("memory")
+            keyspace_info = await self.redis.info("keyspace")
 
-            async with redis_service.acquire() as client:
-                # Get basic Redis info
-                info = await client.info()
+            # Count conversation-related keys using SCAN instead of KEYS
+            session_pattern = "conv:session:*"
+            round_pattern = "conv:round:*"
 
-                # Count conversation-related keys
-                session_keys = await client.keys("conversation:session:*")
-                session_count = len([k for k in session_keys if ":round:" not in k])
-                round_count = len([k for k in session_keys if ":round:" in k])
+            # Count session keys
+            session_count = 0
+            cursor = 0
+            while True:
+                cursor, batch_keys = await self.redis.scan(cursor, match=session_pattern, count=100)
+                session_count += len(batch_keys)
+                if cursor == 0:
+                    break
 
-                # Parse db0 info string like "keys=1,expires=0"
-                total_keys = 0
-                if "db0" in info:
-                    db0_info = info["db0"]
-                    if isinstance(db0_info, str) and "keys=" in db0_info:
-                        try:
-                            keys_part = db0_info.split(",")[0]  # Get "keys=1"
-                            total_keys = int(keys_part.split("=")[1])  # Extract "1"
-                        except (ValueError, IndexError):
-                            total_keys = 0
+            # Count round keys
+            round_count = 0
+            cursor = 0
+            while True:
+                cursor, batch_keys = await self.redis.scan(cursor, match=round_pattern, count=100)
+                round_count += len(batch_keys)
+                if cursor == 0:
+                    break
 
-                return {
-                    "redis_connected": True,
-                    "redis_version": info.get("redis_version", "unknown"),
-                    "total_keys": total_keys,
-                    "used_memory": info.get("used_memory_human", "unknown"),
-                    "conversation_sessions": session_count,
-                    "conversation_rounds": round_count,
-                    "default_session_ttl_days": self.default_session_ttl / (24 * 60 * 60),
-                }
+            stats = {
+                "connected": self._connected,
+                "redis_memory_used": info.get("used_memory", 0),
+                "redis_memory_human": info.get("used_memory_human", "0B"),
+                "total_keys": keyspace_info.get("db0", {}).get("keys", 0) if "db0" in keyspace_info else 0,
+                "conversation_sessions": session_count,
+                "conversation_rounds": round_count,
+                "default_session_ttl": self.default_session_ttl,
+                "default_round_ttl": self.default_round_ttl,
+            }
+
+            return {"success": True, "stats": stats}
 
         except Exception as e:
-            logger.error(f"Failed to get cache stats: {e}")
-            return {
-                "redis_connected": False,
-                "error": str(e),
-                "conversation_sessions": 0,
-                "conversation_rounds": 0,
-            }
+            logger.error(f"Cache stats error: {e}")
+            return {"success": False, "error": str(e)}
 
 
 __all__ = ["ConversationCacheManager"]

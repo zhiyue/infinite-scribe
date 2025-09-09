@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,6 +41,7 @@ class ConversationSession(Base):
     stage: Mapped[str | None] = mapped_column(String(64))
     state: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    round_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
@@ -56,6 +57,14 @@ class ConversationRound(Base):
     __tablename__ = "conversation_rounds"
     __table_args__ = (
         UniqueConstraint("session_id", "round_path", name="uq_conversation_round"),
+        # Event idempotency: unique constraint on (session_id, correlation_id) where correlation_id is not null
+        Index(
+            "uq_conversation_round_correlation", 
+            "session_id", 
+            "correlation_id", 
+            unique=True,
+            postgresql_where=text("correlation_id IS NOT NULL")
+        ),
         # Performance indexes
         Index("idx_conversation_rounds_session_id", "session_id"),
         Index("idx_conversation_rounds_correlation_id", "correlation_id"),

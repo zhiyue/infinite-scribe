@@ -70,17 +70,67 @@ class RedisService:
             raise RuntimeError("Redis client not connected")
         await self._client.set(key, value, ex=expire)
 
-    async def delete(self, key: str) -> None:
-        """Delete key from Redis."""
+    async def delete(self, *keys: str) -> int:
+        """Delete key(s) from Redis. Returns number of keys deleted."""
         if not self._client:
             raise RuntimeError("Redis client not connected")
-        await self._client.delete(key)
+        if not keys:
+            return 0
+        return await self._client.delete(*keys)
 
     async def exists(self, key: str) -> bool:
         """Check if key exists in Redis."""
         if not self._client:
             raise RuntimeError("Redis client not connected")
         return bool(await self._client.exists(key))
+
+    async def ping(self) -> bool:
+        """Ping Redis server."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        try:
+            await self._client.ping()
+            return True
+        except Exception:
+            return False
+
+    async def info(self, section: str | None = None) -> dict:
+        """Get Redis server info."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        return await self._client.info(section)
+
+    async def keys(self, pattern: str) -> list[str]:
+        """Get keys matching pattern. Use scan() in production for better performance."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        return await self._client.keys(pattern)
+
+    async def scan(self, cursor: int = 0, match: str | None = None, count: int | None = None) -> tuple[int, list[str]]:
+        """Scan keys with cursor. Better performance than keys() for large datasets."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        return await self._client.scan(cursor=cursor, match=match, count=count)
+
+    async def mget(self, keys: list[str]) -> list[str | None]:
+        """Get multiple values."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        if not keys:
+            return []
+        return await self._client.mget(keys)
+
+    async def ttl(self, key: str) -> int:
+        """Get time to live for key in seconds. Returns -1 if no expiry, -2 if key doesn't exist."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        return await self._client.ttl(key)
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        """Set expiry for key in seconds."""
+        if not self._client:
+            raise RuntimeError("Redis client not connected")
+        return await self._client.expire(key, seconds)
 
     @asynccontextmanager
     async def acquire(self) -> AsyncGenerator[redis.Redis, None]:
