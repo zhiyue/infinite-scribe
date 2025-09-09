@@ -10,14 +10,13 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.repositories.conversation import ConversationRoundRepository, SqlAlchemyConversationRoundRepository
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
-from src.models.conversation import ConversationRound
 from src.schemas.novel.dialogue import DialogueRole
 
 logger = logging.getLogger(__name__)
@@ -31,10 +30,12 @@ class ConversationRoundQueryService:
         cache: ConversationCacheManager | None = None,
         access_control: ConversationAccessControl | None = None,
         serializer: ConversationSerializer | None = None,
+        repository: ConversationRoundRepository | None = None,
     ) -> None:
         self.cache = cache or ConversationCacheManager()
         self.access_control = access_control or ConversationAccessControl()
         self.serializer = serializer or ConversationSerializer()
+        self.repository = repository
 
     async def list_rounds(
         self,
@@ -68,56 +69,38 @@ class ConversationRoundQueryService:
             if not access_result["success"]:
                 return access_result
 
-            # Build query - use created_at for proper chronological ordering
-            q = select(ConversationRound).where(ConversationRound.session_id == session_id)
+            # Initialize repository if not provided
+            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
 
-            if role is not None:
-                q = q.where(ConversationRound.role == role.value)
-
-            # Cursor pagination with dual format support
+            # Handle complex cursor pagination if needed
+            processed_after = after
             if after:
-                after_dt = None
                 try:
-                    from datetime import datetime
                     import re
-                    
-                    # Check if after looks like a round_path (numbers with optional dots)
-                    if re.match(r'^\d+(\.\d+)*$', after):
-                        # It's a round_path, find the corresponding round's created_at
-                        round_result = await db.scalar(
-                            select(ConversationRound.created_at).where(
-                                and_(
-                                    ConversationRound.session_id == session_id,
-                                    ConversationRound.round_path == after
-                                )
-                            )
-                        )
-                        if round_result:
-                            after_dt = round_result
-                            logger.debug(f"Using round_path cursor: {after} -> {after_dt}")
-                    else:
-                        # Assume it's an ISO timestamp
-                        after_dt = datetime.fromisoformat(after.replace("Z", "+00:00"))
-                        logger.debug(f"Using timestamp cursor: {after}")
 
-                    if after_dt:
-                        if order == "asc":
-                            q = q.where(ConversationRound.created_at > after_dt)
-                        else:  # desc
-                            q = q.where(ConversationRound.created_at < after_dt)
-                            
+                    # Check if after looks like a round_path (numbers with optional dots)
+                    if re.match(r"^\d+(\.\d+)*$", after):
+                        # It's a round_path, find the corresponding round to get timestamp
+                        round_obj = await repository.find_by_session_and_path(session_id, after)
+                        if round_obj:
+                            processed_after = round_obj.created_at.isoformat()
+                            logger.debug(f"Using round_path cursor: {after} -> {processed_after}")
+                        else:
+                            processed_after = None
+                    else:
+                        # Assume it's already an ISO timestamp
+                        logger.debug(f"Using timestamp cursor: {after}")
+                        processed_after = after
+
                 except (ValueError, AttributeError) as e:
                     # Invalid cursor format, ignore and log warning
                     logger.warning(f"Invalid cursor format '{after}': {e}")
-                    pass
+                    processed_after = None
 
-            # Use created_at for reliable chronological ordering
-            q = q.order_by(
-                asc(ConversationRound.created_at) if order == "asc" else desc(ConversationRound.created_at)
-            ).limit(limit)
-
-            result = await db.execute(q)
-            rounds = result.scalars().all()
+            # Use repository to get rounds
+            rounds = await repository.list_by_session(
+                session_id=session_id, after=processed_after, limit=limit, order=order, role=role
+            )
 
             # Serialize ORM objects to dict at service boundary
             serialized_rounds = [self.serializer.serialize_round(rnd) for rnd in rounds]
@@ -153,12 +136,11 @@ class ConversationRoundQueryService:
                 # Cache already contains serialized dict
                 return ConversationErrorHandler.success_response({"round": cached, "cached": True})
 
-            # Get from database
-            rnd = await db.scalar(
-                select(ConversationRound).where(
-                    and_(ConversationRound.session_id == session_id, ConversationRound.round_path == round_path)
-                )
-            )
+            # Initialize repository if not provided
+            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+
+            # Get from repository
+            rnd = await repository.find_by_session_and_path(session_id, round_path)
 
             if not rnd:
                 return ConversationErrorHandler.not_found_error(
@@ -167,7 +149,7 @@ class ConversationRoundQueryService:
 
             # Serialize ORM object to dict at service boundary
             serialized_round = self.serializer.serialize_round(rnd)
-            
+
             # Cache for future use (best effort) - already serialized
             try:
                 await self.cache.cache_round(str(session_id), round_path, serialized_round)
@@ -176,7 +158,7 @@ class ConversationRoundQueryService:
                 # Cache failure should not affect main business flow
                 logger.warning(
                     f"Failed to cache round {session_id}:{round_path}: {cache_error}",
-                    extra={"session_id": str(session_id), "round_path": round_path}
+                    extra={"session_id": str(session_id), "round_path": round_path},
                 )
 
             return ConversationErrorHandler.success_response({"round": serialized_round})

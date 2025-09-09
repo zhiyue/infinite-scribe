@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.repositories.conversation import ConversationRoundRepository, SqlAlchemyConversationRoundRepository
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
@@ -33,11 +34,13 @@ class ConversationRoundCreationService:
         access_control: ConversationAccessControl | None = None,
         serializer: ConversationSerializer | None = None,
         event_handler: ConversationEventHandler | None = None,
+        repository: ConversationRoundRepository | None = None,
     ) -> None:
         self.cache = cache or ConversationCacheManager()
         self.access_control = access_control or ConversationAccessControl()
         self.serializer = serializer or ConversationSerializer()
         self.event_handler = event_handler or ConversationEventHandler()
+        self.repository = repository
 
     async def create_round(
         self,
@@ -141,23 +144,23 @@ class ConversationRoundCreationService:
             Created ConversationRound or None if failed
         """
         try:
+            # Initialize repository if not provided
+            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+
             async with db.begin():
                 created_round = None
 
                 # Check for idempotent creation via correlation_id
                 if correlation_id:
-                    existing = await db.scalar(
-                        select(ConversationRound).where(
-                            and_(
-                                ConversationRound.session_id == session.id,
-                                ConversationRound.correlation_id == correlation_id,
-                            )
-                        )
-                    )
-                    if existing:
-                        # Ensure domain event and outbox exist
-                        await self.event_handler.ensure_round_events(db, session, existing, corr_uuid)
-                        created_round = existing
+                    try:
+                        existing = await repository.find_by_correlation_id(session.id, UUID(correlation_id))
+                        if existing:
+                            # Ensure domain event and outbox exist
+                            await self.event_handler.ensure_round_events(db, session, existing, corr_uuid)
+                            created_round = existing
+                    except (ValueError, TypeError):
+                        # Invalid correlation_id format, skip idempotent check
+                        pass
 
                 # Create new round if no idempotent hit
                 if created_round is None:
@@ -183,7 +186,7 @@ class ConversationRoundCreationService:
         parent_round_path: str | None = None,
     ) -> ConversationRound:
         """Create a new round with events using atomic sequence generation."""
-        from sqlalchemy import and_, func, select, update
+        from sqlalchemy import func, update
 
         if parent_round_path is None:
             # Top-level round: use session's round_sequence
@@ -224,19 +227,19 @@ class ConversationRoundCreationService:
             new_child_sequence = max_child_sequence + 1
             round_path = f"{parent_round_path}.{new_child_sequence}"
 
-        # Create round with atomically generated round_path
-        rnd = ConversationRound(
+        # Initialize repository if not provided
+        repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+
+        # Create round with atomically generated round_path using repository
+        rnd = await repository.create(
             session_id=session.id,
             round_path=round_path,
             role=role.value,
-            input=input_data,
-            output=None,
-            tool_calls=None,
+            input_data=input_data,
+            output_data=None,
             model=model,
             correlation_id=correlation_id,
         )
-        db.add(rnd)
-        await db.flush()
 
         # Create domain event and outbox (low-level helper)
         await self.event_handler.create_round_support_events(db, session, rnd, corr_uuid)

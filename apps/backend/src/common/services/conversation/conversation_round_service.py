@@ -12,14 +12,13 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.repositories.conversation import ConversationRoundRepository, SqlAlchemyConversationRoundRepository
+from src.common.repositories.conversation import ConversationRoundRepository
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
 from src.common.services.conversation.conversation_round_creation_service import ConversationRoundCreationService
 from src.common.services.conversation.conversation_round_query_service import ConversationRoundQueryService
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
-from src.models.conversation import ConversationRound, ConversationSession
 from src.schemas.novel.dialogue import DialogueRole
 
 logger = logging.getLogger(__name__)
@@ -52,7 +51,7 @@ class ConversationRoundService:
         """
         # Store repository for potential direct use
         self.repository = repository
-        
+
         # Allow direct injection of services for maximum flexibility
         if query_service is not None:
             self.query_service = query_service
@@ -61,9 +60,7 @@ class ConversationRoundService:
             cache_manager = cache or ConversationCacheManager()
             access_ctrl = access_control or ConversationAccessControl()
             serializer_inst = serializer or ConversationSerializer()
-            self.query_service = ConversationRoundQueryService(
-                cache_manager, access_ctrl, serializer_inst, repository
-            )
+            self.query_service = ConversationRoundQueryService(cache_manager, access_ctrl, serializer_inst, repository)
 
         if creation_service is not None:
             self.creation_service = creation_service

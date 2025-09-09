@@ -1293,6 +1293,7 @@ dependencies = [
     { name = "starlette" },
     { name = "structlog" },
     { name = "tenacity" },
+    { name = "testcontainers" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1359,6 +1360,7 @@ requires-dist = [
     { name = "starlette", specifier = ">=0.47.2" },
     { name = "structlog", specifier = "~=24.4.0" },
     { name = "tenacity", specifier = "~=9.0.0" },
+    { name = "testcontainers", specifier = ">=4.8.2" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.32.0" },
 ]
 

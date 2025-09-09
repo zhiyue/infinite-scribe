@@ -22,8 +22,10 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # 设置数据库连接URL (使用同步版本的URL用于 alembic)
-database_url = settings.database.postgres_url.replace("+asyncpg", "")
-config.set_main_option("sqlalchemy.url", database_url)
+# Only set the URL if it hasn't been set already (e.g., by tests)
+if not config.get_main_option("sqlalchemy.url"):
+    database_url = settings.database.postgres_url.replace("+asyncpg", "")
+    config.set_main_option("sqlalchemy.url", database_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

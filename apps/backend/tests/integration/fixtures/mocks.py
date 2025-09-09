@@ -10,7 +10,7 @@ import pytest
 
 
 # 全局邮件发送 mock（加速集成测试，避免真实外部调用与重试退避）
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)  # Disabled autouse to avoid conflicts with repository tests
 def _mock_email_tasks_send_with_retry():
     """在所有 integration 测试中，统一 mock 掉邮件重试发送。
 
@@ -28,7 +28,7 @@ def _mock_email_tasks_send_with_retry():
 
 
 # 全局 EmailClient 实例方法 mock（覆盖直接调用 email_client 的场景）
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)  # Disabled autouse to avoid conflicts with repository tests
 def _mock_email_service_instance_methods():
     """统一将 user_email_service 的发送方法 mock 成快速成功，避免真实网络调用。
 

@@ -31,6 +31,7 @@ def upgrade() -> None:
         sa.Column('stage', sa.String(64), nullable=True),
         sa.Column('state', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('version', sa.Integer(), nullable=False, server_default=sa.text('0')),
+        sa.Column('round_sequence', sa.Integer(), nullable=False, server_default=sa.text('0')),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
         sa.PrimaryKeyConstraint('id'),

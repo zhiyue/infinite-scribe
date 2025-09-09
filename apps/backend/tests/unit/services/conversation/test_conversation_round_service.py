@@ -39,9 +39,14 @@ class TestConversationRoundService:
         return AsyncMock()
 
     @pytest.fixture
-    def round_service(self, mock_cache):
+    def mock_repository(self):
+        """Create mock conversation round repository."""
+        return AsyncMock()
+
+    @pytest.fixture
+    def round_service(self, mock_cache, mock_repository):
         """Create ConversationRoundService instance."""
-        return ConversationRoundService(cache=mock_cache)
+        return ConversationRoundService(cache=mock_cache, repository=mock_repository)
 
     @pytest.mark.asyncio
     async def test_list_rounds_success(self, round_service, mock_db, mock_access_control):

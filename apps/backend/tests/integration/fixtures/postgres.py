@@ -49,21 +49,20 @@ def _run_alembic_upgrade_head(sync_db_url: str) -> None:
     from alembic.config import Config
 
     # 假设项目根有 alembic.ini，脚本在 alembic/ 目录
-    project_root = Path(__file__).resolve().parents[2]
+    project_root = Path(__file__).resolve().parents[3]
     alembic_dir = project_root / "alembic"
     alembic_ini = project_root / "alembic.ini"
 
     cfg = Config(str(alembic_ini))
-    cfg.set_main_option("script_location", str(alembic_dir))
     cfg.set_main_option("sqlalchemy.url", sync_db_url)
 
-    # 先简单验证连接
+    # Test database connection before running migrations
     engine = create_sync_engine(sync_db_url, future=True)
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     engine.dispose()
 
-    # 真实执行迁移到 head
+    # Run Alembic migrations to head
     command.upgrade(cfg, "head")
 
 
@@ -131,3 +130,12 @@ async def _truncate_all_tables(session: AsyncSession) -> None:
         # RESTART IDENTITY 重置自增；CASCADE 处理外键
         await session.execute(text(f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE"))
     await session.commit()
+
+
+# ---------- 5) Alias for backwards compatibility ----------
+@pytest.fixture
+async def postgres_test_session(pg_session: AsyncSession) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Alias for pg_session fixture for backwards compatibility with existing tests.
+    """
+    yield pg_session
