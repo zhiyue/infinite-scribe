@@ -357,7 +357,7 @@ class TestConversationSessionService:
         assert result["code"] == 404
 
     @pytest.mark.asyncio
-    async def test_update_session_access_denied(self, session_service, mock_db, mock_access_control):
+    async def test_update_session_access_denied(self, session_service, mock_db, mock_access_control, mock_repository):
         """Test updating session when access is denied."""
         # Arrange
         user_id = 123
@@ -365,10 +365,13 @@ class TestConversationSessionService:
 
         # Mock existing session
         existing_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = existing_session
+        existing_session.scope_type = "genesis"
+        existing_session.scope_id = "novel-123"
+        existing_session.status = "active"
+        mock_repository.find_by_id.return_value = existing_session
 
         # Mock access denied
-        mock_access_control.verify_session_access.return_value = {
+        mock_access_control.verify_cached_session_access.return_value = {
             "success": False,
             "error": "Access denied",
             "code": 403,
@@ -435,7 +438,7 @@ class TestConversationSessionService:
         mock_db.rollback.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_delete_session_success(self, session_service, mock_db, mock_access_control, mock_cache):
+    async def test_delete_session_success(self, session_service, mock_db, mock_access_control, mock_cache, mock_repository):
         """Test successful session deletion."""
         # Arrange
         user_id = 123
@@ -444,19 +447,23 @@ class TestConversationSessionService:
         # Mock existing session
         existing_session = Mock(spec=ConversationSession)
         existing_session.id = session_id
-        mock_db.scalar.return_value = existing_session
+        existing_session.scope_type = "genesis"
+        existing_session.scope_id = "novel-123"
+        existing_session.status = "active"
+        mock_repository.find_by_id.return_value = existing_session
 
         # Mock successful access verification
-        mock_access_control.verify_session_access.return_value = {"success": True, "session": existing_session}
+        mock_access_control.verify_cached_session_access.return_value = {"success": True}
+
+        # Mock successful deletion
+        mock_repository.delete.return_value = True
 
         # Act
         result = await session_service.delete_session(mock_db, user_id, session_id)
 
         # Assert
         assert result["success"] is True
-        mock_db.delete.assert_called_once_with(existing_session)
-        mock_db.commit.assert_called_once()
-        mock_cache.clear_session.assert_called_once_with(str(session_id))
+        mock_repository.delete.assert_called_once_with(session_id)
 
     @pytest.mark.asyncio
     async def test_delete_session_not_found(self, session_service, mock_db):
@@ -478,7 +485,7 @@ class TestConversationSessionService:
         mock_db.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_session_access_denied(self, session_service, mock_db, mock_access_control):
+    async def test_delete_session_access_denied(self, session_service, mock_db, mock_access_control, mock_repository):
         """Test deleting session when access is denied."""
         # Arrange
         user_id = 123
@@ -486,10 +493,13 @@ class TestConversationSessionService:
 
         # Mock existing session
         existing_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = existing_session
+        existing_session.scope_type = "genesis"
+        existing_session.scope_id = "novel-123"
+        existing_session.status = "active"
+        mock_repository.find_by_id.return_value = existing_session
 
         # Mock access denied
-        mock_access_control.verify_session_access.return_value = {
+        mock_access_control.verify_cached_session_access.return_value = {
             "success": False,
             "error": "Access denied",
             "code": 403,
@@ -502,4 +512,4 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
-        mock_db.delete.assert_not_called()
+        mock_repository.delete.assert_not_called()

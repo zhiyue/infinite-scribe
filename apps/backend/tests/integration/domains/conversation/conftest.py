@@ -372,23 +372,23 @@ async def test_user_and_novel(pg_session):
 async def genesis_fixture(pg_session, test_user_and_novel):
     """Create Genesis conversation test fixture."""
     user, novel = test_user_and_novel
-    
+
     # Create a session factory-like wrapper for the existing session
     class SessionWrapper:
         def __init__(self, session):
             self.session = session
-            
+
         def __call__(self):
             return self.session_context()
-            
+
         async def __aenter__(self):
             return self.session
-            
+
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
-            
+
         def session_context(self):
             return self
-    
+
     session_factory = SessionWrapper(pg_session)
     return GenesisConversationTestFixture(session_factory, user, novel)

@@ -7,6 +7,7 @@ Handles read operations for conversation rounds with caching optimization.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -31,11 +32,19 @@ class ConversationRoundQueryService:
         access_control: ConversationAccessControl | None = None,
         serializer: ConversationSerializer | None = None,
         repository: ConversationRoundRepository | None = None,
+        repository_factory: Callable[[AsyncSession], ConversationRoundRepository] | None = None,
     ) -> None:
         self.cache = cache or ConversationCacheManager()
         self.access_control = access_control or ConversationAccessControl()
         self.serializer = serializer or ConversationSerializer()
-        self.repository = repository
+
+        # Repository factory pattern - prioritize factory > instance > default
+        if repository_factory:
+            self._repo_factory = repository_factory
+        elif repository:
+            self._repo_factory = lambda _: repository  # Convert instance to factory
+        else:
+            self._repo_factory = SqlAlchemyConversationRoundRepository
 
     async def list_rounds(
         self,
@@ -69,8 +78,8 @@ class ConversationRoundQueryService:
             if not access_result["success"]:
                 return access_result
 
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Handle complex cursor pagination if needed
             processed_after = after
@@ -136,8 +145,8 @@ class ConversationRoundQueryService:
                 # Cache already contains serialized dict
                 return ConversationErrorHandler.success_response({"round": cached, "cached": True})
 
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Get from repository
             rnd = await repository.find_by_session_and_path(session_id, round_path)

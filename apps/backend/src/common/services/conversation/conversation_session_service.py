@@ -7,6 +7,7 @@ Handles CRUD operations for conversation sessions with caching and access contro
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from src.common.services.conversation.conversation_access_control import Convers
 from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
+from src.db.sql.session import transactional
 from src.schemas.novel.dialogue import ScopeType, SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -31,11 +33,19 @@ class ConversationSessionService:
         access_control: ConversationAccessControl | None = None,
         serializer: ConversationSerializer | None = None,
         repository: ConversationSessionRepository | None = None,
+        repository_factory: Callable[[AsyncSession], ConversationSessionRepository] | None = None,
     ) -> None:
         self.cache = cache or ConversationCacheManager()
         self.access_control = access_control or ConversationAccessControl()
         self.serializer = serializer or ConversationSerializer()
-        self.repository = repository
+
+        # Repository factory pattern - prioritize factory > instance > default
+        if repository_factory:
+            self._repo_factory = repository_factory
+        elif repository:
+            self._repo_factory = lambda _: repository  # Convert instance to factory
+        else:
+            self._repo_factory = SqlAlchemyConversationSessionRepository
 
     async def create_session(
         self,
@@ -71,8 +81,8 @@ class ConversationSessionService:
             if not novel_result["success"]:
                 return novel_result
 
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationSessionRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Check for existing active session
             existing = await repository.find_active_by_scope(scope_type.value, str(scope_id))
@@ -83,8 +93,8 @@ class ConversationSessionService:
                     context="Create session conflict",
                 )
 
-            # Create new session with nested transaction support
-            async with db.begin_nested() if db.in_transaction() else db.begin():
+            # Create new session with transactional support
+            async with transactional(db):
                 session = await repository.create(
                     scope_type=scope_type.value,
                     scope_id=str(scope_id),
@@ -142,8 +152,8 @@ class ConversationSessionService:
                 # Cache already contains serialized dict
                 return ConversationErrorHandler.success_response({"session": cached, "cached": True})
 
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationSessionRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Fallback to database with access verification
             session = await repository.find_by_id(session_id)
@@ -211,8 +221,8 @@ class ConversationSessionService:
             Dict with success status and updated session or error details
         """
         try:
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationSessionRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Get session first to verify access
             session = await repository.find_by_id(session_id)
@@ -234,8 +244,8 @@ class ConversationSessionService:
                 serialized_session = self.serializer.serialize_session(session)
                 return ConversationErrorHandler.success_response({"session": serialized_session})
 
-            # Update with optimistic concurrency control using nested transaction support
-            async with db.begin_nested() if db.in_transaction() else db.begin():
+            # Update with optimistic concurrency control using transactional support
+            async with transactional(db):
                 updated_session = await repository.update(
                     session_id=session_id,
                     status=status.value if status else None,
@@ -290,8 +300,8 @@ class ConversationSessionService:
             Dict with success status or error details
         """
         try:
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationSessionRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
             # Get session first to verify access
             session = await repository.find_by_id(session_id)
@@ -307,8 +317,8 @@ class ConversationSessionService:
             if not access_result["success"]:
                 return access_result
 
-            # Delete session using nested transaction support
-            async with db.begin_nested() if db.in_transaction() else db.begin():
+            # Delete session using transactional support
+            async with transactional(db):
                 success = await repository.delete(session_id)
                 if not success:
                     return ConversationErrorHandler.not_found_error(

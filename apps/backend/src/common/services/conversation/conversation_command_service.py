@@ -17,6 +17,7 @@ from src.common.events.config import build_event_type, get_aggregate_type, get_d
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
+from src.db.sql.session import transactional
 from src.models.event import DomainEvent
 from src.models.workflow import CommandInbox, EventOutbox
 from src.schemas.enums import CommandStatus, OutboxStatus
@@ -120,7 +121,7 @@ class ConversationCommandService:
             CommandInbox instance or None if failed
         """
         try:
-            async with db.begin_nested() if db.in_transaction() else db.begin():
+            async with transactional(db):
                 # 1. Fetch or create CommandInbox (idempotent)
                 cmd = await self._get_or_create_command(db, session.id, command_type, payload, idempotency_key)
 

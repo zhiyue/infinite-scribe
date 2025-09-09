@@ -7,6 +7,7 @@ Handles round creation with domain events, idempotency, and atomic operations.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from src.common.services.conversation.conversation_cache import ConversationCach
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
+from src.db.sql.session import transactional
 from src.models.conversation import ConversationRound, ConversationSession
 from src.schemas.novel.dialogue import DialogueRole
 
@@ -35,12 +37,20 @@ class ConversationRoundCreationService:
         serializer: ConversationSerializer | None = None,
         event_handler: ConversationEventHandler | None = None,
         repository: ConversationRoundRepository | None = None,
+        repository_factory: Callable[[AsyncSession], ConversationRoundRepository] | None = None,
     ) -> None:
         self.cache = cache or ConversationCacheManager()
         self.access_control = access_control or ConversationAccessControl()
         self.serializer = serializer or ConversationSerializer()
         self.event_handler = event_handler or ConversationEventHandler()
-        self.repository = repository
+
+        # Repository factory pattern - prioritize factory > instance > default
+        if repository_factory:
+            self._repo_factory = repository_factory
+        elif repository:
+            self._repo_factory = lambda _: repository  # Convert instance to factory
+        else:
+            self._repo_factory = SqlAlchemyConversationRoundRepository
 
     async def create_round(
         self,
@@ -144,10 +154,10 @@ class ConversationRoundCreationService:
             Created ConversationRound or None if failed
         """
         try:
-            # Initialize repository if not provided
-            repository = self.repository or SqlAlchemyConversationRoundRepository(db)
+            # Get repository from factory
+            repository = self._repo_factory(db)
 
-            async with db.begin_nested() if db.in_transaction() else db.begin():
+            async with transactional(db):
                 created_round = None
 
                 # Check for idempotent creation via correlation_id
@@ -227,7 +237,7 @@ class ConversationRoundCreationService:
             new_child_sequence = max_child_sequence + 1
             round_path = f"{parent_round_path}.{new_child_sequence}"
 
-        # Initialize repository if not provided
+        # Get repository from factory
         repository = self.repository or SqlAlchemyConversationRoundRepository(db)
 
         # Create round with atomically generated round_path using repository
