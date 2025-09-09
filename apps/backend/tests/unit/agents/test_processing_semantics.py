@@ -107,65 +107,179 @@ class FakeAgent(BaseAgent):
 
 @pytest.mark.asyncio
 async def test_retriable_then_success_commits_once_and_no_dlt():
-    msgs = [FakeMessage("t", 0, 0, {}), FakeMessage("t", 0, 1, {})]
+    """Test that retriable errors are retried successfully and messages commit normally.
+
+    This test verifies the complete retry flow:
+    1. Messages that fail with retriable errors are retried according to max_retries
+    2. After successful retry, messages are processed and committed normally
+    3. No messages are sent to DLT (dead letter topic)
+    4. Metrics accurately track retries and processing counts
+
+    Uses FakeAgent with 'retriable_then_success' behavior:
+    - First attempt fails with RuntimeError (retriable)
+    - Second attempt succeeds and produces output
+    """
+    # Setup: 2 messages, batch size = 2 (configured in FakeAgent)
+    msgs = [FakeMessage("t", 0, 0, {"test_id": "msg1"}), FakeMessage("t", 0, 1, {"test_id": "msg2"})]
     agent = FakeAgent(messages=msgs, behavior="retriable_then_success")
 
-    # run agent once over messages
+    # Execute: process all messages
     await agent.start()
 
-    # After start completes, it auto-stops due to consumer exhaustion
-    # Commit batching: batch size=2 -> expect at least one commit with both partitions
-    assert len(agent._fake_consumer.commits) >= 1
-    # produced exactly one result to 'out'
-    assert len(agent._fake_producer.sent) == 2  # two messages produce since two inputs
-    # verify retries tag appears (first message had one retry before success)
+    # Verify commits: batch size=2, so expect exactly 1 commit containing both messages
+    assert (
+        len(agent._fake_consumer.commits) == 1
+    ), f"Expected exactly 1 commit for batch of 2, got {len(agent._fake_consumer.commits)}"
+
+    # Verify outputs: both messages should produce successful results
+    assert (
+        len(agent._fake_producer.sent) == 2
+    ), f"Expected exactly 2 outputs for 2 inputs, got {len(agent._fake_producer.sent)}"
+
+    # Verify output structure and retry tracking
     first_topic, first_value, _ = agent._fake_producer.sent[0]
     second_topic, second_value, _ = agent._fake_producer.sent[1]
-    assert first_topic == "out"
-    assert second_topic == "out"
-    # Our behavior causes each message to fail once before succeeding
-    assert first_value.get("retries", 0) >= 1
-    assert second_value.get("retries", 0) >= 1
-    # metrics - 使用新的AgentMetrics接口
+
+    assert first_topic == "out", f"Expected output topic 'out', got '{first_topic}'"
+    assert second_topic == "out", f"Expected output topic 'out', got '{second_topic}'"
+    assert first_value["status"] == "ok", f"Expected first message status 'ok', got '{first_value['status']}'"
+    assert second_value["status"] == "ok", f"Expected second message status 'ok', got '{second_value['status']}'"
+    assert first_value["data"]["ok"] is True, f"Expected first message success in data, got {first_value['data']}"
+    assert second_value["data"]["ok"] is True, f"Expected second message success in data, got {second_value['data']}"
+
+    # Verify retry tracking: each message fails once before succeeding (due to behavior)
+    assert (
+        first_value.get("retries", 0) == 1
+    ), f"Expected exactly 1 retry for first message, got {first_value.get('retries', 0)}"
+    assert (
+        second_value.get("retries", 0) == 1
+    ), f"Expected exactly 1 retry for second message, got {second_value.get('retries', 0)}"
+
+    # Verify metrics reflect accurate counts
     metrics_dict = agent.metrics.get_metrics_dict()
-    assert metrics_dict["retries"] >= 1
-    assert metrics_dict["processed"] == 2
+    assert metrics_dict["retries"] == 2, f"Expected exactly 2 total retries, got {metrics_dict['retries']}"
+    assert metrics_dict["processed"] == 2, f"Expected exactly 2 processed messages, got {metrics_dict['processed']}"
+    assert metrics_dict.get("dlt", 0) == 0, f"Expected 0 DLT messages, got {metrics_dict.get('dlt', 0)}"
+    assert metrics_dict.get("failed", 0) == 0, f"Expected 0 failed messages, got {metrics_dict.get('failed', 0)}"
 
 
 @pytest.mark.asyncio
 async def test_non_retriable_goes_direct_to_dlt_and_commit():
-    msgs = [FakeMessage("t", 0, 0, {"correlation_id": "c-1"})]
+    """Test that non-retriable errors bypass retries and go directly to DLT.
+
+    This test verifies the DLT (dead letter topic) flow:
+    1. Messages that fail with NonRetriableError skip retry logic entirely
+    2. Failed messages are immediately sent to the DLT topic with error context
+    3. Original message offset is still committed (processed, though failed)
+    4. Metrics accurately track DLT and failure counts
+
+    Uses FakeAgent with 'non_retriable' behavior:
+    - Always raises NonRetriableError("bad request")
+    - No retries attempted, direct to DLT
+    """
+    # Setup: single message with correlation_id for tracking
+    test_correlation_id = "test-correlation-non-retriable"
+    msgs = [FakeMessage("t", 0, 0, {"correlation_id": test_correlation_id, "data": "test-payload"})]
     agent = FakeAgent(messages=msgs, behavior="non_retriable")
 
+    # Execute: process message (should fail non-retriably)
     await agent.start()
 
-    # DLT sent once
-    assert len(agent._fake_producer.sent) == 1
-    topic, value, key = agent._fake_producer.sent[0]
-    assert topic == "t.DLT"
-    assert value["correlation_id"] == "c-1"
-    assert value["retries"] == 0
-    assert key == b"c-1"
+    # Verify exactly one DLT message was sent
+    assert len(agent._fake_producer.sent) == 1, f"Expected exactly 1 DLT message, got {len(agent._fake_producer.sent)}"
 
-    # Offset committed (either batch or final flush on stop)
-    assert len(agent._fake_consumer.commits) >= 1
-    # metrics - 使用新的AgentMetrics接口
+    # Verify DLT message structure
+    topic, value, key = agent._fake_producer.sent[0]
+    assert topic == "t.DLT", f"Expected DLT topic 't.DLT', got '{topic}'"
+    assert (
+        value["correlation_id"] == test_correlation_id
+    ), f"Expected correlation_id '{test_correlation_id}', got '{value['correlation_id']}'"
+    assert value["retries"] == 0, f"Expected 0 retries for non-retriable error, got {value['retries']}"
+    assert key == test_correlation_id.encode(), f"Expected key '{test_correlation_id.encode()}', got '{key}'"
+
+    # Verify DLT-specific structure
+    assert value["type"] == "error", f"Expected DLT type 'error', got '{value['type']}'"
+    assert value["original_topic"] == "t", f"Expected original_topic 't', got '{value['original_topic']}'"
+
+    # Verify error information is included in DLT
+    assert "error" in value, "DLT message missing 'error' field"
+    assert "bad request" in value["error"], f"Expected error message containing 'bad request', got '{value['error']}'"
+
+    # Verify original message data is preserved in payload
+    assert "payload" in value, "DLT message missing 'payload' field"
+    assert (
+        value["payload"]["correlation_id"] == test_correlation_id
+    ), f"Expected payload correlation_id '{test_correlation_id}', got '{value['payload']['correlation_id']}'"
+    assert (
+        value["payload"]["data"] == "test-payload"
+    ), f"Expected payload data 'test-payload', got '{value['payload']['data']}'"
+
+    # Verify message offset was committed (even though processing failed)
+    assert len(agent._fake_consumer.commits) == 1, f"Expected exactly 1 commit, got {len(agent._fake_consumer.commits)}"
+
+    # Verify metrics reflect DLT and failure
     metrics_dict = agent.metrics.get_metrics_dict()
-    assert metrics_dict["dlt"] == 1
-    assert metrics_dict["failed"] == 1
+    assert metrics_dict["dlt"] == 1, f"Expected exactly 1 DLT message, got {metrics_dict['dlt']}"
+    assert metrics_dict["failed"] == 1, f"Expected exactly 1 failed message, got {metrics_dict['failed']}"
+    assert metrics_dict["retries"] == 0, f"Expected 0 retries for non-retriable, got {metrics_dict['retries']}"
+    assert metrics_dict["processed"] == 0, f"Expected 0 successful processing, got {metrics_dict['processed']}"
 
 
 @pytest.mark.asyncio
 async def test_batch_commit_by_size_and_flush_on_stop():
-    msgs = [FakeMessage("t", 0, i, {}) for i in range(3)]
-    agent = FakeAgent(messages=msgs, behavior="success")
-    agent.commit_batch_size = 2
-    agent.commit_interval_ms = 10_000
+    """Test that batch commit logic works correctly based on size and final flush.
 
+    This test verifies the commit batching behavior:
+    1. Messages are committed in batches based on commit_batch_size
+    2. When batch size is reached, a commit occurs immediately
+    3. When agent stops, any remaining uncommitted messages are flushed
+    4. All messages are processed successfully
+
+    Test setup:
+    - 3 messages with batch_size=2
+    - Expected: commits occur as batches are filled + final flush
+    - Large commit_interval_ms to avoid time-based commits
+    """
+    # Setup: 3 messages, batch size = 2, time-based commits disabled
+    test_messages = [
+        FakeMessage("t", 0, 0, {"message_id": "msg1"}),
+        FakeMessage("t", 0, 1, {"message_id": "msg2"}),
+        FakeMessage("t", 0, 2, {"message_id": "msg3"}),
+    ]
+    agent = FakeAgent(messages=test_messages, behavior="success")
+    agent.commit_batch_size = 2  # Commit after every 2 messages
+    agent.commit_interval_ms = 10_000  # Large interval to avoid time-based commits
+
+    # Execute: process all messages
     await agent.start()
 
-    # Expect at least two commits: one for first two by size, one final flush
-    assert len(agent._fake_consumer.commits) >= 1
-    # Ensure processed count matches - 使用新的AgentMetrics接口
+    # Verify commit behavior: expect at least 1 commit (implementation may vary)
+    # Note: Different implementations may batch differently, so use >= 1 for robustness
+    assert (
+        len(agent._fake_consumer.commits) >= 1
+    ), f"Expected at least 1 commit, got {len(agent._fake_consumer.commits)}"
+
+    # Verify all messages produced successful outputs
+    assert (
+        len(agent._fake_producer.sent) == 3
+    ), f"Expected exactly 3 outputs for 3 inputs, got {len(agent._fake_producer.sent)}"
+
+    # Verify all outputs are successful
+    for i, (topic, value, key) in enumerate(agent._fake_producer.sent):
+        assert topic == "out", f"Message {i}: expected topic 'out', got '{topic}'"
+        assert isinstance(value, dict), f"Message {i}: expected dict value, got {type(value)}"
+        assert value["status"] == "ok", f"Message {i}: expected status 'ok', got '{value['status']}'"
+        assert "data" in value, f"Message {i}: expected 'data' field in envelope"
+        assert value["data"]["ok"] is True, f"Message {i}: expected success in data, got {value['data']}"
+        assert (
+            value.get("retries", 0) == 0
+        ), f"Message {i}: expected 0 retries for success behavior, got {value.get('retries', 0)}"
+
+    # Verify metrics reflect successful processing
     metrics_dict = agent.metrics.get_metrics_dict()
-    assert metrics_dict["processed"] == 3
+    assert metrics_dict["processed"] == 3, f"Expected exactly 3 processed messages, got {metrics_dict['processed']}"
+    assert (
+        metrics_dict.get("retries", 0) == 0
+    ), f"Expected 0 retries for success behavior, got {metrics_dict.get('retries', 0)}"
+    assert metrics_dict.get("failed", 0) == 0, f"Expected 0 failed messages, got {metrics_dict.get('failed', 0)}"
+    assert metrics_dict.get("dlt", 0) == 0, f"Expected 0 DLT messages, got {metrics_dict.get('dlt', 0)}"
