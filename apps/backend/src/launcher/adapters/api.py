@@ -157,7 +157,9 @@ class ApiAdapter(BaseAdapter):
 
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"http://{self._host}:{self._port}/health", timeout=1.0)
+                    # Use 127.0.0.1 for health checks when host is 0.0.0.0
+                    health_check_host = "127.0.0.1" if self._host == "0.0.0.0" else self._host
+                    response = await client.get(f"http://{health_check_host}:{self._port}/health", timeout=1.0)
                     if response.status_code == 200:
                         break
             except (httpx.RequestError, httpx.TimeoutException):
@@ -233,7 +235,9 @@ class ApiAdapter(BaseAdapter):
 
     def get_url(self) -> str:
         """Get the API Gateway URL"""
-        return f"http://{self._host}:{self._port}"
+        # Use 127.0.0.1 for URLs when host is 0.0.0.0 (bind all interfaces)
+        url_host = "127.0.0.1" if self._host == "0.0.0.0" else self._host
+        return f"http://{url_host}:{self._port}"
 
     def _is_port_available(self, host: str, port: int) -> bool:
         """Return True if the TCP port is available to bind on the given host.

@@ -90,6 +90,11 @@ export interface IHttpClient {
   put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>
 
   /**
+   * PATCH 请求
+   */
+  patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>
+
+  /**
    * DELETE 请求
    */
   delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>

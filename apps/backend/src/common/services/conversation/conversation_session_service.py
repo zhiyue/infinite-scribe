@@ -51,7 +51,7 @@ class ConversationSessionService:
         self,
         db: AsyncSession,
         user_id: int,
-        scope_type: ScopeType,
+        scope_type: ScopeType | str,
         scope_id: str,
         stage: str | None = None,
         initial_state: dict[str, Any] | None = None,
@@ -62,7 +62,7 @@ class ConversationSessionService:
         Args:
             db: Database session
             user_id: User ID for ownership
-            scope_type: Type of scope (currently only GENESIS supported)
+            scope_type: Type of scope (ScopeType enum or string, currently only GENESIS supported)
             scope_id: ID of the scope (novel ID for GENESIS)
             stage: Optional stage name
             initial_state: Optional initial state data
@@ -71,13 +71,15 @@ class ConversationSessionService:
             Dict with success status and session or error details
         """
         try:
-            if scope_type != ScopeType.GENESIS:
+            # Handle both enum instance and string cases
+            scope_type_str = scope_type.value if hasattr(scope_type, 'value') else scope_type
+            if scope_type_str != ScopeType.GENESIS.value:
                 return ConversationErrorHandler.validation_error(
                     "Only GENESIS scope is supported", logger_instance=logger, context="Create session validation"
                 )
 
             # Verify access to the scope
-            novel_result = await self.access_control.get_novel_for_scope(db, user_id, scope_type.value, scope_id)
+            novel_result = await self.access_control.get_novel_for_scope(db, user_id, scope_type_str, scope_id)
             if not novel_result["success"]:
                 return novel_result
 
@@ -85,7 +87,7 @@ class ConversationSessionService:
             repository = self._repo_factory(db)
 
             # Check for existing active session
-            existing = await repository.find_active_by_scope(scope_type.value, str(scope_id))
+            existing = await repository.find_active_by_scope(scope_type_str, str(scope_id))
             if existing:
                 return ConversationErrorHandler.conflict_error(
                     "An active session already exists for this novel",
@@ -96,7 +98,7 @@ class ConversationSessionService:
             # Create new session with transactional support
             async with transactional(db):
                 session = await repository.create(
-                    scope_type=scope_type.value,
+                    scope_type=scope_type_str,
                     scope_id=str(scope_id),
                     status=SessionStatus.ACTIVE.value,
                     stage=stage,

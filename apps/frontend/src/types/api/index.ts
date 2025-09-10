@@ -311,3 +311,6 @@ export interface SystemStatistics {
   storage_used: number
   api_calls_today: number
 }
+
+// 导出对话相关类型
+export * from './conversations'

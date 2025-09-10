@@ -9,6 +9,13 @@ import type { ApiResponse } from '@/types'
 import { API_BASE_URL } from '@/config/api'
 
 /**
+ * 请求配置选项
+ */
+interface RequestOptions {
+  headers?: Record<string, string>
+}
+
+/**
  * 认证API服务类
  * 使用认证服务内部的HTTP客户端，确保所有请求都包含正确的认证头
  */
@@ -23,36 +30,45 @@ class AuthenticatedApiService {
   /**
    * GET 请求
    */
-  async get<T>(endpoint: string): Promise<T> {
+  async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     const fullUrl = this.buildUrl(endpoint)
-    const response = await this.httpClient.get<T>(fullUrl)
+    const response = await this.httpClient.get<T>(fullUrl, options)
     return this.extractData(response)
   }
 
   /**
    * POST 请求
    */
-  async post<T>(endpoint: string, data?: unknown): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
     const fullUrl = this.buildUrl(endpoint)
-    const response = await this.httpClient.post<T>(fullUrl, data)
+    const response = await this.httpClient.post<T>(fullUrl, data, options)
     return this.extractData(response)
   }
 
   /**
    * PUT 请求
    */
-  async put<T>(endpoint: string, data?: unknown): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
     const fullUrl = this.buildUrl(endpoint)
-    const response = await this.httpClient.put<T>(fullUrl, data)
+    const response = await this.httpClient.put<T>(fullUrl, data, options)
+    return this.extractData(response)
+  }
+
+  /**
+   * PATCH 请求
+   */
+  async patch<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    const fullUrl = this.buildUrl(endpoint)
+    const response = await this.httpClient.patch<T>(fullUrl, data, options)
     return this.extractData(response)
   }
 
   /**
    * DELETE 请求
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     const fullUrl = this.buildUrl(endpoint)
-    const response = await this.httpClient.delete<T>(fullUrl)
+    const response = await this.httpClient.delete<T>(fullUrl, options)
     return this.extractData(response)
   }
 
@@ -64,7 +80,7 @@ class AuthenticatedApiService {
     if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
       return endpoint
     }
-    
+
     // 确保endpoint以/开头
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     return `${API_BASE_URL}${cleanEndpoint}`
@@ -79,7 +95,7 @@ class AuthenticatedApiService {
     if (response && typeof response === 'object' && 'data' in response) {
       return response.data
     }
-    
+
     // 否则返回整个响应
     return response
   }

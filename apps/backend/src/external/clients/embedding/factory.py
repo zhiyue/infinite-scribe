@@ -1,13 +1,12 @@
 """Factory for creating embedding providers."""
 
 from src.core.config import settings
-from src.core.logging import bind_service_context, get_logger
+from src.core.logging import get_logger
 
 from .base import EmbeddingProvider
 from .ollama import OllamaEmbeddingProvider
 
-# Initialize service context and logger
-bind_service_context(service="external-clients", component="embedding-factory", version="1.0.0")
+# Get logger without setting global context (will be set per method call)
 logger = get_logger(__name__)
 
 

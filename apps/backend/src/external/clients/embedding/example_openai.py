@@ -5,7 +5,7 @@ This file is not part of the production codebase - it's an example only.
 """
 
 import httpx
-from src.core.logging import bind_service_context, get_logger
+from src.core.logging import get_logger
 
 from ..base_http import BaseHttpClient
 from ..errors import (
@@ -16,8 +16,7 @@ from ..errors import (
 )
 from .base import EmbeddingProvider
 
-# Initialize service context and logger
-bind_service_context(service="external-clients", component="embedding-openai-example", version="1.0.0")
+# Get logger without setting global context (example only)
 logger = get_logger(__name__)
 
 

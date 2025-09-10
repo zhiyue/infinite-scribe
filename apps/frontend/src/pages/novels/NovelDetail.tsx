@@ -1,8 +1,9 @@
 import { useParams, Routes, Route, Navigate, NavLink, Link } from 'react-router-dom'
-import { FileText, BarChart3, Settings, Eye, ArrowLeft } from 'lucide-react'
+import { FileText, BarChart3, Settings, Eye, ArrowLeft, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useNovel } from '@/hooks/useNovels'
+import GenesisPage from './GenesisPage'
 
 // 小说详情页面布局
 export default function NovelDetail() {
@@ -11,6 +12,7 @@ export default function NovelDetail() {
 
   const navItems = [
     { path: 'overview', label: '概览', icon: Eye },
+    { path: 'genesis', label: '创世设定', icon: Sparkles },
     { path: 'chapters', label: '章节管理', icon: FileText },
     { path: 'analytics', label: '数据分析', icon: BarChart3 },
     { path: 'settings', label: '项目设置', icon: Settings },
@@ -81,6 +83,7 @@ export default function NovelDetail() {
         <Routes>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<NovelOverview />} />
+          <Route path="genesis" element={<GenesisPage />} />
           <Route path="chapters" element={<ChapterManagement />} />
           <Route path="analytics" element={<NovelAnalytics />} />
           <Route path="settings" element={<NovelSettings />} />

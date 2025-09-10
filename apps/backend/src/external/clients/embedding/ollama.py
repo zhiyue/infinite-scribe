@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 from src.core.config import settings
-from src.core.logging import bind_service_context, get_logger
+from src.core.logging import get_logger
 
 from ..base_http import BaseHttpClient
 from ..errors import (
@@ -15,8 +15,7 @@ from ..errors import (
 )
 from .base import EmbeddingProvider
 
-# Initialize service context and logger
-bind_service_context(service="external-clients", component="embedding-ollama", version="1.0.0")
+# Get logger without setting global context (will be set per request)
 logger = get_logger(__name__)
 
 

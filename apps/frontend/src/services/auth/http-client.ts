@@ -82,6 +82,21 @@ export class AxiosHttpClient implements IHttpClient {
   }
 
   /**
+   * PATCH 请求
+   */
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    try {
+      return await this.axiosInstance.patch<T>(url, data, config)
+    } catch (error) {
+      throw this.handleError(error as AxiosError)
+    }
+  }
+
+  /**
    * DELETE 请求
    */
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
