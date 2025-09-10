@@ -116,7 +116,7 @@ class SqlAlchemyConversationRoundRepository(ConversationRoundRepository):
         query = query.limit(limit)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_by_session(self, session_id: UUID) -> int:
         """Count the total number of rounds in a session."""
