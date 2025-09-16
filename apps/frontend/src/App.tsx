@@ -17,6 +17,9 @@ import NovelsList from './pages/novels/NovelsList'
 import NovelDetail from './pages/novels/NovelDetail'
 import CreateNovel from './pages/CreateNovel'
 
+// Test Component
+import { TestMSW } from './components/TestMSW'
+
 // Global styles
 import './index.css'
 
@@ -26,6 +29,9 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
+            {/* Test Route - Only in development */}
+            {import.meta.env.DEV && <Route path="/test-msw" element={<TestMSW />} />}
+            
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

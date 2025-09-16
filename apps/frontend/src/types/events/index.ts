@@ -27,6 +27,32 @@ export interface SSEEvent<T = any> {
 }
 
 /**
+ * SSE 连接配置接口
+ */
+export interface SSEConnectionConfig {
+  /** 重连间隔（毫秒） */
+  reconnectInterval?: number
+  /** 最大重连次数 */
+  maxReconnectAttempts?: number
+  /** 连接超时（毫秒） */
+  connectionTimeout?: number
+  /** 是否启用自动重连 */
+  enableReconnect?: boolean
+}
+
+/**
+ * SSE 事件监听器配置
+ */
+export interface SSEListenerConfig {
+  /** 是否只监听一次 */
+  once?: boolean
+  /** 事件过滤器 */
+  filter?: (event: SSEEvent) => boolean
+  /** 错误处理器 */
+  onError?: (error: Error) => void
+}
+
+/**
  * 小说创建事件
  */
 export interface NovelCreatedEvent extends BaseEvent {

@@ -1,17 +1,19 @@
 /**
  * 创世页面组件
- * 管理小说的创世流程
+ * 管理小说的创世流程，智能处理会话创建和冲突
  */
 
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { GenesisNavigation } from '@/components/genesis/GenesisNavigation'
 import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
-import { useSession, useCreateSession } from '@/hooks/useConversations'
+import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
+import { GenesisConflictDialog } from '@/components/genesis/GenesisConflictDialog'
+import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 
 /**
@@ -19,41 +21,39 @@ import { GenesisStage } from '@/types/enums'
  */
 export default function GenesisPage() {
   const { id: novelId } = useParams<{ id: string }>()
-  const [sessionId, setSessionId] = useState<string>('')
-  const [currentStage, setCurrentStage] = useState<GenesisStage>(GenesisStage.INITIAL_PROMPT)
+  const [showConflictDialog, setShowConflictDialog] = useState(false)
 
-  // 获取会话信息
-  const { data: session, isLoading: sessionLoading } = useSession(sessionId)
-  
-  // 创建会话
-  const createSession = useCreateSession({
-    onSuccess: (data) => {
-      setSessionId(data.id)
-      if (data.stage) {
-        setCurrentStage(data.stage as GenesisStage)
-      }
+  // 使用智能会话管理hook
+  const {
+    sessionId,
+    session,
+    isLoading,
+    isCreating,
+    error,
+    currentStage,
+    hasActiveSessionConflict,
+    isReady,
+    initializeSession,
+    updateStage,
+    loadExistingSession,
+    clearConflict,
+  } = useGenesisSession({
+    novelId: novelId || '',
+    onSessionReady: (session) => {
+      console.log('[GenesisPage] Session ready:', session.id)
+    },
+    onError: (error) => {
+      console.error('[GenesisPage] Session error:', error)
+    },
+    onConflictDetected: () => {
+      setShowConflictDialog(true)
     },
   })
 
-  // 处理创建会话
-  const handleCreateSession = () => {
-    if (!novelId) return
-
-    createSession.mutate({
-      scope_type: 'GENESIS',
-      scope_id: novelId,
-      stage: GenesisStage.INITIAL_PROMPT,
-      initial_state: {
-        novel_id: novelId,
-        current_stage: GenesisStage.INITIAL_PROMPT,
-      },
-    })
-  }
-
   // 处理阶段变化
   const handleStageChange = (stage: GenesisStage) => {
-    setCurrentStage(stage)
-    // TODO: 更新会话的阶段
+    updateStage(stage)
+    // TODO: 更新会话的阶段到服务器
   }
 
   // 处理阶段完成
@@ -63,67 +63,127 @@ export default function GenesisPage() {
     
     if (currentIndex < stages.length - 1) {
       const nextStage = stages[currentIndex + 1]
-      setCurrentStage(nextStage)
-      // TODO: 更新会话的阶段
+      updateStage(nextStage)
+      // TODO: 更新会话的阶段到服务器
     }
+  }
+
+  // 处理冲突对话框 - 继续现有会话
+  const handleContinueExisting = () => {
+    setShowConflictDialog(false)
+    clearConflict()
+    
+    // TODO: 实际应该调用API查找现有活跃会话，这里使用mock数据
+    const mockExistingSession = {
+      id: `mock-session-${novelId}`,
+      scope_type: 'GENESIS' as const,
+      scope_id: novelId || '',
+      status: 'ACTIVE' as const,
+      stage: 'WORLD_BUILDING',
+      state: {
+        novel_id: novelId,
+        current_stage: 'WORLD_BUILDING',
+        progress: {
+          INITIAL_PROMPT: { completed: true },
+          WORLD_BUILDING: { completed: false },
+        },
+      },
+      version: 2,
+      created_at: new Date(Date.now() - 86400000).toISOString(), // 1天前
+      updated_at: new Date(Date.now() - 3600000).toISOString(),   // 1小时前
+      novel_id: null,
+    }
+    
+    console.log('[GenesisPage] Loading existing session (mock):', mockExistingSession.id)
+    loadExistingSession(mockExistingSession)
+  }
+
+
+  // 处理关闭冲突对话框
+  const handleCloseConflict = () => {
+    setShowConflictDialog(false)
+    clearConflict()
   }
 
   // 如果没有会话，显示创建会话界面
   if (!sessionId) {
     return (
-      <div className="container mx-auto max-w-6xl p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6" />
-              开始创世之旅
-            </CardTitle>
-            <CardDescription>
-              创世流程将帮助你系统地构建小说的世界观、角色和剧情大纲
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert>
-              <AlertDescription>
-                创世流程包含以下阶段：
-                <ul className="mt-2 list-inside list-disc space-y-1">
-                  <li>初始灵感 - 输入你的创作想法</li>
-                  <li>世界观设定 - 构建小说的世界背景</li>
-                  <li>角色塑造 - 创建主要角色</li>
-                  <li>剧情大纲 - 规划故事主线</li>
-                </ul>
-              </AlertDescription>
-            </Alert>
+      <>
+        <div className="container mx-auto max-w-6xl p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-6 w-6" />
+                开始创世之旅
+              </CardTitle>
+              <CardDescription>
+                创世流程将帮助你系统地构建小说的世界观、角色和剧情大纲
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  创世流程包含以下阶段：
+                  <ul className="mt-2 list-inside list-disc space-y-1">
+                    <li>初始灵感 - 输入你的创作想法</li>
+                    <li>世界观设定 - 构建小说的世界背景</li>
+                    <li>角色塑造 - 创建主要角色</li>
+                    <li>剧情大纲 - 规划故事主线</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
 
-            <Button
-              onClick={handleCreateSession}
-              disabled={createSession.isPending}
-              className="w-full"
-              size="lg"
-            >
-              {createSession.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  创建会话中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  开始创世
-                </>
+              {/* 显示错误信息（非冲突错误） */}
+              {error && !hasActiveSessionConflict && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {error.message || '创建会话时出现错误，请重试'}
+                  </AlertDescription>
+                </Alert>
               )}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+
+              <Button
+                onClick={initializeSession}
+                disabled={isCreating}
+                className="w-full"
+                size="lg"
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    创建会话中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    开始创世
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 冲突处理对话框 */}
+        <GenesisConflictDialog
+          open={showConflictDialog}
+          onClose={handleCloseConflict}
+          onContinueExisting={handleContinueExisting}
+          isProcessing={isCreating}
+        />
+      </>
     )
   }
 
   // 加载中状态
-  if (sessionLoading) {
+  if (isLoading) {
     return (
       <div className="flex h-[600px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="text-center space-y-2">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">加载会话中...</p>
+        </div>
       </div>
     )
   }
@@ -138,23 +198,47 @@ export default function GenesisPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {/* 左侧导航 */}
-        <div className="lg:col-span-1">
+        <div className="md:col-span-2 lg:col-span-1 xl:col-span-1">
           <GenesisNavigation
             currentStage={currentStage}
-            sessionId={sessionId}
+            sessionId={sessionId || ''}
             onStageChange={handleStageChange}
           />
         </div>
 
-        {/* 右侧内容 */}
-        <div className="lg:col-span-2">
+        {/* 中间内容 */}
+        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
           <GenesisStageContent
             stage={currentStage}
-            sessionId={sessionId}
+            sessionId={sessionId || ''}
             novelId={novelId || ''}
             onComplete={handleStageComplete}
+          />
+        </div>
+
+        {/* 右侧设定概览 */}
+        <div className="md:col-span-2 lg:col-span-3 xl:col-span-1">
+          <GenesisSettingsOverview
+            currentStage={currentStage}
+            novelId={novelId || ''}
+            onStageJump={handleStageChange}
+            settings={{
+              // 示例数据 - 实际应从API获取
+              initialPrompt: {
+                title: '未来科幻',
+                genre: '科幻',
+                theme: '人工智能与人性',
+                inspiration: '探索AI与人类共存的未来世界',
+              },
+              worldview: {
+                setting: '2150年的地球，AI与人类共存',
+                timeframe: '22世纪中叶',
+                geography: '全球化的智慧城市群',
+                rules: ['AI具有自主意识', '人类与AI需要协作', '技术伦理法则严格'],
+              },
+            }}
           />
         </div>
       </div>

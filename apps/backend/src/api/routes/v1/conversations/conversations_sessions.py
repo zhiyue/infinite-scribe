@@ -43,6 +43,7 @@ async def create_session(
 ) -> ApiResponse[SessionResponse]:
     """Create a conversation session (scope=GENESIS)."""
     corr_id = get_or_create_correlation_id(x_correlation_id)
+
     result = await conversation_service.create_session(
         db,
         current_user.id,

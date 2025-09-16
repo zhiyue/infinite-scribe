@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any
 
-from src.db.redis.service import RedisService
+from src.db.redis.service import redis_service
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class ConversationSessionCache:
     """Specialized cache for conversation sessions."""
 
     def __init__(self, default_ttl: int = 2592000) -> None:  # 30 days = 2,592,000 seconds
-        self.redis = RedisService()
+        self.redis = redis_service  # Use the global connected Redis service
         self.default_ttl = default_ttl
 
     def get_session_key(self, session_id: str) -> str:
