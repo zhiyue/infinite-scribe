@@ -19,7 +19,10 @@ class TestConversationStagesRetrieve:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Create session first
-        session_data = {"scope_type": "GENESIS", "scope_id": "stages-get-test"}
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stages Get Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
@@ -52,8 +55,13 @@ class TestConversationStagesRetrieve:
         correlation_id = "test-correlation-stage-get"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -105,7 +113,11 @@ class TestConversationStagesSet:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-set-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Set Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
@@ -144,8 +156,13 @@ class TestConversationStagesSet:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}", "If-Match": '"1"'}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-if-match-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage If-Match Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -168,8 +185,13 @@ class TestConversationStagesSet:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}", "If-Match": '"999"'}  # Wrong version
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-conflict-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Conflict Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -190,8 +212,13 @@ class TestConversationStagesSet:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-values-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Values Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Test different stage values
@@ -224,8 +251,13 @@ class TestConversationStagesSet:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-invalid-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Invalid Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - invalid JSON structure
@@ -251,7 +283,11 @@ class TestConversationStagesValidate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-validate-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Validate Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
@@ -293,8 +329,13 @@ class TestConversationStagesValidate:
         idempotency_key = "validate-stage-idempotent-456"
         headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "validate-idempotent-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Validate Idempotent Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -318,8 +359,13 @@ class TestConversationStagesValidate:
         correlation_id = "test-validate-correlation-789"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "validate-correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Validate Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -351,7 +397,11 @@ class TestConversationStagesLock:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-lock-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Lock Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
@@ -391,8 +441,13 @@ class TestConversationStagesLock:
         idempotency_key = "lock-stage-idempotent-789"
         headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "lock-idempotent-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Lock Idempotent Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -414,8 +469,13 @@ class TestConversationStagesLock:
         correlation_id = "test-lock-correlation-abc"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "lock-correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Lock Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -445,8 +505,13 @@ class TestConversationStagesIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "stage-workflow-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Stage Workflow Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: Get initial stage
@@ -494,10 +559,15 @@ class TestConversationStagesIntegration:
         token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-stages"}
+        # Create session for user1
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Stages Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create second user

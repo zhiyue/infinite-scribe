@@ -1,20 +1,20 @@
-## Stage 1: 审查对话轮次服务测试失败
+## Stage 1: 明确对话集成测试依赖缺失原因
 
-**Goal**: 明确 `ConversationRoundService` 相关单测失败的根本原因。
-**Success Criteria**: 梳理出依赖注入、返回数据结构等与现有实现不符的点，并记录需要的代码改动。
-**Tests**: `uv run pytest tests/unit/services/conversation/test_conversation_round_service.py -k list_rounds`
-**Status**: Complete
+**Goal**: 分析 `apps/backend/tests/integration/domains/conversation` 当前失败堆栈，确认 `testcontainers` 模块缺失是否由依赖配置或运行方式导致。
+**Success Criteria**: 梳理出问题成因，列出需要修改的文件或脚本。
+**Tests**: `uv run pytest apps/backend/tests/integration/domains/conversation -k kafka -q`
+**Status**: In Progress
 
-## Stage 2: 调整服务层以恢复兼容接口
+## Stage 2: 修复依赖加载流程
 
-**Goal**: 更新对话轮次/指令/会话相关服务（`conversation_round_*`、`conversation_command_service`、`conversation_session_service`），确保共享依赖、支持注入并返回原始模型对象同时保留序列化数据供缓存和 API 使用。
-**Success Criteria**: 代码中新增/更新的接口能被测试替换依赖，且返回包含模型对象；静态类型和 lint 通过自检。
-**Tests**: `uv run pytest tests/unit/services/conversation/test_conversation_round_query_service.py`
-**Status**: Complete
+**Goal**: 调整依赖或测试装置，确保运行集成测试时能够正确加载 Kafka 所需容器依赖并初始化环境。
+**Success Criteria**: 本地执行入口可成功导入 `testcontainers.kafka.KafkaContainer` 并启动所需资源。
+**Tests**: `uv run python -c "import testcontainers.kafka"`
+**Status**: Not Started
 
-## Stage 3: 更新并运行相关测试
+## Stage 3: 验证对话域集成测试
 
-**Goal**: 调整 `ConversationRoundService`、`ConversationCommandService` 与 `ConversationSessionService` 单测以契合新接口，并确保所有相关测试通过。
-**Success Criteria**: 目标单测全部通过，必要时补充断言覆盖；记录验证命令输出。
-**Tests**: `uv run pytest tests/unit/services/conversation`
-**Status**: Complete
+**Goal**: 运行并通过 `apps/backend/tests/integration/domains/conversation` 下所有测试。
+**Success Criteria**: 目标测试全部通过且无新增回归。
+**Tests**: `uv run pytest apps/backend/tests/integration/domains/conversation -q`
+**Status**: Not Started
