@@ -21,12 +21,17 @@ class TestConversationCommandService:
     @pytest.fixture
     def mock_access_control(self):
         """Create mock access control."""
-        return AsyncMock()
+        access_control = AsyncMock()
+        access_control.verify_session_access = AsyncMock()
+        return access_control
 
     @pytest.fixture
     def mock_event_handler(self):
         """Create mock event handler."""
-        return AsyncMock()
+        handler = AsyncMock()
+        handler.create_command_events = AsyncMock()
+        handler.ensure_command_events = AsyncMock()
+        return handler
 
     @pytest.fixture
     def mock_serializer(self):
@@ -75,13 +80,22 @@ class TestConversationCommandService:
 
         # Assert
         assert result["success"] is True
-        assert result["command"] == serialized_command
-        mock_access_control.verify_session_access.assert_called_once_with(mock_db, user_id, session_id)
-        mock_event_handler.create_command_events.assert_called_once()
+        assert result["command"] == created_command
+        assert result["serialized_command"] == serialized_command
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
+        mock_db.scalar.assert_awaited_once()
+        mock_event_handler.create_command_events.assert_awaited_once_with(
+            mock_db,
+            mock_session,
+            command_type=command_type,
+            payload=payload,
+            idempotency_key=idempotency_key,
+        )
+        mock_serializer.serialize_command.assert_called_once_with(created_command)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_idempotent_replay(
-        self, command_service, mock_db, mock_access_control, mock_event_handler
+        self, command_service, mock_db, mock_access_control, mock_event_handler, mock_serializer
     ):
         """Test idempotent command enqueuing with existing idempotency key."""
         # Arrange
@@ -102,10 +116,12 @@ class TestConversationCommandService:
         existing_command.id = uuid4()
         existing_command.command_type = command_type
         existing_command.idempotency_key = idempotency_key
-        mock_db.scalar.side_effect = [mock_session, existing_command]
+        mock_db.scalar.return_value = existing_command
 
         # Mock event handling for idempotent case
         mock_event_handler.ensure_command_events.return_value = existing_command
+        serialized_command = {"id": str(existing_command.id)}
+        mock_serializer.serialize_command.return_value = serialized_command
 
         # Act
         result = await command_service.enqueue_command(
@@ -115,11 +131,18 @@ class TestConversationCommandService:
         # Assert
         assert result["success"] is True
         assert result["command"] == existing_command
-        mock_event_handler.ensure_command_events.assert_called_once()
+        assert result["serialized_command"] == serialized_command
+        mock_db.scalar.assert_awaited_once()
+        mock_event_handler.ensure_command_events.assert_awaited_once_with(
+            mock_db,
+            mock_session,
+            existing_command,
+        )
+        mock_serializer.serialize_command.assert_called_once_with(existing_command)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_without_idempotency_key(
-        self, command_service, mock_db, mock_access_control, mock_event_handler
+        self, command_service, mock_db, mock_access_control, mock_event_handler, mock_serializer
     ):
         """Test enqueuing command without idempotency key (auto-generated)."""
         # Arrange
@@ -132,11 +155,10 @@ class TestConversationCommandService:
         mock_session = Mock(spec=ConversationSession)
         mock_session.id = session_id
         mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock no existing command
-        mock_db.scalar.side_effect = [mock_session, None]
+        mock_db.scalar.return_value = None
 
         # Mock successful command creation
         created_command = Mock(spec=CommandInbox)
@@ -145,6 +167,7 @@ class TestConversationCommandService:
         # Auto-generated idempotency key should start with "cmd-"
         created_command.idempotency_key = "cmd-" + str(uuid4())
         mock_event_handler.create_command_events.return_value = created_command
+        mock_serializer.serialize_command.return_value = {"id": str(created_command.id)}
 
         # Act
         result = await command_service.enqueue_command(
@@ -155,9 +178,15 @@ class TestConversationCommandService:
         assert result["success"] is True
         assert result["command"] == created_command
         assert created_command.idempotency_key.startswith("cmd-")
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
+        mock_db.scalar.assert_awaited_once()
+        mock_event_handler.create_command_events.assert_awaited_once()
+        mock_serializer.serialize_command.assert_called_once_with(created_command)
 
     @pytest.mark.asyncio
-    async def test_enqueue_command_session_not_found(self, command_service, mock_db):
+    async def test_enqueue_command_session_not_found(
+        self, command_service, mock_db, mock_access_control
+    ):
         """Test enqueuing command when session doesn't exist."""
         # Arrange
         user_id = 123
@@ -165,7 +194,11 @@ class TestConversationCommandService:
         command_type = "test_command"
 
         # Mock session not found
-        mock_db.scalar.return_value = None
+        mock_access_control.verify_session_access.return_value = {
+            "success": False,
+            "error": "Session not found",
+            "code": 404,
+        }
 
         # Act
         result = await command_service.enqueue_command(
@@ -176,6 +209,7 @@ class TestConversationCommandService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_access_denied(self, command_service, mock_db, mock_access_control):
@@ -187,7 +221,6 @@ class TestConversationCommandService:
 
         # Mock session exists but access denied
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {
             "success": False,
             "error": "Access denied",
@@ -203,10 +236,11 @@ class TestConversationCommandService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_with_empty_payload(
-        self, command_service, mock_db, mock_access_control, mock_event_handler
+        self, command_service, mock_db, mock_access_control, mock_event_handler, mock_serializer
     ):
         """Test enqueuing command with None payload."""
         # Arrange
@@ -217,16 +251,17 @@ class TestConversationCommandService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock no existing command
-        mock_db.scalar.side_effect = [mock_session, None]
+        mock_db.scalar.return_value = None
 
         # Mock command creation
         created_command = Mock(spec=CommandInbox)
         created_command.id = uuid4()
         mock_event_handler.create_command_events.return_value = created_command
+        serialized_command = {"id": str(created_command.id)}
+        mock_serializer.serialize_command.return_value = serialized_command
 
         # Act
         result = await command_service.enqueue_command(
@@ -236,6 +271,11 @@ class TestConversationCommandService:
         # Assert
         assert result["success"] is True
         assert result["command"] == created_command
+        assert result["serialized_command"] == serialized_command
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
+        mock_db.scalar.assert_awaited_once()
+        mock_event_handler.create_command_events.assert_awaited_once()
+        mock_serializer.serialize_command.assert_called_once_with(created_command)
         # Should handle None payload gracefully
 
     @pytest.mark.asyncio
@@ -248,11 +288,11 @@ class TestConversationCommandService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
+        mock_session.scope_type = "genesis"
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock database exception during command lookup
-        mock_db.scalar.side_effect = [mock_session, Exception("Database connection failed")]
+        mock_db.scalar.side_effect = Exception("Database connection failed")
 
         # Act
         result = await command_service.enqueue_command(
@@ -261,7 +301,8 @@ class TestConversationCommandService:
 
         # Assert
         assert result["success"] is False
-        assert result["error"] == "Failed to enqueue command"
+        assert result["error"] == "Failed to lookup existing command"
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_event_handler_exception(
@@ -276,11 +317,10 @@ class TestConversationCommandService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock no existing command
-        mock_db.scalar.side_effect = [mock_session, None]
+        mock_db.scalar.return_value = None
 
         # Mock event handler exception
         mock_event_handler.create_command_events.side_effect = Exception("Event handling failed")
@@ -293,11 +333,12 @@ class TestConversationCommandService:
         # Assert
         assert result["success"] is False
         assert result["error"] == "Failed to enqueue command"
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
 
     @pytest.mark.asyncio
     async def test_enqueue_command_complex_payload(
-        self, command_service, mock_db, mock_access_control, mock_event_handler
+        self, command_service, mock_db, mock_access_control, mock_event_handler, mock_serializer
     ):
         """Test enqueuing command with complex payload data."""
         # Arrange
@@ -315,17 +356,17 @@ class TestConversationCommandService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock no existing command
-        mock_db.scalar.side_effect = [mock_session, None]
+        mock_db.scalar.return_value = None
 
         # Mock command creation
         created_command = Mock(spec=CommandInbox)
         created_command.id = uuid4()
         created_command.payload = complex_payload
         mock_event_handler.create_command_events.return_value = created_command
+        mock_serializer.serialize_command.return_value = {"id": str(created_command.id)}
 
         # Act
         result = await command_service.enqueue_command(
@@ -340,10 +381,12 @@ class TestConversationCommandService:
         # Assert
         assert result["success"] is True
         assert result["command"] == created_command
+        assert result["serialized_command"] == {"id": str(created_command.id)}
         # Verify complex payload was handled correctly
         mock_event_handler.create_command_events.assert_called_once()
         call_args = mock_event_handler.create_command_events.call_args[1]
         assert call_args["payload"] == complex_payload
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_enqueue_command_various_command_types(
@@ -357,7 +400,6 @@ class TestConversationCommandService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         command_types = [
@@ -369,8 +411,12 @@ class TestConversationCommandService:
         ]
 
         for command_type in command_types:
+            # Reset mocks per iteration
+            mock_db.scalar.reset_mock(return_value=True, side_effect=True)
+            mock_event_handler.create_command_events.reset_mock(return_value=True, side_effect=True)
+
             # Mock no existing command for each type
-            mock_db.scalar.side_effect = [mock_session, None]
+            mock_db.scalar.return_value = None
 
             # Mock command creation
             created_command = Mock(spec=CommandInbox)
@@ -386,3 +432,4 @@ class TestConversationCommandService:
             # Assert
             assert result["success"] is True, f"Failed for command type: {command_type}"
             assert result["command"].command_type == command_type
+            mock_event_handler.create_command_events.assert_awaited_once()

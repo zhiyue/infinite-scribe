@@ -21,12 +21,21 @@ class TestConversationSessionService:
     @pytest.fixture
     def mock_cache(self):
         """Create mock conversation cache."""
-        return AsyncMock()
+        cache = AsyncMock()
+        cache.cache_session = AsyncMock()
+        cache.get_session = AsyncMock()
+        cache.clear_session = AsyncMock()
+        cache.list_sessions = AsyncMock()
+        return cache
 
     @pytest.fixture
     def mock_access_control(self):
         """Create mock access control."""
-        return AsyncMock()
+        access_control = AsyncMock()
+        access_control.get_novel_for_scope = AsyncMock()
+        access_control.verify_cached_session_access = AsyncMock()
+        access_control.verify_session_access = AsyncMock()
+        return access_control
 
     @pytest.fixture
     def mock_serializer(self):
@@ -36,7 +45,14 @@ class TestConversationSessionService:
     @pytest.fixture
     def mock_repository(self):
         """Create mock conversation session repository."""
-        return AsyncMock()
+        repository = AsyncMock()
+        repository.find_active_by_scope = AsyncMock()
+        repository.create = AsyncMock()
+        repository.find_by_id = AsyncMock()
+        repository.update = AsyncMock()
+        repository.delete = AsyncMock()
+        repository.list_by_user = AsyncMock()
+        return repository
 
     @pytest.fixture
     def session_service(self, mock_cache, mock_access_control, mock_serializer, mock_repository):
@@ -75,10 +91,12 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        assert "session" in result
-        mock_access_control.get_novel_for_scope.assert_called_once_with(mock_db, user_id, ScopeType.GENESIS.value, scope_id)
-        mock_repository.find_active_by_scope.assert_called_once_with(scope_type.value, str(scope_id))
-        mock_repository.create.assert_called_once_with(
+        assert result["session"] == serialized_session
+        mock_access_control.get_novel_for_scope.assert_awaited_once_with(
+            mock_db, user_id, ScopeType.GENESIS.value, scope_id
+        )
+        mock_repository.find_active_by_scope.assert_awaited_once_with(scope_type.value, str(scope_id))
+        mock_repository.create.assert_awaited_once_with(
             scope_type=scope_type.value,
             scope_id=str(scope_id),
             status=SessionStatus.ACTIVE.value,
@@ -86,7 +104,7 @@ class TestConversationSessionService:
             state=initial_state,
             version=1,
         )
-        mock_cache.cache_session.assert_called_once()
+        mock_cache.cache_session.assert_awaited_once_with(str(created_session.id), serialized_session)
 
     @pytest.mark.asyncio
     async def test_create_session_unsupported_scope(self, session_service, mock_db):

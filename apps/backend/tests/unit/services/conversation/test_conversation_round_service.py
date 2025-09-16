@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.services.conversation.conversation_round_service import ConversationRoundService
 from src.models.conversation import ConversationRound, ConversationSession
-from src.schemas.novel.dialogue import DialogueRole
+from src.schemas.novel.dialogue import DialogueRole, ScopeType
 
 
 class TestConversationRoundService:
@@ -36,20 +36,41 @@ class TestConversationRoundService:
     @pytest.fixture
     def mock_event_handler(self):
         """Create mock event handler."""
-        return AsyncMock()
+        handler = AsyncMock()
+        handler.create_round_support_events = AsyncMock()
+        handler.ensure_round_events = AsyncMock()
+        return handler
 
     @pytest.fixture
     def mock_repository(self):
         """Create mock conversation round repository."""
-        return AsyncMock()
+        repository = AsyncMock()
+        repository.list_by_session = AsyncMock()
+        repository.find_by_session_and_path = AsyncMock()
+        repository.find_by_correlation_id = AsyncMock()
+        repository.create = AsyncMock()
+        return repository
 
     @pytest.fixture
-    def round_service(self, mock_cache, mock_repository):
+    def round_service(
+        self,
+        mock_cache,
+        mock_access_control,
+        mock_serializer,
+        mock_event_handler,
+        mock_repository,
+    ):
         """Create ConversationRoundService instance."""
-        return ConversationRoundService(cache=mock_cache, repository=mock_repository)
+        return ConversationRoundService(
+            cache=mock_cache,
+            access_control=mock_access_control,
+            serializer=mock_serializer,
+            event_handler=mock_event_handler,
+            repository=mock_repository,
+        )
 
     @pytest.mark.asyncio
-    async def test_list_rounds_success(self, round_service, mock_db, mock_access_control):
+    async def test_list_rounds_success(self, round_service, mock_db, mock_access_control, mock_repository):
         """Test successful round listing."""
         # Arrange
         user_id = 123
@@ -58,15 +79,13 @@ class TestConversationRoundService:
         # Mock session existence and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.id = session_id
-        mock_db.scalar.return_value = mock_session
+        mock_session.scope_type = ScopeType.GENESIS.value
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock rounds query result
         mock_round1 = Mock(spec=ConversationRound)
         mock_round2 = Mock(spec=ConversationRound)
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = [mock_round1, mock_round2]
-        mock_db.execute.return_value = mock_result
+        mock_repository.list_by_session.return_value = [mock_round1, mock_round2]
 
         # Act
         result = await round_service.list_rounds(mock_db, user_id, session_id)
@@ -74,17 +93,28 @@ class TestConversationRoundService:
         # Assert
         assert result["success"] is True
         assert result["rounds"] == [mock_round1, mock_round2]
-        mock_access_control.verify_session_access.assert_called_once_with(mock_db, user_id, mock_session)
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
+        mock_repository.list_by_session.assert_awaited_once_with(
+            session_id=session_id,
+            after=None,
+            limit=50,
+            order="asc",
+            role=None,
+        )
 
     @pytest.mark.asyncio
-    async def test_list_rounds_session_not_found(self, round_service, mock_db):
+    async def test_list_rounds_session_not_found(self, round_service, mock_db, mock_access_control):
         """Test listing rounds when session doesn't exist."""
         # Arrange
         user_id = 123
         session_id = uuid4()
 
         # Mock session not found
-        mock_db.scalar.return_value = None
+        mock_access_control.verify_session_access.return_value = {
+            "success": False,
+            "error": "Session not found",
+            "code": 404,
+        }
 
         # Act
         result = await round_service.list_rounds(mock_db, user_id, session_id)
@@ -93,6 +123,7 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_list_rounds_access_denied(self, round_service, mock_db, mock_access_control):
@@ -103,7 +134,6 @@ class TestConversationRoundService:
 
         # Mock session exists but access denied
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {
             "success": False,
             "error": "Access denied",
@@ -117,27 +147,30 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
-    async def test_list_rounds_with_filters(self, round_service, mock_db, mock_access_control):
+    async def test_list_rounds_with_filters(
+        self, round_service, mock_db, mock_access_control, mock_repository
+    ):
         """Test listing rounds with role filter and pagination."""
         # Arrange
         user_id = 123
         session_id = uuid4()
-        after = "round-5"
+        after = "5"
         limit = 10
         order = "desc"
         role = DialogueRole.USER
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock filtered query result
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_db.execute.return_value = mock_result
+        mock_repository.find_by_session_and_path.return_value = Mock(spec=ConversationRound)
+        mock_repository.list_by_session.return_value = []
 
         # Act
         result = await round_service.list_rounds(
@@ -147,10 +180,25 @@ class TestConversationRoundService:
         # Assert
         assert result["success"] is True
         assert result["rounds"] == []
+        mock_repository.find_by_session_and_path.assert_awaited_once_with(session_id, after)
+        mock_repository.list_by_session.assert_awaited_once_with(
+            session_id=session_id,
+            after=after,
+            limit=limit,
+            order=order,
+            role=role,
+        )
 
     @pytest.mark.asyncio
     async def test_create_round_success_new(
-        self, round_service, mock_db, mock_access_control, mock_event_handler, mock_cache, mock_serializer
+        self,
+        round_service,
+        mock_db,
+        mock_access_control,
+        mock_event_handler,
+        mock_cache,
+        mock_serializer,
+        mock_repository,
     ):
         """Test successful creation of new round."""
         # Arrange
@@ -164,25 +212,24 @@ class TestConversationRoundService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.id = session_id
-        mock_session.scope_type = "genesis"
-        mock_db.scalar.return_value = mock_session
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
-        # Mock no existing idempotent round
-        mock_db.scalar.side_effect = [mock_session, None]  # Session exists, no existing round
+        # No existing idempotent round
+        mock_repository.find_by_correlation_id.return_value = None
 
-        # Mock count query for round path calculation
-        mock_count_result = Mock()
-        mock_count_result.scalar.return_value = 5  # 5 existing rounds
-        mock_db.execute.return_value = mock_count_result
+        # Round sequence increment
+        sequence_result = Mock()
+        sequence_result.scalar_one.return_value = 6
+        mock_db.execute.return_value = sequence_result
 
         # Mock successful round creation
         created_round = Mock(spec=ConversationRound)
         created_round.id = uuid4()
         created_round.round_path = "6"
-
-        # Mock successful event handling
-        mock_event_handler.create_round_events.return_value = created_round
+        created_round.session_id = session_id
+        mock_repository.create.return_value = created_round
 
         # Mock serialization
         serialized_round = {"session_id": str(session_id), "round_path": "6"}
@@ -190,18 +237,36 @@ class TestConversationRoundService:
 
         # Act
         result = await round_service.create_round(
-            mock_db, user_id, session_id, role=role, input_data=input_data, model=model, correlation_id=correlation_id
+            mock_db,
+            user_id,
+            session_id,
+            role=role,
+            input_data=input_data,
+            model=model,
+            correlation_id=correlation_id,
         )
 
         # Assert
         assert result["success"] is True
         assert result["round"] == created_round
-        mock_event_handler.create_round_events.assert_called_once()
-        mock_cache.cache_round.assert_called_once_with(str(session_id), "6", serialized_round)
+        assert result["serialized_round"] == serialized_round
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
+        mock_repository.find_by_correlation_id.assert_awaited_once()
+        mock_repository.create.assert_awaited_once()
+        mock_event_handler.create_round_support_events.assert_awaited_once()
+        mock_serializer.serialize_round.assert_called_once_with(created_round)
+        mock_cache.cache_round.assert_awaited_once_with(str(session_id), "6", serialized_round)
 
     @pytest.mark.asyncio
     async def test_create_round_idempotent_replay(
-        self, round_service, mock_db, mock_access_control, mock_event_handler, mock_cache, mock_serializer
+        self,
+        round_service,
+        mock_db,
+        mock_access_control,
+        mock_event_handler,
+        mock_cache,
+        mock_serializer,
+        mock_repository,
     ):
         """Test idempotent round creation with existing correlation_id."""
         # Arrange
@@ -215,7 +280,8 @@ class TestConversationRoundService:
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
         mock_session.id = session_id
-        mock_session.scope_type = "genesis"
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock existing idempotent round
@@ -223,10 +289,11 @@ class TestConversationRoundService:
         existing_round.id = uuid4()
         existing_round.round_path = "3"
         existing_round.correlation_id = correlation_id
-        mock_db.scalar.side_effect = [mock_session, existing_round]  # Session + existing round
+        existing_round.session_id = session_id
+        mock_repository.find_by_correlation_id.return_value = existing_round
 
         # Mock event handling for idempotent case
-        mock_event_handler.ensure_round_events.return_value = existing_round
+        mock_event_handler.ensure_round_events.return_value = None
 
         # Mock serialization
         serialized_round = {"session_id": str(session_id), "round_path": "3"}
@@ -234,24 +301,38 @@ class TestConversationRoundService:
 
         # Act
         result = await round_service.create_round(
-            mock_db, user_id, session_id, role=role, input_data=input_data, model=model, correlation_id=correlation_id
+            mock_db,
+            user_id,
+            session_id,
+            role=role,
+            input_data=input_data,
+            model=model,
+            correlation_id=correlation_id,
         )
 
         # Assert
         assert result["success"] is True
         assert result["round"] == existing_round
-        mock_event_handler.ensure_round_events.assert_called_once()
-        mock_cache.cache_round.assert_called_once_with(str(session_id), "3", serialized_round)
+        assert result["serialized_round"] == serialized_round
+        mock_repository.find_by_correlation_id.assert_awaited_once()
+        mock_repository.create.assert_not_awaited()
+        mock_event_handler.ensure_round_events.assert_awaited_once()
+        mock_serializer.serialize_round.assert_called_once_with(existing_round)
+        mock_cache.cache_round.assert_awaited_once_with(str(session_id), "3", serialized_round)
 
     @pytest.mark.asyncio
-    async def test_create_round_session_not_found(self, round_service, mock_db):
+    async def test_create_round_session_not_found(self, round_service, mock_db, mock_access_control):
         """Test creating round when session doesn't exist."""
         # Arrange
         user_id = 123
         session_id = uuid4()
 
         # Mock session not found
-        mock_db.scalar.return_value = None
+        mock_access_control.verify_session_access.return_value = {
+            "success": False,
+            "error": "Session not found",
+            "code": 404,
+        }
 
         # Act
         result = await round_service.create_round(mock_db, user_id, session_id, role=DialogueRole.USER, input_data={})
@@ -260,6 +341,7 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_create_round_access_denied(self, round_service, mock_db, mock_access_control):
@@ -270,7 +352,6 @@ class TestConversationRoundService:
 
         # Mock session exists but access denied
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {
             "success": False,
             "error": "Access denied",
@@ -284,9 +365,12 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
-    async def test_create_round_exception(self, round_service, mock_db, mock_access_control):
+    async def test_create_round_exception(
+        self, round_service, mock_db, mock_access_control, mock_repository
+    ):
         """Test creating round when database raises exception."""
         # Arrange
         user_id = 123
@@ -294,11 +378,17 @@ class TestConversationRoundService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock database exception
-        mock_db.scalar.side_effect = [mock_session, Exception("Database error")]
+        sequence_result = Mock()
+        sequence_result.scalar_one.return_value = 1
+        mock_db.execute.return_value = sequence_result
+        mock_repository.find_by_correlation_id.return_value = None
+        mock_repository.create.side_effect = Exception("Database error")
 
         # Act
         result = await round_service.create_round(mock_db, user_id, session_id, role=DialogueRole.USER, input_data={})
@@ -308,7 +398,9 @@ class TestConversationRoundService:
         assert result["error"] == "Failed to create round"
 
     @pytest.mark.asyncio
-    async def test_get_round_from_cache(self, round_service, mock_db, mock_cache, mock_access_control):
+    async def test_get_round_from_cache(
+        self, round_service, mock_db, mock_cache, mock_access_control, mock_repository
+    ):
         """Test getting round from cache."""
         # Arrange
         user_id = 123
@@ -317,7 +409,9 @@ class TestConversationRoundService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock cached round
@@ -331,12 +425,19 @@ class TestConversationRoundService:
         assert result["success"] is True
         assert result["round"] == cached_round
         assert result.get("cached") is True
-        # Should not query database for round
-        assert mock_db.scalar.call_count == 1  # Only session query
+        assert result["serialized_round"] == cached_round
+        mock_cache.get_round.assert_awaited_once_with(str(session_id), round_path)
+        mock_repository.find_by_session_and_path.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_get_round_from_database(
-        self, round_service, mock_db, mock_cache, mock_access_control, mock_serializer
+        self,
+        round_service,
+        mock_db,
+        mock_cache,
+        mock_access_control,
+        mock_serializer,
+        mock_repository,
     ):
         """Test getting round from database when not in cache."""
         # Arrange
@@ -346,6 +447,9 @@ class TestConversationRoundService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock cache miss
@@ -355,7 +459,8 @@ class TestConversationRoundService:
         db_round = Mock(spec=ConversationRound)
         db_round.id = uuid4()
         db_round.round_path = round_path
-        mock_db.scalar.side_effect = [mock_session, db_round]
+        db_round.session_id = session_id
+        mock_repository.find_by_session_and_path.return_value = db_round
 
         # Mock serialization
         serialized_round = {"session_id": str(session_id), "round_path": round_path}
@@ -367,10 +472,15 @@ class TestConversationRoundService:
         # Assert
         assert result["success"] is True
         assert result["round"] == db_round
-        mock_cache.cache_round.assert_called_once_with(str(session_id), round_path, serialized_round)
+        assert result["serialized_round"] == serialized_round
+        mock_cache.get_round.assert_awaited_once_with(str(session_id), round_path)
+        mock_repository.find_by_session_and_path.assert_awaited_once_with(session_id, round_path)
+        mock_cache.cache_round.assert_awaited_once_with(str(session_id), round_path, serialized_round)
 
     @pytest.mark.asyncio
-    async def test_get_round_not_found(self, round_service, mock_db, mock_cache, mock_access_control):
+    async def test_get_round_not_found(
+        self, round_service, mock_db, mock_cache, mock_access_control, mock_repository
+    ):
         """Test getting round that doesn't exist."""
         # Arrange
         user_id = 123
@@ -379,11 +489,14 @@ class TestConversationRoundService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock cache miss and database miss
         mock_cache.get_round.return_value = None
-        mock_db.scalar.side_effect = [mock_session, None]  # Session exists, round doesn't
+        mock_repository.find_by_session_and_path.return_value = None
 
         # Act
         result = await round_service.get_round(mock_db, user_id, session_id, round_path)
@@ -392,9 +505,11 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Round not found"
         assert result["code"] == 404
+        mock_cache.get_round.assert_awaited_once_with(str(session_id), round_path)
+        mock_repository.find_by_session_and_path.assert_awaited_once_with(session_id, round_path)
 
     @pytest.mark.asyncio
-    async def test_get_round_session_not_found(self, round_service, mock_db):
+    async def test_get_round_session_not_found(self, round_service, mock_db, mock_access_control):
         """Test getting round when session doesn't exist."""
         # Arrange
         user_id = 123
@@ -402,7 +517,11 @@ class TestConversationRoundService:
         round_path = "1"
 
         # Mock session not found
-        mock_db.scalar.return_value = None
+        mock_access_control.verify_session_access.return_value = {
+            "success": False,
+            "error": "Session not found",
+            "code": 404,
+        }
 
         # Act
         result = await round_service.get_round(mock_db, user_id, session_id, round_path)
@@ -411,6 +530,7 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
     async def test_get_round_access_denied(self, round_service, mock_db, mock_access_control):
@@ -422,7 +542,6 @@ class TestConversationRoundService:
 
         # Mock session exists but access denied
         mock_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = mock_session
         mock_access_control.verify_session_access.return_value = {
             "success": False,
             "error": "Access denied",
@@ -436,9 +555,12 @@ class TestConversationRoundService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
+        mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)
 
     @pytest.mark.asyncio
-    async def test_get_round_database_exception(self, round_service, mock_db, mock_access_control):
+    async def test_get_round_database_exception(
+        self, round_service, mock_db, mock_access_control, mock_cache, mock_repository
+    ):
         """Test getting round when database raises exception."""
         # Arrange
         user_id = 123
@@ -447,10 +569,14 @@ class TestConversationRoundService:
 
         # Mock session and access
         mock_session = Mock(spec=ConversationSession)
+        mock_session.id = session_id
+        mock_session.scope_type = ScopeType.GENESIS.value
+        mock_session.scope_id = str(uuid4())
         mock_access_control.verify_session_access.return_value = {"success": True, "session": mock_session}
 
         # Mock database exception
-        mock_db.scalar.side_effect = [mock_session, Exception("Database error")]
+        mock_cache.get_round.return_value = None
+        mock_repository.find_by_session_and_path.side_effect = Exception("Database error")
 
         # Act
         result = await round_service.get_round(mock_db, user_id, session_id, round_path)
@@ -458,6 +584,7 @@ class TestConversationRoundService:
         # Assert
         assert result["success"] is False
         assert result["error"] == "Failed to get round"
+        mock_repository.find_by_session_and_path.assert_awaited_once_with(session_id, round_path)
 
     def test_compute_next_round_path(self, round_service):
         """Test computing next round path from count."""

@@ -127,19 +127,18 @@ async def async_client(pg_session, redis_session_client):
 
 
 @pytest.fixture
-async def client_with_lifespan(pg_session):
+async def client_with_lifespan(pg_session, redis_service_test):
     from unittest.mock import AsyncMock, MagicMock, patch
 
     from src.api.main import app
     from src.core.config import settings
     from src.db.graph import neo4j_service
-    from src.db.redis import redis_service
     from src.db.sql import postgres_service
     from tests.unit.support.test_mocks import mock_email_service
 
     app.dependency_overrides[get_db] = lambda: pg_session
 
-    # 2) mock 三库连接 & 健康检查
+    # 2) mock PostgreSQL and Neo4j connections, but use real Redis service from fixture
     with (
         patch.object(postgres_service, "connect", AsyncMock(return_value=None)),
         patch.object(postgres_service, "check_connection", AsyncMock(return_value=True)),
@@ -147,15 +146,14 @@ async def client_with_lifespan(pg_session):
         patch.object(neo4j_service, "connect", AsyncMock(return_value=None)),
         patch.object(neo4j_service, "check_connection", AsyncMock(return_value=True)),
         patch.object(neo4j_service, "disconnect", AsyncMock(return_value=None)),
-        patch.object(redis_service, "connect", AsyncMock(return_value=None)),
-        patch.object(redis_service, "check_connection", AsyncMock(return_value=True)),
-        patch.object(redis_service, "disconnect", AsyncMock(return_value=None)),
         # 3) SSEProvider stub
         patch("src.services.sse.provider.SSEProvider") as mock_sse_provider,
         # 4) Launcher 组件 stub
         patch("src.launcher.orchestrator.Orchestrator") as mock_orchestrator,
         patch("src.launcher.health.HealthMonitor") as mock_health_monitor,
         patch("src.external.clients.email.email_client.EmailClient") as mock_email_cls,
+        # 5) Patch AuthService to use the test Redis service
+        patch("src.common.services.user.auth_service.auth_service._redis", redis_service_test),
     ):
         sse_instance = MagicMock()
         sse_instance.get_redis_sse_service = AsyncMock()

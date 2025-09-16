@@ -85,7 +85,7 @@ class ConversationSessionService:
                 scope_type_enum = scope_type
                 scope_type_str = scope_type.value
 
-            logger.info(f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}")
+            logger.debug(f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}")
 
             if scope_type_enum != ScopeType.GENESIS:
                 logger.warning(f"Invalid scope type: {scope_type_str}")
@@ -94,20 +94,20 @@ class ConversationSessionService:
                 )
 
             # Verify access to the scope
-            logger.info(f"Verifying access to scope: {scope_type_str}, {scope_id}")
+            logger.debug(f"Verifying access to scope: {scope_type_str}, {scope_id}")
             novel_result = await self.access_control.get_novel_for_scope(db, user_id, scope_type_str, scope_id)
-            logger.info(f"Access control result: {novel_result}")
+            logger.debug(f"Access control result: {novel_result}")
 
             if not novel_result["success"]:
                 logger.warning(f"Access denied: {novel_result}")
                 return novel_result
 
             # Get repository from factory
-            logger.info("Creating repository instance")
+            logger.debug("Creating repository instance")
             repository = self._repo_factory(db)
 
             # Check for existing active session
-            logger.info(f"Checking for existing active sessions for scope: {scope_type_str}, {scope_id}")
+            logger.debug(f"Checking for existing active sessions for scope: {scope_type_str}, {scope_id}")
             existing = await repository.find_active_by_scope(scope_type_str, str(scope_id))
             if existing:
                 logger.warning(f"Active session already exists: {existing.id}")
@@ -131,13 +131,13 @@ class ConversationSessionService:
                 logger.info(f"Created session: {session.id}")
 
             # Serialize ORM object to dict at service boundary
-            logger.info("Serializing session")
+            logger.debug("Serializing session")
             serialized_session = self.serializer.serialize_session(session)
-            logger.info(f"Serialized session keys: {serialized_session.keys()}")
+            logger.debug(f"Serialized session keys: {serialized_session.keys()}")
 
             # Cache write-through (best effort) - already serialized
             try:
-                logger.info("Attempting to cache session")
+                logger.debug("Attempting to cache session")
                 await self.cache.cache_session(str(session.id), serialized_session)
                 logger.debug(f"Cached session {session.id}")
             except Exception as cache_error:
@@ -146,7 +146,7 @@ class ConversationSessionService:
                     f"Failed to cache session {session.id}: {cache_error}", extra={"session_id": str(session.id)}
                 )
 
-            logger.info("Session creation successful")
+            logger.debug("Session creation successful")
             return ConversationErrorHandler.success_response({"session": serialized_session})
 
         except Exception as e:
@@ -307,6 +307,24 @@ class ConversationSessionService:
 
             return ConversationErrorHandler.success_response({"session": serialized_updated})
 
+        except ValueError as e:
+            # Handle optimistic lock conflicts and not found errors from repository
+            if "not found" in str(e).lower():
+                return ConversationErrorHandler.not_found_error(
+                    "Session not found",
+                    logger_instance=logger,
+                    context="Update session not found",
+                    session_id=str(session_id),
+                    user_id=user_id,
+                )
+            else:
+                return ConversationErrorHandler.precondition_failed_error(
+                    "Version conflict: session has been modified",
+                    logger_instance=logger,
+                    context="Update session version conflict",
+                    session_id=str(session_id),
+                    user_id=user_id,
+                )
         except Exception as e:
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",

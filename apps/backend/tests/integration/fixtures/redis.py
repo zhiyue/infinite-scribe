@@ -178,22 +178,21 @@ async def redis_async_client(
 @pytest.fixture(scope="function")
 async def redis_service_test(
     monkeypatch: pytest.MonkeyPatch,
-    redis_url: str,
+    redis_connection_info: dict[str, str],
 ) -> AsyncGenerator[RedisService, None]:
     """
     - 替换模块级单例 redis_service 为新实例
-    - 覆盖 settings.database.redis_url，确保只连测试容器
+    - 覆盖 settings.database Redis 连接参数，确保只连测试容器
     - 用例前后 FLUSHDB，保证数据隔离
     """
     # 创建新实例并替换模块级单例，防止旧引用/旧连接残留
     svc = RedisService()
     monkeypatch.setattr(redis_mod, "redis_service", svc, raising=True)
 
-    try:
-        # 若 settings.database.redis_url 可写，直接覆盖
-        settings.database.redis_url = redis_url  # type: ignore[attr-defined]
-    except Exception:
-        pass
+    # Patch the settings to use the testcontainer Redis connection parameters
+    monkeypatch.setattr(settings.database, "redis_host", redis_connection_info["host"])
+    monkeypatch.setattr(settings.database, "redis_port", int(redis_connection_info["port"]))
+    monkeypatch.setattr(settings.database, "redis_password", redis_connection_info["password"])
 
     # 建立连接
     await svc.connect()

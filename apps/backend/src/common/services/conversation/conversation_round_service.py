@@ -49,29 +49,28 @@ class ConversationRoundService:
             query_service: Pre-configured query service (overrides other params)
             creation_service: Pre-configured creation service (overrides other params)
         """
-        # Store repository for potential direct use
+        # Persist core dependencies to support shared injection/testing
+        self.cache = cache or ConversationCacheManager()
+        self.access_control = access_control or ConversationAccessControl()
+        self.serializer = serializer or ConversationSerializer()
+        self.event_handler = event_handler or ConversationEventHandler()
         self.repository = repository
 
         # Allow direct injection of services for maximum flexibility
         if query_service is not None:
             self.query_service = query_service
         else:
-            # Create query service with injected dependencies
-            cache_manager = cache or ConversationCacheManager()
-            access_ctrl = access_control or ConversationAccessControl()
-            serializer_inst = serializer or ConversationSerializer()
-            self.query_service = ConversationRoundQueryService(cache_manager, access_ctrl, serializer_inst, repository)
+            # Create query service with shared dependencies
+            self.query_service = ConversationRoundQueryService(
+                self.cache, self.access_control, self.serializer, repository
+            )
 
         if creation_service is not None:
             self.creation_service = creation_service
         else:
-            # Create creation service with injected dependencies
-            cache_manager = cache or ConversationCacheManager()
-            access_ctrl = access_control or ConversationAccessControl()
-            serializer_inst = serializer or ConversationSerializer()
-            event_handler_inst = event_handler or ConversationEventHandler()
+            # Create creation service with shared dependencies
             self.creation_service = ConversationRoundCreationService(
-                cache_manager, access_ctrl, serializer_inst, event_handler_inst, repository
+                self.cache, self.access_control, self.serializer, self.event_handler, repository
             )
 
     async def list_rounds(

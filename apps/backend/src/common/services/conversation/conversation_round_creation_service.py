@@ -122,7 +122,12 @@ class ConversationRoundCreationService:
                     extra={"session_id": str(session_id), "round_path": created_round.round_path},
                 )
 
-            return ConversationErrorHandler.success_response({"round": serialized_round})
+            return ConversationErrorHandler.success_response(
+                {
+                    "round": created_round,
+                    "serialized_round": serialized_round,
+                }
+            )
 
         except Exception as e:
             return ConversationErrorHandler.internal_error(
@@ -189,7 +194,7 @@ class ConversationRoundCreationService:
                 return created_round
 
         except Exception as e:
-            logger.error(f"Atomic round creation error: {e}")
+            logger.error(f"Atomic round creation error: {e}", exc_info=True)
             return None
 
     async def _create_new_round(
@@ -250,7 +255,7 @@ class ConversationRoundCreationService:
         rnd = await repository.create(
             session_id=session.id,
             round_path=round_path,
-            role=role.value,
+            role=role,  # Let repository handle enum conversion
             input=input_data,
             output=None,
             model=model,

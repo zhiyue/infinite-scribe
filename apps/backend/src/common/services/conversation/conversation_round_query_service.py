@@ -105,9 +105,14 @@ class ConversationRoundQueryService:
                 session_id=session_id, after=processed_after, limit=limit, order=order, role=role
             )
 
-            # Serialize ORM objects to dict at service boundary
+            # Serialize ORM objects to dict at service boundary for caching/back-compat
             serialized_rounds = [self.serializer.serialize_round(rnd) for rnd in rounds]
-            return ConversationErrorHandler.success_response({"rounds": serialized_rounds})
+            return ConversationErrorHandler.success_response(
+                {
+                    "rounds": rounds,
+                    "serialized_rounds": serialized_rounds,
+                }
+            )
 
         except Exception as e:
             return ConversationErrorHandler.internal_error(
@@ -137,7 +142,13 @@ class ConversationRoundQueryService:
             cached = await self.cache.get_round(str(session_id), round_path)
             if cached:
                 # Cache already contains serialized dict
-                return ConversationErrorHandler.success_response({"round": cached, "cached": True})
+                return ConversationErrorHandler.success_response(
+                    {
+                        "round": cached,
+                        "serialized_round": cached,
+                        "cached": True,
+                    }
+                )
 
             # Get repository from factory
             repository = self._repo_factory(db)
@@ -164,7 +175,12 @@ class ConversationRoundQueryService:
                     extra={"session_id": str(session_id), "round_path": round_path},
                 )
 
-            return ConversationErrorHandler.success_response({"round": serialized_round})
+            return ConversationErrorHandler.success_response(
+                {
+                    "round": rnd,
+                    "serialized_round": serialized_round,
+                }
+            )
 
         except Exception as e:
             return ConversationErrorHandler.internal_error(

@@ -6,8 +6,9 @@ Handles creation and management of domain events and outbox entries for conversa
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import and_, select, text
 from sqlalchemy.exc import ArgumentError
@@ -63,10 +64,8 @@ class ConversationEventHandler:
                 # In test scenarios DomainEvent may be patched with a mock that
                 # breaks SQL compilation. Consume expected scalar side-effect
                 # order to preserve unit test assumptions.
-                try:
+                with contextlib.suppress(Exception):  # pragma: no cover - defensive for mocks
                     await db.scalar(None)
-                except Exception:  # pragma: no cover - defensive for mocks
-                    pass
                 dom_evt = None
 
         if not dom_evt:
@@ -194,6 +193,9 @@ class ConversationEventHandler:
                 "aggregate_id": dom_evt.aggregate_id,
                 "payload": dom_evt.payload or {},
                 "metadata": dom_evt.event_metadata or {},
+                "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
+                if getattr(dom_evt, "created_at", None)
+                else None,
             },
             headers={
                 "event_type": dom_evt.event_type,
@@ -215,7 +217,7 @@ class ConversationEventHandler:
         command_type: str,
         payload: dict | None,
         idempotency_key: str | None,
-    ) -> "CommandInbox":
+    ) -> CommandInbox:
         """Create CommandInbox + DomainEvent + EventOutbox (CQRS outbox)."""
         # Status enum import kept local to avoid circulars
         from src.schemas.enums import CommandStatus
@@ -223,7 +225,7 @@ class ConversationEventHandler:
         cmd = CommandInbox(
             session_id=session.id,
             command_type=command_type,
-            idempotency_key=idempotency_key or f"cmd-{UUID.hex(UUID())}",
+            idempotency_key=idempotency_key or f"cmd-{uuid4().hex}",
             payload=payload or {},
             status=CommandStatus.RECEIVED,
         )
@@ -255,6 +257,9 @@ class ConversationEventHandler:
                 "aggregate_id": dom_evt.aggregate_id,
                 "payload": dom_evt.payload or {},
                 "metadata": dom_evt.event_metadata or {},
+                "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
+                if getattr(dom_evt, "created_at", None)
+                else None,
             },
             headers={
                 "event_type": dom_evt.event_type,
@@ -270,8 +275,8 @@ class ConversationEventHandler:
         self,
         db: AsyncSession,
         session: ConversationSession,
-        existing_command: "CommandInbox",
-    ) -> "CommandInbox":
+        existing_command: CommandInbox,
+    ) -> CommandInbox:
         """Ensure DomainEvent + EventOutbox exist for an existing command."""
         event_type = build_event_type(session.scope_type, "Command.Received")
 
@@ -282,10 +287,8 @@ class ConversationEventHandler:
                 )
             )
         except ArgumentError:
-            try:
+            with contextlib.suppress(Exception):
                 await db.scalar(None)
-            except Exception:
-                pass
             dom_evt = None
         if not dom_evt:
             dom_evt = DomainEvent(
@@ -320,6 +323,9 @@ class ConversationEventHandler:
                     "aggregate_id": dom_evt.aggregate_id,
                     "payload": dom_evt.payload or {},
                     "metadata": dom_evt.event_metadata or {},
+                    "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
+                    if getattr(dom_evt, "created_at", None)
+                    else None,
                 },
                 headers={
                     "event_type": dom_evt.event_type,

@@ -39,8 +39,6 @@ class TestConversationCommandsMessages:
         )
 
         # Assert
-        if response.status_code != 201:
-            print(f"Error response: {response.text}")
         assert response.status_code == 201
         data = response.json()
 
@@ -50,13 +48,15 @@ class TestConversationCommandsMessages:
 
         message_obj = data["data"]
         assert UUID(message_obj["session_id"]) == UUID(session_id)
-        assert message_obj["role"] == "USER"  # Default role for messages
+        # Import needed for enum comparison
+        from src.schemas.novel.dialogue import DialogueRole
+        assert message_obj["role"] == DialogueRole.USER.value
         assert message_obj["input"] == {"message": "Hello, I need help with my story"}
         assert message_obj["model"] == "gpt-4"
         assert message_obj["correlation_id"] == "test-message-correlation-123"
         assert message_obj["round_path"] == "1"  # First round
         assert "created_at" in message_obj
-        assert message_obj["output"] is None  # Output not set yet
+        assert message_obj["output"] == {}  # Output defaults to empty dict
 
     @pytest.mark.asyncio
     async def test_post_message_with_explicit_role(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
