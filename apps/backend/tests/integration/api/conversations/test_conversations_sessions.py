@@ -97,7 +97,10 @@ class TestConversationSessionsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "INVALID_SCOPE", "scope_id": "test-scope"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Invalid Scope Test Novel")
+
+        session_data = {"scope_type": "INVALID_SCOPE", "scope_id": novel_id}
 
         # Act
         response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
@@ -264,8 +267,12 @@ class TestConversationSessionsUpdate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "conflict-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Conflict Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         create_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert create_response.status_code == 201
         session_id = create_response.json()["data"]["id"]
 
         # Act - try to update with wrong version
@@ -291,8 +298,12 @@ class TestConversationSessionsDelete:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "delete-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Delete Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         create_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert create_response.status_code == 201
         session_id = create_response.json()["data"]["id"]
 
         # Act
