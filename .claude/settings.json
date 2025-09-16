@@ -53,6 +53,8 @@
     ],
     "deny": []
   },
-  "enabledMcpjsonServers": [],
+  "enabledMcpjsonServers": [
+    "playwright"
+  ],
   "enableAllProjectMcpServers": false
 }

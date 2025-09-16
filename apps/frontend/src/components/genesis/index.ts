@@ -6,3 +6,5 @@ export { GenesisNavigation, GenesisProgressBar, GenesisStatusBadge } from './Gen
 export type { GenesisStageInfo } from './GenesisNavigation'
 
 export { GenesisStageContent } from './GenesisStageContent'
+export { GenesisSettingsOverview } from './GenesisSettingsOverview'
+export { GenesisSettingsModal } from './GenesisSettingsModal'

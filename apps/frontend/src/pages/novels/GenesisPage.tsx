@@ -3,18 +3,18 @@
  * 管理小说的创世流程，智能处理会话创建和冲突
  */
 
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { GenesisNavigation } from '@/components/genesis/GenesisNavigation'
-import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
-import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
 import { GenesisConflictDialog } from '@/components/genesis/GenesisConflictDialog'
-import { useGenesisSession } from '@/hooks/useGenesisSession'
+import { GenesisNavigation } from '@/components/genesis/GenesisNavigation'
+import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
+import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Sparkles, AlertTriangle } from 'lucide-react'
+import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { GenesisStage } from '@/types/enums'
+import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
+import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 /**
  * 创世页面主组件
@@ -60,7 +60,7 @@ export default function GenesisPage() {
   const handleStageComplete = () => {
     const stages = Object.values(GenesisStage)
     const currentIndex = stages.indexOf(currentStage)
-    
+
     if (currentIndex < stages.length - 1) {
       const nextStage = stages[currentIndex + 1]
       updateStage(nextStage)
@@ -72,7 +72,7 @@ export default function GenesisPage() {
   const handleContinueExisting = () => {
     setShowConflictDialog(false)
     clearConflict()
-    
+
     // TODO: 实际应该调用API查找现有活跃会话，这里使用mock数据
     const mockExistingSession = {
       id: `mock-session-${novelId}`,
@@ -90,14 +90,13 @@ export default function GenesisPage() {
       },
       version: 2,
       created_at: new Date(Date.now() - 86400000).toISOString(), // 1天前
-      updated_at: new Date(Date.now() - 3600000).toISOString(),   // 1小时前
+      updated_at: new Date(Date.now() - 3600000).toISOString(), // 1小时前
       novel_id: null,
     }
-    
+
     console.log('[GenesisPage] Loading existing session (mock):', mockExistingSession.id)
     loadExistingSession(mockExistingSession)
   }
-
 
   // 处理关闭冲突对话框
   const handleCloseConflict = () => {
@@ -190,17 +189,15 @@ export default function GenesisPage() {
 
   // 主界面
   return (
-    <div className="container mx-auto max-w-7xl p-6">
-      <div className="mb-6">
+    <div className="w-full px-4 lg:px-6 xl:px-8 py-6">
+      <div className="mb-6 max-w-full">
         <h1 className="text-2xl font-bold">创世设定</h1>
-        <p className="text-muted-foreground">
-          系统化地构建你的小说世界
-        </p>
+        <p className="text-muted-foreground">系统化地构建你的小说世界</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {/* 左侧导航 */}
-        <div className="md:col-span-2 lg:col-span-1 xl:col-span-1">
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        {/* 左侧导航 - 固定宽度 */}
+        <div className="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2">
           <GenesisNavigation
             currentStage={currentStage}
             sessionId={sessionId || ''}
@@ -208,8 +205,8 @@ export default function GenesisPage() {
           />
         </div>
 
-        {/* 中间内容 */}
-        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
+        {/* 中间内容 - 主要内容区 */}
+        <div className="col-span-12 md:col-span-8 lg:col-span-5 xl:col-span-6">
           <GenesisStageContent
             stage={currentStage}
             sessionId={sessionId || ''}
@@ -218,8 +215,8 @@ export default function GenesisPage() {
           />
         </div>
 
-        {/* 右侧设定概览 */}
-        <div className="md:col-span-2 lg:col-span-3 xl:col-span-1">
+        {/* 右侧设定概览 - 更宽的显示区域 */}
+        <div className="col-span-12 md:col-span-12 lg:col-span-4 xl:col-span-4">
           <GenesisSettingsOverview
             currentStage={currentStage}
             novelId={novelId || ''}
