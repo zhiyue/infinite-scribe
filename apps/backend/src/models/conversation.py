@@ -59,11 +59,11 @@ class ConversationRound(Base):
         UniqueConstraint("session_id", "round_path", name="uq_conversation_round"),
         # Event idempotency: unique constraint on (session_id, correlation_id) where correlation_id is not null
         Index(
-            "uq_conversation_round_correlation", 
-            "session_id", 
-            "correlation_id", 
+            "uq_conversation_round_correlation",
+            "session_id",
+            "correlation_id",
             unique=True,
-            postgresql_where=text("correlation_id IS NOT NULL")
+            postgresql_where=text("correlation_id IS NOT NULL"),
         ),
         # Performance indexes
         Index("idx_conversation_rounds_session_id", "session_id"),
