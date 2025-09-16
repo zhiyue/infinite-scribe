@@ -1,8 +1,8 @@
-import { Calendar, FileText, Activity, Clock, BookOpen, Zap } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Project } from '@/types'
+import { BookOpen, Clock, FileText } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface ProjectCardProps {
   project: Project
@@ -57,7 +57,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
   return (
     <Link to={`/projects/${project.id}`} className="block group">
-      <Card className={`hover:shadow-xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br ${getStatusColor(project.status)} group-hover:scale-105 transform`}>
+      <Card
+        className={`hover:shadow-xl transition-all duration-300 cursor-pointer border-0 shadow-lg bg-gradient-to-br ${getStatusColor(project.status)} group-hover:scale-105 transform`}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">

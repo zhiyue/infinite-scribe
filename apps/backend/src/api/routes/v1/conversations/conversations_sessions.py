@@ -73,31 +73,41 @@ async def create_session(
     # s may be ORM or dict
     if isinstance(s, dict):
         version = s.get("version", 1)
+        scope_type = ScopeType(s["scope_type"])
+        scope_id = s["scope_id"]
+        # For GENESIS scope, novel_id should be the scope_id
+        novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
         data = SessionResponse(
             id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
-            scope_type=ScopeType(s["scope_type"]),
-            scope_id=s["scope_id"],
+            scope_type=scope_type,
+            scope_id=scope_id,
             status=SessionStatus(s["status"]),
             stage=s.get("stage"),
             state=s.get("state", {}),
             version=version,
             created_at=s.get("created_at") or format_iso_datetime(utc_now()),
             updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
-            novel_id=None,
+            novel_id=novel_id,
         )
     else:
         version = getattr(s, "version", 1)
+        scope_type = ScopeType(s.scope_type)
+        scope_id = s.scope_id
+        # For GENESIS scope, novel_id should be the scope_id
+        novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
         data = SessionResponse(
             id=s.id,
-            scope_type=ScopeType(s.scope_type),
-            scope_id=s.scope_id,
+            scope_type=scope_type,
+            scope_id=scope_id,
             status=SessionStatus(s.status),
             stage=s.stage,
             state=s.state or {},
             version=version,
             created_at=s.created_at.isoformat() if getattr(s, "created_at", None) else format_iso_datetime(utc_now()),
             updated_at=s.updated_at.isoformat() if getattr(s, "updated_at", None) else format_iso_datetime(utc_now()),
-            novel_id=None,
+            novel_id=novel_id,
         )
     set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
     return ApiResponse(code=0, msg="创建会话成功", data=data)
@@ -154,24 +164,34 @@ async def list_sessions(
     for s in sessions_data:
         if isinstance(s, dict):
             version = s.get("version", 1)
+            scope_type = ScopeType(s["scope_type"])
+            scope_id = s["scope_id"]
+            # For GENESIS scope, novel_id should be the scope_id
+            novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
             session_response = SessionResponse(
                 id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
-                scope_type=ScopeType(s["scope_type"]),
-                scope_id=s["scope_id"],
+                scope_type=scope_type,
+                scope_id=scope_id,
                 status=SessionStatus(s["status"]),
                 stage=s.get("stage"),
                 state=s.get("state", {}),
                 version=version,
                 created_at=s.get("created_at") or format_iso_datetime(utc_now()),
                 updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
-                novel_id=None,
+                novel_id=novel_id,
             )
         else:
             version = getattr(s, "version", 1)
+            scope_type = ScopeType(s.scope_type)
+            scope_id = s.scope_id
+            # For GENESIS scope, novel_id should be the scope_id
+            novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
             session_response = SessionResponse(
                 id=s.id,
-                scope_type=ScopeType(s.scope_type),
-                scope_id=s.scope_id,
+                scope_type=scope_type,
+                scope_id=scope_id,
                 status=SessionStatus(s.status),
                 stage=s.stage,
                 state=s.state or {},
@@ -182,7 +202,7 @@ async def list_sessions(
                 updated_at=s.updated_at.isoformat()
                 if getattr(s, "updated_at", None)
                 else format_iso_datetime(utc_now()),
-                novel_id=None,
+                novel_id=novel_id,
             )
         sessions_list.append(session_response)
 
@@ -210,31 +230,41 @@ async def get_session(
     s = result["session"]
     if isinstance(s, dict):
         version = s.get("version", 1)
+        scope_type = ScopeType(s["scope_type"])
+        scope_id = s["scope_id"]
+        # For GENESIS scope, novel_id should be the scope_id
+        novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
         data = SessionResponse(
             id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
-            scope_type=ScopeType(s["scope_type"]),
-            scope_id=s["scope_id"],
+            scope_type=scope_type,
+            scope_id=scope_id,
             status=SessionStatus(s["status"]),
             stage=s.get("stage"),
             state=s.get("state", {}),
             version=version,
             created_at=s.get("created_at") or format_iso_datetime(utc_now()),
             updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
-            novel_id=None,
+            novel_id=novel_id,
         )
     else:
         version = getattr(s, "version", 1)
+        scope_type = ScopeType(s.scope_type)
+        scope_id = s.scope_id
+        # For GENESIS scope, novel_id should be the scope_id
+        novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
         data = SessionResponse(
             id=s.id,
-            scope_type=ScopeType(s.scope_type),
-            scope_id=s.scope_id,
+            scope_type=scope_type,
+            scope_id=scope_id,
             status=SessionStatus(s.status),
             stage=s.stage,
             state=s.state or {},
             version=version,
             created_at=s.created_at.isoformat() if getattr(s, "created_at", None) else format_iso_datetime(utc_now()),
             updated_at=s.updated_at.isoformat() if getattr(s, "updated_at", None) else format_iso_datetime(utc_now()),
-            novel_id=None,
+            novel_id=novel_id,
         )
     set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
     return ApiResponse(code=0, msg="获取会话成功", data=data)

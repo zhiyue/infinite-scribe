@@ -161,6 +161,9 @@ class TestConversationSessionService:
 
         # Mock existing active session
         existing_session = Mock(spec=ConversationSession)
+        existing_session.id = uuid4()
+        existing_session.stage = "INITIAL_PROMPT"
+        existing_session.status = "ACTIVE"
         mock_repository.find_active_by_scope.return_value = existing_session
 
         # Act
@@ -168,8 +171,12 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is False
-        assert result["error"] == "An active session already exists for this novel"
+        assert "已存在活跃的创世阶段会话" in result["error"]
+        assert str(existing_session.id) in result["error"]
         assert result["code"] == 409
+        assert result["existing_session_id"] == str(existing_session.id)
+        assert result["existing_session_stage"] == "INITIAL_PROMPT"
+        assert result["existing_session_status"] == "ACTIVE"
         mock_access_control.get_novel_for_scope.assert_awaited_once_with(
             mock_db, user_id, ScopeType.GENESIS.value, scope_id
         )

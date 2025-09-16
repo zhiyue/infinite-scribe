@@ -277,6 +277,14 @@ export class FetchHttpClient implements IHttpClient {
     return this.request<T>('PUT', url, data, config)
   }
 
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    return this.request<T>('PATCH', url, data, config)
+  }
+
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.request<T>('DELETE', url, undefined, config)
   }
@@ -451,6 +459,14 @@ export class MockHttpClient implements IHttpClient {
     config?: AxiosRequestConfig,
   ): Promise<AxiosResponse<T>> {
     return this.mockRequest<T>('PUT', url, data, config)
+  }
+
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    return this.mockRequest<T>('PATCH', url, data, config)
   }
 
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {

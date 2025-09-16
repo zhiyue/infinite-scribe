@@ -117,13 +117,18 @@ class ConversationSessionCreateHandler:
                         "scope_id": scope_id,
                         "user_id": user_id,
                         "existing_session_status": existing.status,
+                        "existing_session_stage": existing.stage,
                         "operation": "create_session_conflict",
                     },
                 )
-                return ConversationErrorHandler.conflict_error(
-                    "An active session already exists for this novel",
+                return ConversationErrorHandler.error_response(
+                    f"已存在活跃的创世阶段会话。当前会话ID: {existing.id}，阶段: {existing.stage or '未设置'}，状态: {existing.status}。请选择继续使用现有会话或删除后重新创建。",
+                    code=409,
                     logger_instance=logger,
                     context=f"Create session conflict - existing session: {existing.id} for scope: {scope_type_str}:{scope_id}",
+                    existing_session_id=str(existing.id),
+                    existing_session_stage=existing.stage,
+                    existing_session_status=existing.status,
                 )
 
             # Create new session with transactional support

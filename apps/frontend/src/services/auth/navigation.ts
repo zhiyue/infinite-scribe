@@ -382,7 +382,7 @@ export function createAutoNavigationService(): INavigationService {
   }
 
   // 检查是否支持 History API
-  if (window.history && window.history.pushState) {
+  if (window.history && typeof window.history.pushState === 'function') {
     return new HistoryNavigationService()
   }
 

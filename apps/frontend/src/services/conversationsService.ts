@@ -20,6 +20,7 @@ import type {
   RoundCreateRequest,
   RoundQueryParams,
   RoundResponse,
+  SessionListParams,
   SessionResponse,
   SetStageRequest,
   StageResponse,
@@ -78,6 +79,25 @@ export class ConversationsService {
       request,
       { headers: buildHeaders(headers) },
     )
+    return handleApiResponse(response)
+  }
+
+  /**
+   * 获取会话列表
+   * GET /api/v1/conversations/sessions
+   */
+  async listSessions(params: SessionListParams): Promise<SessionResponse[]> {
+    const searchParams = new URLSearchParams()
+
+    searchParams.append('scope_type', params.scope_type)
+    searchParams.append('scope_id', params.scope_id)
+
+    if (params.status) searchParams.append('status', params.status)
+    if (params.limit) searchParams.append('limit', params.limit.toString())
+    if (params.offset) searchParams.append('offset', params.offset.toString())
+
+    const url = `${this.basePath}/sessions?${searchParams.toString()}`
+    const response = await authenticatedApiService.get<ApiResponse<SessionResponse[]>>(url)
     return handleApiResponse(response)
   }
 

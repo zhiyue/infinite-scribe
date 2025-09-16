@@ -134,3 +134,4 @@ apps/frontend/test-results/.last-run.json
 .specstory/.what-is-this.md
 deploy/data/
 apps/backend/config.toml
+apps/frontend/.env.development

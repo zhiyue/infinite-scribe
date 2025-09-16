@@ -19,6 +19,7 @@ import type {
   RoundCreateRequest,
   RoundQueryParams,
   RoundResponse,
+  SessionListParams,
   SessionResponse,
   SetStageRequest,
   StageResponse,
@@ -27,8 +28,8 @@ import type {
   VersionInfo,
   VersionMergeRequest,
 } from '@/types/api'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // ===== Query Keys =====
 const conversationKeys = {
@@ -47,6 +48,21 @@ const conversationKeys = {
 }
 
 // ===== Session Hooks =====
+
+/**
+ * 获取会话列表
+ */
+export function useListSessions(
+  params: SessionListParams,
+  options?: Omit<UseQueryOptions<SessionResponse[], Error>, 'queryKey' | 'queryFn'>,
+) {
+  return useQuery({
+    queryKey: [...conversationKeys.sessions(), params],
+    queryFn: () => conversationsService.listSessions(params),
+    enabled: !!params.scope_type && !!params.scope_id,
+    ...options,
+  })
+}
 
 /**
  * 获取会话详情

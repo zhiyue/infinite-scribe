@@ -91,9 +91,17 @@ export function GenesisConversation({
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // 获取对话轮次
-  const { data: rounds = [], isLoading: roundsLoading } = useRounds(sessionId, {
+  const { data: roundsData, error: roundsError, isLoading: roundsLoading } = useRounds(sessionId, {
     order: 'asc',
   })
+
+  // 确保 rounds 是数组
+  const rounds = Array.isArray(roundsData) ? roundsData : []
+
+  // 调试日志
+  useEffect(() => {
+    console.log('[GenesisConversation] Rounds data:', { roundsData, roundsError, sessionId })
+  }, [roundsData, roundsError, sessionId])
 
   // 发送消息
   const sendMessage = useSendMessage(sessionId, {
@@ -253,8 +261,40 @@ export function GenesisConversation({
         <CardContent className="p-0">
           <ScrollArea ref={scrollAreaRef} className="h-[500px]">
             <div className="p-4 space-y-4">
+              {/* 错误提示 */}
+              {roundsError && (
+                <div className="flex gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-destructive/10">
+                      <Bot className="h-4 w-4 text-destructive" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="rounded-lg bg-destructive/5 border border-destructive/20 px-4 py-3">
+                    <p className="text-sm text-destructive">无法加载对话历史，请刷新页面重试。</p>
+                    <p className="text-xs text-muted-foreground mt-1">错误：{roundsError.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 加载中 */}
+              {roundsLoading && rounds.length === 0 && (
+                <div className="flex gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-secondary">
+                      <Bot className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="rounded-lg bg-muted border border-border px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span className="text-sm">正在加载对话历史...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 欢迎消息 */}
-              {rounds.length === 0 && (
+              {!roundsLoading && !roundsError && rounds.length === 0 && (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-secondary">

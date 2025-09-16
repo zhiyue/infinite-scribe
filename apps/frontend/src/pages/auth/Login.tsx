@@ -3,7 +3,7 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Loader2, Mail, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -11,11 +11,11 @@ import { z } from 'zod'
 import { useLogin, useResendVerification } from '../../hooks/useAuthMutations'
 import type { LoginFormData } from '../../types/auth'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 // Validation schema
 const loginSchema = z.object({
@@ -37,7 +37,6 @@ const LoginPage: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    getValues,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })

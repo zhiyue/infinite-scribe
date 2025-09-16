@@ -29,6 +29,22 @@ export type DialogueRole = 'user' | 'assistant' | 'system' | 'tool'
 // ===== Session 相关类型 =====
 
 /**
+ * 会话列表查询参数 - GET /api/v1/conversations/sessions
+ */
+export interface SessionListParams {
+  /** 范围类型 */
+  scope_type: ScopeType
+  /** 范围ID */
+  scope_id: string
+  /** 状态过滤 */
+  status?: SessionStatus
+  /** 限制数量（1-200，默认50） */
+  limit?: number
+  /** 偏移量（默认0） */
+  offset?: number
+}
+
+/**
  * 创建会话请求 - POST /api/v1/conversations/sessions
  */
 export interface CreateSessionRequest {
