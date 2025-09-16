@@ -33,6 +33,7 @@
 | 方法  | 路由                                        | 目的                 | 认证 | 状态码                                                                                     |
 | ----- | ------------------------------------------- | -------------------- | ---- | ------------------------------------------------------------------------------------------ |
 | POST  | /api/v1/conversations/sessions              | 创建会话(scope=GENESIS) | 需要 | 201, 400, 401, 403, 409, 422, 429, 500                                                     |
+| GET   | /api/v1/conversations/sessions              | 查询会话列表         | 需要 | 200, 400, 401, 403, 500                                                                    |
 | GET   | /api/v1/conversations/sessions/{id}         | 获取会话详情         | 需要 | 200, 401, 403, 404, 500                                                                    |
 | PATCH | /api/v1/conversations/sessions/{id}         | 部分更新会话         | 需要 | 200, 400, 401, 403, 404, 409, 412, 422, 429, 500                                           |
 | DELETE| /api/v1/conversations/sessions/{id}         | 删除会话             | 需要 | 204, 401, 403, 404, 409, 500                                                               |
@@ -43,12 +44,14 @@
 - X-Correlation-Id: 可选传入，服务端贯穿事件与 SSE；未提供则生成并回传。
 - ETag/If-Match: `GET` 返回 `ETag: "<version>"`；`PATCH` 需要 `If-Match`，版本不匹配返回 412（Precondition Failed）。业务冲突（状态不允许等）返回 409。
 
-请求体：
+请求体和查询参数：
 - POST /sessions: `{ scope_type: "GENESIS", scope_id: "<novel_id>", stage?: string, initial_state?: object }`
+- GET /sessions: 查询参数 `scope_type=GENESIS&scope_id=<novel_id>&status?&limit?&offset?` (根据小说ID查找相关会话)
 - PATCH /sessions/{id}: `{ status?, stage?, state? }`
 
 响应体：
 - 创建成功 201：`data={ id, scope_type, scope_id, status, stage, state, version, created_at, updated_at, novel_id }`（包含 `novel_id` 便于前端绑定）。
+- 查询列表 200：`data=[{ id, scope_type, scope_id, status, stage, state, version, created_at, updated_at, novel_id }]`（数组形式，支持分页）。
 
 #### 轮次管理
 

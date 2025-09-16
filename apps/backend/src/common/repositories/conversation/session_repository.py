@@ -26,6 +26,18 @@ class ConversationSessionRepository(ABC):
         pass
 
     @abstractmethod
+    async def list_by_scope(
+        self,
+        scope_type: str,
+        scope_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationSession]:
+        """List sessions for the given scope with optional filtering."""
+        pass
+
+    @abstractmethod
     async def create(
         self,
         scope_type: str,
@@ -88,6 +100,35 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
                 )
             )
         )
+
+    async def list_by_scope(
+        self,
+        scope_type: str,
+        scope_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationSession]:
+        """List sessions for the given scope with optional filtering."""
+        query = select(ConversationSession).where(
+            and_(
+                ConversationSession.scope_type == scope_type,
+                ConversationSession.scope_id == scope_id,
+            )
+        )
+        
+        # Add status filter if provided
+        if status is not None:
+            query = query.where(ConversationSession.status == status)
+            
+        # Add pagination
+        query = query.offset(offset).limit(limit)
+        
+        # Order by creation time, newest first
+        query = query.order_by(ConversationSession.created_at.desc())
+        
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def create(
         self,

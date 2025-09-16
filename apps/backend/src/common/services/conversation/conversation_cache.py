@@ -61,6 +61,32 @@ class ConversationCacheManager:
         """Check if connected to Redis."""
         return self._connected
 
+    async def _ensure_connection(self) -> bool:
+        """Ensure Redis connection is active, attempt lazy reconnection if needed."""
+        if self._connected:
+            try:
+                # Quick health check with ping
+                await self.redis.ping()
+                return True
+            except Exception:
+                logger.warning("Redis ping failed, attempting reconnection")
+                self._connected = False
+
+        # Connection lost or never established, attempt reconnection
+        if not self._connected:
+            try:
+                await self.redis.connect()
+                await self.redis.ping()
+                self._connected = True
+                logger.info("Redis connection restored")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to reconnect to Redis: {e}")
+                self._connected = False
+                return False
+
+        return self._connected
+
     # ---------- Key Generation (Backward Compatibility) ----------
 
     @staticmethod
@@ -82,22 +108,35 @@ class ConversationCacheManager:
 
     async def cache_session(self, session_id: str, session_data: dict[str, Any], ttl: int | None = None) -> bool:
         """Cache session data with TTL."""
+        if not await self._ensure_connection():
+            logger.warning("Cache unavailable: session caching skipped")
+            return False
         return await self.session_cache.cache_session(session_id, session_data, ttl)
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Get cached session data."""
+        if not await self._ensure_connection():
+            return None
         return await self.session_cache.get_session(session_id)
 
     async def delete_session(self, session_id: str) -> bool:
         """Delete cached session."""
+        if not await self._ensure_connection():
+            logger.warning("Cache unavailable: session deletion skipped")
+            return False
         return await self.session_cache.delete_session(session_id)
 
     async def get_session_ttl(self, session_id: str) -> int | None:
         """Get remaining TTL for session."""
+        if not await self._ensure_connection():
+            return None
         return await self.session_cache.get_session_ttl(session_id)
 
     async def renew_session_ttl(self, session_id: str, ttl: int | None = None) -> bool:
         """Renew session TTL."""
+        if not await self._ensure_connection():
+            logger.warning("Cache unavailable: session TTL renewal skipped")
+            return False
         return await self.session_cache.renew_session_ttl(session_id, ttl)
 
     # ---------- Round Operations ----------
@@ -106,24 +145,36 @@ class ConversationCacheManager:
         self, session_id: str, round_path: str, round_data: dict[str, Any], ttl: int | None = None
     ) -> bool:
         """Cache round data with TTL."""
+        if not await self._ensure_connection():
+            logger.warning("Cache unavailable: round caching skipped")
+            return False
         return await self.round_cache.cache_round(session_id, round_path, round_data, ttl)
 
     async def get_round(self, session_id: str, round_path: str) -> dict[str, Any] | None:
         """Get cached round data."""
+        if not await self._ensure_connection():
+            return None
         return await self.round_cache.get_round(session_id, round_path)
 
     async def delete_round(self, session_id: str, round_path: str) -> bool:
         """Delete cached round."""
+        if not await self._ensure_connection():
+            logger.warning("Cache unavailable: round deletion skipped")
+            return False
         return await self.round_cache.delete_round(session_id, round_path)
 
     async def get_round_ttl(self, session_id: str, round_path: str) -> int | None:
         """Get remaining TTL for round."""
+        if not await self._ensure_connection():
+            return None
         return await self.round_cache.get_round_ttl(session_id, round_path)
 
     # ---------- Batch Operations ----------
 
     async def get_session_rounds(self, session_id: str) -> list[dict[str, Any]]:
         """Get all cached rounds for a session."""
+        if not await self._ensure_connection():
+            return []
         return await self.round_cache.get_session_rounds(session_id)
 
     async def clear_session(self, session_id: str) -> dict[str, Any]:
@@ -137,6 +188,9 @@ class ConversationCacheManager:
             Dict with operation results
         """
         try:
+            if not await self._ensure_connection():
+                return {"success": False, "error": "Cache unavailable"}
+
             session_deleted = await self.session_cache.delete_session(session_id)
             rounds_cleared = await self.round_cache.clear_session_rounds(session_id)
 
@@ -159,6 +213,9 @@ class ConversationCacheManager:
             Dict with cache statistics
         """
         try:
+            if not await self._ensure_connection():
+                return {"connected": False, "error": "Cache unavailable"}
+
             info = await self.redis.info("memory")
             keyspace_info = await self.redis.info("keyspace")
 

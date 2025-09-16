@@ -82,6 +82,21 @@ class ConversationService:
         """Delete a conversation session."""
         return await self.session_service.delete_session(db, user_id, session_id)
 
+    async def list_sessions(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        scope_type: str,
+        scope_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """List conversation sessions for a given scope."""
+        return await self.session_service.list_sessions(
+            db, user_id, scope_type, scope_id, status, limit, offset
+        )
+
     # ---------- Round Operations ----------
 
     async def list_rounds(

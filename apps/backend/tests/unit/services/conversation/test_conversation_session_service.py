@@ -21,12 +21,21 @@ class TestConversationSessionService:
     @pytest.fixture
     def mock_cache(self):
         """Create mock conversation cache."""
-        return AsyncMock()
+        cache = AsyncMock()
+        cache.cache_session = AsyncMock()
+        cache.get_session = AsyncMock()
+        cache.clear_session = AsyncMock()
+        cache.list_sessions = AsyncMock()
+        return cache
 
     @pytest.fixture
     def mock_access_control(self):
         """Create mock access control."""
-        return AsyncMock()
+        access_control = AsyncMock()
+        access_control.get_novel_for_scope = AsyncMock()
+        access_control.verify_cached_session_access = AsyncMock()
+        access_control.verify_session_access = AsyncMock()
+        return access_control
 
     @pytest.fixture
     def mock_serializer(self):
@@ -36,7 +45,14 @@ class TestConversationSessionService:
     @pytest.fixture
     def mock_repository(self):
         """Create mock conversation session repository."""
-        return AsyncMock()
+        repository = AsyncMock()
+        repository.find_active_by_scope = AsyncMock()
+        repository.create = AsyncMock()
+        repository.find_by_id = AsyncMock()
+        repository.update = AsyncMock()
+        repository.delete = AsyncMock()
+        repository.list_by_user = AsyncMock()
+        return repository
 
     @pytest.fixture
     def session_service(self, mock_cache, mock_access_control, mock_serializer, mock_repository):
@@ -75,10 +91,12 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        assert "session" in result
-        mock_access_control.get_novel_for_scope.assert_called_once_with(mock_db, user_id, ScopeType.GENESIS.value, scope_id)
-        mock_repository.find_active_by_scope.assert_called_once_with(scope_type.value, str(scope_id))
-        mock_repository.create.assert_called_once_with(
+        assert result["session"] == serialized_session
+        mock_access_control.get_novel_for_scope.assert_awaited_once_with(
+            mock_db, user_id, ScopeType.GENESIS.value, scope_id
+        )
+        mock_repository.find_active_by_scope.assert_awaited_once_with(scope_type.value, str(scope_id))
+        mock_repository.create.assert_awaited_once_with(
             scope_type=scope_type.value,
             scope_id=str(scope_id),
             status=SessionStatus.ACTIVE.value,
@@ -86,7 +104,7 @@ class TestConversationSessionService:
             state=initial_state,
             version=1,
         )
-        mock_cache.cache_session.assert_called_once()
+        mock_cache.cache_session.assert_awaited_once_with(str(created_session.id), serialized_session)
 
     @pytest.mark.asyncio
     async def test_create_session_unsupported_scope(self, session_service, mock_db):
@@ -101,8 +119,7 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is False
-        assert result["error"] == "Only GENESIS scope is supported"
-        mock_db.add.assert_not_called()
+        assert result["error"] == "Invalid scope type: unsupported_scope"
 
     @pytest.mark.asyncio
     async def test_create_session_access_denied(self, session_service, mock_db, mock_access_control):
@@ -126,7 +143,9 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
-        mock_db.add.assert_not_called()
+        mock_access_control.get_novel_for_scope.assert_awaited_once_with(
+            mock_db, user_id, ScopeType.GENESIS.value, scope_id
+        )
 
     @pytest.mark.asyncio
     async def test_create_session_existing_active_session(self, session_service, mock_db, mock_access_control, mock_repository):
@@ -150,10 +169,16 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "An active session already exists for this novel"
         assert result["code"] == 409
-        mock_repository.create.assert_not_called()
+        mock_access_control.get_novel_for_scope.assert_awaited_once_with(
+            mock_db, user_id, ScopeType.GENESIS.value, scope_id
+        )
+        mock_repository.find_active_by_scope.assert_awaited_once_with(scope_type.value, str(scope_id))
+        mock_repository.create.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_create_session_database_exception(self, session_service, mock_db, mock_access_control):
+    async def test_create_session_database_exception(
+        self, session_service, mock_db, mock_access_control, mock_repository
+    ):
         """Test session creation when database raises exception."""
         # Arrange
         user_id = 123
@@ -164,10 +189,10 @@ class TestConversationSessionService:
         mock_access_control.get_novel_for_scope.return_value = {"success": True}
 
         # Mock no existing session
-        mock_db.scalar.return_value = None
+        mock_repository.find_active_by_scope.return_value = None
 
-        # Mock database exception during commit
-        mock_db.commit.side_effect = Exception("Database error")
+        # Mock database exception during creation
+        mock_repository.create.side_effect = Exception("Database error")
 
         # Act
         result = await session_service.create_session(mock_db, user_id, scope_type, scope_id)
@@ -175,7 +200,8 @@ class TestConversationSessionService:
         # Assert
         assert result["success"] is False
         assert result["error"] == "Failed to create session"
-        mock_db.rollback.assert_called_once()
+        mock_access_control.get_novel_for_scope.assert_awaited_once()
+        mock_repository.create.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_get_session_from_cache(self, session_service, mock_db, mock_cache, mock_access_control):
@@ -198,7 +224,7 @@ class TestConversationSessionService:
         assert result["success"] is True
         assert result["session"] == cached_session
         assert result.get("cached") is True
-        mock_db.scalar.assert_not_called()  # Should not query DB
+        mock_cache.get_session.assert_awaited_once_with(str(session_id))
 
     @pytest.mark.asyncio
     async def test_get_session_cache_access_denied(self, session_service, mock_db, mock_cache, mock_access_control):
@@ -259,8 +285,14 @@ class TestConversationSessionService:
         # Assert
         assert result["success"] is True
         assert result["session"] == serialized_session
-        mock_repository.find_by_id.assert_called_once_with(session_id)
-        mock_cache.cache_session.assert_called_once_with(str(session_id), serialized_session)
+        mock_cache.get_session.assert_awaited_once_with(str(session_id))
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_access_control.verify_cached_session_access.assert_awaited_once_with(
+            mock_db,
+            user_id,
+            {"scope_type": db_session.scope_type, "scope_id": db_session.scope_id, "status": db_session.status},
+        )
+        mock_cache.cache_session.assert_awaited_once_with(str(session_id), serialized_session)
 
     @pytest.mark.asyncio
     async def test_get_session_not_found(self, session_service, mock_db, mock_cache, mock_repository):
@@ -280,6 +312,9 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_cache.get_session.assert_awaited_once_with(str(session_id))
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
 
     @pytest.mark.asyncio
     async def test_update_session_success(
@@ -328,15 +363,15 @@ class TestConversationSessionService:
         # Assert
         assert result["success"] is True
         assert result["session"] == serialized_session
-        mock_repository.find_by_id.assert_called_once_with(session_id)
-        mock_repository.update.assert_called_once_with(
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_repository.update.assert_awaited_once_with(
             session_id=session_id,
             status=new_status.value,
             stage=new_stage,
             state=new_state,
             expected_version=expected_version,
         )
-        mock_cache.cache_session.assert_called_once_with(str(session_id), serialized_session)
+        mock_cache.cache_session.assert_awaited_once_with(str(session_id), serialized_session)
 
     @pytest.mark.asyncio
     async def test_update_session_not_found(self, session_service, mock_db, mock_repository):
@@ -386,7 +421,9 @@ class TestConversationSessionService:
         assert result["code"] == 403
 
     @pytest.mark.asyncio
-    async def test_update_session_no_changes(self, session_service, mock_db, mock_access_control):
+    async def test_update_session_no_changes(
+        self, session_service, mock_db, mock_access_control, mock_repository, mock_serializer
+    ):
         """Test updating session with no actual changes."""
         # Arrange
         user_id = 123
@@ -394,21 +431,31 @@ class TestConversationSessionService:
 
         # Mock existing session
         existing_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = existing_session
+        existing_session.scope_type = "genesis"
+        existing_session.scope_id = "novel-123"
+        existing_session.status = "active"
+        mock_repository.find_by_id.return_value = existing_session
 
         # Mock successful access verification
-        mock_access_control.verify_session_access.return_value = {"success": True, "session": existing_session}
+        mock_access_control.verify_cached_session_access.return_value = {"success": True}
+
+        serialized_session = {"id": str(session_id), "status": existing_session.status}
+        mock_serializer.serialize_session.return_value = serialized_session
 
         # Act - no parameters to update
         result = await session_service.update_session(mock_db, user_id, session_id)
 
         # Assert
         assert result["success"] is True
-        assert result["session"] == existing_session
-        mock_db.execute.assert_not_called()  # No update executed
+        assert result["session"] == serialized_session
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_repository.update.assert_not_awaited()
+        mock_serializer.serialize_session.assert_called_once_with(existing_session)
 
     @pytest.mark.asyncio
-    async def test_update_session_version_conflict(self, session_service, mock_db, mock_access_control):
+    async def test_update_session_version_conflict(
+        self, session_service, mock_db, mock_access_control, mock_repository
+    ):
         """Test updating session with version conflict."""
         # Arrange
         user_id = 123
@@ -416,15 +463,16 @@ class TestConversationSessionService:
 
         # Mock existing session
         existing_session = Mock(spec=ConversationSession)
-        mock_db.scalar.return_value = existing_session
+        existing_session.scope_type = "genesis"
+        existing_session.scope_id = "novel-123"
+        existing_session.status = "active"
+        mock_repository.find_by_id.return_value = existing_session
 
         # Mock successful access verification
-        mock_access_control.verify_session_access.return_value = {"success": True, "session": existing_session}
+        mock_access_control.verify_cached_session_access.return_value = {"success": True}
 
         # Mock update returning None (version conflict)
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
+        mock_repository.update.return_value = None
 
         # Act
         result = await session_service.update_session(
@@ -435,7 +483,8 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Version mismatch or conflict"
         assert result["code"] == 412
-        mock_db.rollback.assert_called_once()
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_repository.update.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_delete_session_success(self, session_service, mock_db, mock_access_control, mock_cache, mock_repository):
@@ -463,17 +512,19 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        mock_repository.delete.assert_called_once_with(session_id)
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_repository.delete.assert_awaited_once_with(session_id)
+        mock_cache.clear_session.assert_awaited_once_with(str(session_id))
 
     @pytest.mark.asyncio
-    async def test_delete_session_not_found(self, session_service, mock_db):
+    async def test_delete_session_not_found(self, session_service, mock_db, mock_repository):
         """Test deleting session that doesn't exist."""
         # Arrange
         user_id = 123
         session_id = uuid4()
 
         # Mock session not found
-        mock_db.scalar.return_value = None
+        mock_repository.find_by_id.return_value = None
 
         # Act
         result = await session_service.delete_session(mock_db, user_id, session_id)
@@ -482,7 +533,8 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Session not found"
         assert result["code"] == 404
-        mock_db.delete.assert_not_called()
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_repository.delete.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_delete_session_access_denied(self, session_service, mock_db, mock_access_control, mock_repository):
@@ -512,4 +564,6 @@ class TestConversationSessionService:
         assert result["success"] is False
         assert result["error"] == "Access denied"
         assert result["code"] == 403
-        mock_repository.delete.assert_not_called()
+        mock_repository.find_by_id.assert_awaited_once_with(session_id)
+        mock_access_control.verify_cached_session_access.assert_awaited_once()
+        mock_repository.delete.assert_not_awaited()

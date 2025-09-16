@@ -96,9 +96,11 @@ class ConversationRoundCreationService:
                 except Exception:
                     corr_uuid = None
 
+            repository = self._repo_factory(db)
+
             # Atomic operation: round + domain_event + outbox
             created_round = await self._create_round_atomic(
-                db, session, role, input_data, model, correlation_id, corr_uuid, parent_round_path
+                db, session, repository, role, input_data, model, correlation_id, corr_uuid, parent_round_path
             )
 
             if not created_round:
@@ -120,7 +122,12 @@ class ConversationRoundCreationService:
                     extra={"session_id": str(session_id), "round_path": created_round.round_path},
                 )
 
-            return ConversationErrorHandler.success_response({"round": serialized_round})
+            return ConversationErrorHandler.success_response(
+                {
+                    "round": created_round,
+                    "serialized_round": serialized_round,
+                }
+            )
 
         except Exception as e:
             return ConversationErrorHandler.internal_error(
@@ -131,6 +138,7 @@ class ConversationRoundCreationService:
         self,
         db: AsyncSession,
         session: ConversationSession,
+        repository: ConversationRoundRepository,
         role: DialogueRole,
         input_data: dict[str, Any],
         model: str | None,
@@ -154,9 +162,6 @@ class ConversationRoundCreationService:
             Created ConversationRound or None if failed
         """
         try:
-            # Get repository from factory
-            repository = self._repo_factory(db)
-
             async with transactional(db):
                 created_round = None
 
@@ -175,19 +180,28 @@ class ConversationRoundCreationService:
                 # Create new round if no idempotent hit
                 if created_round is None:
                     created_round = await self._create_new_round(
-                        db, session, role, input_data, model, correlation_id, corr_uuid, parent_round_path
+                        db,
+                        session,
+                        repository,
+                        role,
+                        input_data,
+                        model,
+                        correlation_id,
+                        corr_uuid,
+                        parent_round_path,
                     )
 
                 return created_round
 
         except Exception as e:
-            logger.error(f"Atomic round creation error: {e}")
+            logger.error(f"Atomic round creation error: {e}", exc_info=True)
             return None
 
     async def _create_new_round(
         self,
         db: AsyncSession,
         session: ConversationSession,
+        repository: ConversationRoundRepository,
         role: DialogueRole,
         input_data: dict[str, Any],
         model: str | None,
@@ -196,7 +210,7 @@ class ConversationRoundCreationService:
         parent_round_path: str | None = None,
     ) -> ConversationRound:
         """Create a new round with events using atomic sequence generation."""
-        from sqlalchemy import func, update
+        from sqlalchemy import Integer, func, update
 
         if parent_round_path is None:
             # Top-level round: use session's round_sequence
@@ -237,14 +251,11 @@ class ConversationRoundCreationService:
             new_child_sequence = max_child_sequence + 1
             round_path = f"{parent_round_path}.{new_child_sequence}"
 
-        # Get repository from factory
-        repository = self.repository or SqlAlchemyConversationRoundRepository(db)
-
         # Create round with atomically generated round_path using repository
         rnd = await repository.create(
             session_id=session.id,
             round_path=round_path,
-            role=role.value,
+            role=role,  # Let repository handle enum conversion
             input=input_data,
             output=None,
             model=model,

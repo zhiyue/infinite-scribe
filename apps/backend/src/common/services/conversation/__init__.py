@@ -21,7 +21,7 @@ __all__ = [
     "ConversationSessionService",
     # Round services (specialized)
     "ConversationRoundService",
-    "ConversationRoundCreationService", 
+    "ConversationRoundCreationService",
     "ConversationRoundQueryService",
     # Command service
     "ConversationCommandService",

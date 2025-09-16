@@ -4,7 +4,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import ErrorResponse
@@ -42,19 +42,32 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
 ) -> ApiResponse[SessionResponse]:
     """Create a conversation session (scope=GENESIS)."""
-    corr_id = get_or_create_correlation_id(x_correlation_id)
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        logger.info(
+            f"Creating session for user {current_user.id}, scope_type={request.scope_type}, scope_id={request.scope_id}"
+        )
 
-    result = await conversation_service.create_session(
-        db,
-        current_user.id,
-        request.scope_type,
-        request.scope_id,
-        stage=request.stage,
-        initial_state=request.initial_state,
-    )
-    if not result.get("success"):
-        code = result.get("code", 422)
-        raise HTTPException(status_code=code, detail=result.get("error", "Failed to create session"))
+        result = await conversation_service.create_session(
+            db,
+            current_user.id,
+            request.scope_type,
+            request.scope_id,
+            stage=request.stage,
+            initial_state=request.initial_state,
+        )
+
+        logger.info(f"Service result: {result}")
+
+        if not result.get("success"):
+            code = result.get("code", 422)
+            error_msg = result.get("error", "Failed to create session")
+            logger.error(f"Service returned error: code={code}, error={error_msg}")
+            raise HTTPException(status_code=code, detail=error_msg)
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in create_session endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create session")
 
     s = result["session"]
     # s may be ORM or dict
@@ -88,6 +101,93 @@ async def create_session(
         )
     set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
     return ApiResponse(code=0, msg="创建会话成功", data=data)
+
+
+@router.get(
+    "/sessions",
+    response_model=ApiResponse[list[SessionResponse]],
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+async def list_sessions(
+    response: Response,
+    scope_type: str = Query(..., description="Scope type (e.g., 'GENESIS')"),
+    scope_id: str = Query(..., description="Scope identifier (e.g., novel ID)"),
+    status: str | None = Query(None, description="Optional status filter"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of sessions to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    current_user: User = Depends(require_auth),
+    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    db: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[SessionResponse]]:
+    """List conversation sessions for a given scope (e.g., novel ID)."""
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        logger.info(
+            f"Listing sessions for user {current_user.id}, scope_type={scope_type}, scope_id={scope_id}, status={status}"
+        )
+
+        result = await conversation_service.list_sessions(
+            db,
+            current_user.id,
+            scope_type=scope_type,
+            scope_id=scope_id,
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.info(f"Service result: {result}")
+
+        if not result.get("success"):
+            code = result.get("code", 422)
+            error_msg = result.get("error", "Failed to list sessions")
+            logger.error(f"Service returned error: code={code}, error={error_msg}")
+            raise HTTPException(status_code=code, detail=error_msg)
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in list_sessions endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list sessions")
+
+    sessions_data = result["sessions"]
+    # Convert sessions to response format
+    sessions_list = []
+    for s in sessions_data:
+        if isinstance(s, dict):
+            version = s.get("version", 1)
+            session_response = SessionResponse(
+                id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
+                scope_type=ScopeType(s["scope_type"]),
+                scope_id=s["scope_id"],
+                status=SessionStatus(s["status"]),
+                stage=s.get("stage"),
+                state=s.get("state", {}),
+                version=version,
+                created_at=s.get("created_at") or format_iso_datetime(utc_now()),
+                updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
+                novel_id=None,
+            )
+        else:
+            version = getattr(s, "version", 1)
+            session_response = SessionResponse(
+                id=s.id,
+                scope_type=ScopeType(s.scope_type),
+                scope_id=s.scope_id,
+                status=SessionStatus(s.status),
+                stage=s.stage,
+                state=s.state or {},
+                version=version,
+                created_at=s.created_at.isoformat()
+                if getattr(s, "created_at", None)
+                else format_iso_datetime(utc_now()),
+                updated_at=s.updated_at.isoformat()
+                if getattr(s, "updated_at", None)
+                else format_iso_datetime(utc_now()),
+                novel_id=None,
+            )
+        sessions_list.append(session_response)
+
+    set_common_headers(response, correlation_id=corr_id)
+    return ApiResponse(code=0, msg="获取会话列表成功", data=sessions_list)
 
 
 @router.get(

@@ -71,24 +71,45 @@ class ConversationSessionService:
             Dict with success status and session or error details
         """
         try:
-            # Handle both enum instance and string cases
-            scope_type_str = scope_type.value if hasattr(scope_type, 'value') else scope_type
-            if scope_type_str != ScopeType.GENESIS.value:
+            # Handle scope_type as string or enum
+            if isinstance(scope_type, str):
+                scope_type_str = scope_type
+                try:
+                    scope_type_enum = ScopeType(scope_type)
+                except ValueError:
+                    logger.warning(f"Invalid scope type string: {scope_type}")
+                    return ConversationErrorHandler.validation_error(
+                        f"Invalid scope type: {scope_type}", logger_instance=logger, context="Create session validation"
+                    )
+            else:
+                scope_type_enum = scope_type
+                scope_type_str = scope_type.value
+
+            logger.debug(f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}")
+
+            if scope_type_enum != ScopeType.GENESIS:
+                logger.warning(f"Invalid scope type: {scope_type_str}")
                 return ConversationErrorHandler.validation_error(
                     "Only GENESIS scope is supported", logger_instance=logger, context="Create session validation"
                 )
 
             # Verify access to the scope
+            logger.debug(f"Verifying access to scope: {scope_type_str}, {scope_id}")
             novel_result = await self.access_control.get_novel_for_scope(db, user_id, scope_type_str, scope_id)
+            logger.debug(f"Access control result: {novel_result}")
             if not novel_result["success"]:
+                logger.warning(f"Access denied: {novel_result}")
                 return novel_result
 
             # Get repository from factory
+            logger.debug("Creating repository instance")
             repository = self._repo_factory(db)
 
             # Check for existing active session
+            logger.debug(f"Checking for existing active sessions for scope: {scope_type_str}, {scope_id}")
             existing = await repository.find_active_by_scope(scope_type_str, str(scope_id))
             if existing:
+                logger.warning(f"Active session already exists: {existing.id}")
                 return ConversationErrorHandler.conflict_error(
                     "An active session already exists for this novel",
                     logger_instance=logger,
@@ -96,6 +117,7 @@ class ConversationSessionService:
                 )
 
             # Create new session with transactional support
+            logger.info("Creating new session")
             async with transactional(db):
                 session = await repository.create(
                     scope_type=scope_type_str,
@@ -105,12 +127,16 @@ class ConversationSessionService:
                     state=initial_state or {},
                     version=1,
                 )
+                logger.info(f"Created session: {session.id}")
 
             # Serialize ORM object to dict at service boundary
+            logger.debug("Serializing session")
             serialized_session = self.serializer.serialize_session(session)
+            logger.debug(f"Serialized session keys: {serialized_session.keys()}")
 
             # Cache write-through (best effort) - already serialized
             try:
+                logger.debug("Attempting to cache session")
                 await self.cache.cache_session(str(session.id), serialized_session)
                 logger.debug(f"Cached session {session.id}")
             except Exception as cache_error:
@@ -119,6 +145,7 @@ class ConversationSessionService:
                     f"Failed to cache session {session.id}: {cache_error}", extra={"session_id": str(session.id)}
                 )
 
+            logger.debug("Session creation successful")
             return ConversationErrorHandler.success_response({"session": serialized_session})
 
         except Exception as e:
@@ -279,6 +306,24 @@ class ConversationSessionService:
 
             return ConversationErrorHandler.success_response({"session": serialized_updated})
 
+        except ValueError as e:
+            # Handle optimistic lock conflicts and not found errors from repository
+            if "not found" in str(e).lower():
+                return ConversationErrorHandler.not_found_error(
+                    "Session",
+                    logger_instance=logger,
+                    context="Update session not found",
+                    session_id=str(session_id),
+                    user_id=user_id,
+                )
+            else:
+                return ConversationErrorHandler.precondition_failed_error(
+                    "Version conflict: session has been modified",
+                    logger_instance=logger,
+                    context="Update session version conflict",
+                    session_id=str(session_id),
+                    user_id=user_id,
+                )
         except Exception as e:
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",
@@ -323,8 +368,8 @@ class ConversationSessionService:
             async with transactional(db):
                 success = await repository.delete(session_id)
                 if not success:
-                    return ConversationErrorHandler.error_response(
-                        "Session not found during deletion", code=404, logger_instance=logger, context="Delete session failed"
+                    return ConversationErrorHandler.not_found_error(
+                        "Session", logger_instance=logger, context="Delete session failed"
                     )
 
             # Clear cache (best effort)
@@ -347,5 +392,64 @@ class ConversationSessionService:
                 context="Delete session error",
                 exception=e,
                 session_id=str(session_id),
+                user_id=user_id,
+            )
+
+    async def list_sessions(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        scope_type: str,
+        scope_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """
+        List conversation sessions for a given scope.
+
+        Args:
+            db: Database session
+            user_id: User ID for ownership verification
+            scope_type: Scope type (e.g., "GENESIS")
+            scope_id: Scope identifier (e.g., novel ID)
+            status: Optional status filter
+            limit: Maximum number of sessions to return
+            offset: Offset for pagination
+
+        Returns:
+            Dict with success status and sessions list or error details
+        """
+        try:
+            # Verify user has access to this scope
+            access_result = await self.access_control.verify_scope_access(db, user_id, scope_type, scope_id)
+            if not access_result["success"]:
+                return access_result
+
+            # Get repository from factory
+            repository = self._repo_factory(db)
+
+            # Get sessions from repository
+            sessions = await repository.list_by_scope(
+                scope_type=scope_type,
+                scope_id=scope_id,
+                status=status,
+                limit=limit,
+                offset=offset,
+            )
+
+            # Serialize ORM objects to dicts at service boundary
+            serialized_sessions = [self.serializer.serialize_session(session) for session in sessions]
+
+            return ConversationErrorHandler.success_response({"sessions": serialized_sessions})
+
+        except Exception as e:
+            return ConversationErrorHandler.internal_error(
+                "Failed to list sessions",
+                logger_instance=logger,
+                context="List sessions error",
+                exception=e,
+                scope_type=scope_type,
+                scope_id=scope_id,
                 user_id=user_id,
             )

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
+from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
 from src.db.sql.session import transactional
@@ -76,8 +77,15 @@ class ConversationCommandService:
                 existing_cmd = await db.scalar(
                     select(CommandInbox).where(CommandInbox.idempotency_key == idempotency_key)
                 )
-            except Exception:
-                return {"success": False, "error": "Failed to enqueue command"}
+            except Exception as e:
+                return ConversationErrorHandler.internal_error(
+                    "Failed to lookup existing command",
+                    logger_instance=logger,
+                    context="Enqueue command lookup error",
+                    exception=e,
+                    correlation_id=idempotency_key,
+                    session_id=str(session.id),
+                )
 
             if existing_cmd:
                 await self.event_handler.ensure_command_events(db, session, existing_cmd)
@@ -88,14 +96,43 @@ class ConversationCommandService:
                 )
 
             if not command:
-                return {"success": False, "error": "Failed to enqueue command"}
+                return ConversationErrorHandler.internal_error(
+                    "Failed to create command",
+                    logger_instance=logger,
+                    context="Enqueue command creation error",
+                    correlation_id=idempotency_key,
+                    session_id=str(session.id),
+                )
+
+            serialized_command = None
+            try:
+                serialized_command = self.serializer.serialize_command(command)
+            except Exception as serialize_error:
+                logger.warning(
+                    f"Failed to serialize command {getattr(command, 'id', None)}: {serialize_error}",
+                    extra={
+                        "session_id": str(session.id),
+                        "idempotency_key": idempotency_key,
+                    },
+                )
+
+            response_payload: dict[str, Any] = {"command": command}
+            if serialized_command is not None:
+                response_payload["serialized_command"] = serialized_command
 
             # Return ORM object for backward-compatibility; routers handle both
-            return {"success": True, "command": command}
+            return ConversationErrorHandler.success_response(response_payload)
 
         except Exception as e:
-            logger.error(f"Enqueue command error: {e}")
-            return {"success": False, "error": "Failed to enqueue command"}
+            return ConversationErrorHandler.internal_error(
+                "Failed to enqueue command",
+                logger_instance=logger,
+                context="Enqueue command error",
+                exception=e,
+                correlation_id=idempotency_key,
+                session_id=str(session_id) if session_id else None,
+                user_id=user_id,
+            )
 
     async def _enqueue_command_atomic(
         self,

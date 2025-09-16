@@ -1,25 +1,20 @@
-## Stage 1: Baseline Review & Goals
+## Stage 1: 审查对话轮次服务测试失败
 
-Goal: Understand current conversation services and align with Novel Genesis stage docs. Success Criteria: Identify API surface gaps vs tests and .tasks/novel-genesis-stage design; list minimal compatibility shims. Tests: Dry-run unit suite on conversation services to observe failures and categorize (contract vs logic). Status: Complete
+**Goal**: 明确 `ConversationRoundService` 相关单测失败的根本原因。
+**Success Criteria**: 梳理出依赖注入、返回数据结构等与现有实现不符的点，并记录需要的代码改动。
+**Tests**: `uv run pytest tests/unit/services/conversation/test_conversation_round_service.py -k list_rounds`
+**Status**: Complete
 
-## Stage 2: Event Handler Compatibility
+## Stage 2: 调整服务层以恢复兼容接口
 
-Goal: Restore high-level helpers on `ConversationEventHandler` while keeping newer low-level API. Success Criteria: Provide `create_round_events`, `ensure_command_events`, `create_command_events`, and `_compute_next_round_path` without breaking existing internal usage. Tests: Unit tests expecting these methods can be adapted to new semantics. Status: In Progress
+**Goal**: 更新对话轮次/指令/会话相关服务（`conversation_round_*`、`conversation_command_service`、`conversation_session_service`），确保共享依赖、支持注入并返回原始模型对象同时保留序列化数据供缓存和 API 使用。
+**Success Criteria**: 代码中新增/更新的接口能被测试替换依赖，且返回包含模型对象；静态类型和 lint 通过自检。
+**Tests**: `uv run pytest tests/unit/services/conversation/test_conversation_round_query_service.py`
+**Status**: Complete
 
-## Stage 3: Round Service Utilities
+## Stage 3: 更新并运行相关测试
 
-Goal: Add back-compat utility functions on `ConversationRoundService` (`_compute_next_round_path`, `_parse_correlation_uuid`). Success Criteria: Helpers exist and behave as expected; no behavior change to public API. Tests: Direct unit tests on utilities. Status: Complete
-
-## Stage 4: Access Control Flexibility
-
-Goal: Make `verify_session_access` accept both session id and session object to support older call sites/tests. Success Criteria: Method handles `UUID | ConversationSession`. Tests: Unit tests stubbing verify calls with session instances. Status: Complete
-
-## Stage 5: Command Service Integration
-
-Goal: Prefer `ConversationEventHandler` to create/ensure command artifacts (outbox + domain events), with fallback to atomic helper preserved. Success Criteria: `ConversationCommandService` accepts `event_handler` and uses it by default via facade. Tests: Conversation command unit tests aligned. Status: In Progress
-
-## Notes
-
-- The repository’s existing unit tests for conversation services are partially out of sync with the current refactor (facade + specialized services). This plan introduces compatibility helpers to ease migration and reduce churn.
-- Follow-up: Update unit tests to remove direct assertions on internal collaborators not injected (e.g., event handler mocks) and target the public behavior via the facade and service boundaries.
-
+**Goal**: 调整 `ConversationRoundService`、`ConversationCommandService` 与 `ConversationSessionService` 单测以契合新接口，并确保所有相关测试通过。
+**Success Criteria**: 目标单测全部通过，必要时补充断言覆盖；记录验证命令输出。
+**Tests**: `uv run pytest tests/unit/services/conversation`
+**Status**: Complete

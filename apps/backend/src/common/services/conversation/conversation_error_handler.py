@@ -57,7 +57,7 @@ class ConversationErrorHandler:
             "error": message,
             "code": code,
         }
-        
+
         # Add correlation_id and error_type to response if provided
         if correlation_id:
             response["correlation_id"] = correlation_id
