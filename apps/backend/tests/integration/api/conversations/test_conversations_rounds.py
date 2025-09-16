@@ -19,7 +19,10 @@ class TestConversationRoundsCreate:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Create session
-        session_data = {"scope_type": "GENESIS", "scope_id": "rounds-test"}
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Rounds Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
@@ -58,7 +61,9 @@ class TestConversationRoundsCreate:
         assert round_obj["output"] is None  # Output not set yet
 
     @pytest.mark.asyncio
-    async def test_create_round_assistant_role(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_create_round_assistant_role(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test creating round with ASSISTANT role."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -66,10 +71,15 @@ class TestConversationRoundsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "assistant-round-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Assistant Round Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -90,7 +100,9 @@ class TestConversationRoundsCreate:
         assert round_obj["model"] == "claude-3"
 
     @pytest.mark.asyncio
-    async def test_create_round_session_not_found(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_create_round_session_not_found(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test creating round for non-existent session."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -117,7 +129,9 @@ class TestConversationRoundsCreate:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_create_round_invalid_role(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_create_round_invalid_role(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test creating round with invalid role."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -125,10 +139,15 @@ class TestConversationRoundsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "invalid-role-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Invalid Role Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -153,10 +172,15 @@ class TestConversationRoundsList:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "list-rounds-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "List Rounds Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create multiple rounds
@@ -173,7 +197,9 @@ class TestConversationRoundsList:
             assert response.status_code == 201
 
         # Act
-        response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}/rounds", headers=headers)
+        response = await client_with_lifespan.get(
+            f"/api/v1/conversations/sessions/{session_id}/rounds", headers=headers
+        )
 
         # Assert
         assert response.status_code == 200
@@ -201,7 +227,9 @@ class TestConversationRoundsList:
         assert pagination["page_size"] == 50  # Default limit
 
     @pytest.mark.asyncio
-    async def test_list_rounds_with_pagination(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_list_rounds_with_pagination(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test rounds listing with pagination parameters."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -209,10 +237,15 @@ class TestConversationRoundsList:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "pagination-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Pagination Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create rounds
@@ -236,7 +269,9 @@ class TestConversationRoundsList:
         assert pagination["page_size"] == 3
 
     @pytest.mark.asyncio
-    async def test_list_rounds_filter_by_role(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_list_rounds_filter_by_role(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test filtering rounds by role."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -244,10 +279,15 @@ class TestConversationRoundsList:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "filter-role-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Filter Role Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create rounds with different roles
@@ -276,7 +316,9 @@ class TestConversationRoundsList:
             assert item["role"] == "USER"
 
     @pytest.mark.asyncio
-    async def test_list_rounds_session_not_found(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_list_rounds_session_not_found(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test listing rounds for non-existent session."""
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
         login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
@@ -308,10 +350,15 @@ class TestConversationRoundsRetrieve:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "get-round-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Get Round Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create round
@@ -354,10 +401,15 @@ class TestConversationRoundsRetrieve:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "round-not-found-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Round Not Found Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - try to get non-existent round
@@ -369,7 +421,9 @@ class TestConversationRoundsRetrieve:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_get_round_session_not_found(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_get_round_session_not_found(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test retrieving round from non-existent session."""
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
         login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
@@ -389,7 +443,9 @@ class TestConversationRoundsRetrieve:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_get_round_different_user_forbidden(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_get_round_different_user_forbidden(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test that users cannot access rounds from other users' sessions."""
         # Arrange - create first user and session with round
         user1_data = await create_and_verify_test_user(
@@ -399,10 +455,15 @@ class TestConversationRoundsRetrieve:
         token1 = login1_response["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-rounds"}
+        # Create session for user1
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Rounds Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         round_data = {"role": "USER", "input": {"message": "Private round"}}
@@ -432,7 +493,9 @@ class TestConversationRoundsAdvanced:
     """Advanced test cases for conversation rounds."""
 
     @pytest.mark.asyncio
-    async def test_create_multiple_rounds_sequence(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_create_multiple_rounds_sequence(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test creating multiple rounds and verify sequence."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -440,10 +503,15 @@ class TestConversationRoundsAdvanced:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "sequence-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Sequence Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - create rounds in sequence
@@ -467,7 +535,9 @@ class TestConversationRoundsAdvanced:
             assert get_response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_correlation_id_propagation(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+    async def test_correlation_id_propagation(
+        self, client_with_lifespan, pg_session, _mock_email_service_instance_methods
+    ):
         """Test that correlation IDs are properly handled."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
@@ -476,10 +546,15 @@ class TestConversationRoundsAdvanced:
         correlation_id = "test-correlation-456"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act

@@ -19,13 +19,20 @@ class TestConversationVersionsList:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Create session first
-        session_data = {"scope_type": "GENESIS", "scope_id": "versions-list-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Versions List Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
-        response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers)
+        response = await client_with_lifespan.get(
+            f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers
+        )
 
         # Assert
         if response.status_code != 200:
@@ -49,12 +56,21 @@ class TestConversationVersionsList:
         correlation_id = "test-correlation-versions-list"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "versions-correlation-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Versions Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
-        response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers)
+        response = await client_with_lifespan.get(
+            f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers
+        )
 
         # Assert
         assert response.status_code == 200
@@ -102,8 +118,14 @@ class TestConversationVersionsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-branch-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Branch Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
@@ -149,8 +171,15 @@ class TestConversationVersionsCreate:
         idempotency_key = "version-branch-idempotent-123"
         headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-idempotent-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Idempotent Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -175,8 +204,15 @@ class TestConversationVersionsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-minimal-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Minimal Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -194,7 +230,9 @@ class TestConversationVersionsCreate:
     async def test_create_version_branch_unauthorized(self, client_with_lifespan):
         """Test creating version branch without authentication."""
         version_data = {"base_version": "1.0", "label": "unauthorized-test"}
-        response = await client_with_lifespan.post(f"/api/v1/conversations/sessions/{uuid4()}/versions", json=version_data)
+        response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{uuid4()}/versions", json=version_data
+        )
         assert response.status_code == 401
 
     @pytest.mark.asyncio
@@ -206,8 +244,15 @@ class TestConversationVersionsCreate:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-invalid-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Invalid Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - missing required fields
@@ -235,8 +280,14 @@ class TestConversationVersionsMerge:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-merge-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Merge Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
@@ -270,8 +321,15 @@ class TestConversationVersionsMerge:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-strategy-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Strategy Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Test different merge strategies
@@ -299,8 +357,15 @@ class TestConversationVersionsMerge:
         correlation_id = "test-merge-correlation-789"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-merge-correlation"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Merge Correlation Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -318,7 +383,9 @@ class TestConversationVersionsMerge:
     async def test_merge_versions_unauthorized(self, client_with_lifespan):
         """Test merging versions without authentication."""
         merge_data = {"source_branch": "test-branch", "target": "main"}
-        response = await client_with_lifespan.put(f"/api/v1/conversations/sessions/{uuid4()}/versions/merge", json=merge_data)
+        response = await client_with_lifespan.put(
+            f"/api/v1/conversations/sessions/{uuid4()}/versions/merge", json=merge_data
+        )
         assert response.status_code == 401
 
     @pytest.mark.asyncio
@@ -330,8 +397,15 @@ class TestConversationVersionsMerge:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-merge-invalid"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Merge Invalid Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - missing required fields
@@ -359,12 +433,21 @@ class TestConversationVersionsIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "version-workflow-test"}
-        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Version Workflow Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post(
+            "/api/v1/conversations/sessions", json=session_data, headers=headers
+        )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: List versions (should be empty initially)
-        list_response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers)
+        list_response = await client_with_lifespan.get(
+            f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers
+        )
         assert list_response.status_code == 200
         assert list_response.json()["data"] == []
 
@@ -395,10 +478,15 @@ class TestConversationVersionsIntegration:
         token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-versions"}
+        # Create session for user1
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Versions Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create second user
@@ -410,7 +498,9 @@ class TestConversationVersionsIntegration:
         headers2 = {"Authorization": f"Bearer {token2}"}
 
         # Try to access user1's session versions with user2's token
-        response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers2)
+        response = await client_with_lifespan.get(
+            f"/api/v1/conversations/sessions/{session_id}/versions", headers=headers2
+        )
 
         # Since this is skeleton implementation, it might return 200 with empty list
         # or proper 404/403 - both are acceptable for access control test
