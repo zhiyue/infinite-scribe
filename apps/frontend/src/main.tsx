@@ -33,7 +33,7 @@ async function enableMocking() {
     })
 
     console.log('✅ MSW Setup - Mock service worker started successfully')
-    
+
     // 打印 worker 信息帮助调试
     console.log('🔧 MSW Setup - Worker:', worker)
   } catch (error) {

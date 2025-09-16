@@ -31,7 +31,7 @@ function App() {
           <Routes>
             {/* Test Route - Only in development */}
             {import.meta.env.DEV && <Route path="/test-msw" element={<TestMSW />} />}
-            
+
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

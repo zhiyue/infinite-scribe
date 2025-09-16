@@ -26,8 +26,8 @@ class ConversationCacheManager:
 
     def __init__(self, session_ttl: int = 2592000, round_ttl: int = 1800) -> None:  # 30 days = 2,592,000 seconds
         self.redis = RedisService()
-        self.session_cache = ConversationSessionCache(default_ttl=session_ttl)
-        self.round_cache = ConversationRoundCache(default_ttl=round_ttl)
+        self.session_cache = ConversationSessionCache(redis_service_param=self.redis, default_ttl=session_ttl)
+        self.round_cache = ConversationRoundCache(redis_service=self.redis, default_ttl=round_ttl)
         self.default_session_ttl = session_ttl
         self.default_round_ttl = round_ttl
         self._connected = False

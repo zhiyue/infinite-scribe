@@ -18,12 +18,12 @@ import { Link, useNavigate } from 'react-router-dom'
 export default function CreateNovel() {
   const navigate = useNavigate()
   const createNovelMutation = useCreateNovel()
-  
+
   const [formData, setFormData] = useState<CreateNovelRequest>({
     title: '',
     description: '',
   })
-  
+
   const [errors, setErrors] = useState<{
     title?: string
     description?: string
@@ -56,7 +56,7 @@ export default function CreateNovel() {
   // 提交表单
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
@@ -67,7 +67,7 @@ export default function CreateNovel() {
         title: formData.title.trim(),
         description: formData.description.trim(),
       })
-      
+
       // 创建成功，跳转到小说详情页
       navigate(`/novels/${novel.id}`)
     } catch (error) {
@@ -77,10 +77,10 @@ export default function CreateNovel() {
 
   // 更新表单数据
   const updateFormData = (field: keyof CreateNovelRequest, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: value }))
     // 清除对应字段的错误
     if (errors[field as keyof typeof errors]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }))
+      setErrors((prev) => ({ ...prev, [field]: undefined }))
     }
   }
 
@@ -123,7 +123,7 @@ export default function CreateNovel() {
               </div>
             </div>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* 小说标题 */}
@@ -138,7 +138,7 @@ export default function CreateNovel() {
                   onChange={(e) => updateFormData('title', e.target.value)}
                   className={cn(
                     'text-base',
-                    errors.title && 'border-red-500 focus-visible:ring-red-500'
+                    errors.title && 'border-red-500 focus-visible:ring-red-500',
                   )}
                   disabled={isSubmitting}
                 />
@@ -148,9 +148,7 @@ export default function CreateNovel() {
                     {errors.title}
                   </div>
                 )}
-                <p className="text-xs text-gray-500">
-                  {formData.title.length}/100 字符
-                </p>
+                <p className="text-xs text-gray-500">{formData.title.length}/100 字符</p>
               </div>
 
               {/* 小说简介 */}
@@ -166,7 +164,7 @@ export default function CreateNovel() {
                   onChange={(e) => updateFormData('description', e.target.value)}
                   className={cn(
                     'text-base resize-none',
-                    errors.description && 'border-red-500 focus-visible:ring-red-500'
+                    errors.description && 'border-red-500 focus-visible:ring-red-500',
                   )}
                   disabled={isSubmitting}
                 />
@@ -176,9 +174,7 @@ export default function CreateNovel() {
                     {errors.description}
                   </div>
                 )}
-                <p className="text-xs text-gray-500">
-                  {formData.description.length}/1000 字符
-                </p>
+                <p className="text-xs text-gray-500">{formData.description.length}/1000 字符</p>
               </div>
 
               {/* 错误提示 */}
@@ -189,8 +185,8 @@ export default function CreateNovel() {
                     <span className="text-sm font-medium">创建失败</span>
                   </div>
                   <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                    {createNovelMutation.error instanceof Error 
-                      ? createNovelMutation.error.message 
+                    {createNovelMutation.error instanceof Error
+                      ? createNovelMutation.error.message
                       : '创建小说时发生错误，请稍后重试'}
                   </p>
                 </div>
@@ -201,11 +197,7 @@ export default function CreateNovel() {
                 <p className="text-sm text-gray-500">
                   创建后您可以在小说详情页完善世界观、角色等设定
                 </p>
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="min-w-32"
-                >
+                <Button type="submit" disabled={isSubmitting} className="min-w-32">
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -229,9 +221,7 @@ export default function CreateNovel() {
             <div className="flex items-start gap-3">
               <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div>
-                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-                  后续完善流程
-                </h3>
+                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">后续完善流程</h3>
                 <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                   <li>• 在小说详情页可以完善世界观设定</li>
                   <li>• 添加主要角色及其背景故事</li>

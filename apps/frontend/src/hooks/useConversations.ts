@@ -159,7 +159,7 @@ export function useDeleteSession(options?: UseMutationOptions<void, Error, strin
 export function useRounds(
   sessionId: string,
   params?: RoundQueryParams,
-  options?: Omit<UseQueryOptions<RoundResponse[], Error>, 'queryKey' | 'queryFn'>,
+  options?: Omit<UseQueryOptions<PaginatedResponse<RoundResponse>, Error>, 'queryKey' | 'queryFn'>,
 ) {
   return useQuery({
     queryKey: [...conversationKeys.rounds(sessionId), params],

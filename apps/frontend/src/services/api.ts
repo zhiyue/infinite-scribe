@@ -19,14 +19,14 @@ class ApiService {
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL
-    
+
     // 添加认证拦截器
     this.addRequestInterceptor((config) => {
       const token = authService.getAccessToken()
       if (token) {
         config.headers = {
           ...config.headers,
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         }
       }
       return config

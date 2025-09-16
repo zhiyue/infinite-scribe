@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from aiokafka import AIOKafkaProducer
+from aiokafka.errors import UnknownTopicOrPartitionError
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
@@ -45,6 +46,36 @@ class OutboxRelayService:
             batch_size=self.settings.relay.batch_size,
         )
 
+        # Initialize database engine connection early to establish async context
+        try:
+            log.info("relay_initializing_database_context")
+
+            # Force SQLAlchemy async greenlet context establishment
+            from sqlalchemy import text
+
+            # Force greenlet context by creating and using a connection in the current async context
+            from src.db.sql.engine import get_engine
+
+            engine = get_engine()
+
+            # Establish greenlet context with a direct connection
+            async with engine.begin() as conn:
+                # Execute a simple query to establish greenlet context
+                result = await conn.execute(text("SELECT 1 as test"))
+                test_value = result.scalar()
+                log.info("relay_greenlet_context_established", test_result=test_value)
+
+            # Now test session-based operations
+            async with create_sql_session() as test_session:
+                # Use a simple query to test session connectivity
+                result = await test_session.execute(text("SELECT 1 as session_test"))
+                session_test = result.scalar()
+                log.info("relay_database_context_ready", session_test=session_test)
+
+        except Exception as e:
+            log.error("relay_database_init_failed", error=str(e), error_type=type(e).__name__)
+            raise
+
         # Initialize Kafka producer (we pre-encode bytes to avoid double serialization)
         log.info("relay_connecting_to_kafka", bootstrap_servers=self.settings.kafka_bootstrap_servers)
         self._producer = AIOKafkaProducer(
@@ -55,6 +86,9 @@ class OutboxRelayService:
         )
         await self._producer.start()
         log.info("relay_producer_ready", kafka_connected=True, producer_config={"acks": "all", "idempotent": True})
+
+        # Ensure common topics exist to prevent immediate failures
+        await self._ensure_common_topics_exist()
 
     async def stop(self) -> None:
         """Stop background tasks and close resources."""
@@ -113,12 +147,17 @@ class OutboxRelayService:
     async def _drain_once(self) -> int:
         """Fetch candidate IDs and process rows in separate transactions."""
         candidate_ids: list[str] = []
+
         # Phase 1: read candidate IDs (no row locks kept)
-        async with create_sql_session() as session:
-            stmt = self._build_select_for_ids()
-            res = await session.execute(stmt)
-            candidate_ids = list(res.scalars().all())
-            # Commit read-only tx (no-op) and close session
+        try:
+            async with create_sql_session() as session:
+                stmt = self._build_select_for_ids()
+                res = await session.execute(stmt)
+                candidate_ids = list(res.scalars().all())
+                # Commit read-only tx (no-op) and close session
+        except Exception as e:
+            log.error("relay_select_candidates_failed", error=str(e), error_type=type(e).__name__)
+            return 0
 
         if not candidate_ids:
             return 0
@@ -126,25 +165,104 @@ class OutboxRelayService:
         # Phase 2: process each row in its own transaction with row-level lock
         processed = 0
         for oid in candidate_ids:
-            async with create_sql_session() as session:
-                row = await self._lock_row(session, oid)
-                if row is None:
-                    # Another worker may have taken it
-                    continue
-                ok = await self._process_row(session, row)
-                # Commit per row regardless of ok to persist state transitions
-                log.info(
-                    "relay_pre_commit",
-                    row_id=str(getattr(row, "id", oid)),
-                )
-                await session.commit()
-                log.info(
-                    "relay_post_commit",
-                    row_id=str(getattr(row, "id", oid)),
-                    committed=True,
-                )
-                processed += 1 if ok else 0
+            try:
+                async with create_sql_session() as session:
+                    row = await self._lock_row(session, oid)
+                    if row is None:
+                        # Another worker may have taken it
+                        continue
+                    ok = await self._process_row(session, row)
+                    # Commit per row regardless of ok to persist state transitions
+                    log.info(
+                        "relay_pre_commit",
+                        row_id=str(getattr(row, "id", oid)),
+                    )
+                    await session.commit()
+                    log.info(
+                        "relay_post_commit",
+                        row_id=str(getattr(row, "id", oid)),
+                        committed=True,
+                    )
+                    processed += 1 if ok else 0
+            except Exception as e:
+                log.error("relay_process_row_failed", row_id=str(oid), error=str(e), error_type=type(e).__name__)
+                # Continue with next row
+                continue
         return processed
+
+    async def _ensure_common_topics_exist(self) -> None:
+        """Ensure common topics exist by triggering auto-creation."""
+        common_topics = [
+            "genesis.session.events",
+            # Add other common topics as needed
+        ]
+
+        if not self._producer:
+            log.warning("relay_topic_check_skipped", reason="no_producer")
+            return
+
+        for topic in common_topics:
+            try:
+                # Request metadata for the topic - this will trigger auto-creation if enabled
+                metadata = await self._producer.client.fetch_all_metadata()
+                # Use partitions_for_topic to check if topic exists (recommended approach)
+                if metadata.partitions_for_topic(topic) is not None:
+                    log.info("relay_topic_ensured", topic=topic)
+                else:
+                    log.info("relay_topic_will_autocreate", topic=topic)
+            except Exception as e:
+                log.warning("relay_topic_check_failed", topic=topic, error=str(e))
+
+    async def _send_with_topic_retry(
+        self,
+        producer: AIOKafkaProducer,
+        topic: str,
+        value: bytes,
+        key: bytes | None,
+        headers: list[tuple[str, bytes]] | None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> None:
+        """
+        Send message with retry logic for topic auto-creation.
+
+        Args:
+            producer: Kafka producer instance
+            topic: Topic name
+            value: Message value (encoded)
+            key: Message key (encoded)
+            headers: Message headers
+            max_retries: Maximum retry attempts for topic not found errors
+            retry_delay: Delay between retries in seconds
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                await producer.send_and_wait(topic, value=value, key=key, headers=headers)
+                return
+            except UnknownTopicOrPartitionError:
+                if attempt < max_retries:
+                    log.info(
+                        "relay_send_topic_not_found_retrying",
+                        topic=topic,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                    )
+                    # Try to trigger topic creation by fetching metadata
+                    try:
+                        await producer.client.fetch_all_metadata()
+                    except Exception:
+                        pass  # Ignore metadata fetch errors
+                    await asyncio.sleep(retry_delay)
+                else:
+                    log.error(
+                        "relay_send_topic_not_found_final",
+                        topic=topic,
+                        max_retries=max_retries,
+                    )
+                    raise
+            except Exception:
+                # For other errors, don't retry - let the outer error handling deal with it
+                raise
 
     def _build_select_for_ids(self) -> Select:
         now = func.now()
@@ -211,13 +329,14 @@ class OutboxRelayService:
             # Encode payload once; producer sends bytes
             encoded_value = json.dumps(payload).encode("utf-8")
             # Send and wait to ensure delivery before updating DB
-            await producer.send_and_wait(topic, value=encoded_value, key=key_bytes, headers=headers_list)
+            await self._send_with_topic_retry(producer, topic, encoded_value, key_bytes, headers_list)
 
             # Update status to SENT (DB-level update to ensure persistence)
             row.status = OutboxStatus.SENT
             row.sent_at = cast(Any, datetime.now(UTC))
             row.last_error = None
             session.add(row)
+            row_id = str(getattr(row, "id", ""))
             await session.execute(
                 update(EventOutbox)
                 .where(EventOutbox.id == row.id)
@@ -228,8 +347,8 @@ class OutboxRelayService:
                 "relay_sent",
                 topic=topic,
                 key=key_value,
-                new_status=row.status.value,
-                row_id=str(getattr(row, "id", "")),
+                new_status=OutboxStatus.SENT.value,
+                row_id=row_id,
             )
             return True
         except Exception as e:

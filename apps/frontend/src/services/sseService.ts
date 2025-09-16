@@ -293,14 +293,14 @@ class SSEService {
     eventTypes.forEach((eventType) => {
       this.eventSource!.addEventListener(eventType, (event) => {
         try {
-          const data = JSON.parse((event as MessageEvent).data) as DomainEvent
+          const data = JSON.parse(event.data) as DomainEvent
           this.handleEvent(
             {
               type: eventType,
               data,
-              id: (event as MessageEvent).lastEventId,
+              id: event.lastEventId,
             },
-            event as MessageEvent,
+            event,
           )
         } catch (error) {
           if (import.meta.env.DEV) {

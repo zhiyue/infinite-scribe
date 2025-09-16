@@ -1,20 +1,20 @@
-## Stage 1: 明确对话集成测试依赖缺失原因
+## Stage 1: 诊断 MissingGreenlet 报错
 
-**Goal**: 分析 `apps/backend/tests/integration/domains/conversation` 当前失败堆栈，确认 `testcontainers` 模块缺失是否由依赖配置或运行方式导致。
-**Success Criteria**: 梳理出问题成因，列出需要修改的文件或脚本。
-**Tests**: `uv run pytest apps/backend/tests/integration/domains/conversation -k kafka -q`
-**Status**: In Progress
+**Goal**: 复现 `greenlet_spawn has not been called` 报错并定位触发代码路径。
+**Success Criteria**: 找到导致日志打印触发 ORM 懒加载的具体语句。
+**Tests**: 自建脚本调用 `OutboxRelayService._process_row` 并记录堆栈。
+**Status**: Complete
 
-## Stage 2: 修复依赖加载流程
+## Stage 2: 修复 OutboxRelayService 日志访问
 
-**Goal**: 调整依赖或测试装置，确保运行集成测试时能够正确加载 Kafka 所需容器依赖并初始化环境。
-**Success Criteria**: 本地执行入口可成功导入 `testcontainers.kafka.KafkaContainer` 并启动所需资源。
-**Tests**: `uv run python -c "import testcontainers.kafka"`
-**Status**: Not Started
+**Goal**: 调整 `OutboxRelayService` 成功日志，避免访问可能已过期的 ORM 属性。
+**Success Criteria**: 成功路径不再访问 `row.status` 等需要额外 IO 的属性。
+**Tests**: 复现脚本重新运行，不再抛出 MissingGreenlet。
+**Status**: Complete
 
-## Stage 3: 验证对话域集成测试
+## Stage 3: 回归验证 Outbox Relay 行为
 
-**Goal**: 运行并通过 `apps/backend/tests/integration/domains/conversation` 下所有测试。
-**Success Criteria**: 目标测试全部通过且无新增回归。
-**Tests**: `uv run pytest apps/backend/tests/integration/domains/conversation -q`
-**Status**: Not Started
+**Goal**: 确保 outbox 消息发送流程正常，警告消失且记录正确。
+**Success Criteria**: 手动脚本及必要单元测试通过，日志无 MissingGreenlet。
+**Tests**: 手工脚本 + `uv run pytest apps/backend/tests/unit/services/infrastructure/test_outbox_relay_service.py::TestOutboxRelayService::test_process_row_success -q`
+**Status**: Complete

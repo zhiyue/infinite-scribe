@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class ConversationRoundCache:
     """Specialized cache for conversation rounds."""
 
-    def __init__(self, default_ttl: int = 1800) -> None:
-        self.redis = RedisService()
+    def __init__(self, redis_service: RedisService | None = None, default_ttl: int = 1800) -> None:
+        self.redis = redis_service or RedisService()
         self.default_ttl = default_ttl
 
     def get_round_key(self, session_id: str, round_path: str) -> str:

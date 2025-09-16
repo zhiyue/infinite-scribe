@@ -24,14 +24,10 @@ interface UseSSEOptions {
  * 管理 SSE 连接的生命周期
  */
 export function useSSEConnection(options: UseSSEOptions = {}) {
-  const {
-    endpoint = '/events',
-    autoConnect = true,
-    enabled = true,
-  } = options
+  const { endpoint = '/events', autoConnect = true, enabled = true } = options
 
   const [connectionState, setConnectionState] = useState<SSEConnectionState>(
-    sseService.getConnectionState()
+    sseService.getConnectionState(),
   )
   const [error, setError] = useState<Error | null>(null)
 
@@ -101,14 +97,14 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
 export function useSSEEvent<T = any>(
   eventType: string | string[],
   handler: (event: SSEEvent<T>) => void,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const handlerRef = useRef(handler)
   handlerRef.current = handler
 
   useEffect(() => {
     const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
-    
+
     const wrappedHandler = (event: SSEEvent<T>) => {
       handlerRef.current(event)
     }
@@ -134,14 +130,14 @@ export function useSSEEvent<T = any>(
 export function useDomainEvent<T extends DomainEvent = DomainEvent>(
   eventType: T['event_type'] | T['event_type'][],
   handler: (event: T) => void,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const handlerRef = useRef(handler)
   handlerRef.current = handler
 
   useEffect(() => {
     const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
-    
+
     const wrappedHandler = (sseEvent: SSEEvent<T>) => {
       // SSE事件的data字段包含领域事件
       handlerRef.current(sseEvent.data)
@@ -168,7 +164,7 @@ export function useDomainEvent<T extends DomainEvent = DomainEvent>(
 export function useNovelEvents(
   novelId: string,
   handler: (event: DomainEvent) => void,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean } = {},
 ) {
   const { enabled = true } = options
 
@@ -180,7 +176,7 @@ export function useNovelEvents(
         handler(event)
       }
     },
-    [novelId, enabled]
+    [novelId, enabled],
   )
 }
 
@@ -191,7 +187,7 @@ export function useNovelEvents(
 export function useGenesisEvents(
   sessionId: string,
   handler: (event: DomainEvent) => void,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean } = {},
 ) {
   const { enabled = true } = options
 
@@ -203,7 +199,7 @@ export function useGenesisEvents(
         handler(event)
       }
     },
-    [sessionId, enabled]
+    [sessionId, enabled],
   )
 }
 
@@ -218,7 +214,7 @@ export function useAgentActivity(
     novelId?: string
   } = {},
   handler: (event: DomainEvent) => void,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean } = {},
 ) {
   const { enabled = true } = options
 
@@ -235,7 +231,7 @@ export function useAgentActivity(
 
       handler(event)
     },
-    [filter.agentType, filter.activityType, filter.novelId, enabled]
+    [filter.agentType, filter.activityType, filter.novelId, enabled],
   )
 }
 
@@ -243,10 +239,7 @@ export function useAgentActivity(
  * 事件状态管理 Hook
  * 用于在组件中保存和管理事件状态
  */
-export function useEventState<T = any>(
-  eventType: string | string[],
-  initialState: T
-) {
+export function useEventState<T = any>(eventType: string | string[], initialState: T) {
   const [state, setState] = useState<T>(initialState)
   const [lastEvent, setLastEvent] = useState<SSEEvent<T> | null>(null)
 
@@ -256,7 +249,7 @@ export function useEventState<T = any>(
       setState(event.data)
       setLastEvent(event)
     },
-    []
+    [],
   )
 
   return {
@@ -271,10 +264,7 @@ export function useEventState<T = any>(
  * 事件历史记录 Hook
  * 保存接收到的事件历史
  */
-export function useEventHistory<T = any>(
-  eventType: string | string[],
-  maxItems: number = 100
-) {
+export function useEventHistory<T = any>(eventType: string | string[], maxItems = 100) {
   const [events, setEvents] = useState<SSEEvent<T>[]>([])
 
   useSSEEvent<T>(
@@ -285,7 +275,7 @@ export function useEventHistory<T = any>(
         return newEvents.slice(-maxItems)
       })
     },
-    []
+    [],
   )
 
   const clearHistory = useCallback(() => {

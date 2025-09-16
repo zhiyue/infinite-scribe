@@ -17,8 +17,12 @@ export function TestMSW() {
     setResponse(null)
 
     try {
-      console.log('🧪 Testing MSW - Calling GET /api/v1/conversations/sessions/test-session-id/stage')
-      const result = await authenticatedApiService.get('/api/v1/conversations/sessions/test-session-id/stage')
+      console.log(
+        '🧪 Testing MSW - Calling GET /api/v1/conversations/sessions/test-session-id/stage',
+      )
+      const result = await authenticatedApiService.get(
+        '/api/v1/conversations/sessions/test-session-id/stage',
+      )
       console.log('✅ MSW Test - Response:', result)
       setResponse(result)
     } catch (err) {
@@ -35,8 +39,12 @@ export function TestMSW() {
     setResponse(null)
 
     try {
-      console.log('🧪 Testing MSW - Direct fetch to http://127.0.0.1:8000/api/v1/conversations/sessions/test-session-id/stage')
-      const res = await fetch('http://127.0.0.1:8000/api/v1/conversations/sessions/test-session-id/stage')
+      console.log(
+        '🧪 Testing MSW - Direct fetch to http://127.0.0.1:8000/api/v1/conversations/sessions/test-session-id/stage',
+      )
+      const res = await fetch(
+        'http://127.0.0.1:8000/api/v1/conversations/sessions/test-session-id/stage',
+      )
       const data = await res.json()
       console.log('✅ MSW Test - Direct fetch response:', data)
       setResponse(data)
@@ -70,9 +78,11 @@ export function TestMSW() {
   return (
     <div style={{ padding: '20px', border: '1px solid #ccc', margin: '20px' }}>
       <h2>MSW 测试面板</h2>
-      
+
       <div style={{ marginBottom: '10px' }}>
-        <p>环境变量 VITE_USE_MOCK_GENESIS: {import.meta.env.VITE_USE_MOCK_GENESIS || 'undefined'}</p>
+        <p>
+          环境变量 VITE_USE_MOCK_GENESIS: {import.meta.env.VITE_USE_MOCK_GENESIS || 'undefined'}
+        </p>
         <p>开发模式: {import.meta.env.DEV ? 'true' : 'false'}</p>
       </div>
 
@@ -89,7 +99,7 @@ export function TestMSW() {
       </div>
 
       {loading && <p>Loading...</p>}
-      
+
       {error && (
         <div style={{ color: 'red', marginTop: '10px' }}>
           <strong>错误:</strong> {error}

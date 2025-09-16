@@ -58,14 +58,10 @@ export function GenesisConflictDialog({
         </div>
 
         <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isProcessing}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
             取消
           </Button>
-          
+
           <Button
             variant="default"
             onClick={onContinueExisting}

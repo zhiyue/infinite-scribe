@@ -37,9 +37,9 @@ export default function NovelDetail() {
   return (
     <div className="min-h-screen bg-background relative">
       {/* 悬浮返回按钮 - 左下角 */}
-      <Button 
-        variant="outline" 
-        size="sm" 
+      <Button
+        variant="outline"
+        size="sm"
         asChild
         className="fixed left-6 bottom-6 z-50 shadow-lg hover:shadow-xl transition-shadow bg-white dark:bg-gray-800 border-2"
       >
@@ -53,41 +53,43 @@ export default function NovelDetail() {
       <div className="flex min-h-screen">
         {/* 侧边导航 */}
         <nav className="w-56 border-r bg-muted/10 p-4">
-        <h2 className="mb-4 text-lg font-semibold truncate" title={novel.title}>{novel.title}</h2>
-        <ul className="space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <li key={item.path}>
-                <NavLink
-                  to={`/novels/${id}/${item.path}`}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                      'hover:bg-accent hover:text-accent-foreground',
-                      isActive && 'bg-accent text-accent-foreground font-medium',
-                    )
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </NavLink>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
+          <h2 className="mb-4 text-lg font-semibold truncate" title={novel.title}>
+            {novel.title}
+          </h2>
+          <ul className="space-y-2">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <li key={item.path}>
+                  <NavLink
+                    to={`/novels/${id}/${item.path}`}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                        'hover:bg-accent hover:text-accent-foreground',
+                        isActive && 'bg-accent text-accent-foreground font-medium',
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </NavLink>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-      {/* 内容区域 */}
-      <div className="flex-1 overflow-auto">
-        <Routes>
-          <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<NovelOverview />} />
-          <Route path="genesis" element={<GenesisPage />} />
-          <Route path="chapters" element={<ChapterManagement />} />
-          <Route path="analytics" element={<NovelAnalytics />} />
-          <Route path="settings" element={<NovelSettings />} />
-        </Routes>
+        {/* 内容区域 */}
+        <div className="flex-1 overflow-auto">
+          <Routes>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<NovelOverview />} />
+            <Route path="genesis" element={<GenesisPage />} />
+            <Route path="chapters" element={<ChapterManagement />} />
+            <Route path="analytics" element={<NovelAnalytics />} />
+            <Route path="settings" element={<NovelSettings />} />
+          </Routes>
         </div>
       </div>
     </div>

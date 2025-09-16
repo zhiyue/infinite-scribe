@@ -41,6 +41,8 @@ def create_engine(
             database_url,
             echo=echo,
             poolclass=NullPool,
+            # 确保为异步上下文配置正确的参数
+            future=True,
         )
     else:
         # 生产环境使用连接池
@@ -52,10 +54,32 @@ def create_engine(
             pool_pre_ping=pool_pre_ping,
             pool_recycle=pool_recycle,
             poolclass=AsyncAdaptedQueuePool,
+            # 确保为异步上下文配置正确的参数
+            future=True,
         )
 
 
-# 创建默认引擎实例
-engine = create_engine()
+# 延迟初始化引擎以确保在异步上下文中创建
+_engine = None
 
-__all__ = ["engine", "create_engine"]
+
+def get_engine():
+    """获取数据库引擎，延迟初始化以确保在异步上下文中创建"""
+    global _engine
+    if _engine is None:
+        _engine = create_engine()
+    return _engine
+
+
+# 向后兼容 - 使用函数调用方式
+def _get_lazy_engine():
+    return get_engine()
+
+
+# 提供 engine 属性兼容性
+import sys
+
+current_module = sys.modules[__name__]
+current_module.engine = _get_lazy_engine()
+
+__all__ = ["engine", "get_engine", "create_engine"]

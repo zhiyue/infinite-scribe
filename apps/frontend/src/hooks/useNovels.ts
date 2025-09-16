@@ -91,9 +91,9 @@ export function useCreateNovel() {
     mutationFn: (novel: CreateNovelRequest) => novelsService.createNovel(novel),
     onSuccess: (newNovel) => {
       // 清除所有小说列表相关的缓存，包括带参数的查询
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: novelKeys.lists(),
-        exact: false // 这样会匹配所有以 ['novels', 'list'] 开头的查询键
+        exact: false, // 这样会匹配所有以 ['novels', 'list'] 开头的查询键
       })
 
       // 添加新小说到缓存

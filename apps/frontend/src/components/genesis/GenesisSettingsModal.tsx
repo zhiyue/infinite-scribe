@@ -4,7 +4,13 @@
  */
 
 import { ReactNode } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -333,7 +339,9 @@ function renderPlotOutlineContent(settings: NovelSettings['plotOutline']) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{chapter.summary}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {chapter.summary}
+                    </p>
                   </CardContent>
                 </Card>
               ))}

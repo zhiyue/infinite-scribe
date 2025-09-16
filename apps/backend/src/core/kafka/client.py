@@ -1,10 +1,13 @@
 """Kafka client management for agents."""
 
+import asyncio
+import contextlib
 import json
 import logging
 from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.errors import UnknownTopicOrPartitionError
 
 from ..config import settings
 from ..logging.config import get_logger
@@ -170,3 +173,89 @@ class KafkaClientManager:
         """Stop all Kafka clients."""
         await self.stop_consumer()
         await self.stop_producer()
+
+    async def ensure_topics_exist(self, topics: list[str], max_retries: int = 3, retry_delay: float = 1.0) -> bool:
+        """
+        Ensure topics exist by triggering auto-creation through producer metadata refresh.
+
+        Args:
+            topics: List of topic names to ensure exist
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
+
+        Returns:
+            True if all topics exist or were created, False otherwise
+        """
+        if not topics:
+            return True
+
+        # Create a temporary producer to trigger topic auto-creation
+        temp_producer = None
+        try:
+            temp_producer = AIOKafkaProducer(
+                bootstrap_servers=self.kafka_bootstrap_servers,
+                value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                acks="all",
+                enable_idempotence=True,
+            )
+            await temp_producer.start()
+
+            for topic in topics:
+                for attempt in range(max_retries):
+                    try:
+                        # Request metadata for the topic - this will trigger auto-creation if enabled
+                        metadata = await temp_producer.client.fetch_all_metadata()
+                        # Use partitions_for_topic to check if topic exists (recommended approach)
+                        if metadata.partitions_for_topic(topic) is not None:
+                            self.log.info("topic_metadata_fetched", topic=topic, attempt=attempt + 1)
+                            break
+                        else:
+                            # Topic not found in metadata, but auto-creation should handle it
+                            raise UnknownTopicOrPartitionError(f"Topic {topic} not found")
+                    except UnknownTopicOrPartitionError:
+                        if attempt < max_retries - 1:
+                            self.log.info(
+                                "topic_not_found_retrying", topic=topic, attempt=attempt + 1, max_retries=max_retries
+                            )
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            self.log.warning(
+                                "topic_creation_failed_after_retries", topic=topic, max_retries=max_retries
+                            )
+                            return False
+                    except Exception as e:
+                        self.log.warning("topic_metadata_fetch_error", topic=topic, error=str(e))
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            return False
+
+            self.log.info("topics_ensured", topics=topics)
+            return True
+
+        except Exception as e:
+            self.log.error("ensure_topics_failed", topics=topics, error=str(e))
+            return False
+        finally:
+            if temp_producer:
+                with contextlib.suppress(Exception):
+                    await temp_producer.stop()
+
+    async def create_producer_with_topic_check(self, ensure_topics: bool = True) -> AIOKafkaProducer:
+        """
+        Create producer and optionally ensure produce topics exist.
+
+        Args:
+            ensure_topics: Whether to check/create topics before returning producer
+
+        Returns:
+            Configured and started producer
+        """
+        producer = await self.create_producer()
+
+        if ensure_topics and self.produce_topics:
+            success = await self.ensure_topics_exist(self.produce_topics)
+            if not success:
+                self.log.warning("producer_created_with_topic_warnings", topics=self.produce_topics)
+
+        return producer

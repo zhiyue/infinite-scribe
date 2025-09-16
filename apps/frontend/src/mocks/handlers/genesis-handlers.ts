@@ -28,7 +28,7 @@ export const genesisHandlers = [
     try {
       const requestData = (await request.json()) as any
       console.log('🔧 MSW - Creating session:', requestData)
-      
+
       const sessionId = `session-${Date.now()}`
       const sessionData = {
         id: sessionId,
@@ -70,7 +70,7 @@ export const genesisHandlers = [
     console.log('🔧 MSW - GET session handler triggered!')
     try {
       const sessionId = params.sessionId as string
-      
+
       const sessionData = {
         id: sessionId,
         scope: 'GENESIS',

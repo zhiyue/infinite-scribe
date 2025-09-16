@@ -9,16 +9,25 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .engine import engine
+from .engine import get_engine
 
-# 创建异步会话工厂
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,  # 提交后不使对象过期
-    autocommit=False,
-    autoflush=False,
-)
+# 创建异步会话工厂（延迟初始化）
+async_session_maker = None
+
+def get_session_maker():
+    """获取会话工厂，延迟初始化以确保在异步上下文中创建"""
+    global async_session_maker
+    if async_session_maker is None:
+        # 使用延迟加载的引擎
+        engine = get_engine()
+        async_session_maker = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,  # 提交后不使对象过期
+            autocommit=False,
+            autoflush=False,
+        )
+    return async_session_maker
 
 
 async def get_sql_session() -> AsyncGenerator[AsyncSession, None]:
@@ -28,7 +37,8 @@ async def get_sql_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: 数据库会话
     """
-    async with async_session_maker() as session:
+    session_maker = get_session_maker()
+    async with session_maker() as session:
         try:
             yield session
             await session.commit()
@@ -52,7 +62,8 @@ async def create_sql_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: 数据库会话
     """
-    async with async_session_maker() as session:
+    session_maker = get_session_maker()
+    async with session_maker() as session:
         try:
             yield session
             await session.commit()
@@ -100,7 +111,7 @@ async def transactional(db: AsyncSession) -> AsyncGenerator[None, None]:
 get_db = get_sql_session
 
 __all__ = [
-    "async_session_maker",
+    "get_session_maker",
     "get_sql_session",
     "create_sql_session",
     "transactional",

@@ -98,6 +98,12 @@ class ConversationRoundCreationService:
 
             repository = self._repo_factory(db)
 
+            # Check for pending AI responses (prevent consecutive user messages)
+            if role == DialogueRole.USER:
+                pending_check = await self._check_pending_ai_response(repository, session.id)
+                if not pending_check["success"]:
+                    return pending_check
+
             # Atomic operation: round + domain_event + outbox
             created_round = await self._create_round_atomic(
                 db, session, repository, role, input_data, model, correlation_id, corr_uuid, parent_round_path
@@ -266,3 +272,69 @@ class ConversationRoundCreationService:
         await self.event_handler.create_round_support_events(db, session, rnd, corr_uuid)
 
         return rnd
+
+    async def _check_pending_ai_response(
+        self, repository: ConversationRoundRepository, session_id: UUID
+    ) -> dict[str, Any]:
+        """
+        Check if there's a pending AI response for this session.
+        Prevents users from sending consecutive messages while AI is responding.
+
+        Args:
+            repository: Round repository instance
+            session_id: Session ID to check
+
+        Returns:
+            Dict with success status and error details if check fails
+        """
+        try:
+            # Get the last few rounds to check the conversation state
+            recent_rounds = await repository.list_rounds(
+                session_id=session_id,
+                limit=5,  # Check last 5 rounds
+                order="desc",  # Most recent first
+            )
+
+            if not recent_rounds:
+                # No rounds yet, allow first message
+                return {"success": True}
+
+            # Check the pattern of recent rounds
+            last_round = recent_rounds[0]
+
+            # If the last round is from user and there's no AI response yet,
+            # we should prevent another user message
+            if last_round.role == DialogueRole.USER.value:
+                # Check if this user round has a corresponding AI response
+                user_round_path = last_round.round_path
+
+                # Look for an AI response to this user message
+                has_ai_response = any(
+                    round.role == DialogueRole.ASSISTANT.value and round.round_path.startswith(user_round_path)
+                    for round in recent_rounds[1:]  # Skip the user round itself
+                )
+
+                if not has_ai_response:
+                    logger.warning(
+                        f"Blocking consecutive user message - waiting for AI response to round {user_round_path}",
+                        extra={
+                            "session_id": str(session_id),
+                            "last_user_round": user_round_path,
+                            "operation": "prevent_consecutive_user_message",
+                        },
+                    )
+                    return ConversationErrorHandler.validation_error(
+                        "请等待AI回复后再发送下一条消息",
+                        logger_instance=logger,
+                        context=f"Consecutive user message blocked for session {session_id}",
+                    )
+
+            return {"success": True}
+
+        except Exception as e:
+            logger.error(
+                f"Error checking pending AI response for session {session_id}: {e}",
+                extra={"session_id": str(session_id), "error": str(e), "operation": "check_pending_ai_response"},
+            )
+            # On error, allow the message (fail open)
+            return {"success": True}

@@ -37,6 +37,16 @@ class ConversationRoundRepository(ABC):
         pass
 
     @abstractmethod
+    async def list_rounds(
+        self,
+        session_id: UUID,
+        limit: int = 50,
+        order: str = "asc",
+    ) -> list[ConversationRound]:
+        """List conversation rounds for a session (simplified interface)."""
+        pass
+
+    @abstractmethod
     async def count_by_session(self, session_id: UUID) -> int:
         """Count the total number of rounds in a session."""
         pass
@@ -117,6 +127,19 @@ class SqlAlchemyConversationRoundRepository(ConversationRoundRepository):
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def list_rounds(
+        self,
+        session_id: UUID,
+        limit: int = 50,
+        order: str = "asc",
+    ) -> list[ConversationRound]:
+        """List conversation rounds for a session (simplified interface)."""
+        return await self.list_by_session(
+            session_id=session_id,
+            limit=limit,
+            order=order
+        )
 
     async def count_by_session(self, session_id: UUID) -> int:
         """Count the total number of rounds in a session."""
