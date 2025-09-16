@@ -35,6 +35,7 @@ class TestConversationSessionService:
         access_control.get_novel_for_scope = AsyncMock()
         access_control.verify_cached_session_access = AsyncMock()
         access_control.verify_session_access = AsyncMock()
+        access_control.verify_scope_access = AsyncMock()
         return access_control
 
     @pytest.fixture
@@ -51,7 +52,7 @@ class TestConversationSessionService:
         repository.find_by_id = AsyncMock()
         repository.update = AsyncMock()
         repository.delete = AsyncMock()
-        repository.list_by_user = AsyncMock()
+        repository.list_by_scope = AsyncMock()
         return repository
 
     @pytest.fixture
@@ -91,7 +92,7 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        assert result["session"] == serialized_session
+        assert result["serialized_session"] == serialized_session
         mock_access_control.get_novel_for_scope.assert_awaited_once_with(
             mock_db, user_id, ScopeType.GENESIS.value, scope_id
         )
@@ -362,11 +363,11 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        assert result["session"] == serialized_session
+        assert result["serialized_session"] == serialized_session
         mock_repository.find_by_id.assert_awaited_once_with(session_id)
         mock_repository.update.assert_awaited_once_with(
             session_id=session_id,
-            status=new_status.value,
+            status=new_status,
             stage=new_stage,
             state=new_state,
             expected_version=expected_version,
@@ -447,7 +448,7 @@ class TestConversationSessionService:
 
         # Assert
         assert result["success"] is True
-        assert result["session"] == serialized_session
+        assert result["serialized_session"] == serialized_session
         mock_repository.find_by_id.assert_awaited_once_with(session_id)
         mock_repository.update.assert_not_awaited()
         mock_serializer.serialize_session.assert_called_once_with(existing_session)

@@ -357,7 +357,7 @@ class ConversationQualityMetrics:
 @pytest.fixture(autouse=True)
 async def auto_configure_conversation_service(monkeypatch, redis_service_test):
     """Automatically configure conversation service to use test Redis container for all tests."""
-    from src.common.services.conversation.conversation_cache import ConversationCacheManager
+    from src.common.services.conversation.cache import ConversationCacheManager
     from src.common.services.conversation.conversation_service import conversation_service
 
     # Create cache manager with test Redis service

@@ -16,7 +16,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.services.conversation.conversation_cache import ConversationCacheManager
+from src.common.services.conversation.cache import ConversationCacheManager
 from src.common.services.conversation.conversation_command_service import ConversationCommandService
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
 from src.common.services.conversation.conversation_round_service import ConversationRoundService
@@ -93,9 +93,7 @@ class ConversationService:
         offset: int = 0,
     ) -> dict[str, Any]:
         """List conversation sessions for a given scope."""
-        return await self.session_service.list_sessions(
-            db, user_id, scope_type, scope_id, status, limit, offset
-        )
+        return await self.session_service.list_sessions(db, user_id, scope_type, scope_id, status, limit, offset)
 
     # ---------- Round Operations ----------
 

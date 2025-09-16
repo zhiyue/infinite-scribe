@@ -14,8 +14,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.repositories.conversation import ConversationRoundRepository, SqlAlchemyConversationRoundRepository
+from src.common.services.conversation.cache import ConversationCacheManager
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
-from src.common.services.conversation.conversation_cache import ConversationCacheManager
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
 from src.schemas.novel.dialogue import DialogueRole
@@ -93,7 +93,9 @@ class ConversationRoundQueryService:
                             logger.warning("Cursor round_path '%s' not found; falling back to full list", after)
                             processed_after = None
                     else:
-                        logger.warning("Invalid cursor format '%s'; expected round_path format (e.g., '1', '2.1')", after)
+                        logger.warning(
+                            "Invalid cursor format '%s'; expected round_path format (e.g., '1', '2.1')", after
+                        )
                         processed_after = None
 
                 except (ValueError, AttributeError) as e:

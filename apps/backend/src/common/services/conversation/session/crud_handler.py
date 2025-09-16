@@ -1,58 +1,60 @@
 """
-Session service for conversation operations.
+Session CRUD operations handler for conversation services.
 
-Handles CRUD operations for conversation sessions with caching and access control.
+Coordinates CRUD operations by delegating to specialized handlers.
 """
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.repositories.conversation import ConversationSessionRepository, SqlAlchemyConversationSessionRepository
+from src.common.repositories.conversation import ConversationSessionRepository
 from src.common.services.conversation.cache import ConversationCacheManager
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
-from src.common.services.conversation.session import ConversationSessionCrudHandler
+from src.common.services.conversation.session.access_operations import (
+    ConversationSessionAccessOperations,
+)
+from src.common.services.conversation.session.cache_operations import (
+    ConversationSessionCacheOperations,
+)
+from src.common.services.conversation.session.create_handler import (
+    ConversationSessionCreateHandler,
+)
+from src.common.services.conversation.session.read_handler import ConversationSessionReadHandler
+from src.common.services.conversation.session.update_delete_handler import (
+    ConversationSessionUpdateDeleteHandler,
+)
 from src.schemas.novel.dialogue import ScopeType, SessionStatus
 
-logger = logging.getLogger(__name__)
 
-
-class ConversationSessionService:
-    """Service for conversation session operations."""
+class ConversationSessionCrudHandler:
+    """Handler for conversation session CRUD operations."""
 
     def __init__(
         self,
-        cache: ConversationCacheManager | None = None,
-        access_control: ConversationAccessControl | None = None,
-        serializer: ConversationSerializer | None = None,
-        repository: ConversationSessionRepository | None = None,
-        repository_factory: Callable[[AsyncSession], ConversationSessionRepository] | None = None,
+        cache: ConversationCacheManager,
+        access_control: ConversationAccessControl,
+        serializer: ConversationSerializer,
+        repository_factory: Callable[[AsyncSession], ConversationSessionRepository],
     ) -> None:
-        self.cache = cache or ConversationCacheManager()
-        self.access_control = access_control or ConversationAccessControl()
-        self.serializer = serializer or ConversationSerializer()
+        self.cache = cache
+        self.access_control = access_control
+        self.serializer = serializer
+        self._repo_factory = repository_factory
 
-        # Repository factory pattern - prioritize factory > instance > default
-        if repository_factory:
-            self._repo_factory = repository_factory
-        elif repository:
-            self._repo_factory = lambda _: repository  # Convert instance to factory
-        else:
-            self._repo_factory = SqlAlchemyConversationSessionRepository
+        # Initialize helper operations
+        cache_ops = ConversationSessionCacheOperations(cache, serializer)
+        access_ops = ConversationSessionAccessOperations(access_control)
 
-        # Initialize handlers with the configured dependencies
-        self._crud_handler = ConversationSessionCrudHandler(
-            cache=self.cache,
-            access_control=self.access_control,
-            serializer=self.serializer,
-            repository_factory=self._repo_factory,
-        )
+        # Initialize specialized handlers
+        self._create_handler = ConversationSessionCreateHandler(cache_ops, access_ops, repository_factory)
+        self._read_handler = ConversationSessionReadHandler(cache_ops, access_ops, serializer, repository_factory)
+        self._update_delete_handler = ConversationSessionUpdateDeleteHandler(cache_ops, access_ops, repository_factory)
 
     async def create_session(
         self,
@@ -77,7 +79,7 @@ class ConversationSessionService:
         Returns:
             Dict with success status and session or error details
         """
-        return await self._crud_handler.create_session(
+        return await self._create_handler.create_session(
             db=db,
             user_id=user_id,
             scope_type=scope_type,
@@ -98,7 +100,7 @@ class ConversationSessionService:
         Returns:
             Dict with success status and session or error details
         """
-        return await self._crud_handler.get_session(db=db, user_id=user_id, session_id=session_id)
+        return await self._read_handler.get_session(db=db, user_id=user_id, session_id=session_id)
 
     async def update_session(
         self,
@@ -126,7 +128,7 @@ class ConversationSessionService:
         Returns:
             Dict with success status and updated session or error details
         """
-        return await self._crud_handler.update_session(
+        return await self._update_delete_handler.update_session(
             db=db,
             user_id=user_id,
             session_id=session_id,
@@ -148,7 +150,7 @@ class ConversationSessionService:
         Returns:
             Dict with success status or error details
         """
-        return await self._crud_handler.delete_session(db=db, user_id=user_id, session_id=session_id)
+        return await self._update_delete_handler.delete_session(db=db, user_id=user_id, session_id=session_id)
 
     async def list_sessions(
         self,
@@ -175,7 +177,7 @@ class ConversationSessionService:
         Returns:
             Dict with success status and sessions list or error details
         """
-        return await self._crud_handler.list_sessions(
+        return await self._read_handler.list_sessions(
             db=db,
             user_id=user_id,
             scope_type=scope_type,

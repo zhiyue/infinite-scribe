@@ -65,7 +65,7 @@ class ConversationEventHandler:
                 # breaks SQL compilation. Consume expected scalar side-effect
                 # order to preserve unit test assumptions.
                 with contextlib.suppress(Exception):  # pragma: no cover - defensive for mocks
-                    await db.scalar(None)
+                    await db.scalar(text("SELECT 1"))
                 dom_evt = None
 
         if not dom_evt:
@@ -73,7 +73,6 @@ class ConversationEventHandler:
 
         # Ensure outbox entry
         await self._ensure_outbox_entry(db, session, dom_evt, corr_uuid)
-        return existing_round
 
     async def create_round_support_events(
         self,

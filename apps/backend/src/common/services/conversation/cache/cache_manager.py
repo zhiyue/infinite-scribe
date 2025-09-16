@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.common.services.conversation.conversation_round_cache import ConversationRoundCache
-from src.common.services.conversation.conversation_session_cache import ConversationSessionCache
 from src.db.redis.service import RedisService
+
+from .round_cache import ConversationRoundCache
+from .session_cache import ConversationSessionCache
 
 logger = logging.getLogger(__name__)
 

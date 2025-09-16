@@ -75,7 +75,7 @@ class ConversationErrorHandler:
             if session_id:
                 log_extra["session_id"] = session_id
             if user_id:
-                log_extra["user_id"] = user_id
+                log_extra["user_id"] = str(user_id)  # Convert to string for logging
             if error_type:
                 log_extra["error_type"] = error_type
 
