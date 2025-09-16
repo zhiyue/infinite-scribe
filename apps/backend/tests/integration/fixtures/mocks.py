@@ -52,6 +52,7 @@ def _mock_email_service_instance_methods():
         yield
 
 
+
 @pytest.fixture(autouse=True)
 def _patch_outbox_relay_database_session(request: pytest.FixtureRequest):
     """Patch OutboxRelayService to use the test database session.

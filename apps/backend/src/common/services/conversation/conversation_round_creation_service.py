@@ -96,9 +96,11 @@ class ConversationRoundCreationService:
                 except Exception:
                     corr_uuid = None
 
+            repository = self._repo_factory(db)
+
             # Atomic operation: round + domain_event + outbox
             created_round = await self._create_round_atomic(
-                db, session, role, input_data, model, correlation_id, corr_uuid, parent_round_path
+                db, session, repository, role, input_data, model, correlation_id, corr_uuid, parent_round_path
             )
 
             if not created_round:
@@ -131,6 +133,7 @@ class ConversationRoundCreationService:
         self,
         db: AsyncSession,
         session: ConversationSession,
+        repository: ConversationRoundRepository,
         role: DialogueRole,
         input_data: dict[str, Any],
         model: str | None,
@@ -154,9 +157,6 @@ class ConversationRoundCreationService:
             Created ConversationRound or None if failed
         """
         try:
-            # Get repository from factory
-            repository = self._repo_factory(db)
-
             async with transactional(db):
                 created_round = None
 
@@ -175,7 +175,15 @@ class ConversationRoundCreationService:
                 # Create new round if no idempotent hit
                 if created_round is None:
                     created_round = await self._create_new_round(
-                        db, session, role, input_data, model, correlation_id, corr_uuid, parent_round_path
+                        db,
+                        session,
+                        repository,
+                        role,
+                        input_data,
+                        model,
+                        correlation_id,
+                        corr_uuid,
+                        parent_round_path,
                     )
 
                 return created_round
@@ -188,6 +196,7 @@ class ConversationRoundCreationService:
         self,
         db: AsyncSession,
         session: ConversationSession,
+        repository: ConversationRoundRepository,
         role: DialogueRole,
         input_data: dict[str, Any],
         model: str | None,
@@ -196,7 +205,7 @@ class ConversationRoundCreationService:
         parent_round_path: str | None = None,
     ) -> ConversationRound:
         """Create a new round with events using atomic sequence generation."""
-        from sqlalchemy import func, update
+        from sqlalchemy import Integer, func, update
 
         if parent_round_path is None:
             # Top-level round: use session's round_sequence
@@ -236,9 +245,6 @@ class ConversationRoundCreationService:
             max_child_sequence = max_child_result.scalar_one()
             new_child_sequence = max_child_sequence + 1
             round_path = f"{parent_round_path}.{new_child_sequence}"
-
-        # Get repository from factory
-        repository = self.repository or SqlAlchemyConversationRoundRepository(db)
 
         # Create round with atomically generated round_path using repository
         rnd = await repository.create(

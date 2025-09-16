@@ -95,7 +95,7 @@ async def async_client(pg_session, redis_session_client):
     from src.api.main import app
     from src.middleware.auth import get_current_user, require_auth
     from src.models.user import User
-    from tests.unit.test_mocks import mock_email_service
+    from tests.unit.support.test_mocks import mock_email_service
 
     # Create a mock user for authentication
     mock_user = User(
@@ -135,7 +135,7 @@ async def client_with_lifespan(pg_session):
     from src.db.graph import neo4j_service
     from src.db.redis import redis_service
     from src.db.sql import postgres_service
-    from tests.unit.test_mocks import mock_email_service
+    from tests.unit.support.test_mocks import mock_email_service
 
     app.dependency_overrides[get_db] = lambda: pg_session
 

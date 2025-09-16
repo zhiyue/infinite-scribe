@@ -64,7 +64,7 @@ class ConversationRoundQueryService:
             db: Database session
             user_id: User ID for ownership verification
             session_id: Session ID to list rounds for
-            after: Cursor for pagination (ISO timestamp string)
+            after: Cursor for pagination (round_path string like "1", "2.1", etc.)
             limit: Maximum number of rounds to return
             order: Sort order ('asc' or 'desc')
             role: Filter by dialogue role (optional)
@@ -81,28 +81,22 @@ class ConversationRoundQueryService:
             # Get repository from factory
             repository = self._repo_factory(db)
 
-            # Handle complex cursor pagination if needed
+            # Handle cursor pagination using stored round_path identifiers
             processed_after = after
             if after:
                 try:
                     import re
 
-                    # Check if after looks like a round_path (numbers with optional dots)
-                    if re.match(r"^\d+(\.\d+)*$", after):
-                        # It's a round_path, find the corresponding round to get timestamp
+                    if re.fullmatch(r"^\d+(\.\d+)*$", after):
                         round_obj = await repository.find_by_session_and_path(session_id, after)
-                        if round_obj:
-                            processed_after = round_obj.created_at.isoformat()
-                            logger.debug(f"Using round_path cursor: {after} -> {processed_after}")
-                        else:
+                        if not round_obj:
+                            logger.warning("Cursor round_path '%s' not found; falling back to full list", after)
                             processed_after = None
                     else:
-                        # Assume it's already an ISO timestamp
-                        logger.debug(f"Using timestamp cursor: {after}")
-                        processed_after = after
+                        logger.warning("Invalid cursor format '%s'; expected round_path format (e.g., '1', '2.1')", after)
+                        processed_after = None
 
                 except (ValueError, AttributeError) as e:
-                    # Invalid cursor format, ignore and log warning
                     logger.warning(f"Invalid cursor format '{after}': {e}")
                     processed_after = None
 

@@ -17,7 +17,7 @@ async def create_and_verify_test_user(
     first_name: str = "Test",
     last_name: str = "User",
 ) -> dict:
-    """创建并验证测试用户的辅助函数。
+    """创建并验证测试用户的辅助函数（直接通过数据库，避免邮件发送）。
 
     Args:
         client: HTTP客户端
@@ -31,25 +31,32 @@ async def create_and_verify_test_user(
     Returns:
         包含用户数据的字典
     """
-    # 创建测试用户
-    user_service = UserService()
-    user_data = {
+    # 直接通过数据库创建用户，避免触发邮件发送
+    from src.common.services.user.password_service import PasswordService
+
+    password_service = PasswordService()
+
+    user = User(
+        username=username,
+        email=email,
+        password_hash=password_service.hash_password(password),
+        first_name=first_name,
+        last_name=last_name,
+        is_active=True,
+        is_verified=True,  # 直接设置为已验证，跳过邮件验证
+    )
+
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return {
         "username": username,
         "email": email,
         "password": password,
         "first_name": first_name,
         "last_name": last_name,
     }
-    result = await user_service.register_user(db_session, user_data)
-    assert result["success"]
-
-    # 验证邮箱（跳过邮件验证步骤）
-    stmt = select(User).where(User.email == email)
-    user = (await db_session.execute(stmt)).scalar_one()
-    user.is_verified = True
-    await db_session.commit()
-
-    return user_data
 
 
 async def create_and_verify_test_user_with_registration(
@@ -177,3 +184,29 @@ async def perform_token_refresh(
         headers=headers,
     )
     return response.status_code, response.json()
+
+
+async def create_test_novel(db_session: AsyncSession, user_email: str, title: str = "Test Novel") -> str:
+    """创建测试小说并返回其ID。
+
+    Args:
+        db_session: 数据库会话
+        user_email: 用户邮箱
+        title: 小说标题
+
+    Returns:
+        小说UUID字符串
+    """
+    from src.models.novel import Novel
+
+    # Get user by email
+    user = await get_user_by_email(db_session, user_email)
+
+    # Create novel
+    novel = Novel(user_id=user.id, title=title, theme="Test Theme", target_chapters=10)
+
+    db_session.add(novel)
+    await db_session.commit()
+    await db_session.refresh(novel)
+
+    return str(novel.id)
