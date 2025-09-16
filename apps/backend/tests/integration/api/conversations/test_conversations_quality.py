@@ -3,7 +3,7 @@
 from uuid import UUID, uuid4
 
 import pytest
-from tests.integration.api.auth_test_helpers import create_and_verify_test_user, perform_login
+from tests.integration.api.auth_test_helpers import create_and_verify_test_user, create_test_novel, perform_login
 
 
 class TestConversationQualityRetrieve:
@@ -19,7 +19,9 @@ class TestConversationQualityRetrieve:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Create session first
-        session_data = {"scope_type": "GENESIS", "scope_id": "quality-test"}
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
@@ -45,7 +47,7 @@ class TestConversationQualityRetrieve:
         quality_data = data["data"]
         assert "score" in quality_data
         assert "updated_at" in quality_data
-        
+
         # Skeleton implementation returns score 0.0
         assert quality_data["score"] == 0.0
         assert isinstance(quality_data["updated_at"], str)
@@ -60,10 +62,14 @@ class TestConversationQualityRetrieve:
         correlation_id = "test-correlation-quality-123"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "quality-correlation-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Correlation Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -116,10 +122,12 @@ class TestConversationQualityRetrieve:
         # Create multiple sessions
         session_ids = []
         for i in range(3):
-            session_data = {"scope_type": "GENESIS", "scope_id": f"quality-multi-{i}"}
+            novel_id = await create_test_novel(pg_session, user_data["email"], f"Quality Multi Test Novel {i}")
+            session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
             session_response = await client_with_lifespan.post(
                 "/api/v1/conversations/sessions", json=session_data, headers=headers
             )
+            assert session_response.status_code == 201
             session_ids.append(session_response.json()["data"]["id"])
 
         # Test quality retrieval for each session
@@ -127,7 +135,7 @@ class TestConversationQualityRetrieve:
             response = await client_with_lifespan.get(
                 f"/api/v1/conversations/sessions/{session_id}/quality", headers=headers
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             quality_data = data["data"]
@@ -144,10 +152,14 @@ class TestConversationQualityRetrieve:
         token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-quality"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Quality Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create second user
@@ -180,7 +192,10 @@ class TestConversationQualityConsistencyCheck:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "consistency-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Consistency Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
@@ -221,15 +236,16 @@ class TestConversationQualityConsistencyCheck:
         login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
         token = login_response[1]["access_token"]
         idempotency_key = "consistency-check-idempotent-456"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Idempotency-Key": idempotency_key
-        }
+        headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "consistency-idempotent-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Consistency Idempotent Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -251,15 +267,16 @@ class TestConversationQualityConsistencyCheck:
         login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
         token = login_response[1]["access_token"]
         correlation_id = "test-consistency-correlation-789"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "X-Correlation-Id": correlation_id
-        }
+        headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "consistency-correlation-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Consistency Correlation Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -281,10 +298,14 @@ class TestConversationQualityConsistencyCheck:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "consistency-multiple-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Consistency Multiple Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - trigger multiple consistency checks
@@ -293,7 +314,7 @@ class TestConversationQualityConsistencyCheck:
             response = await client_with_lifespan.post(
                 f"/api/v1/conversations/sessions/{session_id}/consistency", headers=headers
             )
-            
+
             assert response.status_code == 202
             data = response.json()
             assert data["data"]["accepted"] is True
@@ -340,10 +361,14 @@ class TestConversationQualityConsistencyCheck:
         token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-consistency"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Consistency Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create second user
@@ -375,10 +400,14 @@ class TestConversationQualityIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "quality-workflow-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Workflow Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: Get initial quality score
@@ -404,7 +433,7 @@ class TestConversationQualityIntegration:
         )
         assert get_response_2.status_code == 200
         updated_quality = get_response_2.json()["data"]
-        
+
         # In skeleton implementation, score remains 0.0 but updated_at might change
         assert updated_quality["score"] == 0.0
         assert "updated_at" in updated_quality
@@ -422,14 +451,17 @@ class TestConversationQualityIntegration:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Create session with initial content
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Content Test Novel")
+
         session_data = {
             "scope_type": "GENESIS",
-            "scope_id": "quality-content-test",
-            "initial_state": {"story": "Once upon a time..."}
+            "scope_id": novel_id,
+            "initial_state": {"story": "Once upon a time..."},
         }
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Add some conversation content (rounds)
@@ -464,10 +496,14 @@ class TestConversationQualityIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "quality-timing-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Timing Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Get initial timestamp
@@ -482,7 +518,7 @@ class TestConversationQualityIntegration:
         )
         assert consistency_response.status_code == 202
 
-        # Get timestamp again  
+        # Get timestamp again
         quality_response_2 = await client_with_lifespan.get(
             f"/api/v1/conversations/sessions/{session_id}/quality", headers=headers
         )
@@ -503,26 +539,26 @@ class TestConversationQualityIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "quality-concurrent-test"}
+        # Create a novel to use as scope_id
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Quality Concurrent Test Novel")
+
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Trigger multiple concurrent consistency checks
         import asyncio
-        
+
         async def trigger_check():
             return await client_with_lifespan.post(
                 f"/api/v1/conversations/sessions/{session_id}/consistency", headers=headers
             )
 
         # Run 3 concurrent consistency checks
-        responses = await asyncio.gather(
-            trigger_check(),
-            trigger_check(), 
-            trigger_check()
-        )
+        responses = await asyncio.gather(trigger_check(), trigger_check(), trigger_check())
 
         # All should succeed
         for response in responses:

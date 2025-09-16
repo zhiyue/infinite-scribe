@@ -28,8 +28,10 @@ class TestConversationCommandsMessages:
         session_id = session_response.json()["data"]["id"]
 
         # Act - post message
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
         message_data = {
-            "role": "user",
+            "role": DialogueRole.USER.value,
             "input": {"message": "Hello, I need help with my story"},
             "model": "gpt-4",
             "correlation_id": "test-message-correlation-123",
@@ -77,8 +79,10 @@ class TestConversationCommandsMessages:
         session_id = session_response.json()["data"]["id"]
 
         # Act - post message with ASSISTANT role
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
         message_data = {
-            "role": "ASSISTANT",
+            "role": DialogueRole.ASSISTANT.value,
             "input": {"response": "I can help you with your story"},
             "model": "claude-3",
         }
@@ -90,7 +94,7 @@ class TestConversationCommandsMessages:
         assert response.status_code == 201
         data = response.json()
         message_obj = data["data"]
-        assert message_obj["role"] == "ASSISTANT"  # Explicit role should be used
+        assert message_obj["role"] == DialogueRole.ASSISTANT.value  # Explicit role should be used
         assert message_obj["model"] == "claude-3"
 
     @pytest.mark.asyncio
@@ -102,8 +106,13 @@ class TestConversationCommandsMessages:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "message-minimal-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Message Minimal Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - post message with minimal data
@@ -129,8 +138,13 @@ class TestConversationCommandsMessages:
         idempotency_key = "message-idempotent-456"
         headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "message-idempotent-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Message Idempotent Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -180,8 +194,13 @@ class TestConversationCommandsMessages:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "invalid-role-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Invalid Role Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -206,7 +225,11 @@ class TestConversationCommandsPost:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
@@ -250,8 +273,13 @@ class TestConversationCommandsPost:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-types-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Types Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Test different command types
@@ -283,8 +311,13 @@ class TestConversationCommandsPost:
         idempotency_key = "command-idempotent-789"
         headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": idempotency_key}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-idempotent-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Idempotent Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -308,8 +341,13 @@ class TestConversationCommandsPost:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-minimal-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Minimal Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - post command with minimal data (no payload)
@@ -333,8 +371,13 @@ class TestConversationCommandsPost:
         correlation_id = "test-command-correlation-abc"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act
@@ -384,8 +427,13 @@ class TestConversationCommandsPost:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-invalid-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Invalid Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - missing required 'type' field
@@ -410,8 +458,13 @@ class TestConversationCommandsStatus:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "status-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Status Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create command first
@@ -455,8 +508,13 @@ class TestConversationCommandsStatus:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "status-not-found-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Status Not Found Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         nonexistent_command = str(uuid4())
@@ -479,8 +537,13 @@ class TestConversationCommandsStatus:
         correlation_id = "test-status-correlation-def"
         headers = {"Authorization": f"Bearer {token}", "X-Correlation-Id": correlation_id}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "status-correlation-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Status Correlation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Create command
@@ -516,8 +579,13 @@ class TestConversationCommandsStatus:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "status-invalid-uuid-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Status Invalid UUID Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - use invalid UUID format
@@ -541,8 +609,13 @@ class TestConversationCommandsIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "command-workflow-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Command Workflow Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: Post a command
@@ -569,8 +642,13 @@ class TestConversationCommandsIntegration:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "message-command-integration"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Message Command Integration Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: Post a message
@@ -604,10 +682,15 @@ class TestConversationCommandsIntegration:
         token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "user1-commands"}
+        # Create session for user1
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user1_data["email"], "User1 Commands Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post(
             "/api/v1/conversations/sessions", json=session_data, headers=headers1
         )
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         command_data = {"type": "private_command", "payload": {"secret": "data"}}
