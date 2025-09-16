@@ -37,15 +37,15 @@ def _mock_email_service_instance_methods():
     """
     with (
         patch(
-            "src.common.services.user_email_service.user_email_service.send_verification_email", new=AsyncMock(return_value=True)
+            "src.common.services.user.user_email_service.user_email_service.send_verification_email", new=AsyncMock(return_value=True)
         ),
-        patch("src.common.services.user_email_service.user_email_service.send_welcome_email", new=AsyncMock(return_value=True)),
+        patch("src.common.services.user.user_email_service.user_email_service.send_welcome_email", new=AsyncMock(return_value=True)),
         patch(
-            "src.common.services.user_email_service.user_email_service.send_password_reset_email",
+            "src.common.services.user.user_email_service.user_email_service.send_password_reset_email",
             new=AsyncMock(return_value=True),
         ),
         patch(
-            "src.common.services.user_email_service.user_email_service.send_password_changed_email",
+            "src.common.services.user.user_email_service.user_email_service.send_password_changed_email",
             new=AsyncMock(return_value=True),
         ),
     ):

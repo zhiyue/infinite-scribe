@@ -67,8 +67,13 @@ class TestConversationCommandsMessages:
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        session_data = {"scope_type": "GENESIS", "scope_id": "message-role-test"}
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Message Role Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
         session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
         # Act - post message with ASSISTANT role

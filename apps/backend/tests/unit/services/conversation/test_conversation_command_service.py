@@ -383,7 +383,7 @@ class TestConversationCommandService:
         assert result["command"] == created_command
         assert result["serialized_command"] == {"id": str(created_command.id)}
         # Verify complex payload was handled correctly
-        mock_event_handler.create_command_events.assert_called_once()
+        mock_event_handler.create_command_events.assert_awaited_once()
         call_args = mock_event_handler.create_command_events.call_args[1]
         assert call_args["payload"] == complex_payload
         mock_access_control.verify_session_access.assert_awaited_once_with(mock_db, user_id, session_id)

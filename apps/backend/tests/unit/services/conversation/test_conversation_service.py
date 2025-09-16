@@ -263,7 +263,12 @@ class TestConversationService:
         }
 
         command_result = await conversation_service.enqueue_command(
-            mock_db, user_id, session_id, command_type="generate_response", payload={"context": "conversation"}
+            mock_db,
+            user_id,
+            session_id,
+            command_type="generate_response",
+            payload={"context": "conversation"},
+            idempotency_key=None,
         )
         assert command_result["success"] is True
 
@@ -328,7 +333,7 @@ class TestConversationService:
 
         # Act
         result = await conversation_service.enqueue_command(
-            mock_db, user_id, session_id, command_type="test", payload={}
+            mock_db, user_id, session_id, command_type="test", payload={}, idempotency_key=None
         )
 
         # Assert
@@ -352,7 +357,7 @@ class TestConversationService:
         session_result = await conversation_service.get_session(mock_db, user_id, session_id)
         round_result = await conversation_service.get_round(mock_db, user_id, session_id, "1")
         command_result = await conversation_service.enqueue_command(
-            mock_db, user_id, session_id, command_type="test", payload={}
+            mock_db, user_id, session_id, command_type="test", payload={}, idempotency_key=None
         )
 
         # Verify independent results
@@ -401,8 +406,8 @@ class TestConversationService:
 
         # Verify defaults were passed correctly
         call_args = mock_session_service.create_session.call_args
-        assert call_args[1]["stage"] is None
-        assert call_args[1]["initial_state"] is None
+        assert call_args.args[4] is None
+        assert call_args.args[5] is None
 
         # Test round listing with defaults
         mock_round_service.list_rounds.return_value = {"success": True, "rounds": []}

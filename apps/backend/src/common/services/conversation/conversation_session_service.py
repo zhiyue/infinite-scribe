@@ -189,7 +189,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found", logger_instance=logger, context="Get session not found"
+                    "Session", logger_instance=logger, context="Get session not found"
                 )
 
             # Verify access to the found session
@@ -258,7 +258,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found", logger_instance=logger, context="Update session not found"
+                    "Session", logger_instance=logger, context="Update session not found"
                 )
 
             # Verify access to the found session
@@ -311,7 +311,7 @@ class ConversationSessionService:
             # Handle optimistic lock conflicts and not found errors from repository
             if "not found" in str(e).lower():
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found",
+                    "Session",
                     logger_instance=logger,
                     context="Update session not found",
                     session_id=str(session_id),
@@ -355,7 +355,7 @@ class ConversationSessionService:
             session = await repository.find_by_id(session_id)
             if not session:
                 return ConversationErrorHandler.not_found_error(
-                    "Session not found", logger_instance=logger, context="Delete session not found"
+                    "Session", logger_instance=logger, context="Delete session not found"
                 )
 
             # Verify access to the found session
@@ -370,7 +370,7 @@ class ConversationSessionService:
                 success = await repository.delete(session_id)
                 if not success:
                     return ConversationErrorHandler.not_found_error(
-                        "Session not found during deletion", logger_instance=logger, context="Delete session failed"
+                        "Session", logger_instance=logger, context="Delete session failed"
                     )
 
             # Clear cache (best effort)
