@@ -309,25 +309,35 @@ async def update_session(
         if "serialized_session" in result:
             s = result["serialized_session"]
             # serialized_session is already a dict
+            scope_type = ScopeType(s["scope_type"])
+            scope_id = s["scope_id"]
+            # For GENESIS scope, novel_id should be the scope_id
+            novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
             data = SessionResponse(
                 id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
-                scope_type=ScopeType(s["scope_type"]),
-                scope_id=s["scope_id"],
+                scope_type=scope_type,
+                scope_id=scope_id,
                 status=SessionStatus(s["status"]),
                 stage=s.get("stage"),
                 state=s.get("state", {}),
                 version=s.get("version", 1),
                 created_at=s.get("created_at") or format_iso_datetime(utc_now()),
                 updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
-                novel_id=None,
+                novel_id=novel_id,
             )
         else:
             # Fall back to ORM object
             s = result["session"]
+            scope_type = ScopeType(s.scope_type)
+            scope_id = s.scope_id
+            # For GENESIS scope, novel_id should be the scope_id
+            novel_id = UUID(scope_id) if scope_type == ScopeType.GENESIS else None
+
             data = SessionResponse(
                 id=s.id,
-                scope_type=ScopeType(s.scope_type),
-                scope_id=s.scope_id,
+                scope_type=scope_type,
+                scope_id=scope_id,
                 status=SessionStatus(s.status),
                 stage=s.stage,
                 state=s.state or {},
@@ -338,7 +348,7 @@ async def update_session(
                 updated_at=s.updated_at.isoformat()
                 if getattr(s, "updated_at", None)
                 else format_iso_datetime(utc_now()),
-                novel_id=None,
+                novel_id=novel_id,
             )
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="更新会话成功", data=data)
@@ -349,7 +359,7 @@ async def update_session(
 
         error_detail = traceback.format_exc()
         logger.error(f"Unexpected error in update_session endpoint: {e}\n{error_detail}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to update session: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to update session: {e!s}") from e
 
 
 @router.delete(
