@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useGenesisSession } from '@/hooks/useGenesisSession'
+import { useSetStage } from '@/hooks/useConversations'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
 import { useState } from 'react'
@@ -50,21 +51,53 @@ export default function GenesisPage() {
     },
   })
 
-  // 处理阶段变化
+  // 阶段更新 API
+  const setStage = useSetStage(sessionId || '', {
+    onSuccess: (data) => {
+      console.log('[GenesisPage] Stage updated successfully:', data)
+      // 更新本地状态以保持同步
+      updateStage(data.stage as GenesisStage)
+    },
+    onError: (error) => {
+      console.error('[GenesisPage] Failed to update stage:', error)
+      // TODO: 显示错误提示给用户
+    },
+  })
+
+  // 处理阶段变化（手动切换）
   const handleStageChange = (stage: GenesisStage) => {
-    updateStage(stage)
-    // TODO: 更新会话的阶段到服务器
+    if (sessionId) {
+      // 调用 API 更新阶段
+      setStage.mutate({
+        stage: stage,
+        metadata: {
+          source: 'manual_navigation',
+          timestamp: new Date().toISOString(),
+        },
+      })
+    } else {
+      // 如果没有会话，只更新本地状态
+      updateStage(stage)
+    }
   }
 
-  // 处理阶段完成
+  // 处理阶段完成（点击"确认并进入下一阶段"按钮）
   const handleStageComplete = () => {
     const stages = Object.values(GenesisStage)
     const currentIndex = stages.indexOf(currentStage)
 
-    if (currentIndex < stages.length - 1) {
+    if (currentIndex < stages.length - 1 && sessionId) {
       const nextStage = stages[currentIndex + 1]
-      updateStage(nextStage)
-      // TODO: 更新会话的阶段到服务器
+
+      // 调用 API 更新到下一阶段
+      setStage.mutate({
+        stage: nextStage,
+        metadata: {
+          source: 'stage_completion',
+          previous_stage: currentStage,
+          timestamp: new Date().toISOString(),
+        },
+      })
     }
   }
 
@@ -212,6 +245,7 @@ export default function GenesisPage() {
             sessionId={sessionId || ''}
             novelId={novelId || ''}
             onComplete={handleStageComplete}
+            isStageChanging={setStage.isPending}
           />
         </div>
 

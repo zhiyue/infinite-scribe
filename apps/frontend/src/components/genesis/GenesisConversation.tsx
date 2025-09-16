@@ -37,6 +37,7 @@ interface GenesisConversationProps {
   sessionId: string
   novelId: string
   onStageComplete?: () => void
+  isStageChanging?: boolean
   className?: string
 }
 
@@ -83,6 +84,7 @@ export function GenesisConversation({
   sessionId,
   novelId,
   onStageComplete,
+  isStageChanging = false,
   className,
 }: GenesisConversationProps) {
   const [input, setInput] = useState('')
@@ -410,10 +412,25 @@ export function GenesisConversation({
               </div>
 
               {stage !== GenesisStage.FINISHED && (
-                <Button variant="default" size="sm" onClick={onStageComplete} className="gap-1.5">
-                  <Check className="h-3.5 w-3.5" />
-                  <span>确认并进入下一阶段</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={onStageComplete}
+                  disabled={isStageChanging}
+                  className="gap-1.5"
+                >
+                  {isStageChanging ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>正在切换阶段...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      <span>确认并进入下一阶段</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
                 </Button>
               )}
             </div>

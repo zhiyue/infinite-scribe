@@ -11,6 +11,7 @@ interface GenesisStageContentProps {
   sessionId?: string
   novelId: string
   onComplete?: () => void
+  isStageChanging?: boolean
 }
 
 /**
@@ -21,6 +22,7 @@ export function GenesisStageContent({
   sessionId,
   novelId,
   onComplete,
+  isStageChanging = false,
 }: GenesisStageContentProps) {
   // 如果没有会话ID，返回空状态
   if (!sessionId) {
@@ -38,6 +40,7 @@ export function GenesisStageContent({
       sessionId={sessionId}
       novelId={novelId}
       onStageComplete={onComplete}
+      isStageChanging={isStageChanging}
     />
   )
 }
