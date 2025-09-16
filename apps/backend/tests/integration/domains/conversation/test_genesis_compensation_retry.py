@@ -63,7 +63,7 @@ class TestGenesisCompensationScenarios:
                 db=db,
                 user_id=user_id,
                 session_id=session_id,
-                stage=GenesisStage.THEME_CONCEPT.value,
+                stage=GenesisStage.WORLDVIEW.value,
                 expected_version=999,  # Wrong version
             )
             assert not update_result["success"]
@@ -78,7 +78,7 @@ class TestGenesisCompensationScenarios:
                 db=db,
                 user_id=user_id,
                 session_id=session_id,
-                stage=GenesisStage.THEME_CONCEPT.value,
+                stage=GenesisStage.WORLDVIEW.value,
                 expected_version=current_version,
             )
             assert update_result["success"]

@@ -12,7 +12,7 @@ import pytest
 from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
-from .conftest import ConversationQualityMetrics, DetailedConversationPatterns
+from .conftest import ConversationQualityMetrics, DetailedConversationPatterns, GenesisConversationTestFixture
 
 
 @pytest.mark.asyncio
@@ -342,7 +342,7 @@ class TestDetailedConversationPatterns:
 
     async def test_conversation_depth_and_refinement_cycles(self, genesis_fixture):
         """Test how conversations progressively deepen through refinement cycles."""
-        session_result = await genesis_fixture.create_genesis_session(GenesisStage.THEME_CONCEPT)
+        session_result = await genesis_fixture.create_genesis_session(GenesisStage.WORLDVIEW)
         assert session_result["success"]
 
         # Execute theme development conversation pattern
@@ -549,7 +549,7 @@ class TestConversationStateManagement:
                 "input_data": {
                     "response": "很好！让我们从创意种子开始",
                     "stage_guidance": "moving_to_seed_development",
-                    "next_suggested_stage": GenesisStage.THEME_CONCEPT.value,
+                    "next_suggested_stage": GenesisStage.WORLDVIEW.value,
                 },
                 "expected_state_change": "ai_guidance_provided",
             },
@@ -557,7 +557,7 @@ class TestConversationStateManagement:
                 "role": DialogueRole.USER,
                 "input_data": {
                     "prompt": "我确定了创意方向，想进入主题开发阶段",
-                    "stage_transition_request": GenesisStage.THEME_CONCEPT.value,
+                    "stage_transition_request": GenesisStage.WORLDVIEW.value,
                     "readiness": "confirmed",
                 },
                 "expected_state_change": "stage_transition_requested",
@@ -600,10 +600,29 @@ class TestConversationStateManagement:
         final_state = session_states[-1][1]
         assert final_state["success"]
 
-    async def test_concurrent_conversation_isolation(self, genesis_fixture, test_user_and_novel):
+    async def test_concurrent_conversation_isolation(self, genesis_fixture, test_user_and_novel, pg_session):
         """Test that concurrent conversations in different sessions remain isolated."""
         # Create second fixture for concurrent conversation
-        session_factory, user, novel = test_user_and_novel
+        user, novel = test_user_and_novel
+
+        # Create a session factory-like wrapper for the existing session
+        class SessionWrapper:
+            def __init__(self, session):
+                self.session = session
+
+            def __call__(self):
+                return self.session_context()
+
+            async def __aenter__(self):
+                return self.session
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+            def session_context(self):
+                return self
+
+        session_factory = SessionWrapper(pg_session)
         second_fixture = GenesisConversationTestFixture(session_factory, user, novel)
 
         # Create two separate sessions

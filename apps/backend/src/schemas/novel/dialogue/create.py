@@ -93,6 +93,6 @@ class VersionCreateRequest(BaseSchema):
 class VersionMergeRequest(BaseSchema):
     """版本合并请求"""
 
-    source: str
+    source_branch: str = Field(..., alias="source_branch")
     target: str
-    strategy: str | None = None
+    merge_strategy: str | None = Field(None, alias="merge_strategy")

@@ -9,6 +9,7 @@ aspects of Genesis conversations.
 import time
 
 import pytest
+from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
 # Fixtures are automatically available from conftest.py
@@ -269,10 +270,10 @@ class TestGenesisEventIntegration:
 
         # Transition to next stage
         stage_update = await genesis_fixture.update_session_stage(
-            stage=GenesisStage.THEME_CONCEPT,
+            stage=GenesisStage.WORLDVIEW,
             state={
                 "previous_stage": GenesisStage.INITIAL_PROMPT.value,
-                "current_stage": GenesisStage.THEME_CONCEPT.value,
+                "current_stage": GenesisStage.WORLDVIEW.value,
                 "transition_trigger": "stage_completion",
             },
         )
@@ -283,7 +284,7 @@ class TestGenesisEventIntegration:
             role=DialogueRole.USER,
             input_data={
                 "prompt": "开始主题开发",
-                "stage": GenesisStage.THEME_CONCEPT.value,
+                "stage": GenesisStage.WORLDVIEW.value,
                 "stage_action": "start",
                 "references_previous_stage": True,
             },
@@ -302,7 +303,7 @@ class TestGenesisEventIntegration:
         # Verify stage progression in conversation
         stages_mentioned = [r["input_data"]["stage"] for r in stage_related_rounds]
         assert GenesisStage.INITIAL_PROMPT.value in stages_mentioned
-        assert GenesisStage.THEME_CONCEPT.value in stages_mentioned
+        assert GenesisStage.WORLDVIEW.value in stages_mentioned
 
     async def test_event_filtering_and_routing(self, genesis_fixture):
         """Test event filtering and routing based on event types."""
