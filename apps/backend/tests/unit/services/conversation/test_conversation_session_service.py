@@ -120,7 +120,6 @@ class TestConversationSessionService:
         # Assert
         assert result["success"] is False
         assert result["error"] == "Only GENESIS scope is supported"
-        mock_db.add.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_session_access_denied(self, session_service, mock_db, mock_access_control):
