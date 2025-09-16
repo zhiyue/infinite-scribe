@@ -36,6 +36,7 @@ class ConversationAccessControl:
         includes `error` and `code`.
         """
         try:
+            session: ConversationSession | None
             if isinstance(session_or_id, ConversationSession):
                 session = session_or_id
             else:
