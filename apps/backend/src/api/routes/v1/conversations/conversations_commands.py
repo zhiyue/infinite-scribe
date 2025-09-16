@@ -127,18 +127,18 @@ async def get_command_status(
 ) -> ApiResponse[CommandStatusResponse]:
     corr_id = get_or_create_correlation_id(x_correlation_id)
     set_common_headers(response, correlation_id=corr_id)
-    
+
     # First verify user has access to the session
     session_result = await conversation_service.get_session(db, current_user.id, session_id)
     if not session_result.get("success"):
         # Return 404 to avoid leaking command existence
         raise HTTPException(status_code=404, detail="Command not found")
-    
+
     # Fetch command status
     cmd = await db.scalar(select(CommandInbox).where(CommandInbox.id == cmd_id))
     if not cmd:
         raise HTTPException(status_code=404, detail="Command not found")
-    
+
     data = CommandStatusResponse(
         command_id=cmd_id,
         type=cmd.command_type,

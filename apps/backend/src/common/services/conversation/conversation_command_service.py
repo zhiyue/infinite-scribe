@@ -17,6 +17,7 @@ from src.common.events.config import build_event_type, get_aggregate_type, get_d
 from src.common.services.conversation.conversation_access_control import ConversationAccessControl
 from src.common.services.conversation.conversation_error_handler import ConversationErrorHandler
 from src.common.services.conversation.conversation_event_handler import ConversationEventHandler
+from src.common.services.conversation.conversation_round_creation_service import ConversationRoundCreationService
 from src.common.services.conversation.conversation_serializers import ConversationSerializer
 from src.db.sql.session import transactional
 from src.models.event import DomainEvent
@@ -34,10 +35,12 @@ class ConversationCommandService:
         access_control: ConversationAccessControl | None = None,
         event_handler: ConversationEventHandler | None = None,
         serializer: ConversationSerializer | None = None,
+        round_creation_service: ConversationRoundCreationService | None = None,
     ) -> None:
         self.access_control = access_control or ConversationAccessControl()
         self.event_handler = event_handler or ConversationEventHandler()
         self.serializer = serializer or ConversationSerializer()
+        self.round_creation_service = round_creation_service or ConversationRoundCreationService()
 
     async def enqueue_command(
         self,
@@ -52,6 +55,11 @@ class ConversationCommandService:
         """
         Enqueue a command with outbox pattern for async processing.
 
+        Uses atomic transaction to ensure data consistency across:
+        - CommandInbox creation
+        - DomainEvent creation
+        - EventOutbox entry
+
         Args:
             db: Database session
             user_id: User ID for ownership verification
@@ -64,63 +72,49 @@ class ConversationCommandService:
             Dict with success status and command or error details
         """
         try:
-            # Load session and verify access (support session instance in verifier)
-            # Prefer access control to verify and fetch session
+            # 1. Verify session access
             access_result = await self.access_control.verify_session_access(db, user_id, session_id)
             if not access_result["success"]:
                 return access_result
             session = access_result["session"]
 
-            # Check for existing commands in order of preference:
-            # 1. By idempotency_key if provided
-            # 2. By session_id + command_type (unique constraint)
-            existing_cmd = None
-
-            try:
-                if idempotency_key:
-                    existing_cmd = await db.scalar(
-                        select(CommandInbox).where(CommandInbox.idempotency_key == idempotency_key)
-                    )
-
-                # If not found by idempotency key, check for existing pending command of same type
-                if not existing_cmd:
-                    from src.schemas.enums import CommandStatus
-
-                    existing_cmd = await db.scalar(
-                        select(CommandInbox).where(
-                            CommandInbox.session_id == session_id,
-                            CommandInbox.command_type == command_type,
-                            CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING]),
-                        )
-                    )
-
-            except Exception as e:
-                return ConversationErrorHandler.internal_error(
-                    "Failed to lookup existing command",
-                    logger_instance=logger,
-                    context="Enqueue command lookup error",
-                    exception=e,
-                    correlation_id=idempotency_key,
-                    session_id=str(session.id),
-                )
-
+            # 2. Check for existing commands
+            existing_cmd = await self._check_existing_command(db, session_id, command_type, idempotency_key)
             if existing_cmd:
+                # Ensure events exist for existing command (non-atomic is OK here)
                 await self.event_handler.ensure_command_events(db, session, existing_cmd)
                 command = existing_cmd
             else:
-                command = await self.event_handler.create_command_events(
-                    db, session, command_type=command_type, payload=payload, idempotency_key=idempotency_key
+                # 3. Use atomic method to create command AND round with full transaction safety
+                result = await self._enqueue_command_atomic(
+                    db, user_id, session, command_type, payload, idempotency_key
                 )
+
+                if result:
+                    command = result["command"]
+                    round_obj = result["round"]
+                    logger.info(
+                        f"Atomically created command {command.id} and round {round_obj.round_path}",
+                        extra={
+                            "command_id": str(command.id),
+                            "round_path": round_obj.round_path,
+                            "session_id": str(session_id),
+                            "command_type": command_type,
+                        },
+                    )
+                else:
+                    command = None
 
             if not command:
                 return ConversationErrorHandler.internal_error(
-                    "Failed to create command",
+                    "Failed to create command atomically",
                     logger_instance=logger,
-                    context="Enqueue command creation error",
+                    context="Atomic command creation failed",
                     correlation_id=idempotency_key,
                     session_id=str(session.id),
                 )
 
+            # 4. Serialize command (optional, not part of transaction)
             serialized_command = None
             try:
                 serialized_command = self.serializer.serialize_command(command)
@@ -133,63 +127,183 @@ class ConversationCommandService:
                     },
                 )
 
+            # 5. Build response payload
             response_payload: dict[str, Any] = {"command": command}
             if serialized_command is not None:
                 response_payload["serialized_command"] = serialized_command
 
-            # Return ORM object for backward-compatibility; routers handle both
             return ConversationErrorHandler.success_response(response_payload)
 
         except Exception as e:
             return ConversationErrorHandler.internal_error(
                 "Failed to enqueue command",
                 logger_instance=logger,
-                context="Enqueue command error",
+                context="Command enqueue error",
                 exception=e,
                 correlation_id=idempotency_key,
                 session_id=str(session_id) if session_id else None,
                 user_id=user_id,
             )
 
+    async def _check_existing_command(
+        self,
+        db: AsyncSession,
+        session_id: UUID,
+        command_type: str,
+        idempotency_key: str | None,
+    ) -> Any:  # CommandInbox | None
+        """
+        Check for existing commands by idempotency key or session+type.
+
+        Args:
+            db: Database session
+            session_id: Session ID
+            command_type: Command type
+            idempotency_key: Optional idempotency key
+
+        Returns:
+            Existing CommandInbox or None
+        """
+        try:
+            # 1. Check by idempotency_key if provided (highest priority)
+            if idempotency_key:
+                existing_cmd = await db.scalar(
+                    select(CommandInbox).where(CommandInbox.idempotency_key == idempotency_key)
+                )
+                if existing_cmd:
+                    return existing_cmd
+
+            # 2. Check for existing pending command of same type in session
+            from src.schemas.enums import CommandStatus
+
+            existing_cmd = await db.scalar(
+                select(CommandInbox).where(
+                    CommandInbox.session_id == session_id,
+                    CommandInbox.command_type == command_type,
+                    CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING]),
+                )
+            )
+            return existing_cmd
+
+        except Exception as e:
+            logger.error(
+                f"Failed to check existing command: {e}",
+                extra={
+                    "session_id": str(session_id),
+                    "command_type": command_type,
+                    "idempotency_key": idempotency_key,
+                },
+            )
+            # Return None to proceed with new command creation
+            return None
+
     async def _enqueue_command_atomic(
         self,
         db: AsyncSession,
+        user_id: int,
         session: Any,  # ConversationSession
         command_type: str,
         payload: dict[str, Any] | None,
         idempotency_key: str | None,
-    ) -> Any:  # CommandInbox | None
+    ) -> dict[str, Any] | None:  # {"command": CommandInbox, "round": ConversationRound} | None
         """
-        Atomically enqueue command with domain events and outbox pattern.
+        Atomically enqueue command with domain events, outbox pattern, and conversation round.
 
-        Implements the outbox pattern: CommandInbox + DomainEvents + EventOutbox
+        Implements the complete outbox pattern:
+        - CommandInbox + DomainEvents + EventOutbox (command creation)
+        - ConversationRound + DomainEvents + EventOutbox (round creation)
 
         Args:
             db: Database session
+            user_id: User ID for round creation
             session: ConversationSession instance
             command_type: Type of command
             payload: Command payload
             idempotency_key: Idempotency key
 
         Returns:
-            CommandInbox instance or None if failed
+            Dict with CommandInbox and ConversationRound instances or None if failed
         """
         try:
             async with transactional(db):
-                # 1. Fetch or create CommandInbox (idempotent)
+                # 1. Create CommandInbox with events and outbox
                 cmd = await self._get_or_create_command(db, session.id, command_type, payload, idempotency_key)
-
-                # 2. Create or ensure domain event exists
                 dom_evt = await self._get_or_create_domain_event(db, session, cmd, command_type, payload)
-
-                # 3. Create outbox entry if it doesn't exist
                 await self._ensure_outbox_entry(db, session, dom_evt, cmd)
 
-                return cmd
+                # 2. Create ConversationRound for the command (in the same transaction)
+                round_obj = await self._create_round_for_command_atomic(
+                    db, session, cmd, command_type, payload, idempotency_key
+                )
+
+                return {"command": cmd, "round": round_obj}
 
         except Exception as e:
-            logger.error(f"Atomic command enqueue error: {e}")
+            logger.error(f"Atomic command+round creation error: {e}")
             return None
+
+    async def _create_round_for_command_atomic(
+        self,
+        db: AsyncSession,
+        session: Any,  # ConversationSession
+        command: Any,  # CommandInbox
+        command_type: str,
+        payload: dict[str, Any] | None,
+        idempotency_key: str | None,
+    ) -> Any:  # ConversationRound
+        """
+        Create conversation round for command within the same transaction.
+
+        This reuses the core logic from ConversationRoundCreationService but
+        operates within the existing transaction instead of creating a new one.
+
+        Args:
+            db: Database session (already in transaction)
+            session: ConversationSession instance
+            command: CommandInbox instance
+            command_type: Type of command
+            payload: Command payload
+            idempotency_key: Idempotency key
+
+        Returns:
+            Created ConversationRound instance
+        """
+        from src.common.repositories.conversation import SqlAlchemyConversationRoundRepository
+        from src.schemas.novel.dialogue import DialogueRole
+
+        # Prepare input data representing the command
+        input_data = {
+            "command_type": command_type,
+            "command_id": str(command.id),
+            "payload": payload or {},
+            "source": "command_api",
+        }
+
+        # Parse correlation UUID for events
+        corr_uuid = None
+        if idempotency_key:
+            try:
+                corr_uuid = UUID(str(idempotency_key))
+            except Exception:
+                corr_uuid = None
+
+        # Create repository instance
+        repository = SqlAlchemyConversationRoundRepository(db)
+
+        # Reuse the round creation service's core logic but within our transaction
+        round_obj = await self.round_creation_service._create_new_round(
+            db=db,
+            session=session,
+            repository=repository,
+            role=DialogueRole.USER,  # Command is user-initiated
+            input_data=input_data,
+            model=None,  # Will be set when agent responds
+            correlation_id=idempotency_key,  # Link to command
+            corr_uuid=corr_uuid,
+            parent_round_path=None,  # Top-level round
+        )
+
+        return round_obj
 
     async def _get_or_create_command(
         self,
