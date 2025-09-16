@@ -85,7 +85,9 @@ class ConversationSessionService:
                 scope_type_enum = scope_type
                 scope_type_str = scope_type.value
 
-            logger.debug(f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}")
+            logger.debug(
+                f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}"
+            )
 
             if scope_type_enum != ScopeType.GENESIS:
                 logger.warning(f"Invalid scope type: {scope_type_str}")
@@ -287,7 +289,7 @@ class ConversationSessionService:
             async with transactional(db):
                 updated_session = await repository.update(
                     session_id=session_id,
-                    status=status.value if status else None,
+                    status=status,
                     stage=stage,
                     state=state,
                     expected_version=expected_version,
@@ -298,7 +300,7 @@ class ConversationSessionService:
                         "Version mismatch or conflict",
                         logger_instance=logger,
                         context="Update session version conflict",
-                )
+                    )
 
             # Serialize ORM object to dict at service boundary
             serialized_updated = self.serializer.serialize_session(updated_session)

@@ -605,6 +605,16 @@ class TestConversationStateManagement:
         # Create second fixture for concurrent conversation
         user, novel = test_user_and_novel
 
+        # Import required models
+        from uuid import uuid4
+
+        from src.models.novel import Novel
+
+        # Create a second novel for the second session to avoid unique constraint violation
+        second_novel = Novel(user_id=user.id, title=f"Genesis Test Novel 2 {uuid4().hex[:8]}", theme="Test Theme 2")
+        pg_session.add(second_novel)
+        await pg_session.flush()
+
         # Create a session factory-like wrapper for the existing session
         class SessionWrapper:
             def __init__(self, session):
@@ -623,7 +633,7 @@ class TestConversationStateManagement:
                 return self
 
         session_factory = SessionWrapper(pg_session)
-        second_fixture = GenesisConversationTestFixture(session_factory, user, novel)
+        second_fixture = GenesisConversationTestFixture(session_factory, user, second_novel)
 
         # Create two separate sessions
         session1_result = await genesis_fixture.create_genesis_session()

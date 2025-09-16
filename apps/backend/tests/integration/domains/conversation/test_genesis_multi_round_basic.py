@@ -10,7 +10,7 @@ import pytest
 from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
-from .conftest import GenesisTestData
+from .conftest import ConversationQualityMetrics, GenesisTestData
 
 
 @pytest.mark.asyncio
@@ -30,18 +30,18 @@ class TestGenesisMultiRoundConversations:
         conversation_results = await genesis_fixture.simulate_multi_round_conversation(stage_data=stage_data, rounds=3)
 
         # Verify conversation rounds
-        assert len(conversation_results) == 5  # 1 initial + 3*(AI + user feedback) - 1 (no final feedback)
+        assert len(conversation_results) == 6  # 1 initial + 3 AI responses + 2 user feedback
 
         # Verify round count in database
         round_count = await genesis_fixture.count_conversation_rounds()
-        assert round_count == 5
+        assert round_count == 6
 
         # Verify domain events were created
         events = await genesis_fixture.get_domain_events()
         assert len(events) > 0
 
         # Verify conversation history tracking
-        assert len(genesis_fixture.conversation_history) == 5
+        assert len(genesis_fixture.conversation_history) == 6
 
         # Verify first round is user input
         first_round = genesis_fixture.conversation_history[0]
@@ -70,7 +70,7 @@ class TestGenesisMultiRoundConversations:
         )
 
         # Verify conversation structure
-        assert len(conversation_results) == 7  # 1 initial + 4*(AI + user) - 1
+        assert len(conversation_results) == 8  # 1 initial + 4 AI responses + 3 user feedback
 
         # Verify session state progression
         session_state = await genesis_fixture.get_session_state()
@@ -92,7 +92,7 @@ class TestGenesisMultiRoundConversations:
         )
 
         # Verify extensive conversation
-        assert len(conversation_results) == 9  # 1 initial + 5*(AI + user) - 1
+        assert len(conversation_results) == 10  # 1 initial + 5 AI responses + 4 user feedback
 
         # Verify worldview complexity tracking
         worldview_rounds = [
@@ -110,7 +110,7 @@ class TestGenesisMultiRoundConversations:
         stage_data = GenesisTestData.STAGE_3_CHARACTERS[0]
         conversation_results = await genesis_fixture.simulate_multi_round_conversation(stage_data=stage_data, rounds=4)
 
-        assert len(conversation_results) == 7
+        assert len(conversation_results) == 8  # 1 initial + 4 AI responses + 3 user feedback
 
         # Verify character-specific content
         character_rounds = [
@@ -130,7 +130,7 @@ class TestGenesisMultiRoundConversations:
         stage_data = GenesisTestData.STAGE_4_PLOTS[0]
         conversation_results = await genesis_fixture.simulate_multi_round_conversation(stage_data=stage_data, rounds=3)
 
-        assert len(conversation_results) == 5
+        assert len(conversation_results) == 6  # 1 initial + 3 AI responses + 2 user feedback
 
         # Verify plot-specific content
         plot_rounds = [
