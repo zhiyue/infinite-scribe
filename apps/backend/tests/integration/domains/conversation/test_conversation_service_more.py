@@ -6,6 +6,7 @@ import pytest
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from src.common.services.conversation.conversation_service import conversation_service
 from src.models.conversation import ConversationRound, ConversationSession
@@ -17,12 +18,10 @@ from testcontainers.postgres import PostgresContainer
 
 
 def _build_urls(sync_url: str) -> tuple[str, str]:
-    if "+" in sync_url:
-        base = sync_url.split("+", 1)[1]
-        sync = "postgresql+psycopg2+" + base
-    else:
-        sync = sync_url.replace("postgresql://", "postgresql+psycopg2://")
-    async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://")
+    """Normalize connection URLs for sync (psycopg2) and async (asyncpg) usage."""
+    url = make_url(sync_url)
+    sync = url.set(drivername="postgresql+psycopg2").render_as_string(hide_password=False)
+    async_url = url.set(drivername="postgresql+asyncpg").render_as_string(hide_password=False)
     return sync, async_url
 
 

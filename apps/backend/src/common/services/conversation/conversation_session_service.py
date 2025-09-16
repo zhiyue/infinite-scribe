@@ -47,6 +47,11 @@ class ConversationSessionService:
         else:
             self._repo_factory = SqlAlchemyConversationSessionRepository
 
+    async def _reset_transaction(self, db: AsyncSession) -> None:
+        """Rollback active transaction to ensure fresh context for new write operations."""
+        if db.in_transaction():
+            await db.rollback()
+
     async def create_session(
         self,
         db: AsyncSession,
@@ -118,6 +123,7 @@ class ConversationSessionService:
 
             # Create new session with transactional support
             logger.info("Creating new session")
+            await self._reset_transaction(db)
             async with transactional(db):
                 session = await repository.create(
                     scope_type=scope_type_str,
@@ -146,9 +152,15 @@ class ConversationSessionService:
                 )
 
             logger.debug("Session creation successful")
-            return ConversationErrorHandler.success_response({"session": serialized_session})
+            return ConversationErrorHandler.success_response(
+                {
+                    "session": serialized_session,
+                    "session_obj": session,
+                }
+            )
 
         except Exception as e:
+            await self._reset_transaction(db)
             return ConversationErrorHandler.internal_error(
                 "Failed to create session",
                 logger_instance=logger,
@@ -271,9 +283,15 @@ class ConversationSessionService:
             if status is None and stage is None and state is None:
                 # Nothing to update - serialize ORM object at service boundary
                 serialized_session = self.serializer.serialize_session(session)
-                return ConversationErrorHandler.success_response({"session": serialized_session})
+                return ConversationErrorHandler.success_response(
+                    {
+                        "session": serialized_session,
+                        "session_obj": session,
+                    }
+                )
 
             # Update with optimistic concurrency control using transactional support
+            await self._reset_transaction(db)
             async with transactional(db):
                 updated_session = await repository.update(
                     session_id=session_id,
@@ -288,7 +306,7 @@ class ConversationSessionService:
                         "Version mismatch or conflict",
                         logger_instance=logger,
                         context="Update session version conflict",
-                    )
+                )
 
             # Serialize ORM object to dict at service boundary
             serialized_updated = self.serializer.serialize_session(updated_session)
@@ -304,7 +322,12 @@ class ConversationSessionService:
                     extra={"session_id": str(updated_session.id)},
                 )
 
-            return ConversationErrorHandler.success_response({"session": serialized_updated})
+            return ConversationErrorHandler.success_response(
+                {
+                    "session": serialized_updated,
+                    "session_obj": updated_session,
+                }
+            )
 
         except ValueError as e:
             # Handle optimistic lock conflicts and not found errors from repository
@@ -313,18 +336,15 @@ class ConversationSessionService:
                     "Session",
                     logger_instance=logger,
                     context="Update session not found",
-                    session_id=str(session_id),
-                    user_id=user_id,
                 )
             else:
                 return ConversationErrorHandler.precondition_failed_error(
                     "Version conflict: session has been modified",
                     logger_instance=logger,
                     context="Update session version conflict",
-                    session_id=str(session_id),
-                    user_id=user_id,
                 )
         except Exception as e:
+            await self._reset_transaction(db)
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",
                 logger_instance=logger,

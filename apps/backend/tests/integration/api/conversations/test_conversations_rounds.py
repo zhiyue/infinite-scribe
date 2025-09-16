@@ -3,6 +3,7 @@
 from uuid import UUID, uuid4
 
 import pytest
+from src.schemas.novel.dialogue.enums import DialogueRole
 from tests.integration.api.auth_test_helpers import create_and_verify_test_user, perform_login
 
 
@@ -31,7 +32,7 @@ class TestConversationRoundsCreate:
 
         # Act - create round
         round_data = {
-            "role": "USER",
+            "role": DialogueRole.USER.value,
             "input": {"message": "Hello, please help me write a story"},
             "model": "gpt-4",
             "correlation_id": "test-correlation-123",
@@ -52,7 +53,7 @@ class TestConversationRoundsCreate:
 
         round_obj = data["data"]
         assert UUID(round_obj["session_id"]) == UUID(session_id)
-        assert round_obj["role"] == "USER"
+        assert round_obj["role"] == DialogueRole.USER.value
         assert round_obj["input"] == {"message": "Hello, please help me write a story"}
         assert round_obj["model"] == "gpt-4"
         assert round_obj["correlation_id"] == "test-correlation-123"
@@ -84,7 +85,7 @@ class TestConversationRoundsCreate:
 
         # Act
         round_data = {
-            "role": "ASSISTANT",
+            "role": DialogueRole.ASSISTANT.value,
             "input": {"context": "Story writing request"},
             "model": "claude-3",
         }
@@ -96,7 +97,7 @@ class TestConversationRoundsCreate:
         assert response.status_code == 201
         data = response.json()
         round_obj = data["data"]
-        assert round_obj["role"] == "ASSISTANT"
+        assert round_obj["role"] == DialogueRole.ASSISTANT.value
         assert round_obj["model"] == "claude-3"
 
     @pytest.mark.asyncio
@@ -111,7 +112,7 @@ class TestConversationRoundsCreate:
         headers = {"Authorization": f"Bearer {token}"}
 
         nonexistent_session = str(uuid4())
-        round_data = {"role": "USER", "input": {"message": "test"}}
+        round_data = {"role": DialogueRole.USER.value, "input": {"message": "test"}}
 
         # Act
         response = await client_with_lifespan.post(
@@ -124,7 +125,7 @@ class TestConversationRoundsCreate:
     @pytest.mark.asyncio
     async def test_create_round_unauthorized(self, client_with_lifespan):
         """Test creating round without authentication."""
-        round_data = {"role": "USER", "input": {"message": "test"}}
+        round_data = {"role": DialogueRole.USER.value, "input": {"message": "test"}}
         response = await client_with_lifespan.post(f"/api/v1/conversations/sessions/{uuid4()}/rounds", json=round_data)
         assert response.status_code == 401
 
@@ -185,9 +186,9 @@ class TestConversationRoundsList:
 
         # Create multiple rounds
         rounds_data = [
-            {"role": "USER", "input": {"message": "First message"}, "model": "gpt-4"},
-            {"role": "ASSISTANT", "input": {"context": "Response context"}, "model": "claude-3"},
-            {"role": "USER", "input": {"message": "Follow-up message"}, "model": "gpt-4"},
+            {"role": DialogueRole.USER.value, "input": {"message": "First message"}, "model": "gpt-4"},
+            {"role": DialogueRole.ASSISTANT.value, "input": {"context": "Response context"}, "model": "claude-3"},
+            {"role": DialogueRole.USER.value, "input": {"message": "Follow-up message"}, "model": "gpt-4"},
         ]
 
         for round_data in rounds_data:
@@ -217,7 +218,7 @@ class TestConversationRoundsList:
         assert len(items) == 3  # Should return all created rounds
 
         # Verify first round
-        assert items[0]["role"] == "USER"
+        assert items[0]["role"] == DialogueRole.USER.value
         assert items[0]["input"] == {"message": "First message"}
         assert items[0]["round_path"] == "1"
 
@@ -250,7 +251,7 @@ class TestConversationRoundsList:
 
         # Create rounds
         for i in range(5):
-            round_data = {"role": "USER", "input": {"message": f"Message {i}"}}
+            round_data = {"role": DialogueRole.USER.value, "input": {"message": f"Message {i}"}}
             await client_with_lifespan.post(
                 f"/api/v1/conversations/sessions/{session_id}/rounds", json=round_data, headers=headers
             )
@@ -293,18 +294,18 @@ class TestConversationRoundsList:
         # Create rounds with different roles
         await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/rounds",
-            json={"role": "USER", "input": {"message": "User message"}},
+            json={"role": DialogueRole.USER.value, "input": {"message": "User message"}},
             headers=headers,
         )
         await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/rounds",
-            json={"role": "ASSISTANT", "input": {"context": "Assistant response"}},
+            json={"role": DialogueRole.ASSISTANT.value, "input": {"context": "Assistant response"}},
             headers=headers,
         )
 
         # Act - filter by USER role
         response = await client_with_lifespan.get(
-            f"/api/v1/conversations/sessions/{session_id}/rounds?role=USER", headers=headers
+            f"/api/v1/conversations/sessions/{session_id}/rounds?role={DialogueRole.USER.value}", headers=headers
         )
 
         # Assert
@@ -313,7 +314,7 @@ class TestConversationRoundsList:
         items = data["data"]["items"]
         # Should only return USER rounds
         for item in items:
-            assert item["role"] == "USER"
+            assert item["role"] == DialogueRole.USER.value
 
     @pytest.mark.asyncio
     async def test_list_rounds_session_not_found(
@@ -363,7 +364,7 @@ class TestConversationRoundsRetrieve:
 
         # Create round
         round_data = {
-            "role": "USER",
+            "role": DialogueRole.USER.value,
             "input": {"message": "Test message for retrieval"},
             "model": "gpt-4",
         }
@@ -386,7 +387,7 @@ class TestConversationRoundsRetrieve:
         assert "获取轮次成功" in data["msg"]
 
         round_obj = data["data"]
-        assert round_obj["role"] == "USER"
+        assert round_obj["role"] == DialogueRole.USER.value
         assert round_obj["input"] == {"message": "Test message for retrieval"}
         assert round_obj["model"] == "gpt-4"
         assert round_obj["round_path"] == round_path
@@ -452,7 +453,7 @@ class TestConversationRoundsRetrieve:
             client_with_lifespan, pg_session, username="user1", email="user1@example.com"
         )
         login1_response = await perform_login(client_with_lifespan, user1_data["email"], user1_data["password"])
-        token1 = login1_response["access_token"]
+        token1 = login1_response[1]["access_token"]
         headers1 = {"Authorization": f"Bearer {token1}"}
 
         # Create session for user1
@@ -466,7 +467,7 @@ class TestConversationRoundsRetrieve:
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
-        round_data = {"role": "USER", "input": {"message": "Private round"}}
+        round_data = {"role": DialogueRole.USER.value, "input": {"message": "Private round"}}
         round_response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/rounds", json=round_data, headers=headers1
         )
@@ -477,7 +478,7 @@ class TestConversationRoundsRetrieve:
             client_with_lifespan, pg_session, username="user2", email="user2@example.com"
         )
         login2_response = await perform_login(client_with_lifespan, user2_data["email"], user2_data["password"])
-        token2 = login2_response["access_token"]
+        token2 = login2_response[1]["access_token"]
         headers2 = {"Authorization": f"Bearer {token2}"}
 
         # Act - try to access user1's round with user2's token
@@ -485,8 +486,8 @@ class TestConversationRoundsRetrieve:
             f"/api/v1/conversations/sessions/{session_id}/rounds/{round_path}", headers=headers2
         )
 
-        # Assert - should return 404 to avoid leaking session existence
-        assert response.status_code == 404
+        # Assert - should return 403 for access denied (user doesn't own the novel/scope)
+        assert response.status_code == 403
 
 
 class TestConversationRoundsAdvanced:
@@ -517,7 +518,7 @@ class TestConversationRoundsAdvanced:
         # Act - create rounds in sequence
         round_paths = []
         for i in range(3):
-            round_data = {"role": "USER", "input": {"message": f"Message {i+1}"}}
+            round_data = {"role": DialogueRole.USER.value, "input": {"message": f"Message {i+1}"}}
             response = await client_with_lifespan.post(
                 f"/api/v1/conversations/sessions/{session_id}/rounds", json=round_data, headers=headers
             )
@@ -558,7 +559,7 @@ class TestConversationRoundsAdvanced:
         session_id = session_response.json()["data"]["id"]
 
         # Act
-        round_data = {"role": "USER", "input": {"message": "Correlation test"}}
+        round_data = {"role": DialogueRole.USER.value, "input": {"message": "Correlation test"}}
         response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/rounds", json=round_data, headers=headers
         )

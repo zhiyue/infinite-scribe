@@ -3,6 +3,7 @@
 from uuid import UUID, uuid4
 
 import pytest
+from src.schemas.novel.dialogue.enums import DialogueRole
 from tests.integration.api.auth_test_helpers import create_and_verify_test_user, create_test_novel, perform_login
 
 
@@ -320,8 +321,9 @@ class TestConversationQualityConsistencyCheck:
             assert data["data"]["accepted"] is True
             command_ids.append(data["data"]["command_id"])
 
-        # Assert - all command IDs should be different
-        assert len(set(command_ids)) == 3  # All unique
+        # Assert - all command IDs should be the same (idempotent behavior)
+        # Multiple requests for the same command type should return the existing pending command
+        assert len(set(command_ids)) == 1  # All should be the same due to idempotency
         for cmd_id in command_ids:
             assert UUID(cmd_id)  # All valid UUIDs
 
@@ -465,7 +467,10 @@ class TestConversationQualityIntegration:
         session_id = session_response.json()["data"]["id"]
 
         # Add some conversation content (rounds)
-        message_data = {"input": {"message": "Continue the story"}}
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"message": "Continue the story"}
+        }
         message_response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/messages", json=message_data, headers=headers
         )

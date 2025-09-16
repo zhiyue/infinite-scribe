@@ -222,54 +222,75 @@ class ConversationEventHandler:
         # Status enum import kept local to avoid circulars
         from src.schemas.enums import CommandStatus
 
-        cmd = CommandInbox(
-            session_id=session.id,
-            command_type=command_type,
-            idempotency_key=idempotency_key or f"cmd-{uuid4().hex}",
-            payload=payload or {},
-            status=CommandStatus.RECEIVED,
-        )
-        db.add(cmd)
-        await db.flush()
+        try:
+            cmd = CommandInbox(
+                session_id=session.id,
+                command_type=command_type,
+                idempotency_key=idempotency_key or f"cmd-{uuid4().hex}",
+                payload=payload or {},
+                status=CommandStatus.RECEIVED,
+            )
+            db.add(cmd)
+            await db.flush()
 
-        event_type = build_event_type(session.scope_type, "Command.Received")
-        dom_evt = DomainEvent(
-            event_type=event_type,
-            aggregate_type=get_aggregate_type(session.scope_type),
-            aggregate_id=str(session.id),
-            payload={"command_type": command_type, "payload": payload or {}},
-            correlation_id=cmd.id,
-            causation_id=None,
-            event_metadata={"source": "api-gateway"},
-        )
-        db.add(dom_evt)
-        await db.flush()
+            event_type = build_event_type(session.scope_type, "Command.Received")
+            dom_evt = DomainEvent(
+                event_type=event_type,
+                aggregate_type=get_aggregate_type(session.scope_type),
+                aggregate_id=str(session.id),
+                payload={"command_type": command_type, "payload": payload or {}},
+                correlation_id=cmd.id,
+                causation_id=None,
+                event_metadata={"source": "api-gateway"},
+            )
+            db.add(dom_evt)
+            await db.flush()
 
-        out = EventOutbox(
-            id=dom_evt.event_id,
-            topic=get_domain_topic(session.scope_type),
-            key=str(session.id),
-            partition_key=str(session.id),
-            payload={
-                "event_id": str(dom_evt.event_id),
-                "event_type": dom_evt.event_type,
-                "aggregate_type": dom_evt.aggregate_type,
-                "aggregate_id": dom_evt.aggregate_id,
-                "payload": dom_evt.payload or {},
-                "metadata": dom_evt.event_metadata or {},
-                "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
-                if getattr(dom_evt, "created_at", None)
-                else None,
-            },
-            headers={
-                "event_type": dom_evt.event_type,
-                "version": 1,
-                "correlation_id": str(cmd.id),
-            },
-            status=OutboxStatus.PENDING,
-        )
-        db.add(out)
-        return cmd
+            out = EventOutbox(
+                id=dom_evt.event_id,
+                topic=get_domain_topic(session.scope_type),
+                key=str(session.id),
+                partition_key=str(session.id),
+                payload={
+                    "event_id": str(dom_evt.event_id),
+                    "event_type": dom_evt.event_type,
+                    "aggregate_type": dom_evt.aggregate_type,
+                    "aggregate_id": dom_evt.aggregate_id,
+                    "payload": dom_evt.payload or {},
+                    "metadata": dom_evt.event_metadata or {},
+                    "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
+                    if getattr(dom_evt, "created_at", None)
+                    else None,
+                },
+                headers={
+                    "event_type": dom_evt.event_type,
+                    "version": 1,
+                    "correlation_id": str(cmd.id),
+                },
+                status=OutboxStatus.PENDING,
+            )
+            db.add(out)
+            return cmd
+
+        except Exception as e:
+            # Handle constraint violations for concurrent command creation
+            from sqlalchemy.exc import IntegrityError
+
+            if isinstance(e, IntegrityError) and "idx_command_inbox_unique_pending_command" in str(e):
+                # Constraint violation - look up the existing command
+                existing_cmd = await db.scalar(
+                    select(CommandInbox).where(
+                        CommandInbox.session_id == session.id,
+                        CommandInbox.command_type == command_type,
+                        CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING]),
+                    )
+                )
+                if existing_cmd:
+                    # Ensure events exist for the existing command
+                    await self.ensure_command_events(db, session, existing_cmd)
+                    return existing_cmd
+            # Re-raise if not a handled constraint violation
+            raise
 
     async def ensure_command_events(
         self,

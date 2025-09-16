@@ -59,20 +59,18 @@ async def post_message(
     if not result.get("success"):
         code = result.get("code", 422)
         raise HTTPException(status_code=code, detail=result.get("error", "Failed to create round"))
-    r = result["round"]
+
+    # Use serialized_round instead of ORM object to get properly formatted data
+    r = result["serialized_round"]
     data = RoundResponse(
-        session_id=r.session_id if hasattr(r, "session_id") else UUID(r["session_id"]),
-        round_path=r.round_path if hasattr(r, "round_path") else r["round_path"],
-        role=DialogueRole(r.role if hasattr(r, "role") else r["role"]),
-        input=r.input if hasattr(r, "input") else r.get("input", {}),
-        output=r.output if hasattr(r, "output") else r.get("output"),
-        model=r.model if hasattr(r, "model") else r.get("model"),
-        correlation_id=r.correlation_id if hasattr(r, "correlation_id") else r.get("correlation_id"),
-        created_at=(
-            r.created_at.isoformat()
-            if hasattr(r, "created_at")
-            else r.get("created_at") or format_iso_datetime(utc_now())
-        ),
+        session_id=UUID(r["session_id"]),
+        round_path=r["round_path"],
+        role=DialogueRole(r["role"]),
+        input=r["input"],
+        output=r["output"],
+        model=r["model"],
+        correlation_id=r["correlation_id"],
+        created_at=r["created_at"],
     )
     set_common_headers(response, correlation_id=corr_id)
     return ApiResponse(code=0, msg="发送消息成功", data=data)
@@ -129,10 +127,18 @@ async def get_command_status(
 ) -> ApiResponse[CommandStatusResponse]:
     corr_id = get_or_create_correlation_id(x_correlation_id)
     set_common_headers(response, correlation_id=corr_id)
-    # Fetch command status; ownership ensured via session in enqueue step; here we just show status if exists
+    
+    # First verify user has access to the session
+    session_result = await conversation_service.get_session(db, current_user.id, session_id)
+    if not session_result.get("success"):
+        # Return 404 to avoid leaking command existence
+        raise HTTPException(status_code=404, detail="Command not found")
+    
+    # Fetch command status
     cmd = await db.scalar(select(CommandInbox).where(CommandInbox.id == cmd_id))
     if not cmd:
         raise HTTPException(status_code=404, detail="Command not found")
+    
     data = CommandStatusResponse(
         command_id=cmd_id,
         type=cmd.command_type,

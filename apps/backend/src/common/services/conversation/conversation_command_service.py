@@ -71,12 +71,28 @@ class ConversationCommandService:
                 return access_result
             session = access_result["session"]
 
-            # Prefer event handler (back-compat) to create command + artifacts
+            # Check for existing commands in order of preference:
+            # 1. By idempotency_key if provided
+            # 2. By session_id + command_type (unique constraint)
+            existing_cmd = None
+            
             try:
-                # Always perform idempotency lookup to preserve unit test call patterns
-                existing_cmd = await db.scalar(
-                    select(CommandInbox).where(CommandInbox.idempotency_key == idempotency_key)
-                )
+                if idempotency_key:
+                    existing_cmd = await db.scalar(
+                        select(CommandInbox).where(CommandInbox.idempotency_key == idempotency_key)
+                    )
+                
+                # If not found by idempotency key, check for existing pending command of same type
+                if not existing_cmd:
+                    from src.schemas.enums import CommandStatus
+                    existing_cmd = await db.scalar(
+                        select(CommandInbox).where(
+                            CommandInbox.session_id == session_id,
+                            CommandInbox.command_type == command_type,
+                            CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING])
+                        )
+                    )
+                    
             except Exception as e:
                 return ConversationErrorHandler.internal_error(
                     "Failed to lookup existing command",

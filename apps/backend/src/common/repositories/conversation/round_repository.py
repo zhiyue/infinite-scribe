@@ -141,8 +141,8 @@ class SqlAlchemyConversationRoundRepository(ConversationRoundRepository):
             session_id=session_id,
             round_path=round_path,
             role=role_value,
-            input=input or {},
-            output=output or {},
+            input=input,  # Don't default to empty dict - maintain None for unset values
+            output=output,  # Don't default to empty dict - maintain None for unset values
             model=model,
             correlation_id=correlation_id,
         )

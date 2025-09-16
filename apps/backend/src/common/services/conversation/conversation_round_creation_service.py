@@ -52,6 +52,10 @@ class ConversationRoundCreationService:
         else:
             self._repo_factory = SqlAlchemyConversationRoundRepository
 
+    async def _reset_transaction(self, db: AsyncSession) -> None:
+        if db.in_transaction():
+            await db.rollback()
+
     async def create_round(
         self,
         db: AsyncSession,
@@ -99,6 +103,7 @@ class ConversationRoundCreationService:
             repository = self._repo_factory(db)
 
             # Atomic operation: round + domain_event + outbox
+            await self._reset_transaction(db)
             created_round = await self._create_round_atomic(
                 db, session, repository, role, input_data, model, correlation_id, corr_uuid, parent_round_path
             )
@@ -130,6 +135,7 @@ class ConversationRoundCreationService:
             )
 
         except Exception as e:
+            await self._reset_transaction(db)
             return ConversationErrorHandler.internal_error(
                 "Failed to create round", logger_instance=logger, context="Create round error", exception=e
             )

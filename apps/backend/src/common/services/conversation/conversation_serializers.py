@@ -64,7 +64,7 @@ class ConversationSerializer:
             "round_path": rnd.round_path,
             "role": rnd.role,
             "input": rnd.input or {},
-            "output": rnd.output,
+            "output": rnd.output or {},
             "model": rnd.model,
             "correlation_id": rnd.correlation_id,
             "created_at": getattr(rnd.created_at, "isoformat", lambda: str(rnd.created_at))()

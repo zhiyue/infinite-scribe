@@ -116,7 +116,12 @@ class TestConversationCommandsMessages:
         session_id = session_response.json()["data"]["id"]
 
         # Act - post message with minimal data
-        message_data = {"input": {"text": "Simple message"}}
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"text": "Simple message"}
+        }
         response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/messages", json=message_data, headers=headers
         )
@@ -125,7 +130,7 @@ class TestConversationCommandsMessages:
         assert response.status_code == 201
         data = response.json()
         message_obj = data["data"]
-        assert message_obj["role"] == "USER"  # Default role
+        assert message_obj["role"] == DialogueRole.USER.value  # Use enum value
         assert message_obj["input"] == {"text": "Simple message"}
 
     @pytest.mark.asyncio
@@ -148,7 +153,12 @@ class TestConversationCommandsMessages:
         session_id = session_response.json()["data"]["id"]
 
         # Act
-        message_data = {"input": {"message": "Idempotent message"}}
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"message": "Idempotent message"}
+        }
         response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/messages", json=message_data, headers=headers
         )
@@ -168,7 +178,12 @@ class TestConversationCommandsMessages:
         headers = {"Authorization": f"Bearer {token}"}
 
         nonexistent_session = str(uuid4())
-        message_data = {"input": {"message": "test"}}
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"message": "test"}
+        }
 
         # Act
         response = await client_with_lifespan.post(
@@ -181,7 +196,12 @@ class TestConversationCommandsMessages:
     @pytest.mark.asyncio
     async def test_post_message_unauthorized(self, client_with_lifespan):
         """Test posting message without authentication."""
-        message_data = {"input": {"message": "test"}}
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"message": "test"}
+        }
         response = await client_with_lifespan.post(f"/api/v1/conversations/sessions/{uuid4()}/messages", json=message_data)
         assert response.status_code == 401
 
@@ -652,7 +672,12 @@ class TestConversationCommandsIntegration:
         session_id = session_response.json()["data"]["id"]
 
         # Step 1: Post a message
-        message_data = {"input": {"message": "I need help with my story"}}
+        from src.schemas.novel.dialogue.enums import DialogueRole
+
+        message_data = {
+            "role": DialogueRole.USER.value,
+            "input": {"message": "I need help with my story"}
+        }
         message_response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/messages", json=message_data, headers=headers
         )
