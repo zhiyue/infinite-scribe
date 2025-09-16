@@ -180,7 +180,8 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             status_value = None
 
         # Build update values, only including non-None values
-        update_values = {"version": ConversationSession.version + 1}
+        # Use a dict for plain values only, not column expressions
+        update_values: dict[str, Any] = {}
 
         if status_value is not None:
             update_values["status"] = status_value
@@ -195,10 +196,11 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             conditions.append(ConversationSession.version == version_to_check)
 
         # Execute update with version check
+        # Pass version increment directly as a column expression
         result = await self.db.execute(
             sql_update(ConversationSession)
             .where(and_(*conditions))
-            .values(**update_values)
+            .values(version=ConversationSession.version + 1, **update_values)
             .returning(ConversationSession)
         )
 
