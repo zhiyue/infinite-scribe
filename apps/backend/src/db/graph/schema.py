@@ -6,7 +6,7 @@ for the novel genesis system according to ADR-005.
 """
 
 import logging
-from typing import Any, LiteralString, cast
+from typing import Any, LiteralString, TypedDict, cast
 
 from neo4j import AsyncSession
 
@@ -45,7 +45,7 @@ class Neo4jSchemaManager:
     async def _execute_schema_item(self, item_type: str, name: str, query: str) -> None:
         """Execute a single schema item with consistent error handling."""
         try:
-            await self.session.run(cast(LiteralString, query))
+            await self.session.run(cast(LiteralString, query))  # type: ignore[redundant-cast]
             logger.info(f"Created {item_type}: {name}")
         except Exception as e:
             logger.warning(f"{item_type.capitalize()} creation failed or already exists: {e}")
@@ -110,7 +110,14 @@ class Neo4jSchemaManager:
 
 
 # Node templates define structure for each node type
-NODE_TEMPLATES = {
+class NodeTemplate(TypedDict):
+    variable: str
+    merge_field: str
+    base_fields: dict[str, Any]
+    relationship: tuple[str, str, str] | None
+
+
+NODE_TEMPLATES: dict[str, NodeTemplate] = {
     "Novel": {
         "variable": "n",
         "merge_field": "novel_id",
@@ -221,7 +228,7 @@ class Neo4jNodeCreator:
         query_parts.append(f"RETURN {var}")
         query = "\n".join(query_parts)
 
-        result = await self.session.run(cast(LiteralString, query), params)
+        result = await self.session.run(cast(LiteralString, query), params)  # type: ignore[redundant-cast]
         record = await result.single()
         return dict(record[var]) if record else {}
 
@@ -324,7 +331,7 @@ class Neo4jRelationshipManager:
         """
 
         params = {"from_id": from_id, "to_id": to_id, **properties}
-        await self.session.run(cast(LiteralString, query), params)
+        await self.session.run(cast(LiteralString, query), params)  # type: ignore[redundant-cast]
 
         # Create reverse relationship if symmetric
         if symmetric:
@@ -333,7 +340,7 @@ class Neo4jRelationshipManager:
             MERGE (to)-[r:{rel_type}]->(from)
             {set_clause}
             """
-            await self.session.run(cast(LiteralString, reverse_query), params)
+            await self.session.run(cast(LiteralString, reverse_query), params)  # type: ignore[redundant-cast]
 
         return True
 

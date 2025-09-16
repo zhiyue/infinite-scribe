@@ -1,8 +1,9 @@
 """Redis service implementation for caching and session management."""
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -94,7 +95,7 @@ class RedisService:
         except Exception:
             return False
 
-    async def info(self, section: str | None = None) -> dict:
+    async def info(self, section: str | None = None) -> Mapping[str, Any]:
         """Get Redis server info."""
         if not self._client:
             raise RuntimeError("Redis client not connected")

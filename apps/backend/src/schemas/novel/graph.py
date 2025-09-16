@@ -402,7 +402,7 @@ class LocationHierarchy(BaseSchema):
     def get_path(self, location_id: str) -> list[str]:
         """Get path from root to location"""
         path = []
-        current = location_id
+        current: str | None = location_id
         location_map = {loc.app_id: loc for loc in self.locations}
 
         while current:
