@@ -86,7 +86,7 @@ class GenesisConversationTestFixture:
 
             if result["success"]:
                 session = result["session"]
-                self.session_id = session.id if hasattr(session, "id") else session["id"]
+                self.session_id = session.id
 
             return result
 
@@ -113,12 +113,16 @@ class GenesisConversationTestFixture:
             )
 
             if result["success"]:
+                round_obj = result.get("round")
+                timestamp = None
+                if round_obj:
+                    timestamp = round_obj.created_at if hasattr(round_obj, "created_at") else None
                 self.conversation_history.append(
                     {
                         "role": role,
                         "input_data": input_data,
                         "result": result,
-                        "timestamp": result.get("round", {}).get("created_at"),
+                        "timestamp": timestamp,
                     }
                 )
 
@@ -350,6 +354,30 @@ class ConversationQualityMetrics:
 
 
 # Pytest fixtures
+@pytest.fixture(autouse=True)
+async def auto_configure_conversation_service(monkeypatch, redis_service_test):
+    """Automatically configure conversation service to use test Redis container for all tests."""
+    from src.common.services.conversation.conversation_cache import ConversationCacheManager
+    from src.common.services.conversation.conversation_service import conversation_service
+
+    # Create cache manager with test Redis service
+    cache_manager = ConversationCacheManager()
+    cache_manager.redis = redis_service_test
+    cache_manager._connected = True
+
+    # Patch the cache in the existing singleton service
+    monkeypatch.setattr(conversation_service, "cache", cache_manager)
+    monkeypatch.setattr(conversation_service.session_service, "cache", cache_manager)
+    monkeypatch.setattr(conversation_service.round_service, "cache", cache_manager)
+
+    # Also ensure the cache manager's Redis connection is working
+    await cache_manager.redis.ping()
+
+    yield
+
+    # Cleanup happens automatically when fixture ends
+
+
 @pytest.fixture
 async def test_user_and_novel(pg_session):
     """Create test user and novel for conversation tests."""

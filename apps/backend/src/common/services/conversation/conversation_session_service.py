@@ -47,11 +47,6 @@ class ConversationSessionService:
         else:
             self._repo_factory = SqlAlchemyConversationSessionRepository
 
-    async def _reset_transaction(self, db: AsyncSession) -> None:
-        """Rollback active transaction to ensure fresh context for new write operations."""
-        if db.in_transaction():
-            await db.rollback()
-
     async def create_session(
         self,
         db: AsyncSession,
@@ -123,7 +118,6 @@ class ConversationSessionService:
 
             # Create new session with transactional support
             logger.info("Creating new session")
-            await self._reset_transaction(db)
             async with transactional(db):
                 session = await repository.create(
                     scope_type=scope_type_str,
@@ -154,13 +148,12 @@ class ConversationSessionService:
             logger.debug("Session creation successful")
             return ConversationErrorHandler.success_response(
                 {
-                    "session": serialized_session,
-                    "session_obj": session,
+                    "session": session,
+                    "serialized_session": serialized_session,
                 }
             )
 
         except Exception as e:
-            await self._reset_transaction(db)
             return ConversationErrorHandler.internal_error(
                 "Failed to create session",
                 logger_instance=logger,
@@ -285,13 +278,12 @@ class ConversationSessionService:
                 serialized_session = self.serializer.serialize_session(session)
                 return ConversationErrorHandler.success_response(
                     {
-                        "session": serialized_session,
-                        "session_obj": session,
+                        "session": session,
+                        "serialized_session": serialized_session,
                     }
                 )
 
             # Update with optimistic concurrency control using transactional support
-            await self._reset_transaction(db)
             async with transactional(db):
                 updated_session = await repository.update(
                     session_id=session_id,
@@ -324,8 +316,8 @@ class ConversationSessionService:
 
             return ConversationErrorHandler.success_response(
                 {
-                    "session": serialized_updated,
-                    "session_obj": updated_session,
+                    "session": updated_session,
+                    "serialized_session": serialized_updated,
                 }
             )
 
@@ -344,7 +336,6 @@ class ConversationSessionService:
                     context="Update session version conflict",
                 )
         except Exception as e:
-            await self._reset_transaction(db)
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",
                 logger_instance=logger,

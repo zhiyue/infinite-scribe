@@ -486,8 +486,8 @@ class TestConversationRoundsRetrieve:
             f"/api/v1/conversations/sessions/{session_id}/rounds/{round_path}", headers=headers2
         )
 
-        # Assert - should return 403 for access denied (user doesn't own the novel/scope)
-        assert response.status_code == 403
+        # Assert - should return 404 to avoid leaking resource existence
+        assert response.status_code == 404
 
 
 class TestConversationRoundsAdvanced:

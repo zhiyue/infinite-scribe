@@ -309,7 +309,7 @@ class ConversationEventHandler:
             )
         except ArgumentError:
             with contextlib.suppress(Exception):
-                await db.scalar(None)
+                await db.scalar(text("SELECT 1"))
             dom_evt = None
         if not dom_evt:
             dom_evt = DomainEvent(

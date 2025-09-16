@@ -254,41 +254,72 @@ async def update_session(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ) -> ApiResponse[SessionResponse]:
-    corr_id = get_or_create_correlation_id(x_correlation_id)
-    expected_version = None
-    if if_match:
-        try:
-            expected_version = int(if_match.strip('"'))
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid If-Match header") from None
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        expected_version = None
+        if if_match:
+            try:
+                expected_version = int(if_match.strip('"'))
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid If-Match header") from None
 
-    result = await conversation_service.update_session(
-        db,
-        current_user.id,
-        session_id,
-        status=request.status,
-        stage=request.stage,
-        state=request.state,
-        expected_version=expected_version,
-    )
-    if not result.get("success"):
-        code = result.get("code", 422)
-        raise HTTPException(status_code=code, detail=result.get("error", "Update failed"))
-    s = result["session"]
-    data = SessionResponse(
-        id=s.id,
-        scope_type=ScopeType(s.scope_type),
-        scope_id=s.scope_id,
-        status=SessionStatus(s.status),
-        stage=s.stage,
-        state=s.state or {},
-        version=s.version,
-        created_at=s.created_at.isoformat() if getattr(s, "created_at", None) else format_iso_datetime(utc_now()),
-        updated_at=s.updated_at.isoformat() if getattr(s, "updated_at", None) else format_iso_datetime(utc_now()),
-        novel_id=None,
-    )
-    set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
-    return ApiResponse(code=0, msg="更新会话成功", data=data)
+        result = await conversation_service.update_session(
+            db,
+            current_user.id,
+            session_id,
+            status=request.status,
+            stage=request.stage,
+            state=request.state,
+            expected_version=expected_version,
+        )
+        if not result.get("success"):
+            code = result.get("code", 422)
+            raise HTTPException(status_code=code, detail=result.get("error", "Update failed"))
+        # Try to get serialized_session first, otherwise use session
+        if "serialized_session" in result:
+            s = result["serialized_session"]
+            # serialized_session is already a dict
+            data = SessionResponse(
+                id=UUID(s["id"]) if isinstance(s["id"], str) else s["id"],
+                scope_type=ScopeType(s["scope_type"]),
+                scope_id=s["scope_id"],
+                status=SessionStatus(s["status"]),
+                stage=s.get("stage"),
+                state=s.get("state", {}),
+                version=s.get("version", 1),
+                created_at=s.get("created_at") or format_iso_datetime(utc_now()),
+                updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
+                novel_id=None,
+            )
+        else:
+            # Fall back to ORM object
+            s = result["session"]
+            data = SessionResponse(
+                id=s.id,
+                scope_type=ScopeType(s.scope_type),
+                scope_id=s.scope_id,
+                status=SessionStatus(s.status),
+                stage=s.stage,
+                state=s.state or {},
+                version=s.version,
+                created_at=s.created_at.isoformat()
+                if getattr(s, "created_at", None)
+                else format_iso_datetime(utc_now()),
+                updated_at=s.updated_at.isoformat()
+                if getattr(s, "updated_at", None)
+                else format_iso_datetime(utc_now()),
+                novel_id=None,
+            )
+        set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
+        return ApiResponse(code=0, msg="更新会话成功", data=data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        logger.error(f"Unexpected error in update_session endpoint: {e}\n{error_detail}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update session: {e!s}")
 
 
 @router.delete(

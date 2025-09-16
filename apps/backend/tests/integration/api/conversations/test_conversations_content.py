@@ -183,8 +183,8 @@ class TestConversationContentRetrieve:
             f"/api/v1/conversations/sessions/{session_id}/content", headers=headers2
         )
 
-        # Should return 403 when user exists but no access (not 404 to avoid session existence leaks)
-        assert response.status_code == 403
+        # Should return 404 to avoid leaking session/resource existence
+        assert response.status_code == 404
 
 
 class TestConversationContentExport:
@@ -632,13 +632,13 @@ class TestConversationContentIntegration:
         get_response = await client_with_lifespan.get(
             f"/api/v1/conversations/sessions/{session_id}/content", headers=headers2
         )
-        assert get_response.status_code == 403  # Forbidden - user exists but no access
+        assert get_response.status_code == 404  # Not found - avoid leaking resource existence
 
         # Test export content
         export_response = await client_with_lifespan.post(
             f"/api/v1/conversations/sessions/{session_id}/content/export", headers=headers2
         )
-        assert export_response.status_code == 403  # Forbidden - user exists but no access
+        assert export_response.status_code == 404  # Not found - avoid leaking resource existence
 
         # Test search content
         search_data = {"query": "private"}

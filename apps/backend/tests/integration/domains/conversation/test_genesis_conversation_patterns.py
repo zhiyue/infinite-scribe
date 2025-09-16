@@ -12,6 +12,8 @@ import pytest
 from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
+from .conftest import ConversationQualityMetrics, DetailedConversationPatterns
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration

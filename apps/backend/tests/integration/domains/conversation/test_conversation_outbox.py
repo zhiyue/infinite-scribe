@@ -32,7 +32,7 @@ async def test_enqueue_command_persists_domain_event_and_outbox(pg_session_no_tr
     )
     assert create_res["success"] is True, f"create_session failed: {create_res.get('error', 'unknown error')}"
     session_obj = create_res["session"]
-    session_id = getattr(session_obj, "id", session_obj["id"])
+    session_id = session_obj.id
 
     # 6) Enqueue Stage.Validate command (atomic: CommandInbox + DomainEvent + Outbox)
     cmd_res = await conversation_service.enqueue_command(
@@ -79,7 +79,7 @@ async def test_create_round_persists_round_created_and_outbox(pg_session_no_tran
         pg_session_no_transaction, user_id=user.id, scope_type=ScopeType.GENESIS, scope_id=str(novel.id)
     )
     session_obj = sres["session"]
-    sid = session_obj.id if hasattr(session_obj, "id") else session_obj["id"]
+    sid = session_obj.id
 
     corr = str(uuid4())
     rres = await conversation_service.create_round(

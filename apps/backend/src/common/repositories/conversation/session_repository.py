@@ -116,17 +116,17 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
                 ConversationSession.scope_id == scope_id,
             )
         )
-        
+
         # Add status filter if provided
         if status is not None:
             query = query.where(ConversationSession.status == status)
-            
+
         # Add pagination
         query = query.offset(offset).limit(limit)
-        
+
         # Order by creation time, newest first
         query = query.order_by(ConversationSession.created_at.desc())
-        
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -141,10 +141,7 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
     ) -> ConversationSession:
         """Create a new conversation session."""
         # Handle enum conversion
-        if isinstance(status, SessionStatus):
-            status_value = status.value
-        else:
-            status_value = status
+        status_value = status.value if isinstance(status, SessionStatus) else status
 
         session = ConversationSession(
             scope_type=scope_type,
@@ -169,7 +166,7 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
         state: dict[str, Any] | None = None,
         version: int | None = None,  # Added version parameter for test compatibility
         expected_version: int | None = None,  # Keep for backward compatibility
-    ) -> ConversationSession:
+    ) -> ConversationSession | None:
         """Update a conversation session with optimistic concurrency control."""
         # Handle both parameter names for backward compatibility
         version_to_check = version or expected_version
@@ -207,15 +204,7 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
 
         updated_session = result.scalar_one_or_none()
 
-        # If no rows were updated and we expected a version, it's a version conflict
-        if updated_session is None and version_to_check is not None:
-            # Check if session exists at all
-            existing = await self.find_by_id(session_id)
-            if existing is None:
-                raise ValueError(f"Session with ID {session_id} not found")
-            else:
-                raise ValueError("Version conflict: The session has been modified by another process")
-
+        # Return None to indicate failure - let the service handle the error
         return updated_session
 
     async def delete(self, session_id: UUID) -> bool:

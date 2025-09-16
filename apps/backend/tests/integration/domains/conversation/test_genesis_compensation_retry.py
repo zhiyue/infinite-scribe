@@ -12,6 +12,7 @@ from src.models.conversation import ConversationSession
 from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
+from .conftest import GenesisConversationTestFixture, GenesisTestData
 
 
 @pytest.mark.asyncio

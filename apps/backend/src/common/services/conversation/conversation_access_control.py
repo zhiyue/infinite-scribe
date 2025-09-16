@@ -111,7 +111,8 @@ class ConversationAccessControl:
             )
 
             if not novel_exists:
-                return {"success": False, "error": "Access denied", "code": 403}
+                # Return 404 to avoid leaking session/resource existence
+                return {"success": False, "error": "Session not found", "code": 404}
 
             return {"success": True}
 
@@ -139,7 +140,8 @@ class ConversationAccessControl:
             novel = await db.scalar(select(Novel).where(and_(Novel.id == novel_uuid, Novel.user_id == user_id)))
 
             if not novel:
-                return {"success": False, "error": "Novel not found or access denied", "code": 403}
+                # Return 404 to avoid leaking resource existence
+                return {"success": False, "error": "Novel not found", "code": 404}
 
             return {"success": True, "novel": novel}
 

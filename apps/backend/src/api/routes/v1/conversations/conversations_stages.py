@@ -5,8 +5,11 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.services.conversation import conversation_service
 from src.common.utils.api_utils import COMMON_ERROR_RESPONSES, get_or_create_correlation_id, set_common_headers
+from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User
 from src.schemas.base import ApiResponse
@@ -25,10 +28,21 @@ async def get_stage(
     response: Response,
     x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ) -> ApiResponse[dict]:
     corr_id = get_or_create_correlation_id(x_correlation_id)
+
+    # Verify access to session
+    result = await conversation_service.get_session(db, current_user.id, session_id)
+    if not result.get("success"):
+        code = result.get("code", 404)
+        raise HTTPException(status_code=code, detail=result.get("error", "Session not found"))
+
+    session = result["session"]
+    stage = getattr(session, "stage", None) if not isinstance(session, dict) else session.get("stage")
+
     set_common_headers(response, correlation_id=corr_id)
-    return ApiResponse(code=0, msg="获取阶段成功（skeleton）", data={"stage": "Stage_0"})
+    return ApiResponse(code=0, msg="获取阶段成功（skeleton）", data={"stage": stage or "Stage_0"})
 
 
 @router.put(
@@ -43,12 +57,32 @@ async def set_stage(
     if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ) -> ApiResponse[dict]:
     corr_id = get_or_create_correlation_id(x_correlation_id)
-    if if_match is not None and if_match.strip('"') != "1":
-        raise HTTPException(status_code=412, detail="Version mismatch (skeleton)")
-    set_common_headers(response, correlation_id=corr_id, etag='"2"')
-    return ApiResponse(code=0, msg="切换阶段成功（skeleton）", data={"stage": stage, "version": 2})
+
+    # Parse expected version from If-Match header
+    expected_version = None
+    if if_match is not None:
+        try:
+            expected_version = int(if_match.strip('"'))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid If-Match header")
+
+    # Update session stage with access control
+    result = await conversation_service.update_session(
+        db, current_user.id, session_id, stage=stage, expected_version=expected_version
+    )
+
+    if not result.get("success"):
+        code = result.get("code", 422)
+        raise HTTPException(status_code=code, detail=result.get("error", "Update failed"))
+
+    session = result.get("serialized_session") or result["session"]
+    version = session.get("version", 2) if isinstance(session, dict) else getattr(session, "version", 2)
+
+    set_common_headers(response, correlation_id=corr_id, etag=f'"{version}"')
+    return ApiResponse(code=0, msg="切换阶段成功（skeleton）", data={"stage": stage, "version": version})
 
 
 @router.post(

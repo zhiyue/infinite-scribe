@@ -85,7 +85,7 @@ class ContentSearchRequest(BaseSchema):
 class VersionCreateRequest(BaseSchema):
     """版本创建请求"""
 
-    base_version: int
+    base_version: str
     label: str
     description: str | None = None
 

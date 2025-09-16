@@ -213,8 +213,8 @@ class TestConversationSessionsRetrieve:
         # Act - try to access user1's session with user2's token
         response = await client_with_lifespan.get(f"/api/v1/conversations/sessions/{session_id}", headers=headers2)
 
-        # Assert - should return 403 for access denied (user doesn't own the novel/scope)
-        assert response.status_code == 403
+        # Assert - should return 404 to avoid leaking resource existence
+        assert response.status_code == 404
 
 
 class TestConversationSessionsUpdate:

@@ -10,6 +10,7 @@ import pytest
 from src.schemas.enums import GenesisStage
 from src.schemas.novel.dialogue import DialogueRole
 
+from .conftest import GenesisTestData
 
 
 @pytest.mark.asyncio
@@ -58,7 +59,7 @@ class TestGenesisMultiRoundConversations:
     async def test_stage_1_theme_development_multi_round(self, genesis_fixture):
         """Test multi-round conversation for Stage 1 (Theme Development)."""
         # Create Genesis session at Stage 1
-        session_result = await genesis_fixture.create_genesis_session(GenesisStage.THEME_CONCEPT)
+        session_result = await genesis_fixture.create_genesis_session(GenesisStage.WORLDVIEW)
         assert session_result["success"]
 
         # Simulate theme development conversation
@@ -103,7 +104,7 @@ class TestGenesisMultiRoundConversations:
 
     async def test_stage_3_character_design_multi_round(self, genesis_fixture):
         """Test multi-round conversation for Stage 3 (Character Design)."""
-        session_result = await genesis_fixture.create_genesis_session(GenesisStage.CHARACTER)
+        session_result = await genesis_fixture.create_genesis_session(GenesisStage.CHARACTERS)
         assert session_result["success"]
 
         stage_data = GenesisTestData.STAGE_3_CHARACTERS[0]
@@ -123,7 +124,7 @@ class TestGenesisMultiRoundConversations:
 
     async def test_stage_4_plot_framework_multi_round(self, genesis_fixture):
         """Test multi-round conversation for Stage 4 (Plot Framework)."""
-        session_result = await genesis_fixture.create_genesis_session(GenesisStage.PLOT)
+        session_result = await genesis_fixture.create_genesis_session(GenesisStage.PLOT_OUTLINE)
         assert session_result["success"]
 
         stage_data = GenesisTestData.STAGE_4_PLOTS[0]
@@ -184,6 +185,7 @@ class TestGenesisMultiRoundConversations:
 
     async def test_multi_round_conversation_flow_quality(self, genesis_fixture):
         """Test conversation flow quality metrics."""
+        session_result = await genesis_fixture.create_genesis_session(GenesisStage.INITIAL_PROMPT)
         assert session_result["success"]
 
         # Create conversation with increasing complexity
