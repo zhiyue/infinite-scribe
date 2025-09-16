@@ -77,22 +77,52 @@ class ConversationSessionService:
                 try:
                     scope_type_enum = ScopeType(scope_type)
                 except ValueError:
-                    logger.warning(f"Invalid scope type string: {scope_type}")
+                    logger.warning(
+                        "Invalid scope type provided for session creation",
+                        extra={
+                            "provided_scope_type": scope_type,
+                            "valid_scope_types": [e.value for e in ScopeType],
+                            "user_id": user_id,
+                            "scope_id": scope_id,
+                            "operation": "create_session_validation",
+                        },
+                    )
                     return ConversationErrorHandler.validation_error(
-                        f"Invalid scope type: {scope_type}", logger_instance=logger, context="Create session validation"
+                        f"Invalid scope type: {scope_type}",
+                        logger_instance=logger,
+                        context=f"Create session validation - invalid scope type: {scope_type}",
                     )
             else:
                 scope_type_enum = scope_type
                 scope_type_str = scope_type.value
 
-            logger.debug(
-                f"Starting create_session: user_id={user_id}, scope_type={scope_type_str}, scope_id={scope_id}"
+            logger.info(
+                "Starting session creation with detailed context",
+                extra={
+                    "user_id": user_id,
+                    "scope_type": scope_type_str,
+                    "scope_id": scope_id,
+                    "stage": stage,
+                    "has_initial_state": initial_state is not None,
+                    "operation": "create_session",
+                },
             )
 
             if scope_type_enum != ScopeType.GENESIS:
-                logger.warning(f"Invalid scope type: {scope_type_str}")
+                logger.warning(
+                    "Unsupported scope type for session creation",
+                    extra={
+                        "scope_type": scope_type_str,
+                        "supported_scope_types": [ScopeType.GENESIS.value],
+                        "user_id": user_id,
+                        "scope_id": scope_id,
+                        "operation": "create_session_validation",
+                    },
+                )
                 return ConversationErrorHandler.validation_error(
-                    "Only GENESIS scope is supported", logger_instance=logger, context="Create session validation"
+                    "Only GENESIS scope is supported",
+                    logger_instance=logger,
+                    context=f"Create session validation - unsupported scope: {scope_type_str}",
                 )
 
             # Verify access to the scope
@@ -111,11 +141,21 @@ class ConversationSessionService:
             logger.debug(f"Checking for existing active sessions for scope: {scope_type_str}, {scope_id}")
             existing = await repository.find_active_by_scope(scope_type_str, str(scope_id))
             if existing:
-                logger.warning(f"Active session already exists: {existing.id}")
+                logger.warning(
+                    "Active session conflict detected",
+                    extra={
+                        "existing_session_id": str(existing.id),
+                        "scope_type": scope_type_str,
+                        "scope_id": scope_id,
+                        "user_id": user_id,
+                        "existing_session_status": existing.status,
+                        "operation": "create_session_conflict",
+                    },
+                )
                 return ConversationErrorHandler.conflict_error(
                     "An active session already exists for this novel",
                     logger_instance=logger,
-                    context="Create session conflict",
+                    context=f"Create session conflict - existing session: {existing.id} for scope: {scope_type_str}:{scope_id}",
                 )
 
             # Create new session with transactional support
@@ -129,7 +169,18 @@ class ConversationSessionService:
                     state=initial_state or {},
                     version=1,
                 )
-                logger.info(f"Created session: {session.id}")
+                logger.info(
+                    "Session created successfully with context",
+                    extra={
+                        "session_id": str(session.id),
+                        "scope_type": scope_type_str,
+                        "scope_id": scope_id,
+                        "user_id": user_id,
+                        "stage": stage,
+                        "version": 1,
+                        "operation": "create_session_success",
+                    },
+                )
 
             # Serialize ORM object to dict at service boundary
             logger.debug("Serializing session")
@@ -156,10 +207,24 @@ class ConversationSessionService:
             )
 
         except Exception as e:
+            # Add structured logging with context before error response
+            logger.error(
+                "Session creation failed with detailed context",
+                extra={
+                    "scope_type": scope_type_str if "scope_type_str" in locals() else str(scope_type),
+                    "scope_id": scope_id,
+                    "user_id": user_id,
+                    "stage": stage,
+                    "has_initial_state": initial_state is not None,
+                    "session_id": str(session.id) if "session" in locals() else None,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             return ConversationErrorHandler.internal_error(
                 "Failed to create session",
                 logger_instance=logger,
-                context="Create session error",
+                context=f"Create session error - scope: {scope_type_str if 'scope_type_str' in locals() else str(scope_type)}:{scope_id}, user: {user_id}, stage: {stage}",
                 exception=e,
                 session_id=str(session.id) if "session" in locals() else None,
                 user_id=user_id,
@@ -186,6 +251,16 @@ class ConversationSessionService:
                 if not access_result["success"]:
                     return access_result
                 # Cache already contains serialized dict
+                # Log successful cache hit with context
+                logger.info(
+                    "Session retrieved from cache successfully",
+                    extra={
+                        "session_id": str(session_id),
+                        "user_id": user_id,
+                        "from_cache": True,
+                        "operation": "get_session_cache_success",
+                    },
+                )
                 return ConversationErrorHandler.success_response({"session": cached, "cached": True})
 
             # Get repository from factory
@@ -218,13 +293,34 @@ class ConversationSessionService:
                     f"Failed to cache session {session.id}: {cache_error}", extra={"session_id": str(session.id)}
                 )
 
+            # Log successful operation with context
+            logger.info(
+                "Session retrieved successfully with context",
+                extra={
+                    "session_id": str(session_id),
+                    "user_id": user_id,
+                    "from_cache": False,
+                    "operation": "get_session_success",
+                },
+            )
             return ConversationErrorHandler.success_response({"session": serialized_session})
 
         except Exception as e:
+            # Add structured logging with context before error response
+            logger.error(
+                "Session retrieval failed with detailed context",
+                extra={
+                    "session_id": str(session_id),
+                    "user_id": user_id,
+                    "attempted_cache": True,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             return ConversationErrorHandler.internal_error(
                 "Failed to get session",
                 logger_instance=logger,
-                context="Get session error",
+                context=f"Get session error - session: {session_id}, user: {user_id}",
                 exception=e,
                 session_id=str(session_id),
                 user_id=user_id,
@@ -338,10 +434,24 @@ class ConversationSessionService:
                     context="Update session version conflict",
                 )
         except Exception as e:
+            # Add structured logging with context before error response
+            logger.error(
+                "Session update failed with detailed context",
+                extra={
+                    "session_id": str(session_id),
+                    "user_id": user_id,
+                    "update_status": status.value if status else None,
+                    "update_stage": stage,
+                    "has_state_update": state is not None,
+                    "expected_version": expected_version,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",
                 logger_instance=logger,
-                context="Update session error",
+                context=f"Update session error - session: {session_id}, user: {user_id}, status: {status}, stage: {stage}",
                 exception=e,
                 session_id=str(session_id),
                 user_id=user_id,
@@ -399,10 +509,20 @@ class ConversationSessionService:
             return ConversationErrorHandler.success_response()
 
         except Exception as e:
+            # Add structured logging with context before error response
+            logger.error(
+                "Session deletion failed with detailed context",
+                extra={
+                    "session_id": str(session_id),
+                    "user_id": user_id,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             return ConversationErrorHandler.internal_error(
                 "Failed to delete session",
                 logger_instance=logger,
-                context="Delete session error",
+                context=f"Delete session error - session: {session_id}, user: {user_id}",
                 exception=e,
                 session_id=str(session_id),
                 user_id=user_id,
@@ -454,15 +574,41 @@ class ConversationSessionService:
             # Serialize ORM objects to dicts at service boundary
             serialized_sessions = [self.serializer.serialize_session(session) for session in sessions]
 
+            # Log successful operation with context
+            logger.info(
+                "Sessions listed successfully with context",
+                extra={
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                    "user_id": user_id,
+                    "session_count": len(serialized_sessions),
+                    "status_filter": status,
+                    "limit": limit,
+                    "offset": offset,
+                    "operation": "list_sessions_success",
+                },
+            )
             return ConversationErrorHandler.success_response({"sessions": serialized_sessions})
 
         except Exception as e:
+            # Add structured logging with context before error response
+            logger.error(
+                "Session listing failed with detailed context",
+                extra={
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                    "user_id": user_id,
+                    "status_filter": status,
+                    "limit": limit,
+                    "offset": offset,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             return ConversationErrorHandler.internal_error(
                 "Failed to list sessions",
                 logger_instance=logger,
-                context="List sessions error",
+                context=f"List sessions error - scope: {scope_type}:{scope_id}, user: {user_id}",
                 exception=e,
-                scope_type=scope_type,
-                scope_id=scope_id,
                 user_id=user_id,
             )
