@@ -214,6 +214,66 @@ CREATE INDEX ix_stage_sessions_session ON genesis_stage_sessions(session_id);
 - Genesis 业务状态、配置与产出移至专用表，查询边界清晰；
 - 支持“每个阶段多个 session”的一等能力。
 
+**conversation_sessions 表字段清理计划**
+
+解耦后，`conversation_sessions` 表将专注于对话容器的职责，需要清理Genesis业务相关字段：
+
+### 建议删除的字段
+
+#### 立即删除
+- **`stage`** (位置: `apps/backend/src/models/conversation.py:41`)
+  - 原本承载当前业务阶段；解耦后应由 `genesis_flows.current_stage` 与 `genesis_stage_records` 管理。
+
+- **`state`** (位置: `apps/backend/src/models/conversation.py:42`)
+  - 原本承载阶段配置/聚合状态；解耦后应落在 `genesis_flows.state`（全局）与 `genesis_stage_records.config/result/metrics`（分阶段）。
+
+#### 可选删除
+- **`version`** (位置: `apps/backend/src/models/conversation.py:43`)
+  - 仅用于会话层乐观并发控制（更新 stage/state/status 时自增）。如果后续不在会话层更新业务字段（只创建/归档），可改用 `updated_at` 作为 ETag 并去掉 `version`。
+  - 替代方案：ETag = `updated_at.isoformat()` 或数据库 `xmin`（Postgres）作为并发戳。
+
+### 必须保留的字段
+
+- **`scope_type`、`scope_id`** (位置: `apps/backend/src/models/conversation.py:38, 39`)
+  - 作用：会话归属与权限校验（GENESIS 下 `scope_id=novel_id`）；列表查询按 scope 过滤。
+
+- **`status`** (位置: `apps/backend/src/models/conversation.py:40`)
+  - 作用：标记会话生命周期（ACTIVE/PAUSED/COMPLETED…），配合列表过滤及归档。
+
+- **`round_sequence`** (位置: `apps/backend/src/models/conversation.py:44`)
+  - 作用：顶层 round 自增编号（生成 1/2/3…）。强依赖于创建轮次逻辑。
+  - 使用处：`apps/backend/src/common/services/conversation/conversation_round_creation_service.py:222`
+
+- **`created_at`、`updated_at`** (位置: `apps/backend/src/models/conversation.py:45-48`)
+  - 作用：排序、审计、ETag 替代（若去掉 version）。
+
+### 连带影响调整
+
+#### API 模型与返回
+- **`SessionResponse`** (位置: `apps/backend/src/schemas/novel/dialogue/read.py:103`)
+  - 当前包含 `stage/state/version`，删除后需去掉或置为可选默认空。
+- **会话创建/更新接口** (位置: `apps/backend/src/api/routes/v1/conversations/conversations_sessions.py`)
+  - 去掉对 `stage/state` 的读写；ETag 改用 `updated_at`。
+
+#### 阶段相关旧接口
+- **`GET/PUT /sessions/{id}/stage`** (位置: `apps/backend/src/api/routes/v1/conversations/conversations_stages.py`)
+  - 基于会话 `stage/version`，解耦后应改为 Genesis 新接口或移除。
+
+#### 仓储与服务层
+- **`ConversationSessionRepository.create/update`** (位置: `apps/backend/src/common/repositories/conversation/session_repository.py`)
+  - 去掉 `stage/state/version` 参数与 OCC 分支；或仅保留 `status` 更新。
+- **`ConversationSessionService.update_session`**
+  - 不再处理 `stage/state/version`；若保留 `version`，请明确仅对 `status` 做 OCC。
+
+### 进一步精简（可选）
+
+如果后续不再按 `status` 过滤/变更（完全由 `genesis_stage_sessions.status` 管理生命周期），也可考虑移除会话层 `status`，仅通过是否仍被阶段引用来判断会话是否活跃。但建议保留 `status` 以便通用场景（非 Genesis）复用。
+
+### 推荐方案
+
+- **最小改动版**：删 `stage/state`，保留 `version`（继续用 `version` 做 ETag 与 OCC），其余不动。
+- **彻底简化版**：删 `stage/state/version`，ETag 改用 `updated_at`；会话只承载对话容器最小字段，所有业务状态放入 `genesis_flows/genesis_stage_records/genesis_stage_sessions`。
+
 **后续可选增强**
 - 增加 `genesis_stage_task_links` 与 `depends_on` 建模任务依赖；
 - 为阶段记录增加变更审计表；

@@ -2,11 +2,11 @@
 
 ## 文档信息
 
-- **文档版本**: v2.0
+- **文档版本**: v3.0
 - **创建日期**: 2025-01-17
-- **最后更新**: 2025-01-17
+- **最后更新**: 2025-09-17
 - **作者**: InfiniteScribe 架构团队
-- **状态**: 完全重构设计
+- **状态**: 低侵入性解耦设计
 
 ## 目录
 
@@ -24,42 +24,49 @@
 ## 执行摘要
 
 ### 背景
-创世阶段功能尚未上线，当前 `conversation_sessions` 表混合了通用对话和创世特定字段，存在职责不清的问题。本文档提出完全重构的解决方案，彻底分离创世逻辑和通用对话逻辑。
+现有系统用通用对话聚合 `conversation_sessions/rounds` 承载用户与 Agent 的交互，并在 `conversation_sessions.stage/state` 中混合了创世（Genesis）业务状态。当一个 Genesis 阶段需要多个独立会话（并行/历史/复盘），或跨阶段管理与统计时，耦合在 `conversation_sessions` 难以清晰表达、复用与审计。
 
-### 重构目标
-- **职责分离**: 创世流程与通用对话完全独立
-- **简化设计**: 去除不必要的字段和复杂性
-- **独立会话**: 每个阶段支持多个独立会话
-- **版本控制**: 阶段设定的版本化管理
-- **用户体验**: 支持"开始新会话"功能
+### 设计目标
+- **解耦**: 对话会话（Conversation）保持领域无关；Genesis 业务独立建模
+- **多会话**: 同一阶段允许 1..N 个对话会话绑定，且可指定主会话（primary）
+- **审计与迭代**: 阶段记录可保留历史（多条记录或迭代计数），支持配置/结果/指标持久化
+- **低侵入**: 不修改 `conversation_sessions/rounds` 结构，通过关联表连接
+- **可观测**: 沿用 `correlation_id=command.id` 贯穿命令→任务→事件→回合，阶段/流程 ID 加入事件元数据
 
 ### 核心改进
-- 创建专门的创世流程管理表
-- 简化通用对话表结构
-- 建立清晰的阶段-会话关联模型
-- 实现完整的设定版本控制系统
+- 创建专门的创世流程管理表 (`genesis_flows`)
+- 建立阶段业务记录表 (`genesis_stage_records`)
+- 通过关联表 (`genesis_stage_sessions`) 实现阶段与会话的多对多关系
+- 保持现有对话系统不变，仅通过绑定校验确保数据一致性
 
 ## 当前架构分析
 
 ### 现有表结构问题
 
-#### ConversationSession 表问题分析
+#### ConversationSession 表耦合分析
 ```python
 class ConversationSession(Base):
-    # 通用字段（保留）
-    id: UUID                           # ✅ 需要
-    status: str                        # ✅ 需要
-    version: int                       # ✅ 需要（乐观锁）
-    created_at: datetime               # ✅ 需要
-    updated_at: datetime               # ✅ 需要
+    # 通用字段（保持不变）
+    id: UUID                           # ✅ 会话标识
+    user_id: int                       # ✅ 用户归属
+    scope_type: str                    # ✅ 会话类型（GENESIS/GENERAL）
+    scope_id: str                      # ✅ 会话归属ID（novel_id）
+    status: str                        # ✅ 会话状态
+    round_sequence: int                # ✅ 轮次计数
+    created_at: datetime               # ✅ 创建时间
+    updated_at: datetime               # ✅ 更新时间
 
-    # 创世特定字段（需要移除）
-    scope_type: str                    # ❌ 创世特定，应移除
-    scope_id: str                      # ❌ 创世特定，应移除
-    stage: str                         # ❌ 创世特定，应移除
-    state: dict                        # ❌ 创世特定，应移除
-    round_sequence: int                # ❌ 可能不需要，简化处理
+    # 创世业务字段（问题所在）
+    stage: str                         # 🔴 混合了创世业务状态
+    state: dict                        # 🔴 混合了创世业务数据
+    version: int                       # 🔴 用于创世业务的乐观锁
 ```
+
+**问题总结**：
+- `stage/state` 字段混合了创世特定的业务逻辑
+- 当需要一个阶段多个会话时，数据模型无法清晰表达
+- 缺乏阶段级别的配置、结果、指标管理能力
+- 无法支持阶段间的依赖和转换记录
 
 #### ConversationRound 表分析
 ```python
@@ -83,268 +90,179 @@ class ConversationRound(Base):
 
 ### 🔴 核心问题
 
-1. **职责混合**: 通用对话表包含创世特定字段
-2. **扩展困难**: 添加新的对话类型需要修改现有表
-3. **测试复杂**: 无法独立测试创世功能
-4. **维护困难**: 创世逻辑和通用对话逻辑混合
+1. **职责混合**: 通用对话表承载了创世特定的业务状态（stage、state）
+2. **扩展困难**: 无法支持"一个阶段多个会话"的业务需求
+3. **审计缺失**: 缺乏阶段级别的配置、结果、指标和历史管理
+4. **测试复杂**: 创世业务与对话逻辑耦合，无法独立测试
+5. **维护困难**: 创世功能的修改可能影响通用对话功能
+
+### 🎯 解决方案要求
+
+1. **低侵入性**: 不修改现有 `conversation_sessions/rounds` 表结构
+2. **多会话支持**: 支持一个阶段绑定多个独立会话
+3. **业务解耦**: 创世业务状态独立建模和管理
+4. **数据一致性**: 通过绑定校验确保数据关联的正确性
 
 ### 📊 影响评估
 
 | 问题类型 | 严重程度 | 影响范围 | 解决方案 |
 |---------|---------|---------|---------|
-| 职责混合 | 高 | 整体架构 | 完全分离表结构 |
-| 字段冗余 | 中 | 数据模型 | 移除不必要字段 |
-| 扩展困难 | 高 | 功能开发 | 独立的创世表结构 |
+| 职责混合 | 高 | 整体架构 | 通过关联表实现业务解耦 |
+| 扩展困难 | 高 | 功能开发 | 独立的创世业务表结构 |
+| 审计缺失 | 中 | 数据管理 | 阶段记录表支持历史和指标 |
 | 测试复杂 | 中 | 开发效率 | 模块化测试 |
+| 多会话需求 | 中 | 用户体验 | 多对多关联表设计 |
 
 ## 解决方案设计
 
 ### 🎯 设计原则
 
-1. **完全分离**: 创世功能与通用对话完全独立
-2. **简化优先**: 去除不必要的复杂性
-3. **单一职责**: 每个表只负责单一职责
-4. **易于测试**: 支持独立的单元测试
-5. **用户友好**: 支持直观的用户交互
+1. **低侵入性**: 不修改现有 `conversation_sessions/rounds` 结构，通过关联表连接
+2. **业务解耦**: 对话会话保持领域无关，Genesis 业务独立建模
+3. **多会话支持**: 同一阶段允许 1..N 个对话会话绑定，支持主会话标记
+4. **数据一致性**: 通过绑定校验确保 `scope_type=GENESIS` 且 `scope_id=novel_id`
+5. **可观测性**: 复用现有 `correlation_id` 机制，增加阶段/流程 ID 到事件元数据
 
 ### 🏗️ 架构概览
 
 ```mermaid
 graph TB
-    A[用户] --> B[创世流程管理]
-    A --> C[通用对话系统]
+    A[用户] --> B[创世流程层]
+    A --> C[对话层]
 
-    B --> D[Genesis Process]
-    D --> E[Stage Instance 1]
-    D --> F[Stage Instance 2]
-    D --> G[Stage Instance N]
+    B --> D[Genesis Flow]
+    D --> E[Stage Record 1]
+    D --> F[Stage Record 2]
+    D --> G[Stage Record N]
 
-    E --> H[Session 1.1]
-    E --> I[Session 1.2]
-    E --> J[Settings V1]
-    E --> K[Settings V2]
+    E --> H[关联表]
+    F --> I[关联表]
+    G --> J[关联表]
 
-    F --> L[Session 2.1]
-    F --> M[Settings V1]
+    H --> K[Session 1.1]
+    H --> L[Session 1.2]
+    I --> M[Session 2.1]
+    I --> N[Session 2.2]
 
-    C --> N[Conversation Session]
-    N --> O[Conversation Round]
+    C --> K
+    C --> L
+    C --> M
+    C --> N
+    K --> O[Conversation Rounds]
+    L --> P[Conversation Rounds]
 ```
 
 ### 核心概念
 
-- **Genesis Process**: 整个创世流程的顶层管理
-- **Stage Instance**: 每个阶段的具体实例，可重复创建
-- **Conversation Session**: 简化的通用对话会话
-- **Settings Version**: 阶段设定的版本化存储
-- **Stage Transition**: 阶段间的数据传递
+- **Genesis Flow**: 创世流程实例（对某部小说的总进度）
+- **Stage Record**: 阶段业务记录（配置、结果、指标、状态、迭代）
+- **Stage Sessions**: 阶段↔对话会话的关联（多对多，含主会话标记）
+- **Conversation Session**: 保持不变的通用对话会话
+- **绑定校验**: 确保 `scope_type=GENESIS` 且 `scope_id=novel_id`
 
-## 数据库重构设计
+## 数据库设计
 
-### 通用对话表重构
+### 现有表保持不变
 
-#### 1. 简化的 Conversation Sessions 表
+现有的 `conversation_sessions` 和 `conversation_rounds` 表保持不变，仅在绑定时进行校验：
 
 ```sql
--- 重构后的通用对话会话表
-CREATE TABLE conversation_sessions (
+-- 现有表结构保持不变
+-- conversation_sessions 表包含 stage/state 字段，但不再使用
+-- 仅通过 scope_type/scope_id 与新的创世表建立关联
+```
+
+### 新增创世业务表
+
+#### 1. Genesis Flows 表 - 创世流程
+
+```sql
+CREATE TABLE genesis_flows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    title VARCHAR(255),                              -- 会话标题
-    status session_status NOT NULL DEFAULT 'ACTIVE',
-    metadata JSONB DEFAULT '{}',                     -- 灵活的元数据存储
-    version INTEGER NOT NULL DEFAULT 1,             -- 乐观锁版本
+    novel_id UUID NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+    status VARCHAR NOT NULL DEFAULT 'IN_PROGRESS',    -- GenesisStatus: IN_PROGRESS/COMPLETED/ABANDONED/PAUSED
+    current_stage VARCHAR NULL,                       -- GenesisStage: INITIAL_PROMPT/WORLDVIEW/CHARACTERS/PLOT_OUTLINE/FINISHED
+    version INTEGER NOT NULL DEFAULT 1,
+    state JSONB NULL,                                -- 全局聚合与跨阶段元数据
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    INDEX idx_conversation_sessions_user(user_id),
-    INDEX idx_conversation_sessions_status(status),
-    INDEX idx_conversation_sessions_updated_at(updated_at)
+    CONSTRAINT ux_genesis_flows_novel UNIQUE(novel_id),
+    INDEX idx_genesis_flows_novel_status(novel_id, status),
+    INDEX idx_genesis_flows_current_stage(current_stage)
 );
 ```
 
-#### 2. 支持分支的 Conversation Rounds 表
+#### 2. Genesis Stage Records 表 - 阶段记录
 
 ```sql
--- 重构后的对话轮次表（保留分支功能）
-CREATE TABLE conversation_rounds (
+CREATE TABLE genesis_stage_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
-    round_path VARCHAR(64) NOT NULL,                 -- 支持分支的路径，如 "1", "1.1", "1.2", "2"
-    role dialogue_role NOT NULL,                     -- USER, ASSISTANT, SYSTEM
-    content JSONB NOT NULL,                          -- 输入内容
-    response JSONB,                                  -- 输出内容
-    tool_calls JSONB,                                -- 工具调用记录
-    model VARCHAR(128),                              -- 使用的模型
-    tokens_in INTEGER,                               -- 输入token数
-    tokens_out INTEGER,                              -- 输出token数
-    latency_ms INTEGER,                              -- 响应延迟
-    cost DECIMAL(10, 4),                             -- 成本
-    correlation_id VARCHAR(64),                      -- 关联ID
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    UNIQUE(session_id, round_path),                  -- 保证路径唯一性
-    INDEX idx_conversation_rounds_session(session_id),
-    INDEX idx_conversation_rounds_correlation(correlation_id),
-    INDEX idx_conversation_rounds_path_pattern(session_id, round_path),  -- 优化分支查询
-    INDEX idx_conversation_rounds_created_at(created_at)
-);
-```
-
-### 创世专用表设计
-
-#### 1. 创世流程主表
-
-```sql
-CREATE TABLE genesis_processes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    novel_id UUID NOT NULL REFERENCES novels(id),
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    status genesis_process_status NOT NULL DEFAULT 'IN_PROGRESS',
-    current_stage genesis_stage NOT NULL DEFAULT 'INITIAL_PROMPT',
+    flow_id UUID NOT NULL REFERENCES genesis_flows(id) ON DELETE CASCADE,
+    stage VARCHAR NOT NULL,                          -- GenesisStage
+    status VARCHAR NOT NULL DEFAULT 'RUNNING',       -- RUNNING/COMPLETED/FAILED/PAUSED
+    config JSONB NULL,                              -- 阶段参数与用户选择
+    result JSONB NULL,                              -- 阶段产出索引/摘要
+    iteration_count INTEGER NOT NULL DEFAULT 0,
+    metrics JSONB NULL,                             -- tokens/cost/latency 等聚合
+    started_at TIMESTAMP WITH TIME ZONE NULL,
+    completed_at TIMESTAMP WITH TIME ZONE NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE,
 
-    UNIQUE(novel_id),  -- 一个小说只能有一个创世流程
-    INDEX idx_genesis_processes_user(user_id),
-    INDEX idx_genesis_processes_novel(novel_id),
-    INDEX idx_genesis_processes_status(status)
+    INDEX idx_stage_records_flow_stage(flow_id, stage, created_at DESC)
 );
 ```
 
-#### 2. 创世阶段实例表
-
-```sql
-CREATE TABLE genesis_stage_instances (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    process_id UUID NOT NULL REFERENCES genesis_processes(id) ON DELETE CASCADE,
-    stage genesis_stage NOT NULL,
-    status stage_instance_status NOT NULL DEFAULT 'ACTIVE',
-    sequence_number INTEGER NOT NULL DEFAULT 1,      -- 同阶段的第几次实例
-    is_current BOOLEAN NOT NULL DEFAULT TRUE,        -- 是否为当前活跃实例
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE,
-
-    UNIQUE(process_id, stage, sequence_number),
-    INDEX idx_stage_instances_process(process_id),
-    INDEX idx_stage_instances_current(process_id, stage, is_current),
-    INDEX idx_stage_instances_status(status)
-);
-```
-
-#### 3. 阶段会话关联表
+#### 3. Genesis Stage Sessions 表 - 阶段会话关联
 
 ```sql
 CREATE TABLE genesis_stage_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    instance_id UUID NOT NULL REFERENCES genesis_stage_instances(id) ON DELETE CASCADE,
+    stage_id UUID NOT NULL REFERENCES genesis_stage_records(id) ON DELETE CASCADE,
     session_id UUID NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    status VARCHAR NOT NULL DEFAULT 'ACTIVE',        -- ACTIVE/ARCHIVED/CLOSED
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,       -- 是否为主会话
+    session_kind VARCHAR NULL,                       -- user_interaction/review/agent_autonomous 等
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    INDEX idx_stage_sessions_instance(instance_id),
-    INDEX idx_stage_sessions_session(session_id),
-    INDEX idx_stage_sessions_active(instance_id, is_active)
+    CONSTRAINT ux_stage_sessions_stage_session UNIQUE(stage_id, session_id),
+    INDEX idx_stage_sessions_stage(stage_id),
+    INDEX idx_stage_sessions_session(session_id)
 );
+
+-- 可选：仅允许一个主会话
+-- CREATE UNIQUE INDEX ux_stage_primary ON genesis_stage_sessions(stage_id) WHERE is_primary = true;
 ```
 
-#### 4. 阶段设定版本表
+### 与对话会话的关联规则
 
-```sql
-CREATE TABLE genesis_stage_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    instance_id UUID NOT NULL REFERENCES genesis_stage_instances(id) ON DELETE CASCADE,
-    version INTEGER NOT NULL DEFAULT 1,
-    settings JSONB NOT NULL,                         -- 阶段设定数据
-    summary TEXT,                                    -- 变更摘要
-    is_confirmed BOOLEAN NOT NULL DEFAULT FALSE,    -- 是否已确认
-    created_by UUID REFERENCES conversation_sessions(id),  -- 创建会话
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+- 仅在 `genesis_stage_sessions` 建立 FK 关联；`conversation_sessions` 不新增 Genesis 字段
+- 绑定校验：
+  - `conversation_sessions.scope_type` 必须为 `GENESIS`
+  - `conversation_sessions.scope_id` 必须等于 `genesis_flows.novel_id`（防止跨小说绑定）
+- Round 查询（按阶段）：
+  - `SELECT r.* FROM genesis_stage_sessions gss JOIN conversation_rounds r ON r.session_id=gss.session_id WHERE gss.stage_id=$1 ORDER BY r.created_at;`
 
-    UNIQUE(instance_id, version),
-    INDEX idx_stage_settings_confirmed(instance_id, is_confirmed),
-    INDEX idx_stage_settings_version(instance_id, version DESC),
-    INDEX idx_stage_settings_created_by(created_by)
-);
-```
+### 核心用例与时序
 
-#### 5. 阶段转换记录表
+#### 创建创世流程
+1. 用户新建 Genesis 会话或进入创作 → 若无 `genesis_flows(novel_id)` 则创建（`status=IN_PROGRESS`，`current_stage=INITIAL_PROMPT`）
 
-```sql
-CREATE TABLE genesis_stage_transitions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    from_instance_id UUID REFERENCES genesis_stage_instances(id),
-    to_instance_id UUID NOT NULL REFERENCES genesis_stage_instances(id) ON DELETE CASCADE,
-    transition_data JSONB NOT NULL,                 -- 传递的数据
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+#### 进入某阶段并创建会话（可多个）
+1. 插入 `genesis_stage_records(flow_id, stage, status=RUNNING, config=...)`
+2. 通过通用 API 创建 `conversation_session(scope_type=GENESIS, scope_id=novel_id)`
+3. 插入 `genesis_stage_sessions(stage_id, session_id, is_primary=?, session_kind=...)`
+4. 对话消息/命令/回合照旧落库，SSE 事件携带 `correlation_id`，UI 从阶段关联反查
 
-    INDEX idx_transitions_from(from_instance_id),
-    INDEX idx_transitions_to(to_instance_id)
-);
-```
+#### 并行会话
+- 同一 `stage_id` 可绑定多个 `session_id`；`is_primary=true` 的会话作为默认展示源
 
-### 枚举类型定义
-
-```sql
--- 会话状态
-CREATE TYPE session_status AS ENUM (
-    'ACTIVE',
-    'COMPLETED',
-    'ARCHIVED'
-);
-
--- 对话角色
-CREATE TYPE dialogue_role AS ENUM (
-    'USER',
-    'ASSISTANT',
-    'SYSTEM'
-);
-
--- 创世流程状态
-CREATE TYPE genesis_process_status AS ENUM (
-    'IN_PROGRESS',
-    'COMPLETED',
-    'ABANDONED',
-    'PAUSED'
-);
-
--- 创世阶段
-CREATE TYPE genesis_stage AS ENUM (
-    'INITIAL_PROMPT',
-    'WORLDVIEW',
-    'CHARACTERS',
-    'PLOT_OUTLINE',
-    'FINISHED'
-);
-
--- 阶段实例状态
-CREATE TYPE stage_instance_status AS ENUM (
-    'ACTIVE',
-    'COMPLETED',
-    'DEPRECATED',
-    'ABANDONED'
-);
-```
-
-### 数据完整性约束
-
-```sql
--- 确保每个阶段只有一个当前活跃实例
-CREATE UNIQUE INDEX idx_unique_current_stage_instance
-ON genesis_stage_instances(process_id, stage)
-WHERE is_current = true;
-
--- 确保每个阶段实例只有一个确认的设定版本
-CREATE UNIQUE INDEX idx_unique_confirmed_settings
-ON genesis_stage_settings(instance_id)
-WHERE is_confirmed = true;
-
--- 检查阶段转换的合理性
-ALTER TABLE genesis_stage_transitions
-ADD CONSTRAINT check_valid_stage_transition
-CHECK (from_instance_id IS NULL OR from_instance_id != to_instance_id);
-```
+#### 完成阶段
+- 更新 `genesis_stage_records.status=COMPLETED`、写回 `result/metrics`
+- `genesis_flows.current_stage` 推进或 `status=COMPLETED`
+- 将 `genesis_stage_sessions` 置为 `ARCHIVED`（历史复盘仍可读）
 
 ## 服务层设计
 
@@ -363,21 +281,27 @@ from decimal import Decimal
 from typing import Any
 
 class ConversationSession(Base):
-    """通用对话会话（重构版）"""
+    """通用对话会话（重构版，已删除创世特定字段）"""
 
     __tablename__ = "conversation_sessions"
     __table_args__ = (
         Index("idx_conversation_sessions_user", "user_id"),
+        Index("idx_conversation_sessions_scope", "scope_type", "scope_id"),
         Index("idx_conversation_sessions_status", "status"),
         Index("idx_conversation_sessions_updated_at", "updated_at"),
     )
 
     id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    scope_type: Mapped[str] = mapped_column(String(64), nullable=False)  # 会话归属类型
+    scope_id: Mapped[str | None] = mapped_column(String(255))  # 会话归属ID
     title: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(ENUM('ACTIVE', 'COMPLETED', 'ARCHIVED', name='session_status'), default='ACTIVE')
+    round_sequence: Mapped[int] = mapped_column(Integer, default=0)  # 顶层轮次自增编号
     metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    version: Mapped[int] = mapped_column(Integer, default=1)
+    # 已删除字段：stage（移至 genesis_flows.current_stage）
+    # 已删除字段：state（移至 genesis_flows.state）
+    version: Mapped[int] = mapped_column(Integer, default=1)  # 可选：可用 updated_at 替代
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -1731,6 +1655,75 @@ export function StageInstanceCard({
     </div>
   );
 }
+```
+
+## 连带影响处理
+
+### 📋 字段删除的连带影响
+
+#### 1. API 模型与返回值调整
+
+**影响文件**: `apps/backend/src/schemas/novel/dialogue/read.py:103`
+- `SessionResponse` 当前包含 `stage`、`state`、`version` 字段
+- **处理方案**:
+  - 删除 `stage`、`state` 字段
+  - `version` 字段可选保留或改为基于 `updated_at` 的 ETag
+
+#### 2. 阶段相关旧接口移除
+
+**影响文件**: `apps/backend/src/api/routes/v1/conversations/conversations_stages.py`
+- `GET/PUT /sessions/{id}/stage` 基于会话的 `stage`/`version` 字段
+- **处理方案**: 完整移除此文件，改用 Genesis 新接口
+
+#### 3. 仓储与服务层调整
+
+**影响文件**: `apps/backend/src/common/repositories/conversation/session_repository.py`
+- `ConversationSessionRepository.create/update` 包含 `stage`、`state`、`version` 参数
+- **处理方案**:
+  - 删除 `stage`、`state` 相关参数和逻辑
+  - 简化 `version` 的 OCC 逻辑，仅对 `status` 更新使用
+
+**影响文件**: `apps/backend/src/common/services/conversation/conversation_round_creation_service.py:222`
+- 依赖 `round_sequence` 字段生成轮次编号
+- **处理方案**: 保持不变，此字段必须保留
+
+#### 4. 前端类型定义调整
+
+**可能影响**: 前端 TypeScript 类型定义
+- **处理方案**: 同步删除 `stage`、`state` 字段的类型定义
+
+### 🎯 推荐实施方案
+
+#### 方案A：最小改动版（推荐）
+```sql
+-- 删除字段：stage, state
+-- 保留字段：version（继续用于 ETag 和 OCC）
+-- 优点：改动最小，风险最低
+-- 缺点：仍有一定冗余
+```
+
+#### 方案B：彻底简化版
+```sql
+-- 删除字段：stage, state, version
+-- ETag 改用：updated_at.isoformat() 或数据库 xmin
+-- 优点：最简洁，彻底去冗余
+-- 缺点：需要更多连带调整
+```
+
+### 📝 迁移脚本示例
+
+```sql
+-- 删除创世特定字段的迁移脚本
+ALTER TABLE conversation_sessions
+DROP COLUMN IF EXISTS stage,
+DROP COLUMN IF EXISTS state;
+
+-- 可选：删除 version 字段（方案B）
+-- ALTER TABLE conversation_sessions DROP COLUMN IF EXISTS version;
+
+-- 添加缺失的索引
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_scope
+ON conversation_sessions(scope_type, scope_id);
 ```
 
 ## 实施计划
