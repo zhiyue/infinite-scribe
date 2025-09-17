@@ -86,6 +86,15 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
     "factchecker": {"consume": ["genesis.factcheck.tasks"], "produce": ["genesis.factcheck.events"]},
     "rewriter": {"consume": ["genesis.rewriter.tasks"], "produce": ["genesis.rewriter.events"]},
     "worldsmith": {"consume": ["genesis.worldsmith.tasks"], "produce": ["genesis.worldsmith.events"]},
+    # Analysis + Knowledge update pipeline (LLM-powered extractors and projectors)
+    "content_analyzer": {
+        "consume": ["genesis.writer.events"],
+        "produce": ["genesis.analyzer.events"],
+    },
+    "knowledge_updater": {
+        "consume": ["genesis.analyzer.events"],
+        "produce": ["genesis.knowledge.events"],
+    },
 }
 
 # Agent 依赖关系
@@ -100,6 +109,9 @@ AGENT_DEPENDENCIES = {
     "factchecker": ["writer", "worldbuilder", "characterexpert"],
     "rewriter": ["critic", "factchecker"],
     "worldsmith": ["worldbuilder"],
+    # Analyzer -> Updater chain
+    "content_analyzer": ["writer"],
+    "knowledge_updater": ["content_analyzer"],
 }
 
 # Agent 启动优先级(数字越小优先级越高)
@@ -114,6 +126,9 @@ AGENT_PRIORITY = {
     "factchecker": 5,
     "rewriter": 6,
     "worldsmith": 7,
+    # Analyzer/Updater run after writer output is available
+    "content_analyzer": 8,
+    "knowledge_updater": 9,
 }
 
 

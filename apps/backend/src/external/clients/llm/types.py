@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Literal, TypedDict
+from collections.abc import AsyncIterator
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, Field
-
 
 ChatRole = Literal["system", "user", "assistant", "tool"]
 
@@ -68,4 +68,3 @@ class LLMStreamEvent(TypedDict):
 
 # Keep a Protocol-like alias for client stream typing usage in adapters
 AsyncStream = AsyncIterator[LLMStreamEvent]
-

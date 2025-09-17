@@ -19,61 +19,12 @@ from src.schemas.base import ApiResponse
 from src.schemas.novel.dialogue import (
     CommandRequest,
     CommandStatusResponse,
-    DialogueRole,
-    RoundCreateRequest,
-    RoundResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-@router.post(
-    "/sessions/{session_id}/messages",
-    response_model=ApiResponse[RoundResponse],
-    status_code=status.HTTP_201_CREATED,
-)
-async def post_message(
-    session_id: UUID,
-    request: RoundCreateRequest,
-    response: Response,
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
-    current_user: User = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
-) -> ApiResponse[RoundResponse]:
-    # Alias to create_round with role defaulting to 'user' if not provided
-    if not request.role:
-        request.role = DialogueRole.USER
-    corr_id = get_or_create_correlation_id(request.correlation_id or x_correlation_id)
-    result = await conversation_service.create_round(
-        db,
-        current_user.id,
-        session_id,
-        role=request.role,
-        input_data=request.input,
-        model=request.model,
-        correlation_id=corr_id,
-    )
-    if not result.get("success"):
-        code = result.get("code", 422)
-        raise HTTPException(status_code=code, detail=result.get("error", "Failed to create round"))
-
-    # Use serialized_round instead of ORM object to get properly formatted data
-    r = result["serialized_round"]
-    data = RoundResponse(
-        session_id=UUID(r["session_id"]),
-        round_path=r["round_path"],
-        role=DialogueRole(r["role"]),
-        input=r["input"],
-        output=r["output"],
-        model=r["model"],
-        correlation_id=r["correlation_id"],
-        created_at=r["created_at"],
-    )
-    set_common_headers(response, correlation_id=corr_id)
-    return ApiResponse(code=0, msg="发送消息成功", data=data)
 
 
 @router.post(
