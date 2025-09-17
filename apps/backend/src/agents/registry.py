@@ -5,8 +5,8 @@ Prefer using registry over pure reflection for reliability.
 
 from __future__ import annotations
 
-from .agent_config import canonicalize_agent_id
-from .base import BaseAgent
+from src.agents.agent_config import canonicalize_agent_id
+from src.agents.base import BaseAgent
 
 _REGISTRY: dict[str, type[BaseAgent]] = {}
 

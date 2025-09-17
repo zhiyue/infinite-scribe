@@ -20,14 +20,13 @@ from sqlalchemy import and_, select
 
 from src.agents.agent_config import get_agent_topics
 from src.agents.base import BaseAgent
+from src.agents.orchestrator.command_strategies import command_registry
+from src.agents.orchestrator.event_handlers import CapabilityEventHandlers
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.db.sql.session import create_sql_session
 from src.models.event import DomainEvent
 from src.models.workflow import AsyncTask, EventOutbox
 from src.schemas.enums import OutboxStatus, TaskStatus
-
-from .command_strategies import command_registry
-from .event_handlers import CapabilityEventHandlers
 
 
 class OrchestratorAgent(BaseAgent):

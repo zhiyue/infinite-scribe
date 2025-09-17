@@ -8,9 +8,9 @@ from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
 
-from ..core.logging.config import get_logger
-from .errors import NonRetriableError
-from .metrics import inc_dlt, inc_error
+from src.agents.errors import NonRetriableError
+from src.agents.metrics import inc_dlt, inc_error
+from src.core.logging.config import get_logger
 
 
 class ErrorHandler:

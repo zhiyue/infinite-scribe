@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
-from .message_factory import MessageFactory
+from src.agents.orchestrator.message_factory import MessageFactory
 
 
 class EventAction(NamedTuple):

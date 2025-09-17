@@ -6,7 +6,7 @@ from typing import Any
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import OffsetAndMetadata, TopicPartition
 
-from ..core.logging.config import get_logger
+from src.core.logging.config import get_logger
 
 
 class OffsetManager:

@@ -8,8 +8,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
-from ..agents.base import BaseAgent
-from .agent_config import (
+from src.agents.agent_config import (
     AGENT_PRIORITY,
     AGENT_TOPICS,
     canonicalize_agent_id,
@@ -17,7 +16,8 @@ from .agent_config import (
     to_config_key,
     validate_agent_config,
 )
-from .registry import get_registered_agent
+from src.agents.base import BaseAgent
+from src.agents.registry import get_registered_agent
 
 
 class AgentsLoadError(Exception):

@@ -7,11 +7,11 @@ from typing import Any, Literal, cast
 
 from aiokafka.errors import KafkaError
 
-from ..core.logging.config import get_logger
-from .agent_metrics import AgentMetrics
-from .error_handler import ErrorHandler
-from .message import decode_message, encode_message
-from .metrics import record_latency
+from src.agents.agent_metrics import AgentMetrics
+from src.agents.error_handler import ErrorHandler
+from src.agents.message import decode_message, encode_message
+from src.agents.metrics import record_latency
+from src.core.logging.config import get_logger
 
 
 class MessageProcessor:

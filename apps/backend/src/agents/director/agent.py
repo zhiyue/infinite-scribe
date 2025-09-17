@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from ..agent_config import get_agent_topics
-from ..base import BaseAgent
+from src.agents.agent_config import get_agent_topics
+from src.agents.base import BaseAgent
 
 
 class DirectorAgent(BaseAgent):

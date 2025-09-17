@@ -4,13 +4,13 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
-from ..core.config import settings
-from ..core.kafka.client import KafkaClientManager
-from ..core.logging.config import get_logger
-from .agent_metrics import AgentMetrics
-from .error_handler import ErrorHandler
-from .message_processor import MessageProcessor
-from .offset_manager import OffsetManager
+from src.agents.agent_metrics import AgentMetrics
+from src.agents.error_handler import ErrorHandler
+from src.agents.message_processor import MessageProcessor
+from src.agents.offset_manager import OffsetManager
+from src.core.config import settings
+from src.core.kafka.client import KafkaClientManager
+from src.core.logging.config import get_logger
 
 
 class BaseAgent(ABC):

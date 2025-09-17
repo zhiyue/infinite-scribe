@@ -1,15 +1,15 @@
 """Writer Agent 实现"""
 
-from typing import Any
+from typing import Any, Literal
 
-from ...external.clients.errors import ServiceAuthenticationError
-from ...external.clients.llm import ChatMessage, LLMRequest
-from ...services.llm import LLMService, LLMServiceFactory
-from ...services.llm.context_builder import PreContextBuilder
-from ..agent_config import get_agent_topics
-from ..base import BaseAgent
-from ..errors import NonRetriableError
-from .tools import get_writer_tool_specs
+from src.agents.agent_config import get_agent_topics
+from src.agents.base import BaseAgent
+from src.agents.errors import NonRetriableError
+from src.agents.writer.tools import get_writer_tool_specs
+from src.external.clients.errors import ServiceAuthenticationError
+from src.external.clients.llm import ChatMessage, LLMRequest
+from src.services.llm import LLMService, LLMServiceFactory
+from src.services.llm.context_builder import PreContextBuilder
 
 
 class WriterAgent(BaseAgent):
@@ -152,6 +152,7 @@ class WriterAgent(BaseAgent):
         pre = await PreContextBuilder.build_for_writer(user_prompt)
         system = ChatMessage(role="system", content=PreContextBuilder.as_system_context(pre))
         import json as _json
+
         user = ChatMessage(role="user", content=_json.dumps(user_prompt, ensure_ascii=False))
         model = self.config.llm.default_model or "gpt-4o-mini"
 

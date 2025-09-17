@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useGenesisSession } from '@/hooks/useGenesisSession'
-import { useSetStage } from '@/hooks/useConversations'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
 import { useState } from 'react'
@@ -24,7 +23,7 @@ export default function GenesisPage() {
   const { id: novelId } = useParams<{ id: string }>()
   const [showConflictDialog, setShowConflictDialog] = useState(false)
 
-  // 使用智能会话管理hook
+  // 使用新的Genesis会话管理hook
   const {
     sessionId,
     session,
@@ -35,50 +34,27 @@ export default function GenesisPage() {
     hasActiveSessionConflict,
     isReady,
     initializeSession,
-    updateStage,
-    loadExistingSession,
-    clearConflict,
+    switchToStage,
+    clearError,
+    flowStatus,
+    hasFlow,
   } = useGenesisSession({
     novelId: novelId || '',
-    onSessionReady: (session) => {
-      console.log('[GenesisPage] Session ready:', session.id)
+    onSessionReady: (sessionId, stageId) => {
+      console.log('[GenesisPage] Session ready:', sessionId, 'Stage:', stageId)
     },
     onError: (error) => {
       console.error('[GenesisPage] Session error:', error)
     },
-    onConflictDetected: () => {
-      setShowConflictDialog(true)
-    },
-  })
-
-  // 阶段更新 API
-  const setStage = useSetStage(sessionId || '', {
-    onSuccess: (data) => {
-      console.log('[GenesisPage] Stage updated successfully:', data)
-      // 更新本地状态以保持同步
-      updateStage(data.stage as GenesisStage)
-    },
-    onError: (error) => {
-      console.error('[GenesisPage] Failed to update stage:', error)
-      // TODO: 显示错误提示给用户
+    onFlowReady: (flow) => {
+      console.log('[GenesisPage] Flow ready:', flow)
     },
   })
 
   // 处理阶段变化（手动切换）
   const handleStageChange = (stage: GenesisStage) => {
-    if (sessionId) {
-      // 调用 API 更新阶段
-      setStage.mutate({
-        stage: stage,
-        metadata: {
-          source: 'manual_navigation',
-          timestamp: new Date().toISOString(),
-        },
-      })
-    } else {
-      // 如果没有会话，只更新本地状态
-      updateStage(stage)
-    }
+    console.log('[GenesisPage] Switching to stage:', stage)
+    switchToStage(stage)
   }
 
   // 处理阶段完成（点击"确认并进入下一阶段"按钮）
@@ -86,55 +62,17 @@ export default function GenesisPage() {
     const stages = Object.values(GenesisStage)
     const currentIndex = stages.indexOf(currentStage)
 
-    if (currentIndex < stages.length - 1 && sessionId) {
+    if (currentIndex < stages.length - 1) {
       const nextStage = stages[currentIndex + 1]
-
-      // 调用 API 更新到下一阶段
-      setStage.mutate({
-        stage: nextStage,
-        metadata: {
-          source: 'stage_completion',
-          previous_stage: currentStage,
-          timestamp: new Date().toISOString(),
-        },
-      })
+      console.log('[GenesisPage] Completing stage, moving to:', nextStage)
+      switchToStage(nextStage)
     }
-  }
-
-  // 处理冲突对话框 - 继续现有会话
-  const handleContinueExisting = () => {
-    setShowConflictDialog(false)
-    clearConflict()
-
-    // TODO: 实际应该调用API查找现有活跃会话，这里使用mock数据
-    const mockExistingSession = {
-      id: `mock-session-${novelId}`,
-      scope_type: 'GENESIS' as const,
-      scope_id: novelId || '',
-      status: 'ACTIVE' as const,
-      stage: 'WORLD_BUILDING',
-      state: {
-        novel_id: novelId,
-        current_stage: 'WORLD_BUILDING',
-        progress: {
-          INITIAL_PROMPT: { completed: true },
-          WORLD_BUILDING: { completed: false },
-        },
-      },
-      version: 2,
-      created_at: new Date(Date.now() - 86400000).toISOString(), // 1天前
-      updated_at: new Date(Date.now() - 3600000).toISOString(), // 1小时前
-      novel_id: null,
-    }
-
-    console.log('[GenesisPage] Loading existing session (mock):', mockExistingSession.id)
-    loadExistingSession(mockExistingSession)
   }
 
   // 处理关闭冲突对话框
   const handleCloseConflict = () => {
     setShowConflictDialog(false)
-    clearConflict()
+    clearError()
   }
 
   // 如果没有会话，显示创建会话界面
@@ -201,7 +139,7 @@ export default function GenesisPage() {
         <GenesisConflictDialog
           open={showConflictDialog}
           onClose={handleCloseConflict}
-          onContinueExisting={handleContinueExisting}
+          onContinueExisting={handleCloseConflict}
           isProcessing={isCreating}
         />
       </>
@@ -245,7 +183,7 @@ export default function GenesisPage() {
             sessionId={sessionId || ''}
             novelId={novelId || ''}
             onComplete={handleStageComplete}
-            isStageChanging={setStage.isPending}
+            isStageChanging={isLoading}
           />
         </div>
 

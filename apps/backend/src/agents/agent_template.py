@@ -10,8 +10,8 @@
 import logging
 from typing import Any
 
-from ..base import BaseAgent
-from ..errors import NonRetriableError  # noqa: F401 - 示例用途
+from src.agents.base import BaseAgent
+from src.agents.errors import NonRetriableError  # noqa: F401 - 示例用途
 
 logger = logging.getLogger(__name__)
 

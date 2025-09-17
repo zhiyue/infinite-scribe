@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ..registry import register_agent
-from .agent import OrchestratorAgent
+from src.agents.orchestrator.agent import OrchestratorAgent
+from src.agents.registry import register_agent
 
 register_agent("orchestrator", OrchestratorAgent)
 

@@ -1,49 +1,103 @@
 /**
  * Genesis会话管理Hook
- * 智能处理会话创建和复用逻辑，包括409冲突处理
+ * 整合Genesis Flow和Stage Session管理，提供统一的Genesis会话接口
  */
 
-import { conversationsService } from '@/services/conversationsService'
-import type { CreateSessionRequest, SessionResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
 import { useCallback, useEffect, useState } from 'react'
-import { useCreateSession, useSession } from './useConversations'
+import { useSession } from './useConversations'
+import { useGenesisFlow } from './useGenesisFlow'
+import { useGenesisStageSession } from './useGenesisStageSession'
 
 interface UseGenesisSessionOptions {
   novelId: string
-  onSessionReady?: (session: SessionResponse) => void
+  onSessionReady?: (sessionId: string, stageId?: string) => void
   onError?: (error: Error) => void
-  onConflictDetected?: () => void
+  onFlowReady?: (flow: any) => void
 }
 
 interface GenesisSessionState {
   sessionId: string | null
-  session: SessionResponse | null
+  stageId: string | null
   isLoading: boolean
   isCreating: boolean
   error: Error | null
   currentStage: GenesisStage
-  hasActiveSessionConflict: boolean
 }
 
 /**
  * Genesis会话管理Hook
- * 自动处理会话创建、复用和409冲突情况
+ * 整合Genesis Flow和Stage Session管理，提供统一的会话接口
  */
 export function useGenesisSession({
   novelId,
   onSessionReady,
   onError,
-  onConflictDetected,
+  onFlowReady,
 }: UseGenesisSessionOptions) {
   const [state, setState] = useState<GenesisSessionState>({
     sessionId: null,
-    session: null,
+    stageId: null,
     isLoading: false,
     isCreating: false,
     error: null,
     currentStage: GenesisStage.INITIAL_PROMPT,
-    hasActiveSessionConflict: false,
+  })
+
+  // Genesis流程管理
+  const {
+    flow,
+    isLoading: flowLoading,
+    error: flowError,
+    initializeFlow,
+    switchStage,
+    isCreating: isCreatingFlow,
+    currentStage: flowCurrentStage,
+  } = useGenesisFlow(novelId, {
+    onFlowReady: (flow) => {
+      console.log('[useGenesisSession] Flow ready:', flow.id)
+      onFlowReady?.(flow)
+
+      // 假设我们需要从当前阶段中获取stageId
+      // 这里需要根据实际的API设计来确定如何获取stageId
+      // 暂时使用flow的当前阶段来构造stageId
+      const stageId = `${flow.id}-${flow.current_stage || GenesisStage.INITIAL_PROMPT}`
+      setState((prev) => ({
+        ...prev,
+        stageId,
+        currentStage: (flow.current_stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
+      }))
+    },
+    onStageChanged: (flow) => {
+      console.log('[useGenesisSession] Stage changed:', flow.current_stage)
+      setState((prev) => ({
+        ...prev,
+        currentStage: (flow.current_stage as GenesisStage) || prev.currentStage,
+      }))
+    },
+    onError: (error) => {
+      setState((prev) => ({ ...prev, error }))
+      onError?.(error)
+    },
+  })
+
+  // 阶段会话管理
+  const {
+    primarySessionId,
+    stageSessions,
+    isLoading: stageSessionLoading,
+    createAndBindSession,
+    isCreatingSession,
+  } = useGenesisStageSession(state.stageId, novelId, {
+    onSessionCreated: (sessionId, stageSession) => {
+      console.log('[useGenesisSession] Session created and bound:', sessionId)
+      setState((prev) => ({ ...prev, sessionId, isCreating: false, error: null }))
+      onSessionReady?.(sessionId, state.stageId || undefined)
+    },
+    onError: (error) => {
+      setState((prev) => ({ ...prev, error, isCreating: false }))
+      onError?.(error)
+    },
   })
 
   // 获取会话详情
@@ -51,115 +105,10 @@ export function useGenesisSession({
     enabled: !!state.sessionId,
   })
 
-  // 创建会话mutation
-  const createSession = useCreateSession({
-    onSuccess: (data) => {
-      console.log('[useGenesisSession] Session created successfully:', data.id)
-      setState((prev) => ({
-        ...prev,
-        sessionId: data.id,
-        session: data,
-        isCreating: false,
-        error: null,
-        currentStage: (data.stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
-      }))
-      onSessionReady?.(data)
-    },
-    onError: async (error) => {
-      console.error('[useGenesisSession] Session creation failed:', error)
-
-      // 如果是409冲突，尝试获取现有会话信息
-      if (error.message?.includes('409') || error.message?.includes('已存在活跃的创世阶段会话')) {
-        console.log(
-          '[useGenesisSession] Active session conflict detected, attempting to fetch existing session...',
-        )
-
-        try {
-          // 尝试获取活跃session信息
-          const existingSessions = await conversationsService.listSessions({
-            scope_type: 'GENESIS',
-            scope_id: novelId,
-            status: 'ACTIVE',
-            limit: 1,
-          })
-
-          if (existingSessions.length > 0) {
-            const activeSession = existingSessions[0]
-            setState((prev) => ({
-              ...prev,
-              isCreating: false,
-              hasActiveSessionConflict: true,
-              error: new Error(
-                `已存在活跃的创世会话：${activeSession.id}，阶段：${activeSession.stage || '未设置'}。请选择继续使用现有会话或删除后重新创建。`,
-              ),
-            }))
-          } else {
-            setState((prev) => ({
-              ...prev,
-              isCreating: false,
-              hasActiveSessionConflict: true,
-              error: new Error('已存在活跃的创世会话，请选择继续使用现有会话或创建新会话'),
-            }))
-          }
-        } catch (fetchError) {
-          console.error('[useGenesisSession] Failed to fetch existing session details:', fetchError)
-          setState((prev) => ({
-            ...prev,
-            isCreating: false,
-            hasActiveSessionConflict: true,
-            error: new Error('已存在活跃的创世会话，请刷新页面重试'),
-          }))
-        }
-
-        onConflictDetected?.()
-      } else {
-        setState((prev) => ({
-          ...prev,
-          isCreating: false,
-          error: error,
-        }))
-        onError?.(error)
-      }
-    },
-  })
-
   /**
-   * 加载现有会话（用于继续现有会话）
-   */
-  const loadExistingSession = useCallback(
-    (session: SessionResponse) => {
-      console.log('[useGenesisSession] Loading existing session:', session.id)
-
-      setState((prev) => ({
-        ...prev,
-        sessionId: session.id,
-        session: session,
-        currentStage: (session.stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
-        hasActiveSessionConflict: false,
-        error: null,
-        isCreating: false,
-        isLoading: false,
-      }))
-
-      onSessionReady?.(session)
-    },
-    [onSessionReady],
-  )
-
-  /**
-   * 清除冲突状态，允许用户选择其他操作
-   */
-  const clearConflict = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      hasActiveSessionConflict: false,
-      error: null,
-    }))
-  }, [])
-
-  /**
-   * 初始化或创建Genesis会话
-   * 智能逻辑：先查询活跃session，存在则复用，不存在才创建
+   * 初始化Genesis会话
+   * 1. 确保流程存在
+   * 2. 为当前阶段创建会话（如果没有主要会话）
    */
   const initializeSession = useCallback(async () => {
     if (!novelId) {
@@ -167,62 +116,65 @@ export function useGenesisSession({
       return
     }
 
-    console.log('[useGenesisSession] Initializing session for novel:', novelId)
-
+    console.log('[useGenesisSession] Initializing Genesis session for novel:', novelId)
     setState((prev) => ({ ...prev, isCreating: true, error: null }))
 
     try {
-      // 1. 先查询活跃的session
-      console.log('[useGenesisSession] Checking for existing active sessions...')
-      const existingSessions = await conversationsService.listSessions({
-        scope_type: 'GENESIS',
-        scope_id: novelId,
-        status: 'ACTIVE',
-        limit: 1,
-      })
-
-      // 2. 如果找到活跃session，直接复用
-      if (existingSessions.length > 0) {
-        const activeSession = existingSessions[0]
-        console.log('[useGenesisSession] Found existing active session:', activeSession.id)
-
-        setState((prev) => ({
-          ...prev,
-          sessionId: activeSession.id,
-          session: activeSession,
-          isCreating: false,
-          error: null,
-          currentStage: (activeSession.stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
-          hasActiveSessionConflict: false,
-        }))
-
-        onSessionReady?.(activeSession)
-        return
+      // 1. 确保流程存在
+      if (!flow) {
+        await initializeFlow()
+        return // 等待flow创建完成后，会触发onFlowReady
       }
 
-      // 3. 没有找到活跃session，创建新的
-      console.log('[useGenesisSession] No active session found, creating new session...')
-      const request: CreateSessionRequest = {
-        scope_type: 'GENESIS',
-        scope_id: novelId,
-        stage: GenesisStage.INITIAL_PROMPT,
-        initial_state: {
-          novel_id: novelId,
-          current_stage: GenesisStage.INITIAL_PROMPT,
-        },
+      // 2. 检查当前阶段是否有主要会话
+      if (state.stageId && !primarySessionId) {
+        createAndBindSession({
+          stage: state.currentStage,
+          is_primary: true,
+          session_kind: 'user_interaction',
+        })
+      } else if (primarySessionId) {
+        // 已有主要会话，直接使用
+        setState((prev) => ({ ...prev, sessionId: primarySessionId, isCreating: false }))
+        onSessionReady?.(primarySessionId, state.stageId || undefined)
       }
-
-      createSession.mutate(request)
     } catch (error) {
-      console.error('[useGenesisSession] Failed to check existing sessions:', error)
-      setState((prev) => ({
-        ...prev,
-        isCreating: false,
-        error: error as Error,
-      }))
+      console.error('[useGenesisSession] Failed to initialize session:', error)
+      setState((prev) => ({ ...prev, error: error as Error, isCreating: false }))
       onError?.(error as Error)
     }
-  }, [novelId, createSession, onSessionReady, onError])
+  }, [
+    novelId,
+    flow,
+    initializeFlow,
+    state.stageId,
+    state.currentStage,
+    primarySessionId,
+    createAndBindSession,
+    onSessionReady,
+    onError,
+  ])
+
+  /**
+   * 切换到新阶段
+   */
+  const switchToStage = useCallback(
+    async (targetStage: GenesisStage) => {
+      console.log('[useGenesisSession] Switching to stage:', targetStage)
+
+      try {
+        // 切换流程阶段
+        await switchStage(targetStage)
+
+        // 状态更新会在onStageChanged回调中处理
+      } catch (error) {
+        console.error('[useGenesisSession] Failed to switch stage:', error)
+        setState((prev) => ({ ...prev, error: error as Error }))
+        onError?.(error as Error)
+      }
+    },
+    [switchStage, onError],
+  )
 
   /**
    * 重置会话状态
@@ -230,51 +182,71 @@ export function useGenesisSession({
   const resetSession = useCallback(() => {
     setState({
       sessionId: null,
-      session: null,
+      stageId: null,
       isLoading: false,
       isCreating: false,
       error: null,
       currentStage: GenesisStage.INITIAL_PROMPT,
-      hasActiveSessionConflict: false,
     })
   }, [])
 
   /**
-   * 更新当前阶段
+   * 清除错误状态
    */
-  const updateStage = useCallback((stage: GenesisStage) => {
-    setState((prev) => ({ ...prev, currentStage: stage }))
+  const clearError = useCallback(() => {
+    setState((prev) => ({ ...prev, error: null, hasActiveSessionConflict: false }))
   }, [])
 
-  // 当会话数据更新时，同步到状态
+  // 更新组合状态
   useEffect(() => {
-    if (sessionData && sessionData.id === state.sessionId) {
-      setState((prev) => ({
-        ...prev,
-        session: sessionData,
-        currentStage: (sessionData.stage as GenesisStage) || prev.currentStage,
-      }))
-    }
-  }, [sessionData, state.sessionId])
+    const combinedLoading =
+      flowLoading || stageSessionLoading || sessionLoading || isCreatingFlow || isCreatingSession
+    const combinedError = flowError || state.error
 
-  // 更新加载状态
+    setState((prev) => ({
+      ...prev,
+      isLoading: combinedLoading,
+      error: combinedError,
+    }))
+  }, [
+    flowLoading,
+    stageSessionLoading,
+    sessionLoading,
+    isCreatingFlow,
+    isCreatingSession,
+    flowError,
+    state.error,
+  ])
+
+  // 当主要会话变化时，更新状态
   useEffect(() => {
-    setState((prev) => ({ ...prev, isLoading: sessionLoading }))
-  }, [sessionLoading])
+    if (primarySessionId && primarySessionId !== state.sessionId) {
+      setState((prev) => ({ ...prev, sessionId: primarySessionId }))
+      onSessionReady?.(primarySessionId, state.stageId || undefined)
+    }
+  }, [primarySessionId, state.sessionId, state.stageId, onSessionReady])
 
   return {
     // 状态
     ...state,
-    isReady: !!(state.sessionId && state.session && !state.isLoading),
+    isReady: !!(flow && state.sessionId && !state.isLoading),
+    hasFlow: !!flow,
+    flowStatus: flow?.status,
+    session: sessionData,
+
+    // 阶段会话信息
+    primarySessionId,
+    stageSessions,
+    hasStageSession: !!primarySessionId,
 
     // 操作
     initializeSession,
     resetSession,
-    updateStage,
-    loadExistingSession,
-    clearConflict,
+    switchToStage,
+    clearError,
 
-    // 会话操作
-    createSession,
+    // 兼容性方法（与旧版本保持一致）
+    updateStage: switchToStage,
+    clearConflict: clearError,
   }
 }
