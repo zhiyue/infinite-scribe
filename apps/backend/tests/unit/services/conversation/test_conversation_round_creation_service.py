@@ -42,7 +42,6 @@ def service_dependencies():
     cache = AsyncMock()
     access_control = AsyncMock()
     serializer = Mock()
-    event_handler = AsyncMock()
     repository = AsyncMock()
 
     session = Mock(spec=ConversationSession)
@@ -63,7 +62,6 @@ def service_dependencies():
         "cache": cache,
         "access_control": access_control,
         "serializer": serializer,
-        "event_handler": event_handler,
         "repository": repository,
         "session": session,
         "round_obj": round_obj,
@@ -84,7 +82,6 @@ async def test_create_round_uses_repository_factory(mock_db, service_dependencie
         cache=deps["cache"],
         access_control=deps["access_control"],
         serializer=deps["serializer"],
-        event_handler=deps["event_handler"],
         repository_factory=lambda _db: repository,
     )
 
@@ -108,7 +105,6 @@ async def test_create_round_uses_repository_factory(mock_db, service_dependencie
         model="model-x",
         correlation_id=None,
     )
-    deps["event_handler"].create_round_support_events.assert_awaited_once()
     deps["cache"].cache_round.assert_awaited_once_with(
         str(deps["session"].id),
         "1",
@@ -130,7 +126,6 @@ async def test_create_branch_round_generates_child_path(mock_db, service_depende
         cache=deps["cache"],
         access_control=deps["access_control"],
         serializer=deps["serializer"],
-        event_handler=deps["event_handler"],
         repository_factory=lambda _db: repository,
     )
 

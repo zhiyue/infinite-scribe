@@ -45,13 +45,14 @@ def mock_serializer() -> Mock:
     return serializer
 
 
-@pytest.fixture
-def mock_event_handler() -> AsyncMock:
-    """Event handler mock for ensuring support events."""
-    handler = AsyncMock()
-    handler.create_round_support_events = AsyncMock()
-    handler.ensure_round_events = AsyncMock()
-    return handler
+# Event handler no longer used in round creation
+# @pytest.fixture
+# def mock_event_handler() -> AsyncMock:
+#     """Event handler mock for ensuring support events."""
+#     handler = AsyncMock()
+#     handler.create_round_support_events = AsyncMock()
+#     handler.ensure_round_events = AsyncMock()
+#     return handler
 
 
 @pytest.fixture
@@ -70,7 +71,6 @@ def round_service(
     mock_cache: AsyncMock,
     mock_access_control: AsyncMock,
     mock_serializer: Mock,
-    mock_event_handler: AsyncMock,
     mock_repository: AsyncMock,
 ) -> ConversationRoundService:
     """Create ConversationRoundService with injected dependencies."""
@@ -78,7 +78,6 @@ def round_service(
         cache=mock_cache,
         access_control=mock_access_control,
         serializer=mock_serializer,
-        event_handler=mock_event_handler,
         repository=mock_repository,
     )
 
@@ -214,7 +213,6 @@ async def test_create_round_success_new(
     round_service: ConversationRoundService,
     mock_db: AsyncMock,
     mock_access_control: AsyncMock,
-    mock_event_handler: AsyncMock,
     mock_cache: AsyncMock,
     mock_serializer: Mock,
     mock_repository: AsyncMock,
@@ -261,7 +259,6 @@ async def test_create_round_success_new(
     assert args[0] == session_id
     assert args[1] == UUID(correlation_id)
     mock_repository.create.assert_awaited_once()
-    mock_event_handler.create_round_support_events.assert_awaited_once()
     mock_cache.cache_round.assert_awaited_once_with(str(session_id), "3", serialized)
 
 
@@ -270,7 +267,6 @@ async def test_create_round_idempotent_replay(
     round_service: ConversationRoundService,
     mock_db: AsyncMock,
     mock_access_control: AsyncMock,
-    mock_event_handler: AsyncMock,
     mock_cache: AsyncMock,
     mock_serializer: Mock,
     mock_repository: AsyncMock,
@@ -308,7 +304,6 @@ async def test_create_round_idempotent_replay(
     assert result["serialized_round"] == serialized
     mock_repository.find_by_correlation_id.assert_awaited_once()
     mock_repository.create.assert_not_awaited()
-    mock_event_handler.ensure_round_events.assert_awaited_once()
     mock_cache.cache_round.assert_awaited_once_with(str(session_id), "2", serialized)
 
 

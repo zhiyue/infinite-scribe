@@ -68,9 +68,9 @@ class ConversationRoundService:
         if creation_service is not None:
             self.creation_service = creation_service
         else:
-            # Create creation service with shared dependencies
+            # Create creation service with shared dependencies (no event_handler needed)
             self.creation_service = ConversationRoundCreationService(
-                self.cache, self.access_control, self.serializer, self.event_handler, repository
+                self.cache, self.access_control, self.serializer, repository
             )
 
     async def list_rounds(
