@@ -28,4 +28,25 @@
 - `knowledge_updater` 消费 `genesis.analyzer.events` 并并行更新 Neo4j/Milvus；
 - 新话题映射集中于 `agent_config.py`。
 **Tests**: 手动通过 Launcher 仅加载新 Agents，向 `genesis.writer.events` 投递模拟 `chapter_written`，观察产出事件与日志。
+**Status**: Complete
+
+## Stage 5: 加强 Stage Session 路由归属校验
+
+**Goal**: 在 stage session 创建与查询接口中增加小说/阶段归属校验，防止跨用户访问。
+**Success Criteria**: 非归属用户访问返回 404/403；请求体不再信任外部 `novel_id`；接口仍能为合法用户创建/列出记录。
+**Tests**: 现有集成测试 + 新增越权场景测试。
 **Status**: In Progress
+
+## Stage 6: 补充越权与数据串联测试
+
+**Goal**: 为 stage session 路由新增覆盖越权访问与 novel_id 伪造的测试用例。
+**Success Criteria**: 新测试在未修复版本失败，在修复后通过；同时回归已有场景。
+**Tests**: `pnpm backend test --filter genesis stage session routes`（或对应 pytest 选择器）。
+**Status**: Complete
+
+## Stage 7: 回归验证与文档更新
+
+**Goal**: 运行受影响测试套件并确认实现与计划一致，必要时更新文档。
+**Success Criteria**: 所有相关测试通过；PLAN 状态更新；无额外文档缺口。
+**Tests**: `pnpm backend test apps/backend/tests/integration/api/genesis/test_genesis_stage_session_routes.py`。
+**Status**: Complete

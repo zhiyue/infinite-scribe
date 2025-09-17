@@ -11,7 +11,6 @@ from src.schemas.enums import StageSessionStatus
 class CreateStageSessionRequest(BaseModel):
     """Request schema for creating a stage session association."""
 
-    stage_id: UUID = Field(..., description="Stage record ID")
     session_id: UUID | None = Field(default=None, description="Existing session ID to bind (optional)")
     novel_id: UUID = Field(..., description="Novel ID for scope validation")
     is_primary: bool = Field(default=False, description="Whether this should be the primary session")

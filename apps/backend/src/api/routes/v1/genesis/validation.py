@@ -3,11 +3,13 @@
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.services.content.novel_service import NovelService
-from src.common.services.genesis.flow.genesis_flow_service import GenesisFlowService
 from src.common.services.genesis.stage.genesis_stage_service import GenesisStageService
+from src.models.genesis_flows import GenesisFlow, GenesisStageRecord
+from src.models.novel import Novel
 from src.models.user import User
 
 
@@ -30,19 +32,28 @@ async def validate_stage_ownership(
     stage_id: UUID,
     user: User,
     stage_service: GenesisStageService,
-    flow_service: GenesisFlowService,
     novel_service: NovelService,
-) -> None:
-    """Validate that the user owns the novel associated with the specified stage."""
-    # Get the stage to find its flow_id
+) -> UUID:
+    """Validate stage ownership and return the backing novel ID."""
     stage = await stage_service.get_stage_by_id(stage_id)
     if not stage:
         raise HTTPException(status_code=404, detail="Genesis stage not found")
 
-    # Get the flow to find its novel_id
-    flow = await flow_service.get_flow_by_id(stage.flow_id)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Genesis flow not found")
+    ownership_query = (
+        select(GenesisFlow.novel_id)
+        .select_from(GenesisStageRecord)
+        .join(GenesisFlow, GenesisStageRecord.flow_id == GenesisFlow.id)
+        .join(Novel, Novel.id == GenesisFlow.novel_id)
+        .where(GenesisStageRecord.id == stage_id, Novel.user_id == user.id)
+    )
 
-    # Validate novel ownership
-    await validate_novel_ownership(flow.novel_id, user, novel_service, flow_service.db_session)
+    result = await stage_service.db_session.execute(ownership_query)
+    novel_id = result.scalar_one_or_none()
+
+    if novel_id is None:
+        raise HTTPException(status_code=404, detail="Novel not found or you don't have permission to access it")
+
+    # Additional validation through service layer (ensures consistent error contracts)
+    await validate_novel_ownership(novel_id, user, novel_service, stage_service.db_session)
+
+    return novel_id

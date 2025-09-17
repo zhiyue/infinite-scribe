@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class AdvanceStageRequest(BaseModel):
-    """阶段推进请求"""
+class SwitchStageRequest(BaseModel):
+    """阶段切换请求"""
 
     target_stage: GenesisStage
 
@@ -148,23 +148,23 @@ async def get_flow_by_novel(
 
 
 @router.post(
-    "/flows/{novel_id}/advance-stage",
+    "/flows/{novel_id}/switch-stage",
     response_model=ApiResponse[FlowResponse],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def advance_flow_stage(
+async def switch_flow_stage(
     novel_id: UUID,
-    request: AdvanceStageRequest,
+    request: SwitchStageRequest,
     response: Response,
     current_user: User = Depends(require_auth),
     x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     flow_service: GenesisFlowService = Depends(get_flow_service),
     novel_service: NovelService = Depends(get_novel_service),
 ) -> ApiResponse[FlowResponse]:
-    """Advance flow to the next stage - direct synchronous operation."""
+    """Switch flow to target stage - supports forward/backward/jump navigation."""
     try:
         corr_id = get_or_create_correlation_id(x_correlation_id)
-        logger.info(f"Advancing Genesis flow for novel {novel_id} to stage {request.target_stage}")
+        logger.info(f"Switching Genesis flow for novel {novel_id} to stage {request.target_stage}")
 
         # Validate novel ownership
         await validate_novel_ownership(novel_id, current_user, novel_service, flow_service.db_session)
@@ -174,7 +174,7 @@ async def advance_flow_stage(
         if not flow:
             raise HTTPException(status_code=404, detail="Genesis flow not found for this novel")
 
-        # Advance to target stage (this will also create stage record automatically)
+        # Switch to target stage (supports forward/backward/jump navigation)
         updated_flow = await flow_service.advance_stage(
             flow_id=flow.id,
             next_stage=request.target_stage,
@@ -182,7 +182,7 @@ async def advance_flow_stage(
 
         if not updated_flow:
             raise HTTPException(
-                status_code=409, detail="Failed to advance stage - invalid transition or flow not found"
+                status_code=409, detail="Failed to switch stage - invalid stage or flow not found"
             )
 
         # Commit transaction
@@ -190,14 +190,14 @@ async def advance_flow_stage(
 
         data = FlowResponse.model_validate(updated_flow)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
-        return ApiResponse(code=0, msg="Genesis flow stage advanced successfully", data=data)
+        return ApiResponse(code=0, msg="Genesis flow stage switched successfully", data=data)
 
     except HTTPException:
         raise
     except Exception as e:
         await flow_service.db_session.rollback()
-        logger.exception(f"Unexpected error in advance_flow_stage endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to advance Genesis flow stage") from None
+        logger.exception(f"Unexpected error in switch_flow_stage endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to switch Genesis flow stage") from None
 
 
 @router.post(

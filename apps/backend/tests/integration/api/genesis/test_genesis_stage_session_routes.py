@@ -14,9 +14,10 @@ class TestGenesisStageSessionRoutes:
     @pytest.fixture
     async def test_flow(self, pg_session, test_novel):
         """Create a test Genesis flow for stage session tests."""
+        from uuid import uuid4
+
         from src.models.genesis_flows import GenesisFlow
         from src.schemas.enums import GenesisStatus
-        from uuid import uuid4
 
         flow = GenesisFlow(
             id=uuid4(),
@@ -24,7 +25,7 @@ class TestGenesisStageSessionRoutes:
             status=GenesisStatus.IN_PROGRESS,
             current_stage=GenesisStage.INITIAL_PROMPT,
             version=1,
-            state={}
+            state={},
         )
         pg_session.add(flow)
         await pg_session.commit()
@@ -34,9 +35,10 @@ class TestGenesisStageSessionRoutes:
     @pytest.fixture
     async def test_stage(self, pg_session, test_flow):
         """Create a test Genesis stage for stage session tests."""
+        from uuid import uuid4
+
         from src.models.genesis_flows import GenesisStageRecord
         from src.schemas.enums import StageStatus
-        from uuid import uuid4
 
         stage = GenesisStageRecord(
             id=uuid4(),
@@ -44,7 +46,7 @@ class TestGenesisStageSessionRoutes:
             stage=GenesisStage.INITIAL_PROMPT,
             status=StageStatus.RUNNING,
             config={},
-            iteration_count=1
+            iteration_count=1,
         )
         pg_session.add(stage)
         await pg_session.commit()
@@ -78,7 +80,7 @@ class TestGenesisStageSessionRoutes:
         assert UUID(session_id)  # Validate it's a valid UUID
 
         # Verify stage session response
-        assert stage_session["stage_id"] == stage_id
+        assert stage_session["stage_id"] == str(stage_id)
         assert stage_session["session_id"] == session_id
         assert stage_session["is_primary"] == session_data["is_primary"]
         assert stage_session["session_kind"] == session_data["session_kind"]
@@ -88,10 +90,10 @@ class TestGenesisStageSessionRoutes:
         assert "updated_at" in stage_session
 
     @pytest.mark.asyncio
-    async def test_create_stage_session_existing_session(
-        self, async_client: AsyncClient, auth_headers, test_stage, test_novel
+    async def test_create_stage_session_duplicate_binding_fails(
+        self, async_client: AsyncClient, auth_headers, test_stage, test_novel, test_flow
     ):
-        """Test creating a stage session association with existing session."""
+        """Test that binding the same session to the same stage twice fails."""
         # Arrange - First create a stage session to get an existing session
         stage_id = test_stage.id
         novel_id = test_novel.id
@@ -104,7 +106,7 @@ class TestGenesisStageSessionRoutes:
         )
         existing_session_id = response1.json()["data"][0]
 
-        # Now try to bind this existing session to the same stage (should work)
+        # Now try to bind this existing session to the same stage again (should fail due to unique constraint)
         session_data = {
             "session_id": existing_session_id,
             "novel_id": str(novel_id),
@@ -117,13 +119,62 @@ class TestGenesisStageSessionRoutes:
             f"/api/v1/genesis/stages/{stage_id}/sessions", headers=auth_headers, json=session_data
         )
 
-        # Assert - This creates a new association, not reusing the existing one
+        # Assert - This should fail due to unique constraint (database error caught and returned as 500)
+        assert response.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_create_stage_session_bind_existing_session(
+        self, async_client: AsyncClient, auth_headers, test_stage, test_novel, test_flow, pg_session
+    ):
+        """Test binding an existing session to a different stage (valid scenario)."""
+        # Arrange - Create a second stage
+        from uuid import uuid4
+
+        from src.models.genesis_flows import GenesisStageRecord
+        from src.schemas.enums import StageStatus
+
+        stage2 = GenesisStageRecord(
+            id=uuid4(),
+            flow_id=test_flow.id,
+            stage=GenesisStage.WORLDVIEW,  # Different stage type
+            status=StageStatus.RUNNING,
+            config={},
+            iteration_count=1,
+        )
+        pg_session.add(stage2)
+        await pg_session.commit()
+        await pg_session.refresh(stage2)
+
+        # Create a session bound to the first stage
+        response1 = await async_client.post(
+            f"/api/v1/genesis/stages/{test_stage.id}/sessions",
+            headers=auth_headers,
+            json={"novel_id": str(test_novel.id), "is_primary": False, "session_kind": "GENESIS"},
+        )
+        existing_session_id = response1.json()["data"][0]
+
+        # Now bind this existing session to the second stage (should succeed)
+        session_data = {
+            "session_id": existing_session_id,
+            "novel_id": str(test_novel.id),
+            "is_primary": False,
+            "session_kind": "CONVERSATION",
+        }
+
+        # Act
+        response = await async_client.post(
+            f"/api/v1/genesis/stages/{stage2.id}/sessions", headers=auth_headers, json=session_data
+        )
+
+        # Assert - This should succeed
         assert response.status_code == 201
         data = response.json()
         assert data["code"] == 0
+        assert data["msg"] == "Stage session association created successfully"
 
         session_id, stage_session = data["data"]
         assert session_id == existing_session_id
+        assert stage_session["stage_id"] == str(stage2.id)
         assert stage_session["session_id"] == existing_session_id
         assert stage_session["session_kind"] == "CONVERSATION"
 
@@ -152,6 +203,67 @@ class TestGenesisStageSessionRoutes:
         # Assert
         assert response.status_code == 400
         assert "Invalid session or scope validation failed" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_stage_session_rejects_mismatched_novel(
+        self, async_client: AsyncClient, auth_headers, test_stage, test_novel
+    ):
+        """Stage session creation should reject novel ID that does not match the stage."""
+
+        session_data = {
+            "novel_id": str(uuid4()),
+            "is_primary": False,
+            "session_kind": "GENESIS",
+        }
+
+        response = await async_client.post(
+            f"/api/v1/genesis/stages/{test_stage.id}/sessions",
+            headers=auth_headers,
+            json=session_data,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Novel mismatch for stage"
+
+    @pytest.mark.asyncio
+    async def test_create_stage_session_forbidden_for_other_user(
+        self, async_client: AsyncClient, other_user_headers, test_stage, test_novel
+    ):
+        """Non-owners cannot create or bind sessions for a stage they do not own."""
+
+        from src.api.main import app
+        from src.middleware.auth import get_current_user as real_get_current_user
+        from src.middleware.auth import require_auth as real_require_auth
+
+        overrides = app.dependency_overrides
+        original_get_current_user = overrides.pop(real_get_current_user, None)
+        original_require_auth = overrides.pop(real_require_auth, None)
+
+        session_data = {
+            "novel_id": str(test_novel.id),
+            "is_primary": False,
+            "session_kind": "GENESIS",
+        }
+
+        try:
+            response = await async_client.post(
+                f"/api/v1/genesis/stages/{test_stage.id}/sessions",
+                headers=other_user_headers,
+                json=session_data,
+            )
+        finally:
+            if original_get_current_user is not None:
+                overrides[real_get_current_user] = original_get_current_user
+            else:
+                overrides.pop(real_get_current_user, None)
+
+            if original_require_auth is not None:
+                overrides[real_require_auth] = original_require_auth
+            else:
+                overrides.pop(real_require_auth, None)
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Novel not found or you don't have permission to access it"
 
     @pytest.mark.asyncio
     async def test_list_stage_sessions_empty(self, async_client: AsyncClient, auth_headers, test_stage):
@@ -205,12 +317,45 @@ class TestGenesisStageSessionRoutes:
 
         # Verify all sessions belong to the stage
         for session in sessions:
-            assert session["stage_id"] == stage_id
+            assert session["stage_id"] == str(stage_id)
             assert session["session_id"] in session_ids
 
         # Check that exactly one is primary
         primary_sessions = [s for s in sessions if s["is_primary"]]
         assert len(primary_sessions) == 1
+
+    @pytest.mark.asyncio
+    async def test_list_stage_sessions_forbidden_for_other_user(
+        self, async_client: AsyncClient, other_user_headers, test_stage
+    ):
+        """Ensure non-owners cannot list stage sessions for foreign stages."""
+
+        from src.api.main import app
+        from src.middleware.auth import get_current_user as real_get_current_user
+        from src.middleware.auth import require_auth as real_require_auth
+
+        overrides = app.dependency_overrides
+        original_get_current_user = overrides.pop(real_get_current_user, None)
+        original_require_auth = overrides.pop(real_require_auth, None)
+
+        try:
+            response = await async_client.get(
+                f"/api/v1/genesis/stages/{test_stage.id}/sessions",
+                headers=other_user_headers,
+            )
+        finally:
+            if original_get_current_user is not None:
+                overrides[real_get_current_user] = original_get_current_user
+            else:
+                overrides.pop(real_get_current_user, None)
+
+            if original_require_auth is not None:
+                overrides[real_require_auth] = original_require_auth
+            else:
+                overrides.pop(real_require_auth, None)
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Novel not found or you don't have permission to access it"
 
     @pytest.mark.asyncio
     async def test_list_stage_sessions_with_status_filter(
@@ -278,7 +423,7 @@ class TestGenesisStageSessionRoutes:
 
     @pytest.mark.asyncio
     async def test_list_stage_sessions_invalid_stage(self, async_client: AsyncClient, auth_headers):
-        """Test listing sessions for non-existent stage returns empty list."""
+        """Non-existent stage should return not found."""
         # Arrange
         non_existent_stage_id = str(uuid4())
 
@@ -287,13 +432,41 @@ class TestGenesisStageSessionRoutes:
             f"/api/v1/genesis/stages/{non_existent_stage_id}/sessions", headers=auth_headers
         )
 
-        # Assert - Service returns empty list for non-existent stage
-        assert response.status_code == 200
-        data = response.json()
-        assert data["data"] == []
+        # Assert - Service should hide presence of foreign stages
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Genesis stage not found"
+
+    @pytest.fixture
+    async def unauthenticated_client(self, pg_session, redis_session_client):
+        """Create async test client without authentication overrides for auth testing."""
+        from unittest.mock import AsyncMock, patch
+
+        from httpx import AsyncClient
+        from src.api.main import app
+        from src.database import get_db
+        from tests.unit.support.test_mocks import mock_email_service
+
+        # Only override database, not auth
+        app.dependency_overrides[get_db] = lambda: pg_session
+
+        with (
+            patch("src.common.services.user.auth_service.auth_service._redis", redis_session_client),
+            patch(
+                "src.common.services.user.user_email_service.user_email_tasks._send_email_with_retry",
+                new=AsyncMock(return_value=True),
+            ),
+            patch("src.external.clients.email.email_client.EmailClient") as mock_email_cls,
+        ):
+            mock_email_cls.return_value = mock_email_service
+            async with AsyncClient(app=app, base_url="http://test") as ac:
+                yield ac
+
+        # Cleanup
+        app.dependency_overrides.clear()
+        mock_email_service.clear()
 
     @pytest.mark.asyncio
-    async def test_create_stage_session_unauthorized(self, async_client: AsyncClient, test_stage, test_novel):
+    async def test_create_stage_session_unauthorized(self, unauthenticated_client: AsyncClient, test_stage, test_novel):
         """Test creating stage session without authentication fails."""
         # Arrange
         stage_id = test_stage.id
@@ -302,19 +475,19 @@ class TestGenesisStageSessionRoutes:
         session_data = {"novel_id": str(novel_id), "is_primary": True, "session_kind": "GENESIS"}
 
         # Act - No auth headers
-        response = await async_client.post(f"/api/v1/genesis/stages/{stage_id}/sessions", json=session_data)
+        response = await unauthenticated_client.post(f"/api/v1/genesis/stages/{stage_id}/sessions", json=session_data)
 
         # Assert
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_list_stage_sessions_unauthorized(self, async_client: AsyncClient, test_stage):
+    async def test_list_stage_sessions_unauthorized(self, unauthenticated_client: AsyncClient, test_stage):
         """Test listing stage sessions without authentication fails."""
         # Arrange
         stage_id = test_stage.id
 
         # Act - No auth headers
-        response = await async_client.get(f"/api/v1/genesis/stages/{stage_id}/sessions")
+        response = await unauthenticated_client.get(f"/api/v1/genesis/stages/{stage_id}/sessions")
 
         # Assert
         assert response.status_code == 401
