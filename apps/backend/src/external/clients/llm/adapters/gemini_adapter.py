@@ -9,9 +9,13 @@ from .types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
 class GeminiAdapter(ProviderAdapter):
     """Google Gemini adapter (skeleton).
 
-    Placeholder implementation. The real implementation should use the
-    `google-genai` SDK (recommended) or `google-generativeai` (legacy) to call
-    Gemini models, including streaming and tool/function calling when needed.
+    Integration priority: Google AI Studio (Gemini Developer API).
+
+    Placeholder implementation. The production implementation should use the
+    `google-genai` SDK (preferred) to call Gemini via AI Studio using
+    `GEMINI_API_KEY` / `GOOGLE_API_KEY`, including streaming and tool/function
+    calling as needed. Vertex AI is supported as an alternative path but not
+    the primary route.
     """
 
     def __init__(self) -> None:
@@ -30,4 +34,3 @@ class GeminiAdapter(ProviderAdapter):
     async def stream(self, req: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
         yield {"type": "delta", "data": {"content": "[Gemini placeholder stream] "}}
         yield {"type": "complete", "data": {"content": "done"}}
-

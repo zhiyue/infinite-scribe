@@ -385,6 +385,8 @@ class Settings(BaseSettings):
     # AI Providers
     openai_api_key: str = Field(default="")
     anthropic_api_key: str = Field(default="")
+    # Gemini (AI Studio / Developer API)
+    gemini_api_key: str = Field(default="")
 
     # LiteLLM Proxy
     litellm_api_host: str = Field(default="")

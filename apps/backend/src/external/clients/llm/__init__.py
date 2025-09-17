@@ -17,11 +17,11 @@ from .types import (
 )
 from .base import ProviderAdapter
 from .router import ProviderRouter
-from .litellm_adapter import LiteLLMAdapter
-from .gemini_adapter import GeminiAdapter
-from .deepseek_adapter import DeepSeekAdapter
-from .zhipuai_adapter import ZhipuAIAdapter
-from .qwen_adapter import QwenAdapter
+from .adapters.litellm_adapter import LiteLLMAdapter
+from .adapters.gemini_adapter import GeminiAdapter
+from .adapters.deepseek_adapter import DeepSeekAdapter
+from .adapters.zhipuai_adapter import ZhipuAIAdapter
+from .adapters.qwen_adapter import QwenAdapter
 
 __all__ = [
     "ChatMessage",

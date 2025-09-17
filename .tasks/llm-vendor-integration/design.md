@@ -98,10 +98,11 @@ class LLMClient(Protocol):
   - Streaming：支持 SSE/流式增量；工具调用兼容度需以官方为准（建议做文本协议降级）。
   - 配置：`KIMI_API_KEY`、`KIMI_BASE_URL`（默认 `https://api.moonshot.cn/v1`）。
 
-- GeminiAdapter（Google Gemini）
+- GeminiAdapter（Google Gemini, 主要接入 AI Studio）
+  - 首选通道：Google AI Studio（Gemini Developer API）。
   - SDK：推荐 `google-genai`（新）；`google-generativeai`（旧版，已标注迁移）。
-  - API：Gemini Developer API，或 Vertex AI 上的 Gemini；均支持流式与工具（函数）调用。
-  - 配置：`GEMINI_API_KEY` 或 `GOOGLE_API_KEY`；Vertex 需 `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION` 等。
+  - 能力：支持流式与工具（函数）调用；可选 Vertex AI 作为备选通道。
+  - 配置：`GEMINI_API_KEY` 或 `GOOGLE_API_KEY`；（如使用 Vertex：`GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`）。
 
 - DeepSeekAdapter
   - API：OpenAI 兼容，`base_url` 通常为 `https://api.deepseek.com`（或 `/v1`）。
@@ -301,7 +302,7 @@ OpenRouter 额外 Header 建议（在 Adapter 内透明设置）：
 
 ```python
 from src.external.clients.llm import ChatMessage, LLMRequest
-from src.external.clients.llm.litellm_adapter import LiteLLMAdapter
+from src.external.clients.llm import LiteLLMAdapter
 from src.external.clients.llm.router import ProviderRouter
 from src.services.llm import LLMService
 
@@ -397,12 +398,11 @@ resp = await service.generate(req)
   - 推荐：使用 `openai` SDK + `base_url="https://api.moonshot.cn/v1"`
   - 备注：PyPI 上 `moonshot`/`kimi` 名称的包与该平台无关，请以官方 OpenAI 兼容接口为准。
 
-- Gemini（Google）
+- Gemini（Google AI Studio 优先）
   - 推荐 SDK：`google-genai`（新），安装：`pip install google-genai`
   - 旧版 SDK：`google-generativeai`（已标注迁移），安装：`pip install google-generativeai`
-  - 用法（新）：
-    - `from google import genai; client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))`
-    - Vertex：`client = genai.Client(vertexai=True, project=..., location=...)`
+  - 用法（AI Studio）：`from google import genai; client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))`
+  - 备选（Vertex）：`client = genai.Client(vertexai=True, project=..., location=...)`
 
 - DeepSeek（OpenAI 兼容）
   - 推荐：`openai` SDK + `base_url="https://api.deepseek.com/v1"`

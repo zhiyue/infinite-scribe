@@ -10,6 +10,7 @@ from src.external.clients.llm import (
     LLMResponse,
     LLMStreamEvent,
     LiteLLMAdapter,
+    GeminiAdapter,
 )
 from src.services.llm import LLMService
 
@@ -24,16 +25,19 @@ class LLMServiceFactory:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def _build_router(self) -> ProviderRouter:
-        # Basic model prefix mapping; can be extended or loaded from TOML later
-        model_map: Mapping[str, str] = {
+    def _build_router(self, available: Mapping[str, ProviderAdapter]) -> ProviderRouter:
+        # Basic model prefix mapping; route to available adapters, otherwise to litellm
+        model_map: dict[str, str] = {
             r"^gpt-": "litellm",
             r"^claude-": "litellm",
-            r"^gemini": "litellm",
             r"^glm-": "litellm",
             r"^qwen-": "litellm",
             r"^deepseek-": "litellm",
         }
+        if "gemini" in available:
+            model_map[r"^gemini"] = "gemini"
+        else:
+            model_map[r"^gemini"] = "litellm"
         return ProviderRouter(default_provider="litellm", model_map=model_map)
 
     def _build_adapters(self) -> dict[str, ProviderAdapter]:
@@ -53,9 +57,13 @@ class LLMServiceFactory:
                 retry_attempts=self.settings.embedding.retry_attempts,
             )
 
+        # Gemini via AI Studio (Developer API) — prefer official SDK in adapter
+        if getattr(self.settings, "gemini_api_key", ""):
+            adapters["gemini"] = GeminiAdapter()
+
         return adapters
 
     def create_service(self) -> LLMService:
-        router = self._build_router()
         adapters = self._build_adapters()
+        router = self._build_router(adapters)
         return LLMService(router, adapters)
