@@ -209,6 +209,54 @@ class EmbeddingSettings(BaseModel):
             raise ValueError(f"Unsupported embedding provider: {self.provider}")
 
 
+class LLMSettings(BaseModel):
+    """LLM (chat/completions) provider settings (consolidated)."""
+
+    # Default routing/provider
+    provider: str = Field(default="litellm", description="Default LLM provider id")
+    default_model: str = Field(default="", description="Default chat model")
+
+    # Connection settings
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    max_keepalive_connections: int = Field(default=5)
+    max_connections: int = Field(default=10)
+
+    # Retry settings
+    enable_retry: bool = Field(default=True, description="Enable retry for transient errors")
+    retry_attempts: int = Field(default=3, description="Maximum retry attempts")
+    retry_min_wait: float = Field(default=1.0, description="Minimum wait between retries (seconds)")
+    retry_max_wait: float = Field(default=10.0, description="Maximum wait between retries (seconds)")
+
+    # LiteLLM Proxy
+    litellm_api_host: str = Field(default="", description="LiteLLM Proxy base host, e.g. http://localhost:4000")
+    litellm_api_key: str = Field(default="", description="LiteLLM Proxy API key")
+
+    # Provider API keys / base URLs (optional, for direct adapters later)
+    openai_api_key: str = Field(default="")
+    openai_base_url: str = Field(default="https://api.openai.com/v1")
+    anthropic_api_key: str = Field(default="")
+    anthropic_base_url: str = Field(default="")
+    gemini_api_key: str = Field(default="")
+    openrouter_api_key: str = Field(default="")
+    openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
+    kimi_api_key: str = Field(default="")
+    kimi_base_url: str = Field(default="https://api.moonshot.cn/v1")
+    deepseek_api_key: str = Field(default="")
+    deepseek_base_url: str = Field(default="https://api.deepseek.com/v1")
+    zhipuai_api_key: str = Field(default="")
+    zhipuai_base_url: str = Field(default="")
+    dashscope_api_key: str = Field(default="")
+    dashscope_base_url: str = Field(default="")
+
+    # Routing map (regex -> provider id), optional and primarily from TOML
+    router_model_map: dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def litellm_api_url(self) -> str:
+        """Get LiteLLM API URL with trailing slash when configured."""
+        return f"{self.litellm_api_host.rstrip('/')}/" if self.litellm_api_host else ""
+
+
 class DatabaseSettings(BaseModel):
     """Database configuration settings"""
 
@@ -350,6 +398,7 @@ class Settings(BaseSettings):
     auth: AuthSettings = Field(default_factory=AuthSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings, description="Embedding provider configuration")
+    llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM provider configuration")
     launcher: LauncherConfigModel = Field(default_factory=LauncherConfigModel, description="Launcher configuration")
 
     # External services
@@ -443,7 +492,9 @@ class Settings(BaseSettings):
 
     @property
     def litellm_api_url(self) -> str:
-        """Get LiteLLM API URL"""
+        """Get LiteLLM API URL (prefer nested `llm` settings)."""
+        if self.llm and self.llm.litellm_api_host:
+            return self.llm.litellm_api_url
         return f"{self.litellm_api_host.rstrip('/')}/" if self.litellm_api_host else ""
 
     @property

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
-from .base import ProviderAdapter
-from .types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
+from ..base import ProviderAdapter
+from ..types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
 
 
 class ZhipuAIAdapter(ProviderAdapter):
@@ -29,4 +29,3 @@ class ZhipuAIAdapter(ProviderAdapter):
     async def stream(self, req: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
         yield {"type": "delta", "data": {"content": "[GLM placeholder stream] "}}
         yield {"type": "complete", "data": {"content": "done"}}
-
