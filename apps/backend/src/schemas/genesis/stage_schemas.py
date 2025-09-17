@@ -12,8 +12,6 @@ from src.schemas.enums import GenesisStage, StageStatus
 class CreateStageRequest(BaseModel):
     """Request schema for creating a Genesis stage record."""
 
-    flow_id: UUID = Field(..., description="Genesis flow ID")
-    stage: GenesisStage = Field(..., description="Stage type")
     config: dict[str, Any] | None = Field(default=None, description="Stage configuration")
     iteration_count: int = Field(default=0, description="Iteration count for repeated stages")
 

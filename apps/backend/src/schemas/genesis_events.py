@@ -173,8 +173,17 @@ class EventSerializationUtils:
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
         metadata: dict[str, Any] | None = None,
+        flow_id: UUID | None = None,
+        stage_id: UUID | None = None,
     ) -> GenesisEventCreate:
-        """Create a genesis event with proper structure"""
+        """Create a genesis event with proper structure and optional flow_id/stage_id metadata"""
+
+        # Enhance metadata with flow_id and stage_id if provided
+        enhanced_metadata = metadata or {}
+        if flow_id:
+            enhanced_metadata["flow_id"] = str(flow_id)
+        if stage_id:
+            enhanced_metadata["stage_id"] = str(stage_id)
 
         return GenesisEventCreate(
             event_type=event_type,
@@ -182,7 +191,7 @@ class EventSerializationUtils:
             payload=EventSerializationUtils.serialize_payload(payload),
             correlation_id=correlation_id,
             causation_id=causation_id,
-            metadata=metadata or {},
+            metadata=enhanced_metadata,
         )
 
 

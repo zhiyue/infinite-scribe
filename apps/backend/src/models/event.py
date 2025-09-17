@@ -69,8 +69,17 @@ class DomainEvent(Base):
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
         metadata: dict[str, Any] | None = None,
+        flow_id: UUID | None = None,
+        stage_id: UUID | None = None,
     ) -> DomainEvent:
-        """Create a genesis domain event"""
+        """Create a genesis domain event with optional flow_id and stage_id in metadata"""
+
+        # Enhance metadata with flow_id and stage_id if provided
+        enhanced_metadata = metadata or {}
+        if flow_id:
+            enhanced_metadata["flow_id"] = str(flow_id)
+        if stage_id:
+            enhanced_metadata["stage_id"] = str(stage_id)
 
         return cls(
             event_type=event_type.value,
@@ -79,7 +88,7 @@ class DomainEvent(Base):
             payload=payload,
             correlation_id=correlation_id,
             causation_id=causation_id,
-            event_metadata=metadata or {},
+            event_metadata=enhanced_metadata,
         )
 
     def is_genesis_event(self) -> bool:

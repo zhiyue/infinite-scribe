@@ -3,18 +3,18 @@
 管理Genesis阶段的创建、完成、会话绑定等操作。
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.repositories.conversation.session_repository import ConversationSessionRepository
 from src.common.repositories.genesis.flow_repository import GenesisFlowRepository
 from src.common.repositories.genesis.stage_repository import GenesisStageRepository
 from src.common.repositories.genesis.stage_session_repository import GenesisStageSessionRepository
-from src.common.repositories.conversation.session_repository import ConversationSessionRepository
 from src.models.genesis_flows import GenesisStageRecord, GenesisStageSession
-from src.schemas.enums import GenesisStage, StageStatus, StageSessionStatus
+from src.schemas.enums import GenesisStage, GenesisStatus, StageSessionStatus, StageStatus
 
 
 class GenesisStageService:
@@ -115,6 +115,9 @@ class GenesisStageService:
                     association_id=session.id,
                     status=StageSessionStatus.ARCHIVED,
                 )
+
+            # 自动推进流程到下一个阶段
+            await self._auto_advance_flow_if_needed(updated_stage)
 
             await self.db_session.commit()
 
@@ -347,3 +350,74 @@ class GenesisStageService:
                 association_id=current_primary.id,
                 is_primary=False,
             )
+
+    async def _auto_advance_flow_if_needed(self, completed_stage: GenesisStageRecord) -> None:
+        """
+        自动推进流程到下一个阶段（如果需要）。
+
+        Args:
+            completed_stage: 已完成的阶段记录
+        """
+        # 获取流程信息
+        flow = await self.flow_repository.find_by_id(completed_stage.flow_id)
+        if not flow:
+            return
+
+        # 确定下一个阶段
+        next_stage = self._get_next_stage(completed_stage.stage)
+        if not next_stage:
+            # 如果没有下一个阶段，标记流程为完成
+            await self.flow_repository.update(
+                flow_id=flow.id,
+                status=GenesisStatus.COMPLETED,
+                current_stage=GenesisStage.FINISHED,
+            )
+            return
+
+        # 检查是否应该自动推进
+        if self._should_auto_advance(completed_stage.stage):
+            await self.flow_repository.update(
+                flow_id=flow.id,
+                current_stage=next_stage,
+            )
+
+    def _get_next_stage(self, current_stage: GenesisStage) -> GenesisStage | None:
+        """
+        获取指定阶段的下一个阶段。
+
+        Args:
+            current_stage: 当前阶段
+
+        Returns:
+            下一个阶段，如果已是最后阶段则返回None
+        """
+        stage_progression = [
+            GenesisStage.INITIAL_PROMPT,
+            GenesisStage.WORLDVIEW,
+            GenesisStage.CHARACTERS,
+            GenesisStage.PLOT_OUTLINE,
+            GenesisStage.FINISHED,
+        ]
+
+        try:
+            current_index = stage_progression.index(current_stage)
+            if current_index < len(stage_progression) - 1:
+                return stage_progression[current_index + 1]
+        except ValueError:
+            pass
+
+        return None
+
+    def _should_auto_advance(self, completed_stage: GenesisStage) -> bool:
+        """
+        判断是否应该自动推进到下一个阶段。
+
+        Args:
+            completed_stage: 已完成的阶段
+
+        Returns:
+            是否应该自动推进
+        """
+        # 默认情况下，所有阶段完成后都自动推进
+        # 在实际实现中，可能需要根据业务规则调整
+        return completed_stage != GenesisStage.FINISHED

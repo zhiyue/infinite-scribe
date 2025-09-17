@@ -1,4 +1,4 @@
-"""Genesis6µ¡!W"""
+"""Genesis Stage Service Package."""
 
 from .genesis_stage_service import GenesisStageService
 

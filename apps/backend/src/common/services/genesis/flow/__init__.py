@@ -1,4 +1,4 @@
-"""GenesisA¡!W"""
+"""Genesis Flow Service Package."""
 
 from .genesis_flow_service import GenesisFlowService
 
