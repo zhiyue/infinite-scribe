@@ -4,6 +4,7 @@
  */
 
 import type { ApiResponse, ConversationHeaders } from '@/types/api'
+import { GenesisStage, GenesisStatus, StageSessionStatus } from '@/types/enums'
 import { authenticatedApiService } from './authenticatedApiService'
 
 /**
@@ -12,8 +13,9 @@ import { authenticatedApiService } from './authenticatedApiService'
 export interface GenesisFlowResponse {
   id: string
   novel_id: string
-  status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED' | 'PAUSED'
-  current_stage: string | null
+  status: GenesisStatus
+  current_stage: GenesisStage | null
+  current_stage_id: string | null
   version: number
   state: Record<string, any> | null
   created_at: string
@@ -24,7 +26,7 @@ export interface GenesisFlowResponse {
  * 阶段切换请求
  */
 export interface SwitchStageRequest {
-  target_stage: string
+  target_stage: GenesisStage
 }
 
 /**
@@ -34,7 +36,7 @@ export interface StageSessionResponse {
   id: string
   stage_id: string
   session_id: string
-  status: 'ACTIVE' | 'ARCHIVED' | 'CLOSED'
+  status: StageSessionStatus
   is_primary: boolean
   session_kind: string | null
   created_at: string
@@ -168,7 +170,7 @@ export class GenesisService {
   async listStageSessions(
     stageId: string,
     params?: {
-      status?: 'ACTIVE' | 'ARCHIVED' | 'CLOSED'
+      status?: StageSessionStatus
       limit?: number
       offset?: number
     },

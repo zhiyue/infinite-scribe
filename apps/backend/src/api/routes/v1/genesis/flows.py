@@ -34,7 +34,9 @@ class SwitchStageRequest(BaseModel):
 async def get_flow_service(db: AsyncSession = Depends(get_db)) -> GenesisFlowService:
     """Create GenesisFlowService with proper dependency injection."""
     flow_repository = SqlAlchemyGenesisFlowRepository(db)
-    return GenesisFlowService(flow_repository, db)
+    from src.common.repositories.genesis.stage_repository import SqlAlchemyGenesisStageRepository
+    stage_repository = SqlAlchemyGenesisStageRepository(db)
+    return GenesisFlowService(flow_repository, db, stage_repository)
 
 
 async def get_novel_service() -> NovelService:
@@ -98,10 +100,16 @@ async def create_or_get_flow(
         # Use ensure_flow to create or return existing flow
         flow = await flow_service.ensure_flow(novel_id)
 
+        # Get current stage ID
+        current_stage_id = await flow_service.get_current_stage_id(flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        data = FlowResponse.model_validate(flow)
+        # Create response with current_stage_id
+        flow_dict = flow.__dict__.copy()
+        flow_dict['current_stage_id'] = current_stage_id
+        data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow created/ensured successfully", data=data)
 
@@ -136,7 +144,13 @@ async def get_flow_by_novel(
         if not flow:
             raise HTTPException(status_code=404, detail="Genesis flow not found for this novel")
 
-        data = FlowResponse.model_validate(flow)
+        # Get current stage ID
+        current_stage_id = await flow_service.get_current_stage_id(flow)
+
+        # Create response with current_stage_id
+        flow_dict = flow.__dict__.copy()
+        flow_dict['current_stage_id'] = current_stage_id
+        data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow retrieved successfully", data=data)
 
@@ -185,10 +199,16 @@ async def switch_flow_stage(
                 status_code=409, detail="Failed to switch stage - invalid stage or flow not found"
             )
 
+        # Get current stage ID
+        current_stage_id = await flow_service.get_current_stage_id(updated_flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        data = FlowResponse.model_validate(updated_flow)
+        # Create response with current_stage_id
+        flow_dict = updated_flow.__dict__.copy()
+        flow_dict['current_stage_id'] = current_stage_id
+        data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow stage switched successfully", data=data)
 
@@ -232,10 +252,16 @@ async def complete_flow(
         if not updated_flow:
             raise HTTPException(status_code=409, detail="Failed to complete flow - flow not found or already completed")
 
+        # Get current stage ID
+        current_stage_id = await flow_service.get_current_stage_id(updated_flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        data = FlowResponse.model_validate(updated_flow)
+        # Create response with current_stage_id
+        flow_dict = updated_flow.__dict__.copy()
+        flow_dict['current_stage_id'] = current_stage_id
+        data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow completed successfully", data=data)
 

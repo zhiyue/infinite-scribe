@@ -62,8 +62,6 @@ class ConversationSessionCrudHandler:
         user_id: int,
         scope_type: ScopeType | str,
         scope_id: str,
-        stage: str | None = None,
-        initial_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Create a new conversation session.
@@ -71,10 +69,8 @@ class ConversationSessionCrudHandler:
         Args:
             db: Database session
             user_id: User ID for ownership
-            scope_type: Type of scope (ScopeType enum or string, currently only GENESIS supported)
-            scope_id: ID of the scope (novel ID for GENESIS)
-            stage: Optional stage name
-            initial_state: Optional initial state data
+            scope_type: Type of scope (supports all ScopeType values)
+            scope_id: ID of the scope
 
         Returns:
             Dict with success status and session or error details
@@ -84,8 +80,6 @@ class ConversationSessionCrudHandler:
             user_id=user_id,
             scope_type=scope_type,
             scope_id=scope_id,
-            stage=stage,
-            initial_state=initial_state,
         )
 
     async def get_session(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:
@@ -109,8 +103,6 @@ class ConversationSessionCrudHandler:
         session_id: UUID,
         *,
         status: SessionStatus | None = None,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
         expected_version: int | None = None,
     ) -> dict[str, Any]:
         """
@@ -121,8 +113,6 @@ class ConversationSessionCrudHandler:
             user_id: User ID for ownership verification
             session_id: Session ID to update
             status: New status (optional)
-            stage: New stage (optional)
-            state: New state (optional)
             expected_version: Expected version for optimistic locking (optional)
 
         Returns:
@@ -133,8 +123,6 @@ class ConversationSessionCrudHandler:
             user_id=user_id,
             session_id=session_id,
             status=status,
-            stage=stage,
-            state=state,
             expected_version=expected_version,
         )
 
@@ -168,8 +156,8 @@ class ConversationSessionCrudHandler:
         Args:
             db: Database session
             user_id: User ID for ownership verification
-            scope_type: Scope type (e.g., "GENESIS")
-            scope_id: Scope identifier (e.g., novel ID)
+            scope_type: Scope type
+            scope_id: Scope identifier
             status: Optional status filter
             limit: Maximum number of sessions to return
             offset: Offset for pagination

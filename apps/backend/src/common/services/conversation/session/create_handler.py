@@ -46,8 +46,6 @@ class ConversationSessionCreateHandler:
         user_id: int,
         scope_type: ScopeType | str,
         scope_id: str,
-        stage: str | None = None,
-        initial_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Create a new conversation session.
@@ -55,10 +53,8 @@ class ConversationSessionCreateHandler:
         Args:
             db: Database session
             user_id: User ID for ownership
-            scope_type: Type of scope (ScopeType enum or string, currently only GENESIS supported)
-            scope_id: ID of the scope (novel ID for GENESIS)
-            stage: Optional stage name (stored in Genesis tables, not session)
-            initial_state: Optional initial state data (stored in Genesis tables, not session)
+            scope_type: Type of scope (supports all ScopeType values)
+            scope_id: ID of the scope
 
         Returns:
             Dict with success status and session or error details
@@ -81,8 +77,6 @@ class ConversationSessionCreateHandler:
                     "user_id": user_id,
                     "scope_type": scope_type_str,
                     "scope_id": scope_id,
-                    "stage": stage,
-                    "has_initial_state": initial_state is not None,
                     "operation": "create_session",
                 },
             )
@@ -121,7 +115,7 @@ class ConversationSessionCreateHandler:
                     },
                 )
                 return ConversationErrorHandler.error_response(
-                    f"已存在活跃的创世阶段会话。当前会话ID: {existing.id}，状态: {existing.status}。请选择继续使用现有会话或删除后重新创建。",
+                    f"已存在活跃的会话。当前会话ID: {existing.id}，状态: {existing.status}。请选择继续使用现有会话或删除后重新创建。",
                     code=409,
                     logger_instance=logger,
                     context=f"Create session conflict - existing session: {existing.id} for scope: {scope_type_str}:{scope_id}",
@@ -130,8 +124,6 @@ class ConversationSessionCreateHandler:
                 )
 
             # Create new session with transactional support
-            # Note: stage and state are no longer stored in conversation_sessions table
-            # They are managed separately in Genesis tables
             logger.info("Creating new session")
             async with transactional(db):
                 session = await repository.create(
@@ -147,7 +139,6 @@ class ConversationSessionCreateHandler:
                         "scope_type": scope_type_str,
                         "scope_id": scope_id,
                         "user_id": user_id,
-                        "stage": stage,
                         "version": 1,
                         "operation": "create_session_success",
                     },
@@ -173,8 +164,6 @@ class ConversationSessionCreateHandler:
                     "scope_type": scope_type_str if "scope_type_str" in locals() else str(scope_type),
                     "scope_id": scope_id,
                     "user_id": user_id,
-                    "stage": stage,
-                    "has_initial_state": initial_state is not None,
                     "session_id": str(session.id) if "session" in locals() else None,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
@@ -183,7 +172,7 @@ class ConversationSessionCreateHandler:
             return ConversationErrorHandler.internal_error(
                 "Failed to create session",
                 logger_instance=logger,
-                context=f"Create session error - scope: {scope_type_str if 'scope_type_str' in locals() else str(scope_type)}:{scope_id}, user: {user_id}, stage: {stage}",
+                context=f"Create session error - scope: {scope_type_str if 'scope_type_str' in locals() else str(scope_type)}:{scope_id}, user: {user_id}",
                 exception=e,
                 session_id=str(session.id) if "session" in locals() else None,
                 user_id=user_id,

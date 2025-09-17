@@ -48,7 +48,9 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
   const createOrGetFlow = useMutation({
     mutationFn: () => genesisService.createOrGetFlow(novelId),
     onSuccess: (data) => {
+      console.log('[useGenesisFlow] createOrGetFlow success:', data)
       queryClient.setQueryData(queryKey, data)
+      console.log('[useGenesisFlow] Calling onFlowReady callback...')
       onFlowReady?.(data)
     },
     onError: (error: Error) => {
@@ -87,8 +89,13 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
   // 重新初始化流程（如果不存在则创建）
   const initializeFlow = async () => {
     try {
+      console.log('[useGenesisFlow] initializeFlow called, flow exists:', !!flow)
       if (!flow) {
+        console.log('[useGenesisFlow] Creating new flow...')
         await createOrGetFlow.mutateAsync()
+        console.log('[useGenesisFlow] Flow creation completed')
+      } else {
+        console.log('[useGenesisFlow] Flow already exists, no need to create')
       }
     } catch (error) {
       console.error('[useGenesisFlow] Failed to initialize flow:', error)

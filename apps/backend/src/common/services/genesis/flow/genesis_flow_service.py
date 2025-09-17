@@ -10,8 +10,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.repositories.genesis.flow_repository import GenesisFlowRepository
+from src.common.repositories.genesis.stage_repository import GenesisStageRepository
 from src.models.genesis_flows import GenesisFlow
-from src.schemas.enums import GenesisStage, GenesisStatus
+from src.schemas.enums import GenesisStage, GenesisStatus, StageStatus
 
 
 class GenesisFlowService:
@@ -21,13 +22,16 @@ class GenesisFlowService:
         self,
         flow_repository: GenesisFlowRepository,
         db_session: AsyncSession,
+        stage_repository: GenesisStageRepository | None = None,
     ):
         self.flow_repository = flow_repository
+        self.stage_repository = stage_repository
         self.db_session = db_session
 
     async def ensure_flow(self, novel_id: UUID) -> GenesisFlow:
         """
         确保指定小说存在Genesis流程，如果不存在则创建。
+        如果是新创建的流程，会同时创建初始阶段记录。
 
         Args:
             novel_id: 小说ID
@@ -49,6 +53,16 @@ class GenesisFlowService:
             version=1,
         )
 
+        # 创建初始阶段记录（如果有stage_repository）
+        if self.stage_repository:
+            await self.stage_repository.create(
+                flow_id=new_flow.id,
+                stage=GenesisStage.INITIAL_PROMPT,
+                status=StageStatus.RUNNING,
+                config={},
+                iteration_count=0,
+            )
+
         return new_flow
 
     async def get_flow(self, novel_id: UUID) -> GenesisFlow | None:
@@ -62,6 +76,29 @@ class GenesisFlowService:
             Genesis流程实例，如果不存在返回None
         """
         return await self.flow_repository.find_by_novel_id(novel_id)
+
+    async def get_current_stage_id(self, flow: GenesisFlow) -> UUID | None:
+        """
+        获取流程当前阶段的Stage Record ID。
+
+        Args:
+            flow: Genesis流程实例
+
+        Returns:
+            当前阶段的Stage Record ID，如果不存在返回None
+        """
+        if not self.stage_repository or not flow.current_stage:
+            return None
+
+        # 查找当前阶段的Stage Record
+        stages = await self.stage_repository.list_by_flow_id(flow_id=flow.id)
+
+        # 找到当前阶段对应的Stage Record
+        for stage_record in stages:
+            if stage_record.stage == flow.current_stage:
+                return stage_record.id
+
+        return None
 
     async def get_flow_by_id(self, flow_id: UUID) -> GenesisFlow | None:
         """
@@ -99,6 +136,9 @@ class GenesisFlowService:
         if not current_flow:
             return None
 
+        # 确保目标阶段记录存在（如果不存在则创建）
+        await self._ensure_stage_record(flow_id, next_stage)
+
         # 合并状态更新
         new_state = current_flow.state or {}
         if state_updates:
@@ -113,6 +153,29 @@ class GenesisFlowService:
         )
 
         return updated_flow
+
+    async def _ensure_stage_record(self, flow_id: UUID, stage: GenesisStage) -> None:
+        """
+        确保指定阶段的记录存在，如果不存在则创建。
+
+        Args:
+            flow_id: 流程ID
+            stage: 目标阶段
+        """
+        # 检查是否已存在该阶段的记录
+        existing_stage = await self.stage_repository.find_by_flow_and_stage(flow_id, stage)
+
+        if not existing_stage:
+            # 如果不存在，则创建新的阶段记录
+            await self.stage_repository.create(
+                flow_id=flow_id,
+                stage=stage,
+                status=StageStatus.RUNNING,
+                config={},
+                result={},
+                iteration_count=0,
+                metrics={}
+            )
 
     async def complete_flow(
         self,

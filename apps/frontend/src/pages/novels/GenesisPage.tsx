@@ -1,9 +1,8 @@
 /**
  * 创世页面组件
- * 管理小说的创世流程，智能处理会话创建和冲突
+ * 管理小说的创世流程，使用新的Genesis API架构
  */
 
-import { GenesisConflictDialog } from '@/components/genesis/GenesisConflictDialog'
 import { GenesisNavigation } from '@/components/genesis/GenesisNavigation'
 import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
 import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
@@ -13,7 +12,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
-import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 /**
@@ -21,7 +19,6 @@ import { useParams } from 'react-router-dom'
  */
 export default function GenesisPage() {
   const { id: novelId } = useParams<{ id: string }>()
-  const [showConflictDialog, setShowConflictDialog] = useState(false)
 
   // 使用新的Genesis会话管理hook
   const {
@@ -31,7 +28,6 @@ export default function GenesisPage() {
     isCreating,
     error,
     currentStage,
-    hasActiveSessionConflict,
     isReady,
     initializeSession,
     switchToStage,
@@ -69,11 +65,6 @@ export default function GenesisPage() {
     }
   }
 
-  // 处理关闭冲突对话框
-  const handleCloseConflict = () => {
-    setShowConflictDialog(false)
-    clearError()
-  }
 
   // 如果没有会话，显示创建会话界面
   if (!sessionId) {
@@ -103,8 +94,8 @@ export default function GenesisPage() {
                 </AlertDescription>
               </Alert>
 
-              {/* 显示错误信息（非冲突错误） */}
-              {error && !hasActiveSessionConflict && (
+              {/* 显示错误信息 */}
+              {error && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
@@ -134,14 +125,6 @@ export default function GenesisPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* 冲突处理对话框 */}
-        <GenesisConflictDialog
-          open={showConflictDialog}
-          onClose={handleCloseConflict}
-          onContinueExisting={handleCloseConflict}
-          isProcessing={isCreating}
-        />
       </>
     )
   }

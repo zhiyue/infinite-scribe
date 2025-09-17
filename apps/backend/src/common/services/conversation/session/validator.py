@@ -79,33 +79,16 @@ class ConversationSessionValidator:
         Returns:
             Error dict if validation fails, None if successful
         """
-        if scope_type_enum != ScopeType.GENESIS:
-            logger.warning(
-                "Unsupported scope type for session creation",
-                extra={
-                    "scope_type": scope_type_str,
-                    "supported_scope_types": [ScopeType.GENESIS.value],
-                    "user_id": user_id,
-                    "scope_id": scope_id,
-                    "operation": "session_validation",
-                },
-            )
-            return ConversationErrorHandler.validation_error(
-                "Only GENESIS scope is supported",
-                logger_instance=logger,
-                context=f"Session validation - unsupported scope: {scope_type_str}",
-            )
+        # All scope types are now supported
         return None
 
     @staticmethod
-    def validate_session_update_params(status: Any, stage: Any, state: Any) -> tuple[bool, dict[str, Any] | None]:
+    def validate_session_update_params(status: Any) -> tuple[bool, dict[str, Any] | None]:
         """
         Validate session update parameters and determine if update is needed.
 
         Args:
             status: New status value
-            stage: New stage value
-            state: New state value
 
         Returns:
             Tuple of (needs_update, error_response)
@@ -113,7 +96,7 @@ class ConversationSessionValidator:
             - error_response: Error dict if validation fails, None if successful
         """
         # Check if there are no values to update
-        if status is None and stage is None and state is None:
+        if status is None:
             return False, None
 
         # Additional parameter validation can be added here

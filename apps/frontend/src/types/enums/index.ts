@@ -107,6 +107,15 @@ export enum GenesisMode {
 }
 
 /**
+ * 阶段会话关联状态枚举
+ */
+export enum StageSessionStatus {
+  ACTIVE = 'ACTIVE',
+  ARCHIVED = 'ARCHIVED',
+  CLOSED = 'CLOSED',
+}
+
+/**
  * 操作类型枚举
  */
 export enum OperationType {

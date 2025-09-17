@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useRounds, useSendMessage } from '@/hooks/useConversations'
+import { useRounds, useSubmitCommand, usePollCommandStatus } from '@/hooks/useConversations'
 import { useGenesisEvents } from '@/hooks/useSSE'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
@@ -92,6 +92,7 @@ export function GenesisConversation({
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
+  const [currentCommandId, setCurrentCommandId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -173,8 +174,8 @@ export function GenesisConversation({
     { enabled: !!sessionId },
   )
 
-  // 发送消息
-  const sendMessage = useSendMessage(sessionId, {
+  // 提交对话命令
+  const submitCommand = useSubmitCommand(sessionId, {
     onMutate: async (variables) => {
       // 构建乐观更新的用户消息
       const optimisticUserMessage: RoundResponse = {
@@ -243,13 +244,14 @@ export function GenesisConversation({
       return { previousData, queryKey }
     },
     onSuccess: (data) => {
-      console.log('[GenesisConversation] Message sent successfully:', data)
+      console.log('[GenesisConversation] Command submitted successfully:', data)
+      setCurrentCommandId(data.command_id)
       setIsWaitingForResponse(true) // 等待AI回复
       // 不在这里设置isTyping为false，而是等SSE事件
       scrollToBottom()
     },
     onError: (error, variables, context) => {
-      console.error('[GenesisConversation] Message send failed:', error)
+      console.error('[GenesisConversation] Command submission failed:', error)
 
       // 回滚乐观更新
       if (context?.previousData && context?.queryKey) {
@@ -259,24 +261,53 @@ export function GenesisConversation({
 
       setIsTyping(false)
       setIsWaitingForResponse(false)
+      setCurrentCommandId(null)
+    },
+  })
+
+  // 轮询命令状态
+  usePollCommandStatus(sessionId, currentCommandId || '', {
+    enabled: !!currentCommandId,
+    onProgress: (status) => {
+      console.log('[GenesisConversation] Command status update:', status)
+
+      if (status.status === 'completed') {
+        console.log('[GenesisConversation] Command completed successfully')
+        setIsWaitingForResponse(false)
+        setIsTyping(false)
+        setCurrentCommandId(null)
+
+        // 刷新轮次数据以获取AI的回复
+        queryClient.invalidateQueries({
+          queryKey: ['conversations', 'sessions', sessionId, 'rounds']
+        })
+      } else if (status.status === 'failed') {
+        console.error('[GenesisConversation] Command failed:', status.error_message)
+        setIsWaitingForResponse(false)
+        setIsTyping(false)
+        setCurrentCommandId(null)
+      } else if (status.status === 'processing') {
+        console.log('[GenesisConversation] Command is processing')
+        setIsTyping(true)
+      }
     },
   })
 
   // 处理发送消息
   const handleSend = () => {
-    if (!input.trim() || sendMessage.isPending || isWaitingForResponse) return
+    if (!input.trim() || submitCommand.isPending || isWaitingForResponse) return
 
     const messageContent = input.trim()
-    console.log('[GenesisConversation] Sending message')
+    console.log('[GenesisConversation] Submitting command')
 
     setInput('')
     setIsTyping(true)
 
-    // 发送消息到后端
-    sendMessage.mutate({
-      input: {
+    // 提交对话命令到后端
+    submitCommand.mutate({
+      type: 'user_message',
+      payload: {
         stage,
-        type: 'user_message',
         content: messageContent,
       },
     })
@@ -537,18 +568,18 @@ export function GenesisConversation({
                   onKeyDown={handleKeyDown}
                   placeholder={isWaitingForResponse ? '等待AI回复中...' : '输入你的想法...'}
                   className="min-h-[80px] resize-none pr-12 bg-secondary/30"
-                  disabled={sendMessage.isPending || isWaitingForResponse}
+                  disabled={submitCommand.isPending || isWaitingForResponse}
                 />
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         onClick={handleSend}
-                        disabled={!input.trim() || sendMessage.isPending || isWaitingForResponse}
+                        disabled={!input.trim() || submitCommand.isPending || isWaitingForResponse}
                         size="icon"
                         className="absolute bottom-2 right-2 h-8 w-8"
                       >
-                        {sendMessage.isPending || isWaitingForResponse ? (
+                        {submitCommand.isPending || isWaitingForResponse ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Send className="h-4 w-4" />
@@ -559,8 +590,8 @@ export function GenesisConversation({
                       <p>
                         {isWaitingForResponse
                           ? '等待AI回复中...'
-                          : sendMessage.isPending
-                            ? '发送中...'
+                          : submitCommand.isPending
+                            ? '提交中...'
                             : '发送消息 (Enter)'}
                       </p>
                     </TooltipContent>

@@ -143,8 +143,8 @@ class ConversationSessionReadHandler:
         Args:
             db: Database session
             user_id: User ID for ownership verification
-            scope_type: Scope type (e.g., "GENESIS")
-            scope_id: Scope identifier (e.g., novel ID)
+            scope_type: Scope type
+            scope_id: Scope identifier
             status: Optional status filter
             limit: Maximum number of sessions to return
             offset: Offset for pagination

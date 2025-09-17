@@ -274,24 +274,24 @@ class TestGenesisFlowsAPI:
         assert "not found" in error_response.json()["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_success(self, async_client: AsyncClient, auth_headers, test_novel):
-        """Test successfully advancing a flow to the next stage."""
+    async def test_switch_flow_stage_success(self, async_client: AsyncClient, auth_headers, test_novel):
+        """Test successfully switching a flow to the next stage."""
         # Arrange - Create a flow first
         novel_id = test_novel.id
         create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
         assert create_response.status_code == 201
 
-        # Act - Advance to WORLDVIEW stage
-        advance_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        # Act - Switch to WORLDVIEW stage
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
         response = await async_client.post(
-            f"/api/v1/genesis/flows/{novel_id}/advance-stage", headers=auth_headers, json=advance_data
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
         )
 
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == 0
-        assert data["msg"] == "Genesis flow stage advanced successfully"
+        assert data["msg"] == "Genesis flow stage switched successfully"
 
         flow_data = data["data"]
         assert flow_data["current_stage"] == GenesisStage.WORLDVIEW.value
@@ -300,15 +300,15 @@ class TestGenesisFlowsAPI:
         assert "ETag" in response.headers
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_nonexistent_flow(self, async_client: AsyncClient, auth_headers, test_novel):
-        """Test advancing stage for non-existent flow returns 404."""
+    async def test_switch_flow_stage_nonexistent_flow(self, async_client: AsyncClient, auth_headers, test_novel):
+        """Test switching stage for non-existent flow returns 404."""
         # Arrange - Don't create a flow
         novel_id = test_novel.id
 
-        # Act - Try to advance stage without creating flow first
-        advance_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        # Act - Try to switch stage without creating flow first
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
         response = await async_client.post(
-            f"/api/v1/genesis/flows/{novel_id}/advance-stage", headers=auth_headers, json=advance_data
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
         )
 
         # Assert
@@ -317,17 +317,17 @@ class TestGenesisFlowsAPI:
         assert "not found" in data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_invalid_stage_transition(self, async_client: AsyncClient, auth_headers, test_novel):
-        """Test advancing to invalid stage returns 409."""
+    async def test_switch_flow_stage_invalid_stage_transition(self, async_client: AsyncClient, auth_headers, test_novel):
+        """Test switching to invalid stage returns 409."""
         # Arrange - Create a flow
         novel_id = test_novel.id
         create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
         assert create_response.status_code == 201
 
-        # Act - Try to advance to final stage (skip intermediate stages)
-        advance_data = {"target_stage": GenesisStage.FINISHED.value}  # Skip WORLDVIEW, CHARACTERS, PLOT_OUTLINE
+        # Act - Try to switch to final stage (skip intermediate stages)
+        switch_data = {"target_stage": GenesisStage.FINISHED.value}  # Skip WORLDVIEW, CHARACTERS, PLOT_OUTLINE
         response = await async_client.post(
-            f"/api/v1/genesis/flows/{novel_id}/advance-stage", headers=auth_headers, json=advance_data
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
         )
 
         # Assert - Based on business logic, this should either:
@@ -347,14 +347,14 @@ class TestGenesisFlowsAPI:
             pytest.fail(f"Unexpected status code {response.status_code}. Expected 200 (success) or 409 (conflict).")
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_unauthorized(self, async_client: AsyncClient, test_novel):
-        """Test advancing stage without authentication."""
+    async def test_switch_flow_stage_unauthorized(self, async_client: AsyncClient, test_novel):
+        """Test switching stage without authentication."""
         # Arrange
         novel_id = test_novel.id
 
         # Act - No auth headers
-        advance_data = {"target_stage": GenesisStage.WORLDVIEW.value}
-        response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}/advance-stage", json=advance_data)
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}/switch-stage", json=switch_data)
 
         # Assert - Check expected authentication/authorization behavior
         if response.status_code == 401:
@@ -373,15 +373,15 @@ class TestGenesisFlowsAPI:
             pytest.fail(f"Unexpected status code {response.status_code}. Expected 401, 404, or 500 due to test environment.")
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_invalid_request_body(self, async_client: AsyncClient, auth_headers, test_novel):
-        """Test advancing stage with invalid request body."""
+    async def test_switch_flow_stage_invalid_request_body(self, async_client: AsyncClient, auth_headers, test_novel):
+        """Test switching stage with invalid request body."""
         # Arrange
         novel_id = test_novel.id
 
         # Act - Invalid request data
-        advance_data = {"invalid_field": "invalid_value"}
+        switch_data = {"invalid_field": "invalid_value"}
         response = await async_client.post(
-            f"/api/v1/genesis/flows/{novel_id}/advance-stage", headers=auth_headers, json=advance_data
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
         )
 
         # Assert
@@ -493,8 +493,8 @@ class TestGenesisFlowsAPI:
             pytest.fail(f"Unexpected status code {response.status_code}. Expected 404 for non-existent novel.")
 
     @pytest.mark.asyncio
-    async def test_advance_flow_stage_with_correlation_id(self, async_client: AsyncClient, auth_headers, test_novel):
-        """Test advance stage with correlation ID propagation."""
+    async def test_switch_flow_stage_with_correlation_id(self, async_client: AsyncClient, auth_headers, test_novel):
+        """Test switch stage with correlation ID propagation."""
         # Arrange
         novel_id = test_novel.id
         correlation_id = "test-advance-correlation-456"
@@ -503,17 +503,128 @@ class TestGenesisFlowsAPI:
         create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
         assert create_response.status_code == 201
 
-        # Act - Advance with correlation ID
-        advance_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        # Act - Switch with correlation ID
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
         response = await async_client.post(
-            f"/api/v1/genesis/flows/{novel_id}/advance-stage",
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage",
             headers={**auth_headers, "X-Correlation-Id": correlation_id},
-            json=advance_data
+            json=switch_data
         )
 
         # Assert correlation ID is returned
         assert response.status_code == 200
         assert response.headers["X-Correlation-Id"] == correlation_id
+
+    @pytest.mark.asyncio
+    async def test_switch_stage_creates_stage_record_if_not_exists(self, async_client: AsyncClient, auth_headers, test_novel, test_db):
+        """Test that switching to a stage automatically creates stage record if it doesn't exist."""
+        from sqlalchemy import select
+        from src.models.genesis_flows import GenesisStageRecord
+
+        # Arrange - Create a flow first
+        novel_id = test_novel.id
+        create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
+        assert create_response.status_code == 201
+        flow_data = create_response.json()["data"]
+        flow_id = flow_data["id"]
+
+        # Verify no WORLDVIEW stage record exists yet
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        existing_stage = result.scalar_one_or_none()
+        assert existing_stage is None, "WORLDVIEW stage record should not exist initially"
+
+        # Act - Switch to WORLDVIEW stage
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        response = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+
+        # Assert - Stage switch succeeded
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 0
+        flow_data = data["data"]
+        assert flow_data["current_stage"] == GenesisStage.WORLDVIEW.value
+
+        # Assert - Stage record was automatically created
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        created_stage = result.scalar_one_or_none()
+        assert created_stage is not None, "WORLDVIEW stage record should be automatically created"
+        assert created_stage.flow_id == flow_id
+        assert created_stage.stage == GenesisStage.WORLDVIEW
+        assert created_stage.status.value == "RUNNING"
+
+    @pytest.mark.asyncio
+    async def test_switch_stage_reuses_existing_stage_record(self, async_client: AsyncClient, auth_headers, test_novel, test_db):
+        """Test that switching to a stage reuses existing stage record if it already exists."""
+        from sqlalchemy import select
+        from src.models.genesis_flows import GenesisStageRecord
+
+        # Arrange - Create a flow and switch to WORLDVIEW once
+        novel_id = test_novel.id
+        create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
+        assert create_response.status_code == 201
+        flow_data = create_response.json()["data"]
+        flow_id = flow_data["id"]
+
+        # First switch to WORLDVIEW
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        first_switch = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+        assert first_switch.status_code == 200
+
+        # Get the created stage record
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        first_stage = result.scalar_one_or_none()
+        assert first_stage is not None
+        first_stage_id = first_stage.id
+        first_created_at = first_stage.created_at
+
+        # Switch to a different stage (CHARACTERS) and then back to WORLDVIEW
+        characters_switch_data = {"target_stage": GenesisStage.CHARACTERS.value}
+        await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=characters_switch_data
+        )
+
+        # Act - Switch back to WORLDVIEW
+        second_switch = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+
+        # Assert - Stage switch succeeded
+        assert second_switch.status_code == 200
+        data = second_switch.json()
+        assert data["code"] == 0
+        flow_data = data["data"]
+        assert flow_data["current_stage"] == GenesisStage.WORLDVIEW.value
+
+        # Assert - Same stage record was reused (not a new one created)
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        reused_stage = result.scalar_one_or_none()
+        assert reused_stage is not None
+        assert reused_stage.id == first_stage_id, "Should reuse existing stage record, not create new one"
+        assert reused_stage.created_at == first_created_at, "Created timestamp should be unchanged"
 
     @pytest.mark.asyncio
     async def test_complete_flow_with_correlation_id(self, async_client: AsyncClient, auth_headers, test_novel):
@@ -535,3 +646,114 @@ class TestGenesisFlowsAPI:
         # Assert correlation ID is returned
         assert response.status_code == 200
         assert response.headers["X-Correlation-Id"] == correlation_id
+
+    @pytest.mark.asyncio
+    async def test_switch_stage_creates_stage_record_if_not_exists(self, async_client: AsyncClient, auth_headers, test_novel, test_db):
+        """Test that switching to a stage automatically creates stage record if it doesn't exist."""
+        from sqlalchemy import select
+        from src.models.genesis_flows import GenesisStageRecord
+
+        # Arrange - Create a flow first
+        novel_id = test_novel.id
+        create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
+        assert create_response.status_code == 201
+        flow_data = create_response.json()["data"]
+        flow_id = flow_data["id"]
+
+        # Verify no WORLDVIEW stage record exists yet
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        existing_stage = result.scalar_one_or_none()
+        assert existing_stage is None, "WORLDVIEW stage record should not exist initially"
+
+        # Act - Switch to WORLDVIEW stage
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        response = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+
+        # Assert - Stage switch succeeded
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 0
+        flow_data = data["data"]
+        assert flow_data["current_stage"] == GenesisStage.WORLDVIEW.value
+
+        # Assert - Stage record was automatically created
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        created_stage = result.scalar_one_or_none()
+        assert created_stage is not None, "WORLDVIEW stage record should be automatically created"
+        assert created_stage.flow_id == flow_id
+        assert created_stage.stage == GenesisStage.WORLDVIEW
+        assert created_stage.status.value == "RUNNING"
+
+    @pytest.mark.asyncio
+    async def test_switch_stage_reuses_existing_stage_record(self, async_client: AsyncClient, auth_headers, test_novel, test_db):
+        """Test that switching to a stage reuses existing stage record if it already exists."""
+        from sqlalchemy import select
+        from src.models.genesis_flows import GenesisStageRecord
+
+        # Arrange - Create a flow and switch to WORLDVIEW once
+        novel_id = test_novel.id
+        create_response = await async_client.post(f"/api/v1/genesis/flows/{novel_id}", headers=auth_headers)
+        assert create_response.status_code == 201
+        flow_data = create_response.json()["data"]
+        flow_id = flow_data["id"]
+
+        # First switch to WORLDVIEW
+        switch_data = {"target_stage": GenesisStage.WORLDVIEW.value}
+        first_switch = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+        assert first_switch.status_code == 200
+
+        # Get the created stage record
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        first_stage = result.scalar_one_or_none()
+        assert first_stage is not None
+        first_stage_id = first_stage.id
+        first_created_at = first_stage.created_at
+
+        # Switch to a different stage (CHARACTERS) and then back to WORLDVIEW
+        characters_switch_data = {"target_stage": GenesisStage.CHARACTERS.value}
+        await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=characters_switch_data
+        )
+
+        # Act - Switch back to WORLDVIEW
+        second_switch = await async_client.post(
+            f"/api/v1/genesis/flows/{novel_id}/switch-stage", headers=auth_headers, json=switch_data
+        )
+
+        # Assert - Stage switch succeeded
+        assert second_switch.status_code == 200
+        data = second_switch.json()
+        assert data["code"] == 0
+        flow_data = data["data"]
+        assert flow_data["current_stage"] == GenesisStage.WORLDVIEW.value
+
+        # Assert - Same stage record was reused (not a new one created)
+        result = await test_db.execute(
+            select(GenesisStageRecord).where(
+                GenesisStageRecord.flow_id == flow_id,
+                GenesisStageRecord.stage == GenesisStage.WORLDVIEW
+            )
+        )
+        reused_stage = result.scalar_one_or_none()
+        assert reused_stage is not None
+        assert reused_stage.id == first_stage_id, "Should reuse existing stage record, not create new one"
+        assert reused_stage.created_at == first_created_at, "Created timestamp should be unchanged"

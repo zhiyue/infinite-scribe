@@ -34,8 +34,6 @@ class ConversationSerializer:
             "scope_type": session.scope_type,
             "scope_id": session.scope_id,
             "status": session.status,
-            "stage": session.stage,
-            "state": session.state or {},
             "version": session.version,
             "created_at": getattr(session.created_at, "isoformat", lambda: str(session.created_at))()
             if hasattr(session, "created_at")

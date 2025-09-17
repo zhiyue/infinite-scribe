@@ -3,13 +3,11 @@
  * 管理阶段与会话的绑定关系
  */
 
-import { conversationsService } from '@/services/conversationsService'
 import {
   genesisService,
   type CreateStageSessionRequest,
   type StageSessionResponse,
 } from '@/services/genesisService'
-import type { CreateSessionRequest, SessionResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -46,7 +44,7 @@ export function useGenesisStageSession(
     enabled: !!stageId,
   })
 
-  // 创建新会话并绑定到阶段
+  // 创建新会话并绑定到阶段（直接使用Genesis API）
   const createAndBindSession = useMutation({
     mutationFn: async (params: {
       stage: GenesisStage
@@ -57,23 +55,12 @@ export function useGenesisStageSession(
         throw new Error('Stage ID is required')
       }
 
-      // 1. 创建新的对话会话
-      const sessionRequest: CreateSessionRequest = {
-        scope_type: 'GENESIS',
-        scope_id: novelId,
-        stage: params.stage,
-        initial_state: {
-          novel_id: novelId,
-          current_stage: params.stage,
-        },
-      }
+      console.log('[useGenesisStageSession] Creating and binding session directly via Genesis API')
 
-      const session = await conversationsService.createSession(sessionRequest)
-
-      // 2. 将会话绑定到阶段
+      // 直接使用Genesis API创建和绑定会话（无需提供session_id）
       const stageSessionRequest: CreateStageSessionRequest = {
         novel_id: novelId,
-        session_id: session.id,
+        // session_id 不提供，让后端自动创建会话
         is_primary: params.is_primary ?? true,
         session_kind: params.session_kind ?? 'user_interaction',
       }
@@ -83,12 +70,13 @@ export function useGenesisStageSession(
         stageSessionRequest,
       )
 
-      return { sessionId, stageSession, session }
+      console.log('[useGenesisStageSession] Session created and bound successfully:', sessionId)
+      return { sessionId, stageSession }
     },
-    onSuccess: ({ sessionId, stageSession, session }) => {
+    onSuccess: ({ sessionId, stageSession }) => {
       // 更新缓存
       queryClient.invalidateQueries({ queryKey })
-      queryClient.setQueryData(['session', sessionId], session)
+      // 注意：不再缓存session对象，因为我们没有完整的session数据
 
       onSessionCreated?.(sessionId, stageSession)
     },

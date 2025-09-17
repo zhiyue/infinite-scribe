@@ -33,6 +33,7 @@ class FlowResponse(BaseModel):
     novel_id: UUID = Field(..., description="Novel ID")
     status: GenesisStatus = Field(..., description="Flow status")
     current_stage: GenesisStage | None = Field(..., description="Current stage")
+    current_stage_id: UUID | None = Field(..., description="Current stage record ID")
     version: int = Field(..., description="Version for optimistic concurrency control")
     state: dict[str, Any] | None = Field(..., description="Global state")
     created_at: datetime = Field(..., description="Creation timestamp")

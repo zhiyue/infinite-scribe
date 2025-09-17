@@ -55,23 +55,28 @@ export function useGenesisSession({
     currentStage: flowCurrentStage,
   } = useGenesisFlow(novelId, {
     onFlowReady: (flow) => {
-      console.log('[useGenesisSession] Flow ready:', flow.id)
+      console.log('[useGenesisSession] Flow ready:', flow.id, 'current_stage_id:', flow.current_stage_id)
       onFlowReady?.(flow)
 
-      // 假设我们需要从当前阶段中获取stageId
-      // 这里需要根据实际的API设计来确定如何获取stageId
-      // 暂时使用flow的当前阶段来构造stageId
-      const stageId = `${flow.id}-${flow.current_stage || GenesisStage.INITIAL_PROMPT}`
-      setState((prev) => ({
-        ...prev,
-        stageId,
-        currentStage: (flow.current_stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
-      }))
+      // 使用真实的 stage_id（从API响应中获取）
+      const stageId = flow.current_stage_id
+      if (stageId) {
+        console.log('[useGenesisSession] Setting stageId:', stageId)
+        setState((prev) => ({
+          ...prev,
+          stageId,
+          currentStage: (flow.current_stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
+        }))
+      } else {
+        console.warn('[useGenesisSession] No current_stage_id in flow response', flow)
+      }
     },
     onStageChanged: (flow) => {
       console.log('[useGenesisSession] Stage changed:', flow.current_stage)
+      const stageId = flow.current_stage_id
       setState((prev) => ({
         ...prev,
+        stageId: stageId || prev.stageId,
         currentStage: (flow.current_stage as GenesisStage) || prev.currentStage,
       }))
     },
@@ -122,12 +127,20 @@ export function useGenesisSession({
     try {
       // 1. 确保流程存在
       if (!flow) {
+        console.log('[useGenesisSession] No flow found, initializing...')
         await initializeFlow()
+        console.log('[useGenesisSession] Flow initialization called, waiting for onFlowReady...')
         return // 等待flow创建完成后，会触发onFlowReady
       }
 
+      console.log('[useGenesisSession] Flow exists, checking stage session...', {
+        stageId: state.stageId,
+        primarySessionId,
+      })
+
       // 2. 检查当前阶段是否有主要会话
       if (state.stageId && !primarySessionId) {
+        console.log('[useGenesisSession] Creating session for existing stage:', state.stageId)
         createAndBindSession({
           stage: state.currentStage,
           is_primary: true,
@@ -135,6 +148,7 @@ export function useGenesisSession({
         })
       } else if (primarySessionId) {
         // 已有主要会话，直接使用
+        console.log('[useGenesisSession] Using existing primary session:', primarySessionId)
         setState((prev) => ({ ...prev, sessionId: primarySessionId, isCreating: false }))
         onSessionReady?.(primarySessionId, state.stageId || undefined)
       }
@@ -194,8 +208,20 @@ export function useGenesisSession({
    * 清除错误状态
    */
   const clearError = useCallback(() => {
-    setState((prev) => ({ ...prev, error: null, hasActiveSessionConflict: false }))
+    setState((prev) => ({ ...prev, error: null }))
   }, [])
+
+  // 当flow存在但stageId未设置时，从flow中提取stageId
+  useEffect(() => {
+    if (flow && flow.current_stage_id && !state.stageId) {
+      console.log('[useGenesisSession] Setting stageId from existing flow:', flow.current_stage_id)
+      setState((prev) => ({
+        ...prev,
+        stageId: flow.current_stage_id,
+        currentStage: (flow.current_stage as GenesisStage) || GenesisStage.INITIAL_PROMPT,
+      }))
+    }
+  }, [flow, state.stageId])
 
   // 更新组合状态
   useEffect(() => {
@@ -216,6 +242,35 @@ export function useGenesisSession({
     isCreatingSession,
     flowError,
     state.error,
+  ])
+
+  // 当用户点击创建且流程刚被创建时，自动继续创建并绑定阶段会话，避免卡在"创建会话中"
+  useEffect(() => {
+    console.log('[useGenesisSession] Auto-create effect triggered:', {
+      isCreating: state.isCreating,
+      hasFlow: !!flow,
+      hasStageId: !!state.stageId,
+      hasPrimarySession: !!primarySessionId,
+      isCreatingSession,
+      currentStage: state.currentStage,
+    })
+
+    if (state.isCreating && !!flow && !!state.stageId && !primarySessionId && !isCreatingSession) {
+      console.log('[useGenesisSession] Auto-creating session for stage:', state.stageId)
+      createAndBindSession({
+        stage: state.currentStage,
+        is_primary: true,
+        session_kind: 'user_interaction',
+      })
+    }
+  }, [
+    state.isCreating,
+    flow,
+    state.stageId,
+    primarySessionId,
+    isCreatingSession,
+    createAndBindSession,
+    state.currentStage,
   ])
 
   // 当主要会话变化时，更新状态
