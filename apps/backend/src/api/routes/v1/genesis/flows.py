@@ -174,7 +174,7 @@ async def advance_flow_stage(
         if not flow:
             raise HTTPException(status_code=404, detail="Genesis flow not found for this novel")
 
-        # Advance to target stage
+        # Advance to target stage (this will also create stage record automatically)
         updated_flow = await flow_service.advance_stage(
             flow_id=flow.id,
             next_stage=request.target_stage,
