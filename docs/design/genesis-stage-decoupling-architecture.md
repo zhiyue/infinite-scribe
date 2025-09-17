@@ -264,221 +264,25 @@ CREATE TABLE genesis_stage_sessions (
 - `genesis_flows.current_stage` 推进或 `status=COMPLETED`
 - 将 `genesis_stage_sessions` 置为 `ARCHIVED`（历史复盘仍可读）
 
-## 服务层设计
+## API 设计（增量）
 
-### ORM 模型定义
-
-#### 通用对话模型
+### 新增接口
 
 ```python
-# src/models/conversation.py (重构版)
-from sqlalchemy import String, Integer, DECIMAL, Boolean, ForeignKey, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from uuid import UUID as UUIDType, uuid4
-from datetime import datetime
-from decimal import Decimal
-from typing import Any
-
-class ConversationSession(Base):
-    """通用对话会话（重构版，已删除创世特定字段）"""
-
-    __tablename__ = "conversation_sessions"
-    __table_args__ = (
-        Index("idx_conversation_sessions_user", "user_id"),
-        Index("idx_conversation_sessions_scope", "scope_type", "scope_id"),
-        Index("idx_conversation_sessions_status", "status"),
-        Index("idx_conversation_sessions_updated_at", "updated_at"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    scope_type: Mapped[str] = mapped_column(String(64), nullable=False)  # 会话归属类型
-    scope_id: Mapped[str | None] = mapped_column(String(255))  # 会话归属ID
-    title: Mapped[str | None] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(ENUM('ACTIVE', 'COMPLETED', 'ARCHIVED', name='session_status'), default='ACTIVE')
-    round_sequence: Mapped[int] = mapped_column(Integer, default=0)  # 顶层轮次自增编号
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    # 已删除字段：stage（移至 genesis_flows.current_stage）
-    # 已删除字段：state（移至 genesis_flows.state）
-    version: Mapped[int] = mapped_column(Integer, default=1)  # 可选：可用 updated_at 替代
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # 关系
-    rounds: Mapped[list["ConversationRound"]] = relationship(back_populates="session", cascade="all, delete-orphan")
-    user: Mapped["User"] = relationship(back_populates="conversation_sessions")
-
-
-class ConversationRound(Base):
-    """对话轮次（重构版）"""
-
-    __tablename__ = "conversation_rounds"
-    __table_args__ = (
-        UniqueConstraint("session_id", "sequence_number"),
-        Index("idx_conversation_rounds_session", "session_id"),
-        Index("idx_conversation_rounds_correlation", "correlation_id"),
-        Index("idx_conversation_rounds_created_at", "created_at"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    session_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"))
-    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    role: Mapped[str] = mapped_column(ENUM('USER', 'ASSISTANT', 'SYSTEM', name='dialogue_role'), nullable=False)
-    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    response: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    tool_calls: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    model: Mapped[str | None] = mapped_column(String(128))
-    tokens_in: Mapped[int | None] = mapped_column(Integer)
-    tokens_out: Mapped[int | None] = mapped_column(Integer)
-    latency_ms: Mapped[int | None] = mapped_column(Integer)
-    cost: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 4))
-    correlation_id: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    # 关系
-    session: Mapped[ConversationSession] = relationship(back_populates="rounds")
+# 新增（只读/写）
+POST /api/v1/genesis/flows/{novel_id}           # 幂等创建或返回当前 flow
+POST /api/v1/genesis/flows/{novel_id}/stages/{stage}  # 创建阶段记录
+POST /api/v1/genesis/stages/{stage_id}/sessions  # 创建并绑定会话
+GET  /api/v1/genesis/stages/{stage_id}/sessions  # 列出阶段的所有会话
+GET  /api/v1/genesis/flows/{novel_id}           # 查看流程进度与阶段摘要
 ```
 
-#### 创世流程模型
+### 复用现有接口
 
 ```python
-# src/models/genesis.py (新建)
-from sqlalchemy import String, Integer, Boolean, ForeignKey, Index, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from uuid import UUID as UUIDType, uuid4
-from datetime import datetime
-from typing import Any
-
-class GenesisProcess(Base):
-    """创世流程"""
-
-    __tablename__ = "genesis_processes"
-    __table_args__ = (
-        UniqueConstraint("novel_id"),
-        Index("idx_genesis_processes_user", "user_id"),
-        Index("idx_genesis_processes_novel", "novel_id"),
-        Index("idx_genesis_processes_status", "status"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    novel_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("novels.id"), nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    status: Mapped[str] = mapped_column(
-        ENUM('IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'PAUSED', name='genesis_process_status'),
-        default='IN_PROGRESS'
-    )
-    current_stage: Mapped[str] = mapped_column(
-        ENUM('INITIAL_PROMPT', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED', name='genesis_stage'),
-        default='INITIAL_PROMPT'
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # 关系
-    stage_instances: Mapped[list["GenesisStageInstance"]] = relationship(back_populates="process", cascade="all, delete-orphan")
-    novel: Mapped["Novel"] = relationship(back_populates="genesis_process")
-    user: Mapped["User"] = relationship(back_populates="genesis_processes")
-
-
-class GenesisStageInstance(Base):
-    """创世阶段实例"""
-
-    __tablename__ = "genesis_stage_instances"
-    __table_args__ = (
-        UniqueConstraint("process_id", "stage", "sequence_number"),
-        Index("idx_stage_instances_process", "process_id"),
-        Index("idx_stage_instances_current", "process_id", "stage", "is_current"),
-        Index("idx_stage_instances_status", "status"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    process_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("genesis_processes.id", ondelete="CASCADE"))
-    stage: Mapped[str] = mapped_column(
-        ENUM('INITIAL_PROMPT', 'WORLDVIEW', 'CHARACTERS', 'PLOT_OUTLINE', 'FINISHED', name='genesis_stage'),
-        nullable=False
-    )
-    status: Mapped[str] = mapped_column(
-        ENUM('ACTIVE', 'COMPLETED', 'DEPRECATED', 'ABANDONED', name='stage_instance_status'),
-        default='ACTIVE'
-    )
-    sequence_number: Mapped[int] = mapped_column(Integer, default=1)
-    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # 关系
-    process: Mapped[GenesisProcess] = relationship(back_populates="stage_instances")
-    sessions: Mapped[list["GenesisStageSessions"]] = relationship(back_populates="instance", cascade="all, delete-orphan")
-    settings: Mapped[list["GenesisStageSettings"]] = relationship(back_populates="instance", cascade="all, delete-orphan")
-
-
-class GenesisStageSessions(Base):
-    """阶段会话关联"""
-
-    __tablename__ = "genesis_stage_sessions"
-    __table_args__ = (
-        Index("idx_stage_sessions_instance", "instance_id"),
-        Index("idx_stage_sessions_session", "session_id"),
-        Index("idx_stage_sessions_active", "instance_id", "is_active"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    instance_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("genesis_stage_instances.id", ondelete="CASCADE"))
-    session_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    # 关系
-    instance: Mapped[GenesisStageInstance] = relationship(back_populates="sessions")
-    session: Mapped[ConversationSession] = relationship()
-
-
-class GenesisStageSettings(Base):
-    """阶段设定版本"""
-
-    __tablename__ = "genesis_stage_settings"
-    __table_args__ = (
-        UniqueConstraint("instance_id", "version"),
-        Index("idx_stage_settings_confirmed", "instance_id", "is_confirmed"),
-        Index("idx_stage_settings_version", "instance_id", "version"),
-        Index("idx_stage_settings_created_by", "created_by"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    instance_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("genesis_stage_instances.id", ondelete="CASCADE"))
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    settings: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    summary: Mapped[str | None] = mapped_column(Text)
-    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_by: Mapped[UUIDType | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    # 关系
-    instance: Mapped[GenesisStageInstance] = relationship(back_populates="settings")
-    created_by_session: Mapped[ConversationSession | None] = relationship()
-
-
-class GenesisStageTransitions(Base):
-    """阶段转换记录"""
-
-    __tablename__ = "genesis_stage_transitions"
-    __table_args__ = (
-        Index("idx_transitions_from", "from_instance_id"),
-        Index("idx_transitions_to", "to_instance_id"),
-    )
-
-    id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    from_instance_id: Mapped[UUIDType | None] = mapped_column(UUID(as_uuid=True), ForeignKey("genesis_stage_instances.id"))
-    to_instance_id: Mapped[UUIDType] = mapped_column(UUID(as_uuid=True), ForeignKey("genesis_stage_instances.id", ondelete="CASCADE"))
-    transition_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    # 关系
-    from_instance: Mapped[GenesisStageInstance | None] = relationship(foreign_keys=[from_instance_id])
-    to_instance: Mapped[GenesisStageInstance] = relationship(foreign_keys=[to_instance_id])
+# 对话消息（保持不变）
+POST /api/v1/conversations/sessions/{session_id}/rounds/messages
+POST /api/v1/conversations/sessions/{session_id}/rounds/commands
 ```
 
 ### 服务层实现
