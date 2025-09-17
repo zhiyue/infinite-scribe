@@ -60,7 +60,7 @@ def create_engine(
 
 
 # 延迟初始化引擎以确保在异步上下文中创建
-_engine = None
+_engine: AsyncEngine | None = None
 
 
 def get_engine():
@@ -77,9 +77,6 @@ def _get_lazy_engine():
 
 
 # 提供 engine 属性兼容性
-import sys
-
-current_module = sys.modules[__name__]
-current_module.engine = _get_lazy_engine()
+engine = _get_lazy_engine()
 
 __all__ = ["engine", "get_engine", "create_engine"]
