@@ -75,11 +75,7 @@ async def create_stage_session(
         raise
     except Exception as e:
         logger.exception(f"Unexpected error in create_stage_session endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create stage session association")
-
-
-
-
+        raise HTTPException(status_code=500, detail="Failed to create stage session association") from None
 
 
 @router.get(
@@ -116,4 +112,4 @@ async def list_stage_sessions(
 
     except Exception as e:
         logger.exception(f"Unexpected error in list_stage_sessions endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list stage sessions")
+        raise HTTPException(status_code=500, detail="Failed to list stage sessions") from None

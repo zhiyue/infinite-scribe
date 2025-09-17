@@ -4,7 +4,8 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import ErrorResponse
@@ -16,10 +17,17 @@ from src.database import get_db
 from src.middleware.auth import require_auth
 from src.models.user import User
 from src.schemas.base import ApiResponse
+from src.schemas.enums import GenesisStage
 from src.schemas.genesis import FlowResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class AdvanceStageRequest(BaseModel):
+    """阶段推进请求"""
+
+    target_stage: GenesisStage
 
 
 # Service dependency injection
@@ -139,7 +147,101 @@ async def get_flow_by_novel(
         raise HTTPException(status_code=500, detail="Failed to get Genesis flow") from None
 
 
+@router.post(
+    "/flows/{novel_id}/advance-stage",
+    response_model=ApiResponse[FlowResponse],
+    responses=COMMON_ERROR_RESPONSES,
+)
+async def advance_flow_stage(
+    novel_id: UUID,
+    request: AdvanceStageRequest,
+    response: Response,
+    current_user: User = Depends(require_auth),
+    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    flow_service: GenesisFlowService = Depends(get_flow_service),
+    novel_service: NovelService = Depends(get_novel_service),
+) -> ApiResponse[FlowResponse]:
+    """Advance flow to the next stage - direct synchronous operation."""
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        logger.info(f"Advancing Genesis flow for novel {novel_id} to stage {request.target_stage}")
+
+        # Validate novel ownership
+        await validate_novel_ownership(novel_id, current_user, novel_service, flow_service.db_session)
+
+        # Get current flow
+        flow = await flow_service.get_flow(novel_id)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Genesis flow not found for this novel")
+
+        # Advance to target stage
+        updated_flow = await flow_service.advance_stage(
+            flow_id=flow.id,
+            next_stage=request.target_stage,
+        )
+
+        if not updated_flow:
+            raise HTTPException(
+                status_code=409, detail="Failed to advance stage - invalid transition or flow not found"
+            )
+
+        # Commit transaction
+        await flow_service.db_session.commit()
+
+        data = FlowResponse.model_validate(updated_flow)
+        set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
+        return ApiResponse(code=0, msg="Genesis flow stage advanced successfully", data=data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await flow_service.db_session.rollback()
+        logger.exception(f"Unexpected error in advance_flow_stage endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to advance Genesis flow stage") from None
 
 
+@router.post(
+    "/flows/{novel_id}/complete",
+    response_model=ApiResponse[FlowResponse],
+    responses=COMMON_ERROR_RESPONSES,
+)
+async def complete_flow(
+    novel_id: UUID,
+    response: Response,
+    current_user: User = Depends(require_auth),
+    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    flow_service: GenesisFlowService = Depends(get_flow_service),
+    novel_service: NovelService = Depends(get_novel_service),
+) -> ApiResponse[FlowResponse]:
+    """Complete the Genesis flow - direct synchronous operation."""
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        logger.info(f"Completing Genesis flow for novel {novel_id}")
 
+        # Validate novel ownership
+        await validate_novel_ownership(novel_id, current_user, novel_service, flow_service.db_session)
 
+        # Get current flow
+        flow = await flow_service.get_flow(novel_id)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Genesis flow not found for this novel")
+
+        # Complete the flow
+        updated_flow = await flow_service.complete_flow(flow_id=flow.id)
+
+        if not updated_flow:
+            raise HTTPException(status_code=409, detail="Failed to complete flow - flow not found or already completed")
+
+        # Commit transaction
+        await flow_service.db_session.commit()
+
+        data = FlowResponse.model_validate(updated_flow)
+        set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
+        return ApiResponse(code=0, msg="Genesis flow completed successfully", data=data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await flow_service.db_session.rollback()
+        logger.exception(f"Unexpected error in complete_flow endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to complete Genesis flow") from None
