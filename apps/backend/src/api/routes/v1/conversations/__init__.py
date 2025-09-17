@@ -8,7 +8,7 @@ from . import (
     conversations_quality,
     conversations_rounds,
     conversations_sessions,
-    conversations_stages,
+    # conversations_stages,  # DEPRECATED: Moved to Genesis API
     conversations_versions,
 )
 
@@ -21,8 +21,8 @@ router.include_router(conversations_sessions.router, tags=["conversations-sessio
 # 轮次管理路由
 router.include_router(conversations_rounds.router, tags=["conversations-rounds"])
 
-# 阶段管理路由
-router.include_router(conversations_stages.router, tags=["conversations-stages"])
+# 阶段管理路由 - DEPRECATED: Moved to Genesis API
+# router.include_router(conversations_stages.router, tags=["conversations-stages"])
 
 # 消息和命令路由
 router.include_router(conversations_commands.router, tags=["conversations-commands"])

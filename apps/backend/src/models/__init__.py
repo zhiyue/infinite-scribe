@@ -14,6 +14,7 @@ from src.models.conversation import ConversationRound, ConversationSession
 from src.models.email_verification import EmailVerification, VerificationPurpose
 from src.models.event import DomainEvent
 from src.models.genesis import ConceptTemplate
+from src.models.genesis_flows import GenesisFlow, GenesisStageRecord, GenesisStageSession
 
 # 业务领域模型
 from src.models.novel import Novel
@@ -51,6 +52,9 @@ __all__ = [
     "WorldviewEntry",
     "StoryArc",
     "ConceptTemplate",
+    "GenesisFlow",
+    "GenesisStageRecord",
+    "GenesisStageSession",
     "DomainEvent",
     "CommandInbox",
     "AsyncTask",

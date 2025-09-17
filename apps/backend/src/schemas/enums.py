@@ -64,6 +64,23 @@ class GenesisStage(str, Enum):
     FINISHED = "FINISHED"
 
 
+class StageStatus(str, Enum):
+    """阶段状态枚举"""
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    PAUSED = "PAUSED"
+
+
+class StageSessionStatus(str, Enum):
+    """阶段会话关联状态枚举"""
+
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    CLOSED = "CLOSED"
+
+
 class GenesisEventType(str, Enum):
     """创世流程领域事件类型枚举"""
 

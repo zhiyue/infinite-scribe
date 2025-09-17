@@ -20,12 +20,7 @@ class GenesisEventPayload(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Event timestamp")
 
 
-class GenesisSessionStartedPayload(GenesisEventPayload):
-    """Payload for genesis session started event"""
-
-    mode: str = Field(..., description="Genesis mode: 'guided' or 'free-form'")
-    initial_stage: GenesisStage = Field(..., description="Initial stage of the session")
-    session_metadata: dict[str, Any] | None = Field(None, description="Additional session metadata")
+# GenesisSessionStartedPayload removed - replaced by GenesisFlowStartedPayload
 
 
 class StageEnteredPayload(GenesisEventPayload):
@@ -96,8 +91,7 @@ class NovelCreatedFromGenesisPayload(GenesisEventPayload):
 
 # Union type for all genesis event payloads
 GenesisEventPayloadUnion = (
-    GenesisSessionStartedPayload
-    | StageEnteredPayload
+    StageEnteredPayload
     | StageCompletedPayload
     | ConceptSelectedPayload
     | InspirationGeneratedPayload
@@ -117,8 +111,8 @@ class GenesisEventCreate(BaseSchema):
     causation_id: UUID | None = Field(None, description="ID of the event that caused this event")
     event_type: GenesisEventType = Field(..., description="Type of genesis event")
     event_version: int = Field(default=1, description="Event schema version")
-    aggregate_type: str = Field(default="GenesisSession", description="Aggregate type")
-    aggregate_id: str = Field(..., description="Genesis session ID as string")
+    aggregate_type: str = Field(default="GenesisFlow", description="Aggregate type")
+    aggregate_id: str = Field(..., description="Genesis flow ID as string")
     payload: dict[str, Any] = Field(..., description="Event payload data")
     metadata: dict[str, Any] | None = Field(None, description="Event metadata")
 
@@ -133,7 +127,7 @@ class GenesisEventResponse(BaseSchema):
     event_type: str = Field(..., description="Type of genesis event")
     event_version: int = Field(..., description="Event schema version")
     aggregate_type: str = Field(..., description="Aggregate type")
-    aggregate_id: str = Field(..., description="Genesis session ID as string")
+    aggregate_id: str = Field(..., description="Genesis flow ID as string")
     payload: dict[str, Any] | None = Field(None, description="Event payload data")
     metadata: dict[str, Any] | None = Field(None, description="Event metadata")
     created_at: datetime = Field(..., description="Event creation timestamp")
@@ -152,7 +146,7 @@ class EventSerializationUtils:
         """Deserialize payload data based on event type"""
 
         payload_map = {
-            GenesisEventType.GENESIS_SESSION_STARTED: GenesisSessionStartedPayload,
+            # Note: GENESIS_SESSION_STARTED removed - replaced by flow events
             GenesisEventType.STAGE_ENTERED: StageEnteredPayload,
             GenesisEventType.STAGE_COMPLETED: StageCompletedPayload,
             GenesisEventType.CONCEPT_SELECTED: ConceptSelectedPayload,
@@ -194,7 +188,7 @@ class EventSerializationUtils:
 
 __all__ = [
     "GenesisEventPayload",
-    "GenesisSessionStartedPayload",
+    # Note: GenesisSessionStartedPayload removed - replaced by flow events
     "StageEnteredPayload",
     "StageCompletedPayload",
     "ConceptSelectedPayload",

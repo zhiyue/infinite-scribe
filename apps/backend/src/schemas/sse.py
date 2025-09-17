@@ -191,13 +191,7 @@ class GenesisStepCompletedEvent(BaseModel):
     summary: str | None = Field(None, description="步骤摘要")
 
 
-class GenesisSessionCompletedEvent(BaseModel):
-    """创世会话完成事件"""
-
-    session_id: str = Field(..., description="创世会话 ID")
-    novel_id: str = Field(..., description="生成的小说 ID")
-    final_settings: dict[str, Any] = Field(..., description="最终设置")
-    duration: int = Field(..., description="耗时（秒）")
+# GenesisSessionCompletedEvent removed - replaced by GenesisFlow events
 
 
 # ============================================================================
@@ -263,7 +257,7 @@ __all__ = [
     "ChapterStatusChangedEvent",
     # 创世相关事件
     "GenesisStepCompletedEvent",
-    "GenesisSessionCompletedEvent",
+    # Note: GenesisSessionCompletedEvent removed - replaced by GenesisFlow events
     # 工作流相关事件
     "WorkflowStatusChangedEvent",
     # 辅助函数

@@ -27,7 +27,7 @@ SCOPE_EVENT_PREFIX: Final[dict[str, str]] = {
 
 # Aggregate type per scope
 SCOPE_AGGREGATE_TYPE: Final[dict[str, str]] = {
-    ScopeType.GENESIS.value: "GenesisSession",
+    ScopeType.GENESIS.value: "GenesisFlow",  # Updated from GenesisSession to GenesisFlow
     ScopeType.CHAPTER.value: "ChapterSession",
     ScopeType.REVIEW.value: "ReviewSession",
     ScopeType.PLANNING.value: "PlanningSession",

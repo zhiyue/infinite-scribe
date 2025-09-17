@@ -33,17 +33,4 @@ class ConceptTemplateUpdateRequest(BaseSchema):
         return self
 
 
-class GenesisSessionUpdateRequest(BaseSchema):
-    """创世会话更新请求 - 所有字段可选"""
-
-    novel_id: UUID | None = Field(None, description="流程完成后关联的小说ID")
-    status: GenesisStatus | None = Field(None, description="会话状态")
-    current_stage: GenesisStage | None = Field(None, description="当前阶段")
-    confirmed_data: dict[str, Any] | None = Field(None, description="存储每个阶段已确认的最终数据")
-
-    @model_validator(mode="after")
-    def validate_at_least_one_field(self):
-        """确保至少有一个字段被设置"""
-        if not any(v is not None for v in self.model_dump().values()):
-            raise ValueError("至少需要提供一个字段进行更新")
-        return self
+# GenesisSessionUpdateRequest removed - replaced by GenesisFlow and GenesisStageRecord schemas

@@ -17,7 +17,7 @@ from src.schemas.enums import (
     OutboxStatus,
     TaskStatus,
 )
-from src.schemas.genesis import GenesisSessionResponse
+# GenesisSessionResponse removed - using new Genesis flow schemas
 from src.schemas.workflow import (
     AsyncTaskResponse,
     CommandInboxResponse,
@@ -431,74 +431,7 @@ class TestFlowResumeHandleModel:
         assert handle.expires_at == future_time
 
 
-class TestGenesisSessionModel:
-    """测试创世会话模型"""
-
-    def test_create_genesis_session_minimal(self):
-        """测试创建最小化的创世会话"""
-        user_id = uuid4()
-        now = datetime.now(UTC)
-        session = GenesisSessionResponse(
-            id=uuid4(),
-            user_id=user_id,
-            novel_id=None,
-            status=GenesisStatus.IN_PROGRESS,
-            current_stage=GenesisStage.INITIAL_PROMPT,
-            confirmed_data=None,
-            version=1,
-            created_at=now,
-            updated_at=now,
-        )
-
-        assert session.id is not None
-        assert session.status == GenesisStatus.IN_PROGRESS
-        assert session.current_stage == GenesisStage.INITIAL_PROMPT
-        assert session.confirmed_data is None
-
-    def test_create_genesis_session_with_data(self):
-        """测试创建带数据的创世会话"""
-        novel_id = uuid4()
-        now = datetime.now(UTC)
-        session = GenesisSessionResponse(
-            id=uuid4(),
-            user_id=uuid4(),
-            novel_id=novel_id,
-            current_stage=GenesisStage.CHARACTERS,
-            status=GenesisStatus.IN_PROGRESS,
-            confirmed_data={
-                "theme": "科幻冒险",
-                "writing_style": "幽默诙谐",
-                "target_audience": "青少年",
-                "characters_created": 3,
-            },
-            version=1,
-            created_at=now,
-            updated_at=now,
-        )
-
-        assert session.novel_id == novel_id
-        assert session.current_stage == GenesisStage.CHARACTERS
-        assert session.confirmed_data is not None
-        assert session.confirmed_data["characters_created"] == 3
-
-    def test_genesis_session_completion(self):
-        """测试创世会话完成状态"""
-        now = datetime.now(UTC)
-        session = GenesisSessionResponse(
-            id=uuid4(),
-            user_id=uuid4(),
-            novel_id=uuid4(),
-            status=GenesisStatus.COMPLETED,
-            current_stage=GenesisStage.FINISHED,
-            confirmed_data=None,
-            version=1,
-            created_at=now,
-            updated_at=now,
-        )
-
-        assert session.status == GenesisStatus.COMPLETED
-        assert session.current_stage == GenesisStage.FINISHED
-        assert session.updated_at is not None  # 使用 updated_at 代替 completed_at
+# TestGenesisSessionModel removed - replaced by tests for new Genesis flow schemas
 
 
 class TestModelValidation:

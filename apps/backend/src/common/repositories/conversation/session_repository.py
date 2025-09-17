@@ -43,9 +43,8 @@ class ConversationSessionRepository(ABC):
         scope_type: str,
         scope_id: str,
         status: str | SessionStatus = SessionStatus.ACTIVE,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
-        version: int = 1,
+        # stage and state parameters removed - moved to Genesis tables
+        version: int = 0,
     ) -> ConversationSession:
         """Create a new conversation session."""
         pass
@@ -55,8 +54,7 @@ class ConversationSessionRepository(ABC):
         self,
         session_id: UUID,
         status: str | None = None,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
+        # stage and state parameters removed - moved to Genesis tables
         version: int | None = None,
         expected_version: int | None = None,
     ) -> ConversationSession | None:
@@ -135,9 +133,8 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
         scope_type: str,
         scope_id: str,
         status: str | SessionStatus = SessionStatus.ACTIVE,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
-        version: int = 1,
+        # stage and state parameters removed - moved to Genesis tables
+        version: int = 0,  # Changed default to 0 to match model default
     ) -> ConversationSession:
         """Create a new conversation session."""
         # Handle enum conversion
@@ -147,8 +144,7 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             scope_type=scope_type,
             scope_id=scope_id,
             status=status_value,
-            stage=stage,
-            state=state or {},
+            # stage and state fields removed
             version=version,
         )
 
@@ -162,8 +158,7 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
         self,
         session_id: UUID,
         status: str | SessionStatus | None = None,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
+        # stage and state parameters removed - moved to Genesis tables
         version: int | None = None,  # Added version parameter for test compatibility
         expected_version: int | None = None,  # Keep for backward compatibility
     ) -> ConversationSession | None:
@@ -180,15 +175,11 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             status_value = None
 
         # Build update values, only including non-None values
-        # Use a dict for plain values only, not column expressions
         update_values: dict[str, Any] = {}
 
         if status_value is not None:
             update_values["status"] = status_value
-        if stage is not None:
-            update_values["stage"] = stage
-        if state is not None:
-            update_values["state"] = state
+        # stage and state updates removed
 
         # Build where conditions
         conditions = [ConversationSession.id == session_id]
@@ -196,7 +187,6 @@ class SqlAlchemyConversationSessionRepository(ConversationSessionRepository):
             conditions.append(ConversationSession.version == version_to_check)
 
         # Execute update with version check
-        # Pass version increment directly as a column expression
         result = await self.db.execute(
             sql_update(ConversationSession)
             .where(and_(*conditions))

@@ -38,8 +38,7 @@ class ConversationSession(Base):
     scope_type: Mapped[str] = mapped_column(String(32), nullable=False)
     scope_id: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
-    stage: Mapped[str | None] = mapped_column(String(64))
-    state: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # stage and state fields removed - moved to genesis_flows/genesis_stage_records
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     round_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

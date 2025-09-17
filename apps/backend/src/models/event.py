@@ -74,7 +74,7 @@ class DomainEvent(Base):
 
         return cls(
             event_type=event_type.value,
-            aggregate_type="GenesisSession",
+            aggregate_type="GenesisFlow",  # Updated from GenesisSession to GenesisFlow
             aggregate_id=str(session_id),
             payload=payload,
             correlation_id=correlation_id,
@@ -90,9 +90,9 @@ class DomainEvent(Base):
         except ValueError:
             return False
 
-    def get_session_id(self) -> UUID | None:
-        """Get session ID from genesis events"""
-        if self.aggregate_type == "GenesisSession":
+    def get_flow_id(self) -> UUID | None:
+        """Get flow ID from genesis events"""
+        if self.aggregate_type == "GenesisFlow":
             try:
                 return UUID(self.aggregate_id)
             except (ValueError, TypeError):
