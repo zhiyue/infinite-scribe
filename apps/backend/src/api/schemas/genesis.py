@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from src.schemas.enums import GenesisStatus, GenesisStage, StageStatus, StageSessionStatus
+from src.schemas.enums import GenesisStage, GenesisStatus, StageSessionStatus, StageStatus
 
 
 # Genesis Flow 相关模式
@@ -32,14 +32,8 @@ class GenesisFlowResponse(BaseModel):
 class GenesisFlowCreateRequest(BaseModel):
     """创建Genesis流程请求模式"""
 
-    initial_stage: GenesisStage | None = Field(
-        default=GenesisStage.INITIAL_PROMPT,
-        description="初始阶段"
-    )
-    initial_state: dict[str, Any] | None = Field(
-        default_factory=dict,
-        description="初始状态数据"
-    )
+    initial_stage: GenesisStage | None = Field(default=GenesisStage.INITIAL_PROMPT, description="初始阶段")
+    initial_state: dict[str, Any] | None = Field(default_factory=dict, description="初始状态数据")
 
 
 class GenesisFlowUpdateRequest(BaseModel):
@@ -75,10 +69,7 @@ class GenesisStageResponse(BaseModel):
 class GenesisStageCreateRequest(BaseModel):
     """创建Genesis阶段请求模式"""
 
-    config: dict[str, Any] | None = Field(
-        default_factory=dict,
-        description="阶段配置"
-    )
+    config: dict[str, Any] | None = Field(default_factory=dict, description="阶段配置")
 
 
 class GenesisStageUpdateRequest(BaseModel):
@@ -110,15 +101,9 @@ class GenesisStageSessionResponse(BaseModel):
 class GenesisStageSessionCreateRequest(BaseModel):
     """创建阶段会话关联请求模式"""
 
-    session_id: UUID | None = Field(
-        default=None,
-        description="现有会话ID（如果为空则创建新会话）"
-    )
+    session_id: UUID | None = Field(default=None, description="现有会话ID（如果为空则创建新会话）")
     is_primary: bool = Field(default=False, description="是否设为主会话")
-    session_kind: str | None = Field(
-        default="user_interaction",
-        description="会话类别"
-    )
+    session_kind: str | None = Field(default="user_interaction", description="会话类别")
 
 
 class GenesisStageSessionUpdateRequest(BaseModel):

@@ -18,33 +18,31 @@ from src.api.schemas.genesis import (
     GenesisStageResponse,
     GenesisStageSessionCreateRequest,
     GenesisStageSessionResponse,
-    GenesisStageSessionUpdateRequest,
     GenesisStageUpdateRequest,
     GenesisStageWithSessionsResponse,
     PaginatedGenesisFlowsResponse,
-    PaginatedGenesisStagesResponse,
 )
+from src.common.repositories.conversation.session_repository import SqlAlchemyConversationSessionRepository
 from src.common.repositories.genesis.flow_repository import SqlAlchemyGenesisFlowRepository
 from src.common.repositories.genesis.stage_repository import SqlAlchemyGenesisStageRepository
 from src.common.repositories.genesis.stage_session_repository import SqlAlchemyGenesisStageSessionRepository
-from src.common.repositories.conversation.session_repository import SqlAlchemyConversationSessionRepository
 from src.common.services.genesis.flow import GenesisFlowService
-from src.common.services.genesis.stage import GenesisStageService
 from src.common.services.genesis.session_binding import BindingValidationService
-from src.database import get_db_session
-from src.schemas.enums import GenesisStatus, GenesisStage, StageStatus, StageSessionStatus
+from src.common.services.genesis.stage import GenesisStageService
+from src.database import get_db
+from src.schemas.enums import GenesisStage, GenesisStatus, StageSessionStatus, StageStatus
 
 router = APIRouter(prefix="/genesis", tags=["genesis"])
 
 
 # Dependency functions
-def get_genesis_flow_service(db: AsyncSession = Depends(get_db_session)) -> GenesisFlowService:
+def get_genesis_flow_service(db: AsyncSession = Depends(get_db)) -> GenesisFlowService:
     """获取Genesis流程服务依赖"""
     flow_repo = SqlAlchemyGenesisFlowRepository(db)
     return GenesisFlowService(flow_repo, db)
 
 
-def get_genesis_stage_service(db: AsyncSession = Depends(get_db_session)) -> GenesisStageService:
+def get_genesis_stage_service(db: AsyncSession = Depends(get_db)) -> GenesisStageService:
     """获取Genesis阶段服务依赖"""
     flow_repo = SqlAlchemyGenesisFlowRepository(db)
     stage_repo = SqlAlchemyGenesisStageRepository(db)
@@ -60,7 +58,7 @@ def get_genesis_stage_service(db: AsyncSession = Depends(get_db_session)) -> Gen
     )
 
 
-def get_binding_validation_service(db: AsyncSession = Depends(get_db_session)) -> BindingValidationService:
+def get_binding_validation_service(db: AsyncSession = Depends(get_db)) -> BindingValidationService:
     """获取绑定验证服务依赖"""
     flow_repo = SqlAlchemyGenesisFlowRepository(db)
     conversation_session_repo = SqlAlchemyConversationSessionRepository(db)
@@ -87,8 +85,8 @@ async def ensure_genesis_flow(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to ensure Genesis flow: {str(e)}",
-        )
+            detail=f"Failed to ensure Genesis flow: {e!s}",
+        ) from None
 
 
 @router.get(
@@ -214,7 +212,7 @@ async def create_genesis_stage(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from None
 
 
 @router.get(
@@ -343,7 +341,7 @@ async def create_stage_session(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from None
 
 
 @router.get(

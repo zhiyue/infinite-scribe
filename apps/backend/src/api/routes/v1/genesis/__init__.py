@@ -3,8 +3,8 @@
 from fastapi import APIRouter
 
 from .flows import router as flows_router
-from .stages import router as stages_router
 from .stage_sessions import router as stage_sessions_router
+from .stages import router as stages_router
 
 router = APIRouter(prefix="/genesis", tags=["genesis"])
 

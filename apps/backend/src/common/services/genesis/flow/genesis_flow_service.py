@@ -3,6 +3,7 @@
 管理Genesis流程的生命周期，包括创建、推进、完成等操作。
 """
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.repositories.genesis.flow_repository import GenesisFlowRepository
 from src.models.genesis_flows import GenesisFlow
-from src.schemas.enums import GenesisStatus, GenesisStage
+from src.schemas.enums import GenesisStage, GenesisStatus
 
 
 class GenesisFlowService:
@@ -48,7 +49,6 @@ class GenesisFlowService:
             version=1,
         )
 
-        await self.db_session.commit()
         return new_flow
 
     async def get_flow(self, novel_id: UUID) -> GenesisFlow | None:
@@ -112,9 +112,6 @@ class GenesisFlowService:
             expected_version=expected_version,
         )
 
-        if updated_flow:
-            await self.db_session.commit()
-
         return updated_flow
 
     async def complete_flow(
@@ -141,9 +138,6 @@ class GenesisFlowService:
             state=final_state,
             expected_version=expected_version,
         )
-
-        if updated_flow:
-            await self.db_session.commit()
 
         return updated_flow
 
@@ -172,7 +166,7 @@ class GenesisFlowService:
         state_updates = current_flow.state or {}
         if pause_reason:
             state_updates["pause_reason"] = pause_reason
-            state_updates["paused_at"] = "now"  # 实际应用中可以用datetime
+            state_updates["paused_at"] = datetime.now(UTC).isoformat()
 
         updated_flow = await self.flow_repository.update(
             flow_id=flow_id,
@@ -180,9 +174,6 @@ class GenesisFlowService:
             state=state_updates,
             expected_version=expected_version,
         )
-
-        if updated_flow:
-            await self.db_session.commit()
 
         return updated_flow
 
@@ -211,7 +202,7 @@ class GenesisFlowService:
         state_updates = current_flow.state or {}
         if abandon_reason:
             state_updates["abandon_reason"] = abandon_reason
-            state_updates["abandoned_at"] = "now"  # 实际应用中可以用datetime
+            state_updates["abandoned_at"] = datetime.now(UTC).isoformat()
 
         updated_flow = await self.flow_repository.update(
             flow_id=flow_id,
@@ -219,9 +210,6 @@ class GenesisFlowService:
             state=state_updates,
             expected_version=expected_version,
         )
-
-        if updated_flow:
-            await self.db_session.commit()
 
         return updated_flow
 
