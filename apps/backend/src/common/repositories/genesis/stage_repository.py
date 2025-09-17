@@ -1,6 +1,7 @@
 """Repository for Genesis stage record data access."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -71,6 +72,8 @@ class GenesisStageRepository(ABC):
         result: dict[str, Any] | None = None,
         iteration_count: int | None = None,
         metrics: dict[str, Any] | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
     ) -> GenesisStageRecord | None:
         """
         Update a Genesis stage record.
@@ -202,6 +205,8 @@ class SqlAlchemyGenesisStageRepository(GenesisStageRepository):
         result: dict[str, Any] | None = None,
         iteration_count: int | None = None,
         metrics: dict[str, Any] | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
     ) -> GenesisStageRecord | None:
         """Update a Genesis stage record."""
         # Build update values, only including non-None values
@@ -217,6 +222,10 @@ class SqlAlchemyGenesisStageRepository(GenesisStageRepository):
             update_values["iteration_count"] = iteration_count
         if metrics is not None:
             update_values["metrics"] = metrics
+        if started_at is not None:
+            update_values["started_at"] = started_at
+        if completed_at is not None:
+            update_values["completed_at"] = completed_at
 
         # Execute update
         update_result = await self.db.execute(

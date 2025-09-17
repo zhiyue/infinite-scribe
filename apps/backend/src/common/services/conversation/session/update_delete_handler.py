@@ -60,8 +60,8 @@ class ConversationSessionUpdateDeleteHandler:
             user_id: User ID for ownership verification
             session_id: Session ID to update
             status: New status (optional)
-            stage: New stage (optional)
-            state: New state (optional)
+            stage: New stage (optional, but not stored in session - handled by Genesis service)
+            state: New state (optional, but not stored in session - handled by Genesis service)
             expected_version: Expected version for optimistic locking (optional)
 
         Returns:
@@ -84,8 +84,9 @@ class ConversationSessionUpdateDeleteHandler:
                 return access_result
 
             # Check if there are no values to update using validator
+            # Note: We only check for status updates since stage/state are not stored in session table
             needs_update, error_response = ConversationSessionValidator.validate_session_update_params(
-                status, stage, state
+                status, None, None  # Pass None for stage and state since they're not stored here
             )
             if error_response:
                 return error_response
@@ -101,12 +102,11 @@ class ConversationSessionUpdateDeleteHandler:
                 )
 
             # Update with optimistic concurrency control using transactional support
+            # Note: stage and state are no longer stored in conversation_sessions table
             async with transactional(db):
                 updated_session = await repository.update(
                     session_id=session_id,
                     status=status,
-                    stage=stage,
-                    state=state,
                     expected_version=expected_version,
                 )
 
@@ -150,8 +150,8 @@ class ConversationSessionUpdateDeleteHandler:
                     "session_id": str(session_id),
                     "user_id": user_id,
                     "update_status": status.value if status else None,
-                    "update_stage": stage,
-                    "has_state_update": state is not None,
+                    "update_stage": stage,  # Log for debugging, but not used in update
+                    "has_state_update": state is not None,  # Log for debugging, but not used in update
                     "expected_version": expected_version,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
@@ -160,7 +160,7 @@ class ConversationSessionUpdateDeleteHandler:
             return ConversationErrorHandler.internal_error(
                 "Failed to update session",
                 logger_instance=logger,
-                context=f"Update session error - session: {session_id}, user: {user_id}, status: {status}, stage: {stage}",
+                context=f"Update session error - session: {session_id}, user: {user_id}, status: {status}",
                 exception=e,
                 session_id=str(session_id),
                 user_id=user_id,

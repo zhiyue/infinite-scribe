@@ -68,16 +68,17 @@ class GenesisStageService:
             iteration_count=0,
         )
 
-        # 更新阶段记录的开始时间
-        await self.stage_repository.update(
+        # 设置阶段开始时间到数据库列（而不是config）
+        current_time = datetime.now(UTC)
+        updated_stage = await self.stage_repository.update(
             stage_id=stage_record.id,
-            # 在实际实现中，这里应该直接设置started_at字段
-            # 目前先通过config记录
-            config={**(config or {}), "started_at": datetime.now(UTC).isoformat()},
+            started_at=current_time,
         )
 
         await self.db_session.commit()
-        return stage_record
+
+        # 返回更新后的记录，确保包含最新的started_at数据
+        return updated_stage or stage_record
 
     async def complete_stage(
         self,
@@ -96,11 +97,14 @@ class GenesisStageService:
         Returns:
             更新后的阶段记录，如果不存在返回None
         """
+        # 设置完成时间到数据库列
+        current_time = datetime.now(UTC)
         updated_stage = await self.stage_repository.update(
             stage_id=stage_id,
             status=StageStatus.COMPLETED,
             result=result or {},
             metrics=metrics or {},
+            completed_at=current_time,
         )
 
         if updated_stage:

@@ -108,7 +108,11 @@ class TestGenesisDecouplingValidation:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # 创建一个绑定到第二个小说的会话
         wrong_session_data = {
@@ -159,7 +163,11 @@ class TestGenesisDecouplingMultipleSessions:
             json={"config": {"theme": "science fiction"}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # Act: 创建多个会话并绑定到同一阶段
         session_ids = []
@@ -205,7 +213,11 @@ class TestGenesisDecouplingMultipleSessions:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # 创建第一个主会话
         session1_response = await client_with_lifespan.post(
@@ -263,7 +275,11 @@ class TestGenesisDecouplingHistoricalQuery:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # 创建会话并发送消息
         session_response = await client_with_lifespan.post(
@@ -418,7 +434,11 @@ class TestGenesisDecouplingEndToEnd:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # 2. 创建多个会话
         session_ids = []
@@ -484,7 +504,11 @@ class TestGenesisDecouplingEventIntegration:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         # 2. 创建会话
         session_response = await client_with_lifespan.post(
@@ -536,7 +560,11 @@ class TestGenesisDecouplingEventIntegration:
             json={"config": {}},
             headers=headers,
         )
-        stage_id = stage_response.json()["id"]
+        stage_data = stage_response.json()
+        if "data" in stage_data:
+    stage_id = stage_data["data"]["id"]
+else:
+    stage_id = stage_data["id"]
 
         session_response = await client_with_lifespan.post(
             f"/api/v1/genesis/stages/{stage_id}/sessions",

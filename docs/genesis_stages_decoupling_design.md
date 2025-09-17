@@ -105,15 +105,56 @@
   - `genesis_flows.current_stage` 推进或 `status=COMPLETED`；
   - 将 `genesis_stage_sessions` 置为 `ARCHIVED`（历史复盘仍可读）。
 
-**API 设计（增量）**
-- 新增（只读/写）
-  - `POST /api/v1/genesis/flows/{novel_id}`（幂等创建或返回当前 flow）
-  - `POST /api/v1/genesis/flows/{novel_id}/stages/{stage}`（创建阶段记录：可带 config/迭代策略）
-  - `POST /api/v1/genesis/stages/{stage_id}/sessions`（创建并绑定会话，或绑定现有 `session_id`）
-  - `GET /api/v1/genesis/stages/{stage_id}/sessions`（列出阶段的所有会话）
-  - `GET /api/v1/genesis/flows/{novel_id}`（查看流程进度与阶段摘要）
-- 复用
-  - 对话消息：`/api/v1/conversations/sessions/{session_id}/rounds/messages|commands`（保持不变）
+**API 设计（基于命令模式的简化）**
+
+### 现有实现分析
+当前 Genesis API 实现包含 22 个接口，分布在：
+- **flows.py**: 5个接口（流程 CRUD）
+- **stages.py**: 8个接口（阶段 CRUD + 查询）
+- **stage_sessions.py**: 9个接口（会话关联 CRUD + 查询）
+
+### 命令模式下的API精简
+由于创建和发送消息都通过 `ConversationCommand` 处理，多数直接操作接口可简化为命令调用，建议保留以下**核心接口**：
+
+#### 核心接口（保留 5个）
+- **`POST /api/v1/genesis/flows/{novel_id}`** - 幂等创建或返回当前 flow
+- **`GET /api/v1/genesis/flows/{novel_id}`** - 查看流程进度与阶段摘要
+- **`POST /api/v1/genesis/flows/{novel_id}/stages/{stage}`** - 创建阶段记录（config/迭代策略）
+- **`POST /api/v1/genesis/stages/{stage_id}/sessions`** - 创建并绑定会话（或绑定现有 session_id）
+- **`GET /api/v1/genesis/stages/{stage_id}/sessions`** - 列出阶段的所有会话
+
+#### 可移除接口（17个）
+以下接口建议通过命令模式处理或查询优化：
+
+**流程管理（3个移除）：**
+- `PATCH /flows/{flow_id}` → 命令处理状态更新
+- `GET /flows` → 批量查询优化或移除
+- `DELETE /flows/{flow_id}` → 命令处理删除
+
+**阶段管理（7个移除）：**
+- `GET /stages/{stage_id}` → 通过流程查询获取
+- `GET /stages/by-flow-and-stage/{flow_id}/{stage}` → 与流程查询重复
+- `PATCH /stages/{stage_id}` → 命令处理状态更新
+- `POST /stages/{stage_id}/increment-iteration` → 命令处理迭代
+- `GET /stages` → 批量查询优化或移除
+- `DELETE /stages/{stage_id}` → 命令处理删除
+- `GET /stages/{stage_id}/rounds` → 通过会话API查询
+
+**会话关联（7个移除）：**
+- `POST /stage-sessions` → 改用 `POST /stages/{stage_id}/sessions`
+- `GET /stage-sessions/{association_id}` → 内部ID不对外暴露
+- `GET /stage-sessions/by-stage-and-session/{stage_id}/{session_id}` → 冗余查询
+- `GET /sessions/{session_id}/stages` → 反向查询优化
+- `GET /stages/{stage_id}/primary-session` → 会话列表中标识主会话
+- `POST /stages/{stage_id}/set-primary-session/{session_id}` → 命令处理
+- `PATCH /stage-sessions/{association_id}` → 命令处理关联更新
+- `DELETE /stage-sessions/{association_id}` → 命令处理删除
+
+#### 复用接口（对话操作）
+- **历史消息查询**: `GET /api/v1/conversations/sessions/{session_id}/rounds`（分页、排序、角色过滤）
+- **发送命令**: `POST /api/v1/conversations/sessions/{session_id}/commands`（创建和消息发送）
+- **单个轮次查询**: `GET /api/v1/conversations/sessions/{session_id}/rounds/{round_id}`
+- **会话内容导出**: `POST /api/v1/conversations/sessions/{session_id}/content/export`
 
 **事件与可观测性**
 - 继续使用 `DomainEvent` 与 `EventOutbox`；
@@ -283,6 +324,40 @@ CREATE INDEX ix_stage_sessions_session ON genesis_stage_sessions(session_id);
 - [ ] Alembic 迁移创建三张表（含索引/约束）
 - [ ] 服务层最小实现（ensure_flow/create_stage/add_stage_session/list_stage_sessions）
 - [ ] 绑定校验与错误处理（scope 与 novel 归属）
-- [ ] 只读查询 API（按阶段列出会话，按小说获取流程）
+- [ ] 核心 API 实现（5个核心接口）
+  - [ ] `POST /api/v1/genesis/flows/{novel_id}` - 创建/获取流程
+  - [ ] `GET /api/v1/genesis/flows/{novel_id}` - 查看流程进度
+  - [ ] `POST /api/v1/genesis/flows/{novel_id}/stages/{stage}` - 创建阶段
+  - [ ] `POST /api/v1/genesis/stages/{stage_id}/sessions` - 绑定会话
+  - [ ] `GET /api/v1/genesis/stages/{stage_id}/sessions` - 列出阶段会话
+- [ ] 命令集成（创建和消息发送通过 ConversationCommand）
 - [ ] 基本集成测试（创建→绑定→发送消息→按阶段查询）
+- [ ] API 精简（移除 17 个冗余接口）
+
+---
+
+## API 优化建议总结
+
+### 当前状况
+- **现有实现**: 22个 Genesis API 接口
+- **设计目标**: 5个核心接口 + 命令模式
+- **优化幅度**: 精简 77%（22→5）
+
+### 优化原则
+1. **命令模式优先**: 创建、更新、删除操作通过 `ConversationCommand` 处理
+2. **查询最小化**: 保留必要的查询接口，去除冗余和内部使用的接口
+3. **职责清晰**: Genesis API 专注于流程管理，对话操作复用现有接口
+4. **接口复用**: 历史消息、命令发送等对话操作使用 `/conversations/` 路径下的现有接口
+
+### 实施建议
+1. **阶段性移除**: 先标记废弃，再逐步移除，确保向后兼容
+2. **命令迁移**: 为现有直接操作提供对应的命令处理逻辑
+3. **文档更新**: 更新 API 文档，指导客户端迁移到命令模式
+4. **测试覆盖**: 确保核心接口和命令模式的完整测试覆盖
+
+### 收益评估
+- **简化维护**: 减少 77% 的 API 接口数量
+- **统一体验**: 所有操作都通过统一的命令模式
+- **性能优化**: 减少不必要的查询和冗余接口
+- **架构清晰**: 明确分离查询和命令职责
 

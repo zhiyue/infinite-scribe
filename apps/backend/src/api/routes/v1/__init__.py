@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter
 
-from . import auth, conversations, events, genesis, novels
+from . import auth, conversations, events, novels
+from .genesis import router as genesis_router
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ router.include_router(events.router, prefix="/events", tags=["sse"])
 router.include_router(novels.router, prefix="/novels", tags=["novels"])
 
 # Include Genesis routes
-router.include_router(genesis.router, prefix="/genesis", tags=["genesis"])
+router.include_router(genesis_router, prefix="/genesis")
 
 # Include conversations routes
 router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
