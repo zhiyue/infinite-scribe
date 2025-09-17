@@ -295,6 +295,7 @@ OpenRouter 额外 Header 建议（在 Adapter 内透明设置）：
   - `apps/backend/src/external/clients/llm/zhipuai_adapter.py`：`ZhipuAIAdapter`（GLM）占位。
   - `apps/backend/src/external/clients/llm/qwen_adapter.py`：`QwenAdapter` 占位。
   - `apps/backend/src/services/llm/service.py`：`LLMService` 门面（路由选择 + 调用适配器）。
+  - `apps/backend/src/services/llm/factory.py`：`LLMServiceFactory`（从 `src.core.config` 读取 `LITELLM_API_HOST/KEY` 等构建默认服务）。
 
 - 最小用法示例
 
@@ -305,13 +306,24 @@ from src.external.clients.llm.router import ProviderRouter
 from src.services.llm import LLMService
 
 router = ProviderRouter(default_provider="litellm", model_map={r"^gpt-": "litellm"})
-service = LLMService(router, adapters={"litellm": LiteLLMAdapter()})
+service = LLMService(router, adapters={"litellm": LiteLLMAdapter(base_url="http://localhost:4000", api_key="sk-...")})
 
 req = LLMRequest(model="gpt-4o-mini", messages=[ChatMessage(role="user", content="hi")])
 resp = await service.generate(req)  # 返回占位响应
 ```
 
-注：`LiteLLMAdapter` 目前为占位实现，后续将接入真实 LiteLLM Proxy 或 `litellm` 库，并补齐流式与工具调用映射。
+备注：`LiteLLMAdapter` 已实现真实 HTTP 调用 LiteLLM Proxy 的 OpenAI 兼容端点（`/v1/chat/completions`），`stream()` 提供基础增量事件解析。建议在配置中设置 `LITELLM_API_HOST` 与 `LITELLM_API_KEY`，并通过 `LLMServiceFactory` 构建默认实例。
+
+示例（使用工厂从配置创建默认服务）：
+
+```python
+from src.services.llm import LLMServiceFactory
+from src.external.clients.llm import ChatMessage, LLMRequest
+
+service = LLMServiceFactory().create_service()
+req = LLMRequest(model="gpt-4o-mini", messages=[ChatMessage(role="user", content="hi")])
+resp = await service.generate(req)
+```
 
 ## 分阶段实施（对齐仓库流程）
 
