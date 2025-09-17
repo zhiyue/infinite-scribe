@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
-from ..base_http import BaseHttpClient
-from ..errors import handle_connection_error, handle_http_error
-from .base import ProviderAdapter
-from .types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
+from ...base_http import BaseHttpClient
+from ...errors import handle_connection_error, handle_http_error
+from ..base import ProviderAdapter
+from ..types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
 
 
 class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
@@ -187,7 +188,7 @@ class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
                         # OpenAI delta format
                         for ch in obj.get("choices", []):
                             delta = ch.get("delta", {})
-                            if "content" in delta and delta["content"]:
+                            if delta.get("content"):
                                 yield {"type": "delta", "data": {"content": delta["content"]}}
                             # tool_calls streaming not fully implemented here
                 yield {"type": "complete", "data": {"content": ""}}
