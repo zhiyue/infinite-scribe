@@ -2,17 +2,23 @@
 
 from typing import Any
 
+from ...external.clients.errors import ServiceAuthenticationError
+from ...external.clients.llm import ChatMessage, LLMRequest
+from ...services.llm import LLMService, LLMServiceFactory
 from ..agent_config import get_agent_topics
 from ..base import BaseAgent
+from ..errors import NonRetriableError
 
 
 class WriterAgent(BaseAgent):
     """Writer Agent - 负责生成文本内容"""
 
-    def __init__(self):
+    def __init__(self, llm_service: LLMService | None = None):
         # 从集中配置读取主题映射（单一真相源）
         consume_topics, produce_topics = get_agent_topics("writer")
         super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
+        # 依赖注入 LLMService，缺省使用工厂构建的默认实例
+        self.llm_service = llm_service or LLMServiceFactory().create_service()
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
@@ -40,11 +46,17 @@ class WriterAgent(BaseAgent):
 
         self.log.info("writing_chapter", chapter_id=chapter_id)
 
-        # TODO: 调用 LLM 生成章节内容
-        # content = await self._generate_chapter_content(outline)
-
-        # 模拟生成的内容
-        content = f"第 {chapter_id} 章内容..."
+        # 调用 LLM 生成章节内容
+        prompt = message.get("prompt") or f"请为章节 {chapter_id} 写一段内容。"
+        req = LLMRequest(
+            model=self.config.llm.default_model or "gpt-4o-mini",
+            messages=[
+                ChatMessage(role="system", content="You are a helpful writing assistant."),
+                ChatMessage(role="user", content=str(prompt)),
+            ],
+        )
+        llm_resp = await self.llm_service.generate(req)
+        content = llm_resp.content or f"第 {chapter_id} 章内容..."
 
         return {
             "type": "chapter_written",
@@ -65,8 +77,16 @@ class WriterAgent(BaseAgent):
 
         self.log.info("writing_scene", scene_id=scene_id)
 
-        # TODO: 调用 LLM 生成场景内容
-        content = f"场景 {scene_id} 内容..."
+        prompt = message.get("prompt") or f"请撰写场景 {scene_id} 的内容。"
+        req = LLMRequest(
+            model=self.config.llm.default_model or "gpt-4o-mini",
+            messages=[
+                ChatMessage(role="system", content="You are a helpful writing assistant."),
+                ChatMessage(role="user", content=str(prompt)),
+            ],
+        )
+        llm_resp = await self.llm_service.generate(req)
+        content = llm_resp.content or f"场景 {scene_id} 内容..."
 
         return {
             "type": "scene_written",
@@ -86,8 +106,17 @@ class WriterAgent(BaseAgent):
 
         self.log.info("rewriting_content", content_id=content_id)
 
-        # TODO: 基于反馈重写内容
-        rewritten_content = f"重写后的内容 (基于 {len(feedback)} 条反馈)..."
+        base_text = message.get("original_content") or ""
+        prompt = f"请基于以下反馈重写内容：{feedback}. 原文：{base_text}"
+        req = LLMRequest(
+            model=self.config.llm.default_model or "gpt-4o-mini",
+            messages=[
+                ChatMessage(role="system", content="You are a helpful writing assistant."),
+                ChatMessage(role="user", content=str(prompt)),
+            ],
+        )
+        llm_resp = await self.llm_service.generate(req)
+        rewritten_content = llm_resp.content or f"重写后的内容 (基于 {len(feedback)} 条反馈)..."
 
         return {
             "type": "content_rewritten",
@@ -106,3 +135,15 @@ class WriterAgent(BaseAgent):
         """停止时的清理"""
         self.log.info("writer_agent_stopping")
         # TODO: 保存状态、释放资源等
+
+    def classify_error(self, error: Exception, message: dict[str, Any]) -> "Literal['retriable','non_retriable']":
+        """覆盖错误分类：
+        - 参数/鉴权类错误 → non_retriable
+        - 其他 → retriable（交由重试与DLT策略处理）
+        """
+
+        if isinstance(error, (NonRetriableError, ServiceAuthenticationError)):
+            return "non_retriable"  # type: ignore[return-value]
+        if isinstance(error, ValueError) and "missing" in str(error).lower():
+            return "non_retriable"  # type: ignore[return-value]
+        return "retriable"  # type: ignore[return-value]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
-from ..base import ProviderAdapter
-from ..types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
+from src.external.clients.llm.base import ProviderAdapter
+from src.external.clients.llm.types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
 
 
 class GeminiAdapter(ProviderAdapter):

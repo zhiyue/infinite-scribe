@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
-
-from ...base_http import BaseHttpClient
-from ...errors import handle_connection_error, handle_http_error
-from ..base import ProviderAdapter
-from ..types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
+from src.external.clients.base_http import BaseHttpClient
+from src.external.clients.errors import handle_connection_error, handle_http_error
+from src.external.clients.llm.base import ProviderAdapter
+from src.external.clients.llm.types import LLMRequest, LLMResponse, LLMStreamEvent, TokenUsage
 
 
 class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
@@ -171,6 +171,12 @@ class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
 
         url = f"{self.base_url}/v1/chat/completions"
         headers = self._build_headers()
+        correlation_id = self._generate_correlation_id()
+        headers["X-Correlation-ID"] = correlation_id
+        start_time = time.time()
+        ttf_time: float | None = None
+        tool_calls_acc: dict[int, dict[str, Any]] = {}
+        last_finish: str | None = None
         try:
             async with self._client.stream("POST", url, json=payload, headers=headers, timeout=self._timeout) as r:
                 r.raise_for_status()
@@ -189,9 +195,50 @@ class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
                         for ch in obj.get("choices", []):
                             delta = ch.get("delta", {})
                             if delta.get("content"):
+                                if ttf_time is None:
+                                    ttf_time = time.time() - start_time
                                 yield {"type": "delta", "data": {"content": delta["content"]}}
-                            # tool_calls streaming not fully implemented here
-                yield {"type": "complete", "data": {"content": ""}}
+                            # tool_calls streaming aggregation and incremental events
+                            for tc in delta.get("tool_calls", []) or []:
+                                idx = tc.get("index", 0)
+                                func = tc.get("function") or {}
+                                name = func.get("name")
+                                args_delta = func.get("arguments", "")
+                                tc_id = tc.get("id")
+                                acc = tool_calls_acc.setdefault(idx, {"id": tc_id, "name": name, "arguments": ""})
+                                if name and not acc.get("name"):
+                                    acc["name"] = name
+                                if tc_id and not acc.get("id"):
+                                    acc["id"] = tc_id
+                                if args_delta:
+                                    acc["arguments"] = (acc.get("arguments") or "") + args_delta
+                                    if ttf_time is None:
+                                        ttf_time = time.time() - start_time
+                                    yield {
+                                        "type": "tool_call",
+                                        "data": {
+                                            "index": idx,
+                                            "id": acc.get("id"),
+                                            "name": acc.get("name"),
+                                            "arguments": args_delta,
+                                        },
+                                    }
+                            fr = ch.get("finish_reason")
+                            if fr:
+                                last_finish = fr
+                duration = time.time() - start_time
+                self._record_metrics("POST", "/v1/chat/completions", 200, duration)
+                yield {
+                    "type": "complete",
+                    "data": {
+                        "content": "",
+                        "finish_reason": last_finish or "",
+                        "tool_calls": list(tool_calls_acc.values()),
+                        "ttft_ms": int((ttf_time or 0.0) * 1000),
+                        "duration_ms": int(duration * 1000),
+                        "correlation_id": correlation_id,
+                    },
+                }
         except httpx.HTTPStatusError as e:
             raise handle_http_error(self.name, e) from e
         except Exception as e:

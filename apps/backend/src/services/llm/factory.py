@@ -6,7 +6,8 @@ from src.external.clients.llm import (
     ProviderAdapter,
     ProviderRouter,
 )
-from src.services.llm import LLMService
+
+from .service import LLMService
 
 
 class LLMServiceFactory:
