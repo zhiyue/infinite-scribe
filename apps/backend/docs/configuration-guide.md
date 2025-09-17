@@ -174,6 +174,49 @@ postgres_port = "${DATABASE__POSTGRES_PORT:-5432}"
 postgres_password = "${DATABASE__POSTGRES_PASSWORD}"  # 必须提供
 ```
 
+### 4. LLM 集中配置（对齐 EmbeddingSettings）
+
+在 `apps/backend/config.toml(.example)` 中新增 `[llm]` 段集中管理 LLM（Chat/Completions）配置：
+
+```toml
+[llm]
+# 默认提供商与模型
+provider = "${LLM__PROVIDER:-litellm}"
+default_model = "${LLM__DEFAULT_MODEL:-}"
+
+# 连接/重试
+timeout = "${LLM__TIMEOUT:-30.0}"
+max_keepalive_connections = "${LLM__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${LLM__MAX_CONNECTIONS:-10}"
+enable_retry = "${LLM__ENABLE_RETRY:-true}"
+retry_attempts = "${LLM__RETRY_ATTEMPTS:-3}"
+retry_min_wait = "${LLM__RETRY_MIN_WAIT:-1.0}"
+retry_max_wait = "${LLM__RETRY_MAX_WAIT:-10.0}"
+
+# LiteLLM Proxy（嵌套优先，兼容顶层变量）
+litellm_api_host = "${LLM__LITELLM_API_HOST:-${LITELLM_API_HOST:-}}"
+litellm_api_key = "${LLM__LITELLM_API_KEY:-${LITELLM_API_KEY:-}}"
+
+# 路由映射（正则 → provider id），默认全部交给 litellm；可按需覆盖
+[llm.router_model_map]
+"^gpt-" = "litellm"
+"^claude-" = "litellm"
+"^gemini" = "litellm"  # 如需直连 Gemini，可改为 "gemini"
+"^glm-" = "litellm"
+"^qwen-" = "litellm"
+"^deepseek-" = "litellm"
+```
+
+推荐在 `.env` 或 CI 变量中使用嵌套环境变量：
+
+```bash
+LLM__LITELLM_API_HOST=http://localhost:4000
+LLM__LITELLM_API_KEY=sk-your-proxy-key
+# 可选调优
+# LLM__TIMEOUT=30.0
+# LLM__RETRY_ATTEMPTS=3
+```
+
 ## 最佳实践
 
 1. **敏感信息**：永远不要将密码、API 密钥等敏感信息直接写在配置文件中，使用环境变量。

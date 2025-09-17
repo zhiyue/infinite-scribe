@@ -194,3 +194,30 @@ anthropic_model = "${EMBEDDING__ANTHROPIC_MODEL:-}"
 timeout = "${EMBEDDING__TIMEOUT:-30.0}"
 max_keepalive_connections = "${EMBEDDING__MAX_KEEPALIVE_CONNECTIONS:-5}"
 max_connections = "${EMBEDDING__MAX_CONNECTIONS:-10}"
+
+# LLM（Chat/Completions）统一配置（优先 LiteLLM）
+[llm]
+provider = "${LLM__PROVIDER:-litellm}"
+default_model = "${LLM__DEFAULT_MODEL:-}"
+
+# 连接/重试
+timeout = "${LLM__TIMEOUT:-30.0}"
+max_keepalive_connections = "${LLM__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${LLM__MAX_CONNECTIONS:-10}"
+enable_retry = "${LLM__ENABLE_RETRY:-true}"
+retry_attempts = "${LLM__RETRY_ATTEMPTS:-3}"
+retry_min_wait = "${LLM__RETRY_MIN_WAIT:-1.0}"
+retry_max_wait = "${LLM__RETRY_MAX_WAIT:-10.0}"
+
+# LiteLLM Proxy（嵌套优先，兼容顶层变量）
+litellm_api_host = "${LLM__LITELLM_API_HOST:-${LITELLM_API_HOST:-}}"
+litellm_api_key = "${LLM__LITELLM_API_KEY:-${LITELLM_API_KEY:-}}"
+
+# 路由映射（正则 → provider id），默认全部交给 litellm
+[llm.router_model_map]
+"^gpt-" = "litellm"
+"^claude-" = "litellm"
+"^gemini" = "litellm"
+"^glm-" = "litellm"
+"^qwen-" = "litellm"
+"^deepseek-" = "litellm"

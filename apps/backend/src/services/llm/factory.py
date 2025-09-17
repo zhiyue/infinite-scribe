@@ -20,7 +20,7 @@ class LLMServiceFactory:
         self.settings = get_settings()
 
     def _build_router(self) -> ProviderRouter:
-        # Route常量：当前阶段全部走 LiteLLM，由 Proxy 侧完成具体模型路由
+        # Route 常量：当前阶段默认全部走 LiteLLM，由 Proxy 侧完成具体模型路由
         model_map: dict[str, str] = {
             r"^gpt-": "litellm",
             r"^claude-": "litellm",
@@ -29,6 +29,12 @@ class LLMServiceFactory:
             r"^qwen-": "litellm",
             r"^deepseek-": "litellm",
         }
+        # 允许通过 config.toml 中的 [llm.router_model_map] 进行覆盖
+        try:
+            cfg_map = self.settings.llm.router_model_map or {}
+            model_map.update({str(k): str(v) for k, v in cfg_map.items()})
+        except Exception:
+            pass
         return ProviderRouter(default_provider="litellm", model_map=model_map)
 
     def _build_adapters(self) -> dict[str, ProviderAdapter]:
@@ -36,7 +42,8 @@ class LLMServiceFactory:
 
         # Configure LiteLLM adapter when host is defined
         base_url = self.settings.litellm_api_url.rstrip("/") if self.settings.litellm_api_url else ""
-        api_key = self.settings.litellm_api_key
+        # 优先使用嵌套 llm.litellm_api_key，回退到顶层以兼容旧配置
+        api_key = getattr(self.settings.llm, "litellm_api_key", "") or self.settings.litellm_api_key
         if base_url and api_key:
             adapters["litellm"] = LiteLLMAdapter(
                 base_url=base_url,

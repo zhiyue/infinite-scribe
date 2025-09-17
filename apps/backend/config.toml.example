@@ -85,6 +85,51 @@ timeout = "${EMBEDDING__TIMEOUT:-30.0}"
 max_keepalive_connections = "${EMBEDDING__MAX_KEEPALIVE_CONNECTIONS:-5}"
 max_connections = "${EMBEDDING__MAX_CONNECTIONS:-10}"
 
+# LLM（Chat/Completions）统一配置（对齐 EmbeddingSettings 的集中式结构）
+[llm]
+# 默认提供商与模型
+provider = "${LLM__PROVIDER:-litellm}"
+default_model = "${LLM__DEFAULT_MODEL:-}"
+
+# 连接/重试
+timeout = "${LLM__TIMEOUT:-30.0}"
+max_keepalive_connections = "${LLM__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${LLM__MAX_CONNECTIONS:-10}"
+enable_retry = "${LLM__ENABLE_RETRY:-true}"
+retry_attempts = "${LLM__RETRY_ATTEMPTS:-3}"
+retry_min_wait = "${LLM__RETRY_MIN_WAIT:-1.0}"
+retry_max_wait = "${LLM__RETRY_MAX_WAIT:-10.0}"
+
+# LiteLLM Proxy（优先使用嵌套变量，回退到顶层以兼容现有环境）
+litellm_api_host = "${LLM__LITELLM_API_HOST:-${LITELLM_API_HOST:-}}"
+litellm_api_key = "${LLM__LITELLM_API_KEY:-${LITELLM_API_KEY:-}}"
+
+# 各供应商（直连可选，当前阶段优先 LiteLLM）
+openai_api_key = "${LLM__OPENAI_API_KEY:-${OPENAI_API_KEY:-}}"
+openai_base_url = "${LLM__OPENAI_BASE_URL:-https://api.openai.com/v1}"
+anthropic_api_key = "${LLM__ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}"
+anthropic_base_url = "${LLM__ANTHROPIC_BASE_URL:-}"
+gemini_api_key = "${LLM__GEMINI_API_KEY:-${GEMINI_API_KEY:-}}"
+openrouter_api_key = "${LLM__OPENROUTER_API_KEY:-}"
+openrouter_base_url = "${LLM__OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
+kimi_api_key = "${LLM__KIMI_API_KEY:-}"
+kimi_base_url = "${LLM__KIMI_BASE_URL:-https://api.moonshot.cn/v1}"
+deepseek_api_key = "${LLM__DEEPSEEK_API_KEY:-}"
+deepseek_base_url = "${LLM__DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+zhipuai_api_key = "${LLM__ZHIPUAI_API_KEY:-}"
+zhipuai_base_url = "${LLM__ZHIPUAI_BASE_URL:-}"
+dashscope_api_key = "${LLM__DASHSCOPE_API_KEY:-}"
+dashscope_base_url = "${LLM__DASHSCOPE_BASE_URL:-}"
+
+# 路由映射（正则 → provider id），示例：
+[llm.router_model_map]
+"^gpt-" = "litellm"
+"^claude-" = "litellm"
+"^gemini" = "litellm"  # 如后续直连 Gemini，可改为 "gemini"
+"^glm-" = "litellm"
+"^qwen-" = "litellm"
+"^deepseek-" = "litellm"
+
 [auth]
 # JWT 配置 - 生产环境必须设置安全的密钥！
 jwt_secret_key = "${AUTH__JWT_SECRET_KEY:-your-very-secure-jwt-secret-key-minimum-32-chars}"
