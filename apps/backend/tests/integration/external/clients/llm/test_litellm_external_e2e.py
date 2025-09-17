@@ -9,7 +9,7 @@ import os
 
 import pytest
 from src.core.config import settings
-from src.external.clients.llm import ChatMessage, LLMRequest
+from src.external.clients.llm import ChatMessage, LLMRequest, LLMStreamEvent
 from src.services.llm import LLMServiceFactory
 
 run_e2e = os.getenv("RUN_LITELLM_E2E", "false").lower() == "true"
@@ -54,3 +54,46 @@ async def test_litellm_generate_e2e():
     assert isinstance(result.content, str)
     assert result.content != ""
     assert result.provider == "litellm"
+
+
+@skip_condition
+@pytest.mark.asyncio
+async def test_litellm_stream_e2e():
+    """Test streaming generation via LiteLLM proxy."""
+    # Apply configured values to Settings
+    settings.llm.litellm_api_host = lite_host
+    settings.llm.litellm_api_key = lite_key
+    # Use a small timeout for test
+    settings.llm.timeout = float(os.getenv("LLM__TIMEOUT", 20.0))
+
+    model = os.getenv("LLM_E2E_MODEL", os.getenv("LLM__DEFAULT_MODEL", "gemini-2.5-flash"))
+
+    service = LLMServiceFactory().create_service()
+    req = LLMRequest(model=model, messages=[ChatMessage(role="user", content="写一首简短的诗，每行输出一个词")])
+
+    # Collect streaming events
+    events: list[LLMStreamEvent] = []
+    full_content = ""
+
+    print("\n=== LiteLLM Streaming Response ===")
+    async for event in service.stream(req):
+        events.append(event)
+        print(f"Event type: {event['type']}, data: {event['data']}")
+
+        # Accumulate content from delta events
+        if event["type"] == "delta" and "content" in event["data"]:
+            content_chunk = event["data"]["content"]
+            full_content += content_chunk
+            print(f"Content chunk: '{content_chunk}'")
+
+    print(f"Full accumulated content: '{full_content}'")
+    print(f"Total events: {len(events)}")
+    print("=== End Streaming Response ===\n")
+
+    # Verify streaming worked
+    assert len(events) > 0, "Should receive at least one streaming event"
+    assert full_content != "", "Should accumulate non-empty content from stream"
+
+    # Check for completion event
+    completion_events = [e for e in events if e["type"] == "complete"]
+    assert len(completion_events) > 0, "Should receive at least one completion event"

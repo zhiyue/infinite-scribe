@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from .types import LLMRequest, LLMResponse, LLMStreamEvent
 
@@ -24,7 +24,6 @@ class ProviderAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def stream(self, req: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
+    async def stream(self, req: LLMRequest) -> AsyncGenerator[LLMStreamEvent, None]:
         """Streaming text generation call, yields `LLMStreamEvent`."""
         raise NotImplementedError
-

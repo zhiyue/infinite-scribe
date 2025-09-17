@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
@@ -144,7 +144,7 @@ class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
             retries=0,
         )
 
-    async def stream(self, req: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
+    async def stream(self, req: LLMRequest) -> AsyncGenerator[LLMStreamEvent, None]:
         payload: dict[str, Any] = {
             "model": req.model,
             "messages": self._to_openai_messages(req.messages),

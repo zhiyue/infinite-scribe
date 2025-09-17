@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from src.external.clients.llm import (
     LLMRequest,
@@ -32,8 +32,10 @@ class LLMService:
         adapter = self._get_adapter(provider)
         return await adapter.generate(req)
 
-    async def stream(self, req: LLMRequest, provider_override: str | None = None) -> AsyncIterator[LLMStreamEvent]:
+    async def stream(
+        self, req: LLMRequest, provider_override: str | None = None
+    ) -> AsyncGenerator[LLMStreamEvent, None]:
         provider = self._router.choose_provider(req, override=provider_override)
         adapter = self._get_adapter(provider)
-        async for event in adapter.stream(req):
+        async for event in adapter.stream(req):  # type: ignore[misc]
             yield event
