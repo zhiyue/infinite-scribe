@@ -64,7 +64,16 @@ class LiteLLMAdapter(ProviderAdapter, BaseHttpClient):
             else:
                 role = getattr(m, "role", None)
                 content = getattr(m, "content", None)
-                out.append({"role": role, "content": content})
+                # Special handling for tool role: allow tool_call_id/content dict
+                if role == "tool" and isinstance(content, dict):
+                    tool_call_id = content.get("tool_call_id")
+                    tool_content = content.get("content", "")
+                    msg = {"role": "tool", "content": tool_content}
+                    if tool_call_id:
+                        msg["tool_call_id"] = tool_call_id
+                    out.append(msg)
+                else:
+                    out.append({"role": role, "content": content})
         return out
 
     @staticmethod
