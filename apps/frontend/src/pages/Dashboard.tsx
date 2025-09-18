@@ -41,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Novel } from '@/types/api'
+import { NovelStatus } from '@/types/enums'
 
 // 模拟小说数据（后续将从API获取）
 const mockNovels: Novel[] = [
@@ -48,33 +49,33 @@ const mockNovels: Novel[] = [
     id: '1',
     title: '星际迷航：新纪元',
     description: '一个关于未来星际探索的科幻小说，讲述人类在银河系中的冒险故事。',
-    status: 'drafting' as const,
+    status: NovelStatus.GENESIS,
     wordCount: 15420,
     chapterCount: 8,
-    lastUpdated: '2024-01-15T10:30:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-15T10:30:00Z',
+    created_at: '2024-01-01T00:00:00Z',
     tags: ['科幻', '冒险'],
   },
   {
     id: '2',
     title: '古代传说',
     description: '基于中国古代神话的奇幻小说，融合了传统文化与现代想象。',
-    status: 'reviewing' as const,
+    status: NovelStatus.GENERATING,
     wordCount: 32100,
     chapterCount: 15,
-    lastUpdated: '2024-01-14T16:45:00Z',
-    createdAt: '2023-12-15T00:00:00Z',
+    updated_at: '2024-01-14T16:45:00Z',
+    created_at: '2023-12-15T00:00:00Z',
     tags: ['奇幻', '古风'],
   },
   {
     id: '3',
     title: '都市情缘',
     description: '现代都市背景下的爱情故事，描绘年轻人的情感纠葛。',
-    status: 'completed' as const,
+    status: NovelStatus.COMPLETED,
     wordCount: 89500,
     chapterCount: 32,
-    lastUpdated: '2024-01-10T14:20:00Z',
-    createdAt: '2023-11-01T00:00:00Z',
+    updated_at: '2024-01-10T14:20:00Z',
+    created_at: '2023-11-01T00:00:00Z',
     tags: ['言情', '都市'],
   },
 ]
@@ -90,7 +91,7 @@ const DashboardPage: React.FC = () => {
     const totalNovels = mockNovels.length
     const totalWords = mockNovels.reduce((sum, novel) => sum + novel.wordCount, 0)
     const totalChapters = mockNovels.reduce((sum, novel) => sum + novel.chapterCount, 0)
-    const completedNovels = mockNovels.filter((n) => n.status === 'completed').length
+    const completedNovels = mockNovels.filter((n) => n.status === NovelStatus.COMPLETED).length
 
     return {
       totalNovels,
@@ -530,17 +531,19 @@ const DashboardPage: React.FC = () => {
                               状态
                             </span>
                             <Badge variant="outline" className="text-xs">
-                              {novel.status === 'drafting'
-                                ? '草稿'
-                                : novel.status === 'reviewing'
-                                  ? '审阅中'
-                                  : '已完成'}
+                              {novel.status === NovelStatus.GENESIS
+                                ? '创世中'
+                                : novel.status === NovelStatus.GENERATING
+                                  ? '生成中'
+                                  : novel.status === NovelStatus.COMPLETED
+                                    ? '已完成'
+                                    : '未知状态'}
                             </Badge>
                           </div>
                           <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                               <Clock className="h-3.5 w-3.5" />
-                              <span>{new Date(novel.lastUpdated).toLocaleDateString()}</span>
+                              <span>{new Date(novel.updated_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                               <FileText className="h-3.5 w-3.5" />

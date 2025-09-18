@@ -13,7 +13,7 @@ import {
 } from 'react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
-import type { RJSFSchema, UiSchema, IChangeEvent } from '@rjsf/utils'
+import type { RJSFSchema, UiSchema, FormProps } from '@rjsf/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -73,6 +73,9 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
             orderable: true,
             addable: true,
             removable: true,
+            addButtonText: '添加特殊要求',
+            itemTitle: '特殊要求',
+            maxListHeight: 320,
           },
         },
       }
@@ -173,7 +176,7 @@ const StageConfigFormComponent = (
    * 处理表单提交
    */
   const handleSubmit = useCallback(
-    async (data: IChangeEvent) => {
+    async (data: { formData?: any }) => {
       if (data.formData) {
         const success = await handleFormSubmit(data.formData)
         if (!success) {
@@ -226,8 +229,8 @@ const StageConfigFormComponent = (
   // 加载状态
   if (isLoading) {
     return (
-      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
-        <CardContent className="flex items-center justify-center py-12">
+      <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
+        <CardContent className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>正在加载配置...</span>
@@ -240,8 +243,8 @@ const StageConfigFormComponent = (
   // 错误状态
   if (error) {
     return (
-      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
-        <CardContent className="space-y-6 p-6">
+      <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
+        <CardContent className="space-y-4 p-5">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -262,8 +265,8 @@ const StageConfigFormComponent = (
   // 未就绪状态
   if (!isReady) {
     return (
-      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
-        <CardContent className="p-6">
+      <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
+        <CardContent className="p-5">
           <Alert>
             <AlertDescription>配置模板暂不可用，请稍后重试</AlertDescription>
           </Alert>
@@ -273,9 +276,9 @@ const StageConfigFormComponent = (
   }
 
   return (
-    <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
-      <CardContent className="p-6">
-        <div className="space-y-8">
+    <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
+      <CardContent className="p-5">
+        <div className="space-y-5">
           <Form
             ref={formRef}
             schema={schema as RJSFSchema}

@@ -42,35 +42,35 @@ interface EnhancedGenesisNavigationProps {
 // 阶段配置
 const GENESIS_STAGES: GenesisStageInfo[] = [
   {
-    key: 'INITIAL_PROMPT',
+    key: GenesisStage.INITIAL_PROMPT,
     label: '初始灵感',
     description: '输入你的创作灵感和基本构思',
     icon: Sparkles,
     status: 'pending',
   },
   {
-    key: 'WORLDVIEW',
+    key: GenesisStage.WORLDVIEW,
     label: '世界观设定',
     description: '构建小说的世界背景和规则体系',
     icon: Globe,
     status: 'pending',
   },
   {
-    key: 'CHARACTERS',
+    key: GenesisStage.CHARACTERS,
     label: '角色塑造',
     description: '创建主要角色和人物关系',
     icon: Users,
     status: 'pending',
   },
   {
-    key: 'PLOT_OUTLINE',
+    key: GenesisStage.PLOT_OUTLINE,
     label: '剧情大纲',
     description: '规划故事主线和章节结构',
     icon: BookOpen,
     status: 'pending',
   },
   {
-    key: 'FINISHED',
+    key: GenesisStage.FINISHED,
     label: '创世完成',
     description: '所有设定已完成，可以开始写作',
     icon: CheckCircle2,

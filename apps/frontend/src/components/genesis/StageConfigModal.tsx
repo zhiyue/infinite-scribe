@@ -227,8 +227,8 @@ export function StageConfigModal({
 
         {/* 内容区域 */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto px-6 py-8">
-            <div className="mx-auto flex max-w-3xl flex-col gap-6">
+          <div className="h-full overflow-y-auto px-6 py-6">
+            <div className="mx-auto flex max-w-3xl flex-col gap-4">
               {disabled && (
                 <Alert>
                   <AlertCircle className="h-4 w-4" />

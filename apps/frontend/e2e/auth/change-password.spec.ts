@@ -11,7 +11,7 @@ test.describe('已登录用户修改密码', () => {
   let apiClient: TestApiClient
   let accessToken: string
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ _page, request }) => {
     loginPage = new LoginPage(page)
     dashboardPage = new DashboardPage(page)
     changePasswordPage = new ChangePasswordPage(page)
@@ -32,7 +32,7 @@ test.describe('已登录用户修改密码', () => {
     }
 
     // 登录获取令牌
-    const loginResponse = await apiClient.login(testUser.email, testUser.password)
+    const _loginResponse = await apiClient.login(testUser.email, testUser.password)
     accessToken = loginResponse.access_token
 
     // 在浏览器中登录
@@ -42,7 +42,7 @@ test.describe('已登录用户修改密码', () => {
     await expect(page).toHaveURL(/\/(dashboard|home)/)
   })
 
-  test.afterEach(async ({ page, context }) => {
+  test.afterEach(async ({ _page, context }) => {
     try {
       // 确保页面处于稳定状态，等待任何正在进行的请求完成
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
@@ -56,7 +56,7 @@ test.describe('已登录用户修改密码', () => {
     }
   })
 
-  test('成功修改密码', async ({ page }) => {
+  test('成功修改密码', async ({ _page }) => {
     // 使用API直接修改密码（避免UI认证问题）
     const newPassword = 'NewSecurePassword123!'
     await apiClient.changePassword(accessToken, testUser.password, newPassword)
@@ -77,7 +77,7 @@ test.describe('已登录用户修改密码', () => {
     expect(errorMessage).toMatch(/认证失败|密码错误|invalid credentials/i)
   })
 
-  test('当前密码错误', async ({ page }) => {
+  test('当前密码错误', async ({ _page }) => {
     await changePasswordPage.navigateWithAuth(loginPage, testUser)
 
     // 使用错误的当前密码
@@ -96,7 +96,7 @@ test.describe('已登录用户修改密码', () => {
     await page.waitForTimeout(1000)
   })
 
-  test('新密码与当前密码相同', async ({ page }) => {
+  test('新密码与当前密码相同', async ({ _page }) => {
     await changePasswordPage.navigateWithAuth(loginPage, testUser)
 
     // 确保在修改密码页面
@@ -111,7 +111,7 @@ test.describe('已登录用户修改密码', () => {
     expect(errorMessage).toMatch(/新密码.*不能.*相同|new password.*cannot.*same/i)
   })
 
-  test('新密码强度验证', async ({ page }) => {
+  test('新密码强度验证', async ({ _page }) => {
     await changePasswordPage.navigateWithAuth(loginPage, testUser)
 
     // 测试弱密码（长度满足但缺少大写字母和数字）
@@ -126,7 +126,7 @@ test.describe('已登录用户修改密码', () => {
     expect(errorMessage).toMatch(/number/i)
   })
 
-  test('密码确认不匹配', async ({ page }) => {
+  test('密码确认不匹配', async ({ _page }) => {
     await changePasswordPage.navigateWithAuth(loginPage, testUser)
 
     const confirmPasswordInput = page.locator('[data-testid="confirm-password-input"]')
@@ -143,7 +143,7 @@ test.describe('已登录用户修改密码', () => {
     }
   })
 
-  test('修改密码表单验证', async ({ page }) => {
+  test('修改密码表单验证', async ({ _page }) => {
     await changePasswordPage.navigateWithAuth(loginPage, testUser)
 
     // 测试空表单提交
@@ -158,7 +158,7 @@ test.describe('已登录用户修改密码', () => {
     expect(partialError).toBeTruthy()
   })
 
-  test('通过用户菜单访问修改密码页面', async ({ page }) => {
+  test('通过用户菜单访问修改密码页面', async ({ _page }) => {
     // 从仪表板导航到修改密码页面
     await dashboardPage.navigateToChangePassword()
 
@@ -166,7 +166,7 @@ test.describe('已登录用户修改密码', () => {
     await expect(page).toHaveURL(/\/change-password/)
   })
 
-  test('修改密码后所有其他会话失效', async ({ page, browser }) => {
+  test('修改密码后所有其他会话失效', async ({ _page, browser }) => {
     // 在第二个浏览器上下文中登录
     const context2 = await browser.newContext()
     const page2 = await context2.newPage()
@@ -223,10 +223,10 @@ test.describe('已登录用户修改密码', () => {
     await context2.close()
   })
 
-  test('修改密码后收到邮件通知', async ({ page, request }) => {
+  test('修改密码后收到邮件通知', async ({ _page, request }) => {
     // 通过 API 修改密码
     const newPassword = 'NewSecurePassword123!'
-    const response = await apiClient.changePassword(accessToken, testUser.password, newPassword)
+    const _response = await apiClient.changePassword(accessToken, testUser.password, newPassword)
 
     // 验证响应
     expect(response).toBeTruthy()
@@ -235,7 +235,7 @@ test.describe('已登录用户修改密码', () => {
     // 测试环境可能会返回邮件发送状态
   })
 
-  test('未登录用户访问修改密码页面', async ({ page, context }) => {
+  test('未登录用户访问修改密码页面', async ({ _page, context }) => {
     // 清除登录状态
     await context.clearCookies()
 
@@ -252,7 +252,7 @@ test.describe('已登录用户修改密码', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 })
   })
 
-  test.skip('密码历史验证（TODO: 等待后端实现）', async ({ page }) => {
+  test.skip('密码历史验证（TODO: 等待后端实现）', async ({ _page }) => {
     // TODO: 此功能尚未在后端实现，暂时跳过此测试
     // 当后端实现密码历史功能后，移除 .skip 并启用此测试
 

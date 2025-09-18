@@ -6,6 +6,7 @@
 import { EnhancedGenesisNavigation } from '@/components/genesis/EnhancedGenesisNavigation'
 import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
 import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
+import { GenesisErrorDialog } from '@/components/genesis/GenesisErrorDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,12 +14,14 @@ import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
 import { useParams } from 'react-router-dom'
+import { useState } from 'react'
 
 /**
  * 创世页面主组件
  */
 export default function GenesisPage() {
   const { id: novelId } = useParams<{ id: string }>()
+  const [showErrorDialog, setShowErrorDialog] = useState(false)
 
   // 使用新的Genesis会话管理hook
   const {
@@ -41,6 +44,8 @@ export default function GenesisPage() {
     },
     onError: (error) => {
       console.error('[GenesisPage] Session error:', error)
+      // 当有错误时显示对话框
+      setShowErrorDialog(true)
     },
     onFlowReady: (flow) => {
       console.log('[GenesisPage] Flow ready:', flow)
@@ -63,6 +68,17 @@ export default function GenesisPage() {
       console.log('[GenesisPage] Completing stage, moving to:', nextStage)
       switchToStage(nextStage)
     }
+  }
+
+  // 处理错误对话框
+  const handleErrorDialogClose = () => {
+    setShowErrorDialog(false)
+    clearError()
+  }
+
+  const handleRetryStageSwitch = () => {
+    // 重试上一次的阶段切换操作
+    handleStageComplete()
   }
 
 
@@ -191,6 +207,15 @@ export default function GenesisPage() {
           />
         </div>
       </div>
+
+      {/* 错误对话框 */}
+      <GenesisErrorDialog
+        open={showErrorDialog}
+        onOpenChange={setShowErrorDialog}
+        error={error}
+        onRetry={handleRetryStageSwitch}
+        onDismiss={handleErrorDialogClose}
+      />
     </div>
   )
 }

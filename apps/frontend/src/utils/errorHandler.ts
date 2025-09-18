@@ -80,6 +80,16 @@ export class AppError extends Error implements ApiError {
     return `${this.name}(${this.code}): ${this.message}`
   }
 
+  // 确保 valueOf 也返回有意义的值
+  valueOf(): string {
+    return this.toString()
+  }
+
+  // 重写 Symbol.toStringTag
+  get [Symbol.toStringTag](): string {
+    return 'AppError'
+  }
+
   toJSON() {
     return {
       name: this.name,

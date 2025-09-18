@@ -36,7 +36,15 @@ describe('HTTP Clients', () => {
         put: vi.fn(),
         delete: vi.fn(),
         defaults: {
-          headers: { common: {} },
+          headers: {
+          common: {},
+          delete: vi.fn(),
+          get: vi.fn(),
+          head: vi.fn(),
+          post: vi.fn(),
+          put: vi.fn(),
+          patch: vi.fn()
+        },
           baseURL: '',
           timeout: 10000,
         },
@@ -65,7 +73,7 @@ describe('HTTP Clients', () => {
           data: { id: 1, name: 'test' },
           status: 200,
           statusText: 'OK',
-          headers: {},
+          headers: new Headers(),
           config: { headers: {} },
           request: {},
         }
@@ -84,7 +92,7 @@ describe('HTTP Clients', () => {
           data: { id: 1, ...requestData },
           status: 201,
           statusText: 'Created',
-          headers: {},
+          headers: new Headers(),
           config: { headers: {} },
           request: {},
         }
@@ -103,7 +111,7 @@ describe('HTTP Clients', () => {
           data: { id: 1, ...updateData },
           status: 200,
           statusText: 'OK',
-          headers: {},
+          headers: new Headers(),
           config: { headers: {} },
           request: {},
         }
@@ -121,7 +129,7 @@ describe('HTTP Clients', () => {
           data: { success: true },
           status: 204,
           statusText: 'No Content',
-          headers: {},
+          headers: new Headers(),
           config: { headers: {} },
           request: {},
         }
@@ -144,7 +152,7 @@ describe('HTTP Clients', () => {
           data: {},
           status: 200,
           statusText: 'OK',
-          headers: {},
+          headers: new Headers(),
           config: { headers: {} },
           request: {},
         })

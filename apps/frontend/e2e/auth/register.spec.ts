@@ -23,7 +23,7 @@ test.describe('用户注册流程', () => {
     }
   })
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ _page }) => {
     registerPage = new RegisterPage(page)
     loginPage = new LoginPage(page)
     emailVerificationPage = new EmailVerificationPage(page)
@@ -33,7 +33,7 @@ test.describe('用户注册流程', () => {
     await cleanupUserEmails(testUser.email)
   })
 
-  test('成功注册新用户', async ({ page, request }) => {
+  test('成功注册新用户', async ({ _page, request }) => {
     // 导航到注册页面
     await registerPage.navigate()
 
@@ -48,11 +48,11 @@ test.describe('用户注册流程', () => {
     await expect(page).toHaveURL(/\/register/)
 
     // 验证是否有跳转到登录页的按钮
-    const loginButton = page.locator('a:has-text("Go to Login"), a:has-text("去登录")')
+    const _loginButton = page.locator('a:has-text("Go to Login"), a:has-text("去登录")')
     await expect(loginButton).toBeVisible()
   })
 
-  test('密码强度验证', async ({ page }) => {
+  test('密码强度验证', async ({ _page }) => {
     await registerPage.navigate()
 
     // 测试弱密码
@@ -61,7 +61,7 @@ test.describe('用户注册流程', () => {
 
     // 等待密码强度指示器出现
     const strengthIndicator = page.locator('[data-testid="password-strength-text"]')
-    await expect(strengthIndicator).toBeVisible({ timeout: 2000 })
+    await expect(strengthIndicator).toBeVisible({ _timeout: 2000 })
 
     // 等待强度文本更新为"弱"
     await expect(strengthIndicator).toHaveText(/弱|weak/i, { timeout: 2000 })
@@ -81,7 +81,7 @@ test.describe('用户注册流程', () => {
     await expect(strengthIndicator).toHaveText(/强|strong/i, { timeout: 2000 })
   })
 
-  test('注册表单验证', async ({ page }) => {
+  test('注册表单验证', async ({ _page }) => {
     await registerPage.navigate()
 
     // 测试空表单提交
@@ -108,7 +108,7 @@ test.describe('用户注册流程', () => {
     }
   })
 
-  test('重复邮箱注册', async ({ page, request }) => {
+  test('重复邮箱注册', async ({ _page, request }) => {
     const apiClient = new TestApiClient(request)
 
     // 先创建一个用户
@@ -131,7 +131,7 @@ test.describe('用户注册流程', () => {
     expect(errorMessage).toMatch(/邮箱.*已.*注册|email.*already.*registered|already exists/i)
   })
 
-  test('注册后跳转到登录页', async ({ page }) => {
+  test('注册后跳转到登录页', async ({ _page }) => {
     await registerPage.navigate()
 
     // 点击登录链接
@@ -147,13 +147,13 @@ test.describe('邮箱验证流程', () => {
   let loginPage: LoginPage
   let testUser: ReturnType<typeof generateTestUser>
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ _page }) => {
     emailVerificationPage = new EmailVerificationPage(page)
     loginPage = new LoginPage(page)
     testUser = generateTestUser()
   })
 
-  test('验证邮箱成功', async ({ page, request }) => {
+  test('验证邮箱成功', async ({ _page, request }) => {
     const apiClient = new TestApiClient(request)
 
     // 创建测试用户
@@ -189,7 +189,7 @@ test.describe('邮箱验证流程', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test('无效验证令牌', async ({ page }) => {
+  test('无效验证令牌', async ({ _page }) => {
     // 使用无效令牌访问验证页面
     await emailVerificationPage.navigate('invalid-token-12345')
 
@@ -200,7 +200,7 @@ test.describe('邮箱验证流程', () => {
     )
   })
 
-  test('过期验证令牌', async ({ page }) => {
+  test('过期验证令牌', async ({ _page }) => {
     // 使用过期令牌访问验证页面
     await emailVerificationPage.navigate('expired-token-12345')
 
@@ -211,7 +211,7 @@ test.describe('邮箱验证流程', () => {
     )
   })
 
-  test('重新发送验证邮件', async ({ page, request }) => {
+  test('重新发送验证邮件', async ({ _page, request }) => {
     const apiClient = new TestApiClient(request)
 
     // 创建未验证的测试用户
@@ -232,12 +232,12 @@ test.describe('邮箱验证流程', () => {
     expect(errorMessage).toMatch(/验证邮箱|verify.*email|Email Verification Required/i)
 
     // 如果有重新发送链接，点击它
-    const resendLink = page.locator('a:has-text("重新发送"), button:has-text("重新发送")')
+    const _resendLink = page.locator('a:has-text("重新发送"), button:has-text("重新发送")')
     if (await resendLink.isVisible()) {
       await resendLink.click()
 
       // 验证成功消息
-      const successMessage = await page.locator('.success-message, .text-green-500').textContent()
+      const _successMessage = await page.locator('.success-message, .text-green-500').textContent()
       expect(successMessage).toContain('已发送')
     }
   })

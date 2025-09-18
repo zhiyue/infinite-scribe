@@ -21,16 +21,6 @@ interface UseStageConfigOptions {
   onLoadError?: (error: Error) => void
 }
 
-interface StageConfigData {
-  /** JSON Schema */
-  schema: Record<string, any> | null
-  /** 默认模板 */
-  template: Record<string, any> | null
-  /** 当前配置 */
-  currentConfig: Record<string, any> | null
-  /** 阶段记录信息 */
-  stageRecord: StageRecordResponse | null
-}
 
 /**
  * 阶段配置管理Hook
@@ -41,7 +31,7 @@ export function useStageConfig(
   options: UseStageConfigOptions = {}
 ) {
   const queryClient = useQueryClient()
-  const { onSaveSuccess, onSaveError, onLoadError } = options
+  const { onSaveSuccess, onSaveError, onLoadError: _onLoadError } = options
 
   const [localConfig, setLocalConfig] = useState<Record<string, any> | null>(null)
 
@@ -60,7 +50,7 @@ export function useStageConfig(
     queryFn: () => genesisService.getStageConfigSchema(stage),
     enabled: !!stage,
     staleTime: 5 * 60 * 1000, // 5分钟缓存
-    cacheTime: 10 * 60 * 1000, // 10分钟缓存
+    gcTime: 10 * 60 * 1000, // 10分钟缓存
     retry: 2,
   })
 
@@ -74,7 +64,7 @@ export function useStageConfig(
     queryFn: () => genesisService.getStageConfigTemplate(stage),
     enabled: !!stage,
     staleTime: 5 * 60 * 1000, // 5分钟缓存
-    cacheTime: 10 * 60 * 1000, // 10分钟缓存
+    gcTime: 10 * 60 * 1000, // 10分钟缓存
     retry: 2,
   })
 
@@ -254,8 +244,5 @@ export function useStageConfigForm(
     onDataChange: handleFormDataChange,
     onReset: stageConfig.resetToSaved,
     onReload: stageConfig.reloadAll,
-
-    // 原始 hook 的所有功能
-    ...stageConfig,
   }
 }

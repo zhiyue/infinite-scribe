@@ -18,13 +18,14 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import type {
   ArrayFieldTemplateProps,
   FieldTemplateProps,
   ObjectFieldTemplateProps,
   WidgetProps,
 } from '@rjsf/utils'
-import { AlertCircle, GripVertical, Minus, Plus } from 'lucide-react'
+import { AlertCircle, Minus, Plus, ArrowUp, ArrowDown } from 'lucide-react'
 
 /**
  * 文本输入框 Widget
@@ -228,47 +229,82 @@ export function ArrayFieldTemplate({
   const orderable = uiOptions.orderable !== false
   const addable = uiOptions.addable !== false && canAdd
   const removable = uiOptions.removable !== false
+  const addButtonText = uiOptions.addButtonText || (items.length === 0 ? '添加项目' : '添加更多')
+  const itemTitle = uiOptions.itemTitle as string | undefined
+  const maxListHeight = uiOptions.maxListHeight as number | undefined
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        {items.map((item, index) => (
-          <div
-            key={item.key}
-            className="flex items-start gap-3 p-4 border border-border/60 rounded-lg bg-muted/20"
-          >
-            {orderable && (
-              <div className="flex flex-col gap-1 mt-2">
-                <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-              </div>
-            )}
+    <div className="space-y-3">
+      <div
+        className={cn('space-y-2.5', maxListHeight ? 'overflow-y-auto pr-1' : '')}
+        style={maxListHeight ? { maxHeight: `${maxListHeight}px` } : undefined}
+      >
+        {items.map((item, index) => {
+          const dynamicTitle = item.children?.props?.schema?.title as string | undefined
+          const finalTitle = dynamicTitle || itemTitle
 
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge variant="outline" className="text-xs">
-                  {index + 1}
-                </Badge>
+          return (
+            <div
+              key={item.key}
+              className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-3"
+            >
+              {orderable && (
+                <div className="flex flex-col gap-1 pt-1.5 text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={item.onReorderClick(index, index - 1)}
+                    disabled={disabled || readonly || !item.hasMoveUp}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={item.onReorderClick(index, index + 1)}
+                    disabled={disabled || readonly || !item.hasMoveDown}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[11px] py-0 px-1.5 font-medium">
+                    {index + 1}
+                  </Badge>
+                  {finalTitle && (
+                    <span className="font-medium text-foreground/80">
+                      {finalTitle}
+                    </span>
+                  )}
+                </div>
+                {item.children}
               </div>
-              {item.children}
+
+              {removable && item.hasRemove && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={item.onDropIndexClick(index)}
+                  disabled={disabled || readonly}
+                  className="mt-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-
-            {removable && item.hasRemove && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={item.onDropIndexClick(index)}
-                disabled={disabled || readonly}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        ))}
+          )
+        })}
 
         {addable && (
-          <div className="flex justify-center pt-2">
+          <div className="flex justify-center pt-1.5">
             <Button
               type="button"
               variant="outline"
@@ -278,7 +314,7 @@ export function ArrayFieldTemplate({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              {items.length === 0 ? '添加项目' : '添加更多'}
+              {addButtonText}
             </Button>
           </div>
         )}
@@ -292,11 +328,11 @@ export function ArrayFieldTemplate({
  */
 export function ObjectFieldTemplate({ properties }: ObjectFieldTemplateProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {properties.map((prop, index) => (
         <div key={prop.name}>
           {prop.content}
-          {index < properties.length - 1 && <Separator className="my-6" />}
+          {index < properties.length - 1 && <Separator className="my-4" />}
         </div>
       ))}
     </div>
@@ -321,12 +357,11 @@ export function FieldTemplate({
   const hasErrors = errorList.length > 0
 
   return (
-    <div className="space-y-3">
-      {/* 标题和输入框同行布局 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 md:flex-row md:gap-6">
         {showLabel && (
-          <div className="md:col-span-1">
-            <Label htmlFor={id} className="text-sm font-medium leading-9">
+          <div className="md:w-48 md:min-w-[12rem]">
+            <Label htmlFor={id} className="text-sm font-medium">
               {label}
               {required && <span className="text-destructive ml-1">*</span>}
             </Label>
@@ -338,31 +373,23 @@ export function FieldTemplate({
           </div>
         )}
 
-        <div className={showLabel ? "md:col-span-3" : "md:col-span-4"}>
+        <div className="flex-1 space-y-2">
           {children}
+
+          {hasErrors && (
+            <Alert variant="destructive" className="py-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                {errorList
+                  .map((error) => (typeof error === 'string' ? error : String(error)))
+                  .join(', ')}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {help && <p className="text-xs text-muted-foreground">{help}</p>}
         </div>
       </div>
-
-      {/* 错误信息 */}
-      {hasErrors && (
-        <div className={showLabel ? "md:col-start-2 md:col-span-3" : ""}>
-          <Alert variant="destructive" className="py-2">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              {errorList
-                .map((error) => (typeof error === 'string' ? error : String(error)))
-                .join(', ')}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      {/* 帮助文本 */}
-      {help && (
-        <div className={showLabel ? "md:col-start-2 md:col-span-3" : ""}>
-          <p className="text-xs text-muted-foreground">{help}</p>
-        </div>
-      )}
     </div>
   )
 }
