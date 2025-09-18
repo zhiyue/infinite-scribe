@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import pytest
 from httpx import AsyncClient
 from src.schemas.enums import GenesisStage
+from src.schemas.genesis.stage_config_schemas import get_stage_config_example
 
 
 @pytest.mark.integration
@@ -156,17 +157,9 @@ class TestGenesisStageConfigAPI:
         assert "X-Correlation-Id" in response.headers
 
         template = response.json()
-        assert isinstance(template, dict)
+        expected = get_stage_config_example(GenesisStage.INITIAL_PROMPT)
 
-        # Check that all fields are present with default values
-        assert "genre" in template
-        assert "style" in template
-        assert "target_word_count" in template
-        assert "special_requirements" in template
-
-        # Check types and default values
-        assert isinstance(template["special_requirements"], list)
-        assert template["special_requirements"] == []  # default empty list
+        assert template == expected
 
     @pytest.mark.asyncio
     async def test_get_stage_config_template_worldview_success(self, async_client: AsyncClient):
@@ -177,15 +170,9 @@ class TestGenesisStageConfigAPI:
         # Assert
         assert response.status_code == 200
         template = response.json()
+        expected = get_stage_config_example(GenesisStage.WORLDVIEW)
 
-        assert "time_period" in template
-        assert "geography_type" in template
-        assert "tech_magic_level" in template
-        assert "social_structure" in template
-        assert "power_system" in template
-
-        # power_system should be None (optional field)
-        assert template["power_system"] is None
+        assert template == expected
 
     @pytest.mark.asyncio
     async def test_get_stage_config_template_characters_success(self, async_client: AsyncClient):
@@ -196,14 +183,9 @@ class TestGenesisStageConfigAPI:
         # Assert
         assert response.status_code == 200
         template = response.json()
+        expected = get_stage_config_example(GenesisStage.CHARACTERS)
 
-        assert "protagonist_count" in template
-        assert "relationship_complexity" in template
-        assert "personality_preferences" in template
-        assert "include_villains" in template
-
-        # Check default values
-        assert template["include_villains"] is True  # default True
+        assert template == expected
 
     @pytest.mark.asyncio
     async def test_get_stage_config_template_plot_outline_success(self, async_client: AsyncClient):
@@ -214,14 +196,9 @@ class TestGenesisStageConfigAPI:
         # Assert
         assert response.status_code == 200
         template = response.json()
+        expected = get_stage_config_example(GenesisStage.PLOT_OUTLINE)
 
-        assert "chapter_count_preference" in template
-        assert "plot_complexity" in template
-        assert "conflict_types" in template
-        assert "pacing_preference" in template
-
-        # Check default values
-        assert template["pacing_preference"] == "中等"  # default value
+        assert template == expected
 
     @pytest.mark.asyncio
     async def test_get_stage_config_template_unsupported_stage(self, async_client: AsyncClient):

@@ -396,7 +396,7 @@ async def update_stage_config_endpoint(
         logger.info(f"Updating config for stage {stage_id}")
 
         # Get the stage record to determine its type and validate ownership
-        stage_record = await stage_service.get_stage(stage_service._get_repository(flow_service.db_session), stage_id)
+        stage_record = await stage_service.get_stage(flow_service.db_session, stage_id)
         if not stage_record:
             raise HTTPException(status_code=404, detail="Stage record not found")
 

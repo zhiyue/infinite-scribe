@@ -9,6 +9,7 @@ from src.schemas.genesis.stage_config_schemas import (
     PlotOutlineConfig,
     WorldviewConfig,
     get_all_stage_config_schemas,
+    get_stage_config_example,
     get_stage_config_schema,
     validate_stage_config,
 )
@@ -350,3 +351,30 @@ class TestGetAllStageConfigSchemas:
         assert "required" in initial_prompt_schema
         expected_required = {"genre", "style", "target_word_count"}
         assert set(initial_prompt_schema["required"]) == expected_required
+
+
+class TestStageConfigTemplates:
+    """Test helpers providing example configuration data."""
+
+    def test_example_returns_expected_initial_prompt_template(self):
+        """Initial prompt stage template should match schema example values."""
+        example = get_stage_config_example(GenesisStage.INITIAL_PROMPT)
+
+        assert example["genre"] == "玄幻"
+        assert example["style"] == "第三人称"
+        assert example["target_word_count"] == 100000
+        assert example["special_requirements"] == [
+            "融入中国传统文化元素",
+            "避免过于血腥的情节",
+            "加入轻松幽默的元素",
+        ]
+
+    def test_example_returns_default_for_optional_fields(self):
+        """Worldview template should include optional field defaults when provided."""
+        example = get_stage_config_example(GenesisStage.WORLDVIEW)
+
+        assert example["time_period"] == "古代"
+        assert example["geography_type"] == "大陆"
+        assert example["tech_magic_level"] == "高魔法"
+        assert example["social_structure"] == "封建制"
+        assert example["power_system"] == "修真等级"
