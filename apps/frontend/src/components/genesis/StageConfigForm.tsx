@@ -3,16 +3,18 @@
  * 使用 react-jsonschema-form (RJSF) 动态渲染配置表单
  */
 
-import { useState, useEffect } from 'react'
+import { useRef } from 'react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
-import type { RJSFSchema, UiSchema, FormProps } from '@rjsf/utils'
+import type { RJSFSchema, UiSchema, IChangeEvent } from '@rjsf/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Save, RefreshCw, AlertCircle } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
-import { genesisService, type StageRecordResponse } from '@/services/genesisService'
+import { useStageConfigForm } from '@/hooks/useStageConfig'
+import { customTheme } from './CustomWidgets'
 import { cn } from '@/lib/utils'
 
 interface StageConfigFormProps {
@@ -28,15 +30,6 @@ interface StageConfigFormProps {
   disabled?: boolean
   /** 额外的CSS类名 */
   className?: string
-}
-
-interface FormState {
-  schema: RJSFSchema | null
-  formData: Record<string, any>
-  uiSchema: UiSchema
-  loading: boolean
-  saving: boolean
-  error: string | null
 }
 
 /**
@@ -136,91 +129,70 @@ export function StageConfigForm({
   disabled = false,
   className,
 }: StageConfigFormProps) {
-  const [formState, setFormState] = useState<FormState>({
-    schema: null,
-    formData: {},
-    uiSchema: createDefaultUiSchema(stage),
-    loading: true,
-    saving: false,
-    error: null,
-  })
+  const formRef = useRef<any>(null)
 
   const stageInfo = getStageInfo(stage)
+  const uiSchema = createDefaultUiSchema(stage)
+
+  // 使用阶段配置表单 Hook
+  const {
+    schema,
+    formData,
+    isLoading,
+    isReady,
+    isSaving,
+    hasUnsavedChanges,
+    error,
+    onSubmit: handleFormSubmit,
+    onDataChange,
+    onReset,
+    onReload,
+  } = useStageConfigForm(stage, stageId, {
+    onSaveSuccess: (config) => {
+      onSubmit?.(config)
+    },
+    onSaveError: (error) => {
+      console.error('[StageConfigForm] Save failed:', error)
+    },
+    onLoadError: (error) => {
+      console.error('[StageConfigForm] Load failed:', error)
+    },
+  })
+
+  // 同步保存状态到外部
+  if (onSaveStateChange) {
+    onSaveStateChange(isSaving)
+  }
 
   /**
-   * 加载表单数据
+   * 处理表单提交
    */
-  const loadFormData = async () => {
-    try {
-      setFormState(prev => ({ ...prev, loading: true, error: null }))
-
-      // 并行加载 schema、模板和当前配置
-      const [schema, template, activeSession] = await Promise.all([
-        genesisService.getStageConfigSchema(stage),
-        genesisService.getStageConfigTemplate(stage),
-        genesisService.getActiveSession(stageId).catch(() => null), // 允许失败
-      ])
-
-      // 使用现有配置或默认模板
-      const currentConfig = activeSession?.stage?.config || template
-
-      setFormState(prev => ({
-        ...prev,
-        schema,
-        formData: currentConfig,
-        loading: false,
-      }))
-    } catch (error) {
-      console.error('Failed to load stage config:', error)
-      setFormState(prev => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : '加载配置失败',
-      }))
+  const handleSubmit = async (event: { formData: Record<string, any> }) => {
+    const success = await handleFormSubmit(event.formData)
+    if (!success) {
+      // 提交失败，表单保持当前状态
+      console.warn('[StageConfigForm] Form submission failed')
     }
   }
 
   /**
-   * 提交表单数据
+   * 处理表单数据变化
    */
-  const handleSubmit = async (data: { formData: Record<string, any> }) => {
-    try {
-      setFormState(prev => ({ ...prev, saving: true, error: null }))
-      onSaveStateChange?.(true)
-
-      // 保存配置到后端
-      await genesisService.updateStageConfig(stageId, data.formData)
-
-      // 更新本地状态
-      setFormState(prev => ({ ...prev, formData: data.formData, saving: false }))
-      onSaveStateChange?.(false)
-
-      // 调用外部回调
-      onSubmit?.(data.formData)
-    } catch (error) {
-      console.error('Failed to save stage config:', error)
-      setFormState(prev => ({
-        ...prev,
-        saving: false,
-        error: error instanceof Error ? error.message : '保存配置失败',
-      }))
-      onSaveStateChange?.(false)
-    }
+  const handleChange = (event: IChangeEvent) => {
+    onDataChange(event.formData)
   }
 
   /**
-   * 重新加载数据
+   * 手动触发表单提交
    */
-  const handleReload = () => {
-    loadFormData()
+  const triggerSubmit = () => {
+    if (formRef.current) {
+      formRef.current.submit()
+    }
   }
 
-  // 初始加载
-  useEffect(() => {
-    loadFormData()
-  }, [stage, stageId])
-
-  if (formState.loading) {
+  // 加载状态
+  if (isLoading) {
     return (
       <Card className={className}>
         <CardContent className="flex items-center justify-center py-8">
@@ -233,15 +205,19 @@ export function StageConfigForm({
     )
   }
 
-  if (formState.error) {
+  // 错误状态
+  if (error) {
     return (
       <Card className={className}>
         <CardContent className="py-6">
           <Alert variant="destructive">
-            <AlertDescription>{formState.error}</AlertDescription>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {error instanceof Error ? error.message : '加载配置失败'}
+            </AlertDescription>
           </Alert>
           <div className="mt-4 flex justify-center">
-            <Button variant="outline" onClick={handleReload} size="sm">
+            <Button variant="outline" onClick={onReload} size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               重新加载
             </Button>
@@ -251,12 +227,13 @@ export function StageConfigForm({
     )
   }
 
-  if (!formState.schema) {
+  // 未就绪状态
+  if (!isReady) {
     return (
       <Card className={className}>
         <CardContent className="py-6">
           <Alert>
-            <AlertDescription>暂无可用的配置模板</AlertDescription>
+            <AlertDescription>配置模板暂不可用，请稍后重试</AlertDescription>
           </Alert>
         </CardContent>
       </Card>
@@ -266,62 +243,89 @@ export function StageConfigForm({
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle className="text-lg">{stageInfo.title}</CardTitle>
-        {stageInfo.description && (
-          <p className="text-sm text-muted-foreground">{stageInfo.description}</p>
-        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">{stageInfo.title}</CardTitle>
+            {stageInfo.description && (
+              <p className="text-sm text-muted-foreground mt-1">{stageInfo.description}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {hasUnsavedChanges && (
+              <Badge variant="outline" className="text-xs">
+                有未保存的更改
+              </Badge>
+            )}
+            {isSaving && (
+              <Badge variant="secondary" className="text-xs">
+                保存中...
+              </Badge>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <Form
-            schema={formState.schema}
-            formData={formState.formData}
-            uiSchema={formState.uiSchema}
+            ref={formRef}
+            schema={schema}
+            formData={formData}
+            uiSchema={uiSchema}
             validator={validator}
             onSubmit={handleSubmit}
-            disabled={disabled || formState.saving}
+            onChange={handleChange}
+            disabled={disabled || isSaving}
+            widgets={customTheme.widgets}
+            templates={customTheme.templates}
             noHtml5Validate
             showErrorList={false}
             liveValidate
           />
 
-          {/* 自定义提交按钮 */}
-          <div className="flex items-center gap-2 pt-4 border-t">
-            <Button
-              type="submit"
-              disabled={disabled || formState.saving}
-              className="min-w-[100px]"
-              onClick={() => {
-                // 触发表单提交
-                const formElement = document.querySelector('form')
-                if (formElement) {
-                  const event = new Event('submit', { bubbles: true, cancelable: true })
-                  formElement.dispatchEvent(event)
-                }
-              }}
-            >
-              {formState.saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  保存配置
-                </>
+          {/* 自定义操作按钮 */}
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={disabled || isSaving}
+                className="min-w-[100px]"
+                onClick={triggerSubmit}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    保存配置
+                  </>
+                )}
+              </Button>
+
+              {hasUnsavedChanges && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onReset}
+                  disabled={isSaving}
+                  size="sm"
+                >
+                  放弃更改
+                </Button>
               )}
-            </Button>
+            </div>
 
             <Button
               type="button"
-              variant="outline"
-              onClick={handleReload}
-              disabled={formState.loading || formState.saving}
+              variant="ghost"
+              onClick={onReload}
+              disabled={isLoading || isSaving}
               size="sm"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
-              重置
+              刷新
             </Button>
           </div>
         </div>

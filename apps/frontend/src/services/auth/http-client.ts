@@ -334,12 +334,26 @@ export class FetchHttpClient implements IHttpClient {
     config?: AxiosRequestConfig,
   ): Promise<AxiosResponse<T>> {
     const fullUrl = this.buildUrl(url)
-    const headers = { ...this.defaultHeaders, ...config?.headers }
+
+    // Convert axios headers to fetch headers format
+    const headers: Record<string, string> = {
+      ...this.defaultHeaders
+    }
+
+    if (config?.headers) {
+      // Handle both AxiosHeaders and plain object formats
+      if (typeof config.headers === 'object') {
+        Object.entries(config.headers).forEach(([key, value]) => {
+          if (typeof value === 'string') {
+            headers[key] = value
+          }
+        })
+      }
+    }
 
     const requestConfig: RequestInit = {
       method,
       headers,
-      ...config,
     }
 
     if (data) {

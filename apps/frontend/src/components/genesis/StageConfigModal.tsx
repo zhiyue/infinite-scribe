@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Settings,
@@ -53,6 +52,7 @@ function getStageIcon(stage: GenesisStage) {
     [GenesisStage.WORLDVIEW]: Globe,
     [GenesisStage.CHARACTERS]: Users,
     [GenesisStage.PLOT_OUTLINE]: BookOpen,
+    [GenesisStage.FINISHED]: CheckCircle,
   }
 
   return iconMap[stage] || Settings
@@ -86,6 +86,12 @@ function getStageDisplayInfo(stage: GenesisStage) {
       description: '规划故事的整体结构和发展脉络',
       badge: '第四步',
       badgeVariant: 'destructive' as const,
+    },
+    [GenesisStage.FINISHED]: {
+      title: '创世完成',
+      description: '所有创世阶段已完成，可以开始写作',
+      badge: '已完成',
+      badgeVariant: 'default' as const,
     },
   }
 
