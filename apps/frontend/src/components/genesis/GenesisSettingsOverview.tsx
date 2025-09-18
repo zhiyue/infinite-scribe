@@ -102,7 +102,7 @@ function SettingsSection({
         stage === currentStage && 'border-primary',
         isCompleted && 'bg-muted/30',
       )}
-      onClick={() => handleViewDetails(stage)}
+      onClick={() => onViewDetails?.(stage)}
     >
       <CardHeader className="pb-2 pt-3">
         <div className="flex items-center justify-between">
@@ -140,7 +140,7 @@ function SettingsSection({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleConfigStage(stage)
+                    onConfigStage?.(stage)
                   }}
                   className="h-6 w-6 p-0"
                   title="配置此阶段"
@@ -152,7 +152,7 @@ function SettingsSection({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleViewDetails(stage)
+                    onViewDetails?.(stage)
                   }}
                   className="h-6 w-6 p-0"
                   title="查看详情"
@@ -166,7 +166,7 @@ function SettingsSection({
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleViewDetails(stage)
+                  onViewDetails?.(stage)
                 }}
                 className="h-6 w-6 p-0"
                 title="查看详情"
@@ -348,7 +348,8 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.INITIAL_PROMPT)}
                   preview={getStagePreview(GenesisStage.INITIAL_PROMPT)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => handleViewDetails(GenesisStage.INITIAL_PROMPT)}
+                  onViewDetails={handleViewDetails}
+                  onConfigStage={handleConfigStage}
                 />
               )}
 
@@ -363,7 +364,8 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.WORLDVIEW)}
                   preview={getStagePreview(GenesisStage.WORLDVIEW)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => handleViewDetails(GenesisStage.WORLDVIEW)}
+                  onViewDetails={handleViewDetails}
+                  onConfigStage={handleConfigStage}
                 />
               )}
 
@@ -378,7 +380,8 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.CHARACTERS)}
                   preview={getStagePreview(GenesisStage.CHARACTERS)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => setModalStage(GenesisStage.CHARACTERS)}
+                  onViewDetails={handleViewDetails}
+                  onConfigStage={handleConfigStage}
                 />
               )}
 
@@ -393,7 +396,8 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.PLOT_OUTLINE)}
                   preview={getStagePreview(GenesisStage.PLOT_OUTLINE)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => setModalStage(GenesisStage.PLOT_OUTLINE)}
+                  onViewDetails={handleViewDetails}
+                  onConfigStage={handleConfigStage}
                 />
               )}
             </div>

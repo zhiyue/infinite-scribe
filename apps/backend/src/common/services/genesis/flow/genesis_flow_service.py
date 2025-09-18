@@ -111,6 +111,29 @@ class GenesisFlowService:
 
         return None
 
+    async def get_all_stage_ids(self, flow: GenesisFlow) -> dict[GenesisStage, UUID]:
+        """
+        获取流程中所有阶段的Stage Record ID映射。
+
+        Args:
+            flow: Genesis流程实例
+
+        Returns:
+            从GenesisStage到Stage Record ID的映射字典
+        """
+        if not self.stage_repository:
+            return {}
+
+        # 获取流程的所有Stage Records
+        stages = await self.stage_repository.list_by_flow_id(flow_id=flow.id)
+
+        # 创建从stage类型到ID的映射
+        stage_ids = {}
+        for stage_record in stages:
+            stage_ids[stage_record.stage] = stage_record.id
+
+        return stage_ids
+
     async def get_flow_by_id(self, flow_id: UUID) -> GenesisFlow | None:
         """
         根据流程ID获取Genesis流程。

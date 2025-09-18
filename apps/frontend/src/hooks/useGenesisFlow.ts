@@ -5,13 +5,16 @@
 
 import { genesisService, type GenesisFlowResponse } from '@/services/genesisService'
 import { GenesisStage } from '@/types/enums'
+import { AppError, getUserFriendlyMessage, isUserActionRequired } from '@/utils/errorHandler'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface UseGenesisFlowOptions {
   onFlowReady?: (flow: GenesisFlowResponse) => void
   onStageChanged?: (flow: GenesisFlowResponse) => void
   onFlowCompleted?: (flow: GenesisFlowResponse) => void
-  onError?: (error: Error) => void
+  onError?: (error: AppError) => void
+  onStageConfigIncomplete?: (error: AppError) => void
+  onStageValidationError?: (error: AppError) => void
 }
 
 /**
@@ -20,7 +23,36 @@ interface UseGenesisFlowOptions {
  */
 export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions = {}) {
   const queryClient = useQueryClient()
-  const { onFlowReady, onStageChanged, onFlowCompleted, onError } = options
+  const {
+    onFlowReady,
+    onStageChanged,
+    onFlowCompleted,
+    onError,
+    onStageConfigIncomplete,
+    onStageValidationError
+  } = options
+
+  // 统一的错误处理函数
+  const handleError = (error: unknown, context: string) => {
+    const appError = error instanceof AppError ? error : new AppError('UNKNOWN_ERROR', String(error))
+
+    console.error(`[useGenesisFlow] ${context} error:`, appError)
+
+    // 根据错误类型调用特定的回调
+    switch (appError.code) {
+      case 'STAGE_CONFIG_INCOMPLETE':
+        onStageConfigIncomplete?.(appError)
+        break
+      case 'STAGE_VALIDATION_ERROR':
+        onStageValidationError?.(appError)
+        break
+      default:
+        break
+    }
+
+    // 总是调用通用错误回调
+    onError?.(appError)
+  }
 
   // 查询键
   const queryKey = ['genesis-flow', novelId]
@@ -53,9 +85,8 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
       console.log('[useGenesisFlow] Calling onFlowReady callback...')
       onFlowReady?.(data)
     },
-    onError: (error: Error) => {
-      console.error('[useGenesisFlow] Failed to create/get flow:', error)
-      onError?.(error)
+    onError: (error) => {
+      handleError(error, 'Failed to create/get flow')
     },
   })
 
@@ -67,9 +98,8 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
       queryClient.setQueryData(queryKey, data)
       onStageChanged?.(data)
     },
-    onError: (error: Error) => {
-      console.error('[useGenesisFlow] Failed to switch stage:', error)
-      onError?.(error)
+    onError: (error) => {
+      handleError(error, 'Failed to switch stage')
     },
   })
 
@@ -80,9 +110,8 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
       queryClient.setQueryData(queryKey, data)
       onFlowCompleted?.(data)
     },
-    onError: (error: Error) => {
-      console.error('[useGenesisFlow] Failed to complete flow:', error)
-      onError?.(error)
+    onError: (error) => {
+      handleError(error, 'Failed to complete flow')
     },
   })
 
@@ -124,6 +153,15 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
     isCreating: createOrGetFlow.isPending,
     isSwitchingStage: switchStage.isPending,
     isCompleting: completeFlow.isPending,
+
+    // 错误状态
+    switchStageError: switchStage.error as AppError | null,
+    createFlowError: createOrGetFlow.error as AppError | null,
+    completeFlowError: completeFlow.error as AppError | null,
+
+    // 错误检查辅助函数
+    hasStageConfigError: switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_CONFIG_INCOMPLETE',
+    hasValidationError: switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_VALIDATION_ERROR',
 
     // Mutation 对象（用于高级用法）
     createOrGetFlowMutation: createOrGetFlow,

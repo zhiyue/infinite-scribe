@@ -3,7 +3,7 @@
  * 在模态窗口中渲染阶段配置表单
  */
 
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -23,9 +23,16 @@ import {
   CheckCircle,
   AlertCircle,
   X,
+  Save,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
-import { StageConfigForm } from './StageConfigForm'
+import {
+  StageConfigForm,
+  type StageConfigFormHandle,
+  type StageConfigFormState,
+} from './StageConfigForm'
 import { cn } from '@/lib/utils'
 
 interface StageConfigModalProps {
@@ -114,7 +121,10 @@ export function StageConfigModal({
   onConfigSaved,
   disabled = false,
 }: StageConfigModalProps) {
+  const formRef = useRef<StageConfigFormHandle>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isFormLoading, setIsFormLoading] = useState(true)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
 
   const StageIcon = getStageIcon(stage)
@@ -134,11 +144,16 @@ export function StageConfigModal({
   }
 
   /**
-   * 处理保存状态变化
+   * 表单状态更新
    */
-  const handleSaveStateChange = (saving: boolean) => {
-    setIsSaving(saving)
-  }
+  const handleFormStateChange = useCallback(
+    ({ isSaving, hasUnsavedChanges, isLoading }: StageConfigFormState) => {
+      setIsSaving(isSaving)
+      setHasUnsavedChanges(hasUnsavedChanges)
+      setIsFormLoading(isLoading)
+    },
+    [],
+  )
 
   /**
    * 关闭模态窗口
@@ -150,9 +165,21 @@ export function StageConfigModal({
     }
   }
 
+  const handleSaveClick = useCallback(() => {
+    formRef.current?.submit()
+  }, [])
+
+  const handleResetClick = useCallback(() => {
+    formRef.current?.reset()
+  }, [])
+
+  const handleRefreshClick = useCallback(() => {
+    formRef.current?.reload()
+  }, [])
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0 flex flex-col">
         {/* 头部 */}
         <DialogHeader className="p-6 pb-4 border-b bg-muted/20">
           <div className="flex items-start justify-between">
@@ -200,35 +227,78 @@ export function StageConfigModal({
 
         {/* 内容区域 */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto p-6">
-            {disabled && (
-              <Alert className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  当前阶段正在处理中，配置暂时不可编辑。完成后即可修改设定。
-                </AlertDescription>
-              </Alert>
-            )}
+          <div className="h-full overflow-y-auto px-6 py-8">
+            <div className="mx-auto flex max-w-3xl flex-col gap-6">
+              {disabled && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    当前阶段正在处理中，配置暂时不可编辑。完成后即可修改设定。
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            <StageConfigForm
-              stage={stage}
-              stageId={stageId}
-              onSubmit={handleConfigSaved}
-              onSaveStateChange={handleSaveStateChange}
-              disabled={disabled}
-              className="border-0 shadow-none"
-            />
+              <StageConfigForm
+                ref={formRef}
+                stage={stage}
+                stageId={stageId}
+                onSubmit={handleConfigSaved}
+                disabled={disabled}
+                className="bg-background"
+                onFormStateChange={handleFormStateChange}
+              />
+            </div>
           </div>
         </div>
 
         {/* 底部操作栏 */}
         <div className="border-t bg-muted/20 p-4">
-          <div className="flex items-center justify-between">
+          <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
               配置更改将影响 AI 在此阶段的行为和输出内容
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRefreshClick}
+                disabled={disabled || isSaving || isFormLoading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                刷新
+              </Button>
+              {hasUnsavedChanges && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetClick}
+                  disabled={disabled || isSaving}
+                >
+                  放弃更改
+                </Button>
+              )}
+              <Button
+                type="button"
+                className="min-w-[120px]"
+                onClick={handleSaveClick}
+                disabled={disabled || isSaving || isFormLoading}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    保存配置
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
                 variant="outline"
                 onClick={handleClose}
                 disabled={isSaving}

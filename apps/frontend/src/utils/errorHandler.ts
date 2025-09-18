@@ -21,6 +21,10 @@ export enum ErrorCode {
   // 业务错误
   BUSINESS_ERROR = 'BUSINESS_ERROR',
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+
+  // Genesis 特定错误
+  STAGE_CONFIG_INCOMPLETE = 'STAGE_CONFIG_INCOMPLETE',
+  STAGE_VALIDATION_ERROR = 'STAGE_VALIDATION_ERROR',
 }
 
 // 错误消息映射
@@ -37,6 +41,17 @@ const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.TIMEOUT_ERROR]: '请求超时',
   [ErrorCode.BUSINESS_ERROR]: '业务处理失败',
   [ErrorCode.UNKNOWN_ERROR]: '未知错误',
+  [ErrorCode.STAGE_CONFIG_INCOMPLETE]: '当前阶段配置不完整',
+  [ErrorCode.STAGE_VALIDATION_ERROR]: '阶段切换验证失败',
+}
+
+// Genesis 错误接口
+export interface GenesisErrorDetail {
+  type: string
+  message: string
+  user_message: string
+  action_required: string
+  missing_fields?: string[]
 }
 
 // 自定义错误类
@@ -47,8 +62,10 @@ export class AppError extends Error implements ApiError {
   code: string
   statusCode?: number
   details?: unknown
+  // Genesis 特定错误信息
+  genesisError?: GenesisErrorDetail
 
-  constructor(code: string, message?: string, statusCode?: number, details?: unknown) {
+  constructor(code: string, message?: string, statusCode?: number, details?: unknown, genesisError?: GenesisErrorDetail) {
     super(message || errorMessages[code as ErrorCode] || '未知错误')
     this.name = 'AppError'
     this.code = code
@@ -56,6 +73,23 @@ export class AppError extends Error implements ApiError {
     this.statusCode = statusCode
     this.status_code = statusCode
     this.details = details
+    this.genesisError = genesisError
+  }
+
+  toString(): string {
+    return `${this.name}(${this.code}): ${this.message}`
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      detail: this.detail,
+      statusCode: this.statusCode,
+      genesisError: this.genesisError,
+      details: this.details
+    }
   }
 }
 
@@ -74,24 +108,64 @@ const httpStatusToErrorCode: Record<number, ErrorCode> = {
 
 // 解析 API 响应错误
 export function parseApiError(response: Response, data?: unknown): AppError {
-  const errorCode = httpStatusToErrorCode[response.status] || ErrorCode.UNKNOWN_ERROR
+  const defaultErrorCode = httpStatusToErrorCode[response.status] || ErrorCode.UNKNOWN_ERROR
 
   // 尝试从响应数据中获取错误信息
-  if (data && typeof data === 'object' && 'error' in data) {
-    const errorData = data.error as {
-      code?: string
-      message?: string
-      details?: unknown
+  if (data && typeof data === 'object') {
+    // 检查是否是 Genesis 特定的结构化错误 (HTTPException with detail object)
+    if ('detail' in data && typeof data.detail === 'object' && data.detail !== null) {
+      const detail = data.detail as any
+
+      // 检查是否是 Genesis 错误格式
+      if ('type' in detail && 'user_message' in detail && 'action_required' in detail) {
+        const genesisError: GenesisErrorDetail = {
+          type: detail.type,
+          message: detail.message || '',
+          user_message: detail.user_message,
+          action_required: detail.action_required,
+          missing_fields: detail.missing_fields
+        }
+
+        // 根据错误类型映射到适当的错误码
+        let errorCode = defaultErrorCode
+        if (detail.type === 'stage_config_incomplete') {
+          errorCode = ErrorCode.STAGE_CONFIG_INCOMPLETE
+        } else if (detail.type === 'stage_validation_error') {
+          errorCode = ErrorCode.STAGE_VALIDATION_ERROR
+        }
+
+        return new AppError(
+          errorCode,
+          genesisError.user_message, // 使用用户友好的消息
+          response.status,
+          detail,
+          genesisError
+        )
+      }
+
+      // 检查传统的 detail 字符串格式
+      if (typeof data.detail === 'string') {
+        return new AppError(defaultErrorCode, data.detail, response.status)
+      }
     }
-    return new AppError(
-      errorData.code || errorCode,
-      errorData.message,
-      response.status,
-      errorData.details,
-    )
+
+    // 检查传统的 error 字段
+    if ('error' in data) {
+      const errorData = data.error as {
+        code?: string
+        message?: string
+        details?: unknown
+      }
+      return new AppError(
+        errorData.code || defaultErrorCode,
+        errorData.message,
+        response.status,
+        errorData.details,
+      )
+    }
   }
 
-  return new AppError(errorCode, undefined, response.status)
+  return new AppError(defaultErrorCode, undefined, response.status)
 }
 
 // 处理网络错误
@@ -141,6 +215,11 @@ export function logError(error: AppError, context?: unknown): void {
 
 // 用户友好的错误消息
 export function getUserFriendlyMessage(error: AppError): string {
+  // 如果有 Genesis 特定的错误，优先使用其用户友好消息
+  if (error.genesisError?.user_message) {
+    return error.genesisError.user_message
+  }
+
   // 对于某些错误，返回更友好的消息
   switch (error.code as ErrorCode) {
     case ErrorCode.NETWORK_ERROR:
@@ -151,7 +230,31 @@ export function getUserFriendlyMessage(error: AppError): string {
       return '您需要登录才能访问此功能'
     case ErrorCode.SERVICE_UNAVAILABLE:
       return '服务暂时不可用，请稍后再试'
+    case ErrorCode.STAGE_CONFIG_INCOMPLETE:
+      return error.message || '当前阶段配置不完整，请先完成必填字段的配置'
+    case ErrorCode.STAGE_VALIDATION_ERROR:
+      return error.message || '阶段切换验证失败，请检查当前阶段状态'
     default:
       return error.message || '操作失败，请稍后重试'
   }
+}
+
+// 获取错误的操作建议
+export function getErrorActionSuggestion(error: AppError): string | null {
+  if (error.genesisError?.action_required) {
+    switch (error.genesisError.action_required) {
+      case 'complete_current_stage_config':
+        return '请前往阶段配置页面完成必填字段的设置'
+      case 'check_stage_status':
+        return '请检查当前阶段的状态和配置'
+      default:
+        return null
+    }
+  }
+  return null
+}
+
+// 检查是否是需要用户操作的错误
+export function isUserActionRequired(error: AppError): boolean {
+  return !!(error.genesisError?.action_required)
 }

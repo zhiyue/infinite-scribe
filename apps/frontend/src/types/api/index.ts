@@ -316,4 +316,4 @@ export interface SystemStatistics {
 export * from './conversations'
 
 // 导出实体模型类型
-export type { Novel } from '../models/entities'
+export type { Novel, Character, Chapter } from '../models/entities'

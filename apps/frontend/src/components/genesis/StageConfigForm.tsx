@@ -3,15 +3,21 @@
  * 使用 react-jsonschema-form (RJSF) 动态渲染配置表单
  */
 
-import { useRef } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type ForwardedRef,
+} from 'react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
 import type { RJSFSchema, UiSchema, IChangeEvent } from '@rjsf/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, Save, RefreshCw, AlertCircle } from 'lucide-react'
+import { Loader2, RefreshCw, AlertCircle } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 import { useStageConfigForm } from '@/hooks/useStageConfig'
 import { customTheme } from './CustomWidgets'
@@ -30,33 +36,22 @@ interface StageConfigFormProps {
   disabled?: boolean
   /** 额外的CSS类名 */
   className?: string
+  /** 表单状态变化回调 */
+  onFormStateChange?: (state: StageConfigFormState) => void
 }
 
-/**
- * 获取阶段显示信息
- */
-function getStageInfo(stage: GenesisStage) {
-  const stageInfoMap = {
-    [GenesisStage.INITIAL_PROMPT]: {
-      title: '初始灵感设定',
-      description: '定义作品的核心概念和创作方向',
-    },
-    [GenesisStage.WORLDVIEW]: {
-      title: '世界观设定',
-      description: '构建故事发生的世界背景和规则',
-    },
-    [GenesisStage.CHARACTERS]: {
-      title: '角色设定',
-      description: '塑造主要角色的性格和背景',
-    },
-    [GenesisStage.PLOT_OUTLINE]: {
-      title: '剧情大纲设定',
-      description: '规划整体故事结构和发展脉络',
-    },
-  }
-
-  return stageInfoMap[stage] || { title: '未知阶段', description: '' }
+export interface StageConfigFormState {
+  isSaving: boolean
+  hasUnsavedChanges: boolean
+  isLoading: boolean
 }
+
+export interface StageConfigFormHandle {
+  submit: () => void
+  reset: () => void
+  reload: () => void
+}
+
 
 /**
  * 创建默认 UI Schema
@@ -121,17 +116,19 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
 /**
  * 阶段配置表单组件
  */
-export function StageConfigForm({
-  stage,
-  stageId,
-  onSubmit,
-  onSaveStateChange,
-  disabled = false,
-  className,
-}: StageConfigFormProps) {
+const StageConfigFormComponent = (
+  {
+    stage,
+    stageId,
+    onSubmit,
+    onSaveStateChange,
+    disabled = false,
+    className,
+    onFormStateChange,
+  }: StageConfigFormProps,
+  ref: ForwardedRef<StageConfigFormHandle>,
+) => {
   const formRef = useRef<any>(null)
-
-  const stageInfo = getStageInfo(stage)
   const uiSchema = createDefaultUiSchema(stage)
 
   // 使用阶段配置表单 Hook
@@ -160,42 +157,77 @@ export function StageConfigForm({
   })
 
   // 同步保存状态到外部
-  if (onSaveStateChange) {
-    onSaveStateChange(isSaving)
-  }
+  useEffect(() => {
+    onSaveStateChange?.(isSaving)
+  }, [isSaving, onSaveStateChange])
+
+  useEffect(() => {
+    onFormStateChange?.({
+      isSaving,
+      hasUnsavedChanges,
+      isLoading,
+    })
+  }, [isSaving, hasUnsavedChanges, isLoading, onFormStateChange])
 
   /**
    * 处理表单提交
    */
-  const handleSubmit = async (event: { formData: Record<string, any> }) => {
-    const success = await handleFormSubmit(event.formData)
-    if (!success) {
-      // 提交失败，表单保持当前状态
-      console.warn('[StageConfigForm] Form submission failed')
-    }
-  }
+  const handleSubmit = useCallback(
+    async (data: IChangeEvent) => {
+      if (data.formData) {
+        const success = await handleFormSubmit(data.formData)
+        if (!success) {
+          console.warn('[StageConfigForm] Form submission failed')
+        }
+      }
+    },
+    [handleFormSubmit],
+  )
 
   /**
    * 处理表单数据变化
    */
-  const handleChange = (event: IChangeEvent) => {
-    onDataChange(event.formData)
-  }
+  const handleChange = useCallback(
+    (event: IChangeEvent) => {
+      if (event.formData) {
+        onDataChange(event.formData)
+      }
+    },
+    [onDataChange],
+  )
 
   /**
    * 手动触发表单提交
    */
-  const triggerSubmit = () => {
+  const triggerSubmit = useCallback(() => {
     if (formRef.current) {
       formRef.current.submit()
     }
-  }
+  }, [])
+
+  const handleReset = useCallback(() => {
+    onReset()
+  }, [onReset])
+
+  const handleReload = useCallback(() => {
+    onReload()
+  }, [onReload])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submit: triggerSubmit,
+      reset: handleReset,
+      reload: handleReload,
+    }),
+    [triggerSubmit, handleReset, handleReload],
+  )
 
   // 加载状态
   if (isLoading) {
     return (
-      <Card className={className}>
-        <CardContent className="flex items-center justify-center py-8">
+      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
+        <CardContent className="flex items-center justify-center py-12">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>正在加载配置...</span>
@@ -208,15 +240,15 @@ export function StageConfigForm({
   // 错误状态
   if (error) {
     return (
-      <Card className={className}>
-        <CardContent className="py-6">
+      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
+        <CardContent className="space-y-6 p-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               {error instanceof Error ? error.message : '加载配置失败'}
             </AlertDescription>
           </Alert>
-          <div className="mt-4 flex justify-center">
+          <div className="flex justify-center">
             <Button variant="outline" onClick={onReload} size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               重新加载
@@ -230,8 +262,8 @@ export function StageConfigForm({
   // 未就绪状态
   if (!isReady) {
     return (
-      <Card className={className}>
-        <CardContent className="py-6">
+      <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
+        <CardContent className="p-6">
           <Alert>
             <AlertDescription>配置模板暂不可用，请稍后重试</AlertDescription>
           </Alert>
@@ -241,39 +273,17 @@ export function StageConfigForm({
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">{stageInfo.title}</CardTitle>
-            {stageInfo.description && (
-              <p className="text-sm text-muted-foreground mt-1">{stageInfo.description}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {hasUnsavedChanges && (
-              <Badge variant="outline" className="text-xs">
-                有未保存的更改
-              </Badge>
-            )}
-            {isSaving && (
-              <Badge variant="secondary" className="text-xs">
-                保存中...
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+    <Card className={cn('rounded-xl border border-border/60 bg-card shadow-sm', className)}>
+      <CardContent className="p-6">
+        <div className="space-y-8">
           <Form
             ref={formRef}
-            schema={schema}
+            schema={schema as RJSFSchema}
             formData={formData}
-            uiSchema={uiSchema}
-            validator={validator}
+            uiSchema={uiSchema as any}
+            validator={validator as any}
             onSubmit={handleSubmit}
-            onChange={handleChange}
+            onChange={handleChange as any}
             disabled={disabled || isSaving}
             widgets={customTheme.widgets}
             templates={customTheme.templates}
@@ -281,55 +291,11 @@ export function StageConfigForm({
             showErrorList={false}
             liveValidate
           />
-
-          {/* 自定义操作按钮 */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                disabled={disabled || isSaving}
-                className="min-w-[100px]"
-                onClick={triggerSubmit}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    保存配置
-                  </>
-                )}
-              </Button>
-
-              {hasUnsavedChanges && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onReset}
-                  disabled={isSaving}
-                  size="sm"
-                >
-                  放弃更改
-                </Button>
-              )}
-            </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onReload}
-              disabled={isLoading || isSaving}
-              size="sm"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              刷新
-            </Button>
-          </div>
         </div>
       </CardContent>
     </Card>
   )
 }
+
+export const StageConfigForm = forwardRef(StageConfigFormComponent)
+StageConfigForm.displayName = 'StageConfigForm'

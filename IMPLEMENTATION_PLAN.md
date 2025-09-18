@@ -25,3 +25,10 @@
 **Success Criteria**: 上述测试全部绿灯，PLAN 状态更新。
 **Tests**: `pnpm backend test --filter genesis-stage-config`（或等效 pytest 命令）。
 **Status**: In Progress
+
+## Stage 5: 统一 StageConfig 对话框底部操作栏
+
+**Goal**: 让 StageConfigModal 与 StageConfigForm 使用单一底部操作栏，消除视觉重复。
+**Success Criteria**: 模态底部仅显示一组按钮；保存/刷新/放弃逻辑仍可用；禁用态下按钮正确灰显。
+**Tests**: `pnpm --filter @infinitescribe/frontend lint`（已因现有其他文件问题失败，需后续单独处理）。
+**Status**: Complete

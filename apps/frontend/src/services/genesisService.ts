@@ -5,6 +5,7 @@
 
 import type { ApiResponse, ConversationHeaders } from '@/types/api'
 import { GenesisStage, GenesisStatus, StageSessionStatus } from '@/types/enums'
+import { parseApiError, handleError, AppError } from '@/utils/errorHandler'
 import { authenticatedApiService } from './authenticatedApiService'
 
 /**
@@ -80,12 +81,42 @@ export interface ActiveSessionResponse {
 
 /**
  * 处理API响应的辅助函数
+ * 现在支持结构化错误处理
  */
 function handleApiResponse<T>(response: ApiResponse<T>): T {
   if (response.code === 0) {
     return response.data as T
   } else {
-    throw new Error(response.msg || 'API请求失败')
+    throw new AppError('BUSINESS_ERROR', response.msg || 'API请求失败')
+  }
+}
+
+/**
+ * 处理HTTP错误的辅助函数
+ * 兼容 AxiosError 和其他错误类型
+ */
+function handleHttpError(error: any): never {
+  console.log('[genesisService] handleHttpError called with:', error)
+
+  if (error?.response) {
+    // Axios HTTP错误响应
+    console.log('[genesisService] HTTP error response:', error.response)
+    console.log('[genesisService] Response status:', error.response.status)
+    console.log('[genesisService] Response data:', error.response.data)
+
+    // 创建一个假的 Response 对象来兼容 parseApiError
+    const fakeResponse = {
+      status: error.response.status,
+      statusText: error.response.statusText
+    }
+    const httpError = parseApiError(fakeResponse, error.response.data)
+    throw httpError
+  } else if (error?.code) {
+    // 网络错误
+    throw handleError(error)
+  } else {
+    // 其他错误
+    throw handleError(error)
   }
 }
 
@@ -150,12 +181,16 @@ export class GenesisService {
     request: SwitchStageRequest,
     headers?: ConversationHeaders,
   ): Promise<GenesisFlowResponse> {
-    const response = await authenticatedApiService.post<ApiResponse<GenesisFlowResponse>>(
-      `${this.basePath}/flows/${novelId}/switch-stage`,
-      request,
-      { headers: buildHeaders(headers) },
-    )
-    return handleApiResponse(response)
+    try {
+      const response = await authenticatedApiService.post<ApiResponse<GenesisFlowResponse>>(
+        `${this.basePath}/flows/${novelId}/switch-stage`,
+        request,
+        { headers: buildHeaders(headers) },
+      )
+      return handleApiResponse(response)
+    } catch (error) {
+      handleHttpError(error)
+    }
   }
 
   /**

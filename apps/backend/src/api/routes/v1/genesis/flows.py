@@ -124,12 +124,16 @@ async def create_or_get_flow(
         # Get current stage ID
         current_stage_id = await flow_service.get_current_stage_id(flow)
 
+        # Get all stage IDs
+        all_stage_ids = await flow_service.get_all_stage_ids(flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        # Create response with current_stage_id
+        # Create response with current_stage_id and stage_ids
         flow_dict = flow.__dict__.copy()
         flow_dict["current_stage_id"] = current_stage_id
+        flow_dict["stage_ids"] = all_stage_ids
         data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow created/ensured successfully", data=data)
@@ -168,9 +172,13 @@ async def get_flow_by_novel(
         # Get current stage ID
         current_stage_id = await flow_service.get_current_stage_id(flow)
 
-        # Create response with current_stage_id
+        # Get all stage IDs
+        all_stage_ids = await flow_service.get_all_stage_ids(flow)
+
+        # Create response with current_stage_id and stage_ids
         flow_dict = flow.__dict__.copy()
         flow_dict["current_stage_id"] = current_stage_id
+        flow_dict["stage_ids"] = all_stage_ids
         data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow retrieved successfully", data=data)
@@ -221,12 +229,16 @@ async def switch_flow_stage(
         # Get current stage ID
         current_stage_id = await flow_service.get_current_stage_id(updated_flow)
 
+        # Get all stage IDs
+        all_stage_ids = await flow_service.get_all_stage_ids(updated_flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        # Create response with current_stage_id
+        # Create response with current_stage_id and stage_ids
         flow_dict = updated_flow.__dict__.copy()
         flow_dict["current_stage_id"] = current_stage_id
+        flow_dict["stage_ids"] = all_stage_ids
         data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow stage switched successfully", data=data)
@@ -302,12 +314,16 @@ async def complete_flow(
         # Get current stage ID
         current_stage_id = await flow_service.get_current_stage_id(updated_flow)
 
+        # Get all stage IDs
+        all_stage_ids = await flow_service.get_all_stage_ids(updated_flow)
+
         # Commit transaction
         await flow_service.db_session.commit()
 
-        # Create response with current_stage_id
+        # Create response with current_stage_id and stage_ids
         flow_dict = updated_flow.__dict__.copy()
         flow_dict["current_stage_id"] = current_stage_id
+        flow_dict["stage_ids"] = all_stage_ids
         data = FlowResponse.model_validate(flow_dict)
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow completed successfully", data=data)

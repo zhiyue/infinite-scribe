@@ -3,7 +3,7 @@
  * 管理小说的创世流程，使用新的Genesis API架构
  */
 
-import { GenesisNavigation } from '@/components/genesis/GenesisNavigation'
+import { EnhancedGenesisNavigation } from '@/components/genesis/EnhancedGenesisNavigation'
 import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
 import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -152,10 +152,8 @@ export default function GenesisPage() {
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         {/* 左侧导航 - 固定宽度 */}
         <div className="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2">
-          <GenesisNavigation
-            currentStage={currentStage}
-            sessionId={sessionId || ''}
-            onStageChange={handleStageChange}
+          <EnhancedGenesisNavigation
+            novelId={novelId || ''}
           />
         </div>
 
@@ -175,7 +173,6 @@ export default function GenesisPage() {
           <GenesisSettingsOverview
             currentStage={currentStage}
             novelId={novelId || ''}
-            onStageJump={handleStageChange}
             settings={{
               // 示例数据 - 实际应从API获取
               initialPrompt: {

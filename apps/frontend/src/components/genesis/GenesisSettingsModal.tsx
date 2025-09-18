@@ -1,6 +1,6 @@
 /**
  * 创世设定详情模态窗口组件
- * 显示完整的创世阶段设定信息
+ * 显示实际的阶段配置数据（只读查看）
  */
 
 import { ReactNode } from 'react'
@@ -13,23 +13,12 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-import {
-  BookOpen,
-  Globe,
-  Sparkles,
-  Users,
-  MapPin,
-  Clock,
-  Scroll,
-  User,
-  Crown,
-  Target,
-  List,
-} from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
+import { useGenesisFlow } from '@/hooks/useGenesisFlow'
+import { useStageConfig } from '@/hooks/useStageConfig'
 
 interface NovelSettings {
   initialPrompt?: {
@@ -70,7 +59,7 @@ interface GenesisSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   stage: GenesisStage | null
-  settings?: NovelSettings
+  novelId: string
 }
 
 interface DetailSectionProps {

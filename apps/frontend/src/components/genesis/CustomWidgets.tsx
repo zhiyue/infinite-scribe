@@ -6,7 +6,6 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -215,13 +214,12 @@ export function CheckboxWidget({ id, value, disabled, readonly, onChange, label 
 }
 
 /**
- * 数组字段模板
+ * 数组字段模板 - 优化的列表布局
  */
 export function ArrayFieldTemplate({
   items,
   onAddClick,
   canAdd,
-  title,
   uiSchema,
   disabled,
   readonly,
@@ -233,10 +231,44 @@ export function ArrayFieldTemplate({
 
   return (
     <div className="space-y-4">
-      {title && (
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">{title}</Label>
-          {addable && (
+      <div className="space-y-3">
+        {items.map((item, index) => (
+          <div
+            key={item.key}
+            className="flex items-start gap-3 p-4 border border-border/60 rounded-lg bg-muted/20"
+          >
+            {orderable && (
+              <div className="flex flex-col gap-1 mt-2">
+                <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
+              </div>
+            )}
+
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <Badge variant="outline" className="text-xs">
+                  {index + 1}
+                </Badge>
+              </div>
+              {item.children}
+            </div>
+
+            {removable && item.hasRemove && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={item.onDropIndexClick(index)}
+                disabled={disabled || readonly}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+
+        {addable && (
+          <div className="flex justify-center pt-2">
             <Button
               type="button"
               variant="outline"
@@ -246,65 +278,8 @@ export function ArrayFieldTemplate({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              添加项目
+              {items.length === 0 ? '添加项目' : '添加更多'}
             </Button>
-          )}
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {items.map((item, index) => (
-          <Card key={item.key} className="relative">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                {orderable && (
-                  <div className="flex flex-col gap-1 mt-2">
-                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                  </div>
-                )}
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="text-xs">
-                      项目 {index + 1}
-                    </Badge>
-                  </div>
-                  {item.children}
-                </div>
-
-                {removable && item.hasRemove && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={item.onDropIndexClick(index)}
-                    disabled={disabled || readonly}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-
-        {items.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <p className="text-sm">暂无项目</p>
-            {addable && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onAddClick}
-                disabled={disabled || readonly}
-                className="mt-3 gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                添加第一个项目
-              </Button>
-            )}
           </div>
         )}
       </div>
@@ -313,32 +288,23 @@ export function ArrayFieldTemplate({
 }
 
 /**
- * 对象字段模板
+ * 对象字段模板 - 简化版，不显示重复标题
  */
-export function ObjectFieldTemplate({ title, description, properties }: ObjectFieldTemplateProps) {
+export function ObjectFieldTemplate({ properties }: ObjectFieldTemplateProps) {
   return (
     <div className="space-y-6">
-      {title && (
-        <div>
-          <h3 className="text-lg font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+      {properties.map((prop, index) => (
+        <div key={prop.name}>
+          {prop.content}
+          {index < properties.length - 1 && <Separator className="my-6" />}
         </div>
-      )}
-
-      <div className="space-y-4">
-        {properties.map((prop, index) => (
-          <div key={prop.name} className="space-y-2">
-            {prop.content}
-            {index < properties.length - 1 && <Separator className="my-4" />}
-          </div>
-        ))}
-      </div>
+      ))}
     </div>
   )
 }
 
 /**
- * 字段模板
+ * 字段模板 - 优化为行内布局
  */
 export function FieldTemplate({
   id,
@@ -355,30 +321,48 @@ export function FieldTemplate({
   const hasErrors = errorList.length > 0
 
   return (
-    <div className="space-y-2">
-      {showLabel && (
-        <Label htmlFor={id} className="text-sm font-medium">
-          {label}
-          {required && <span className="text-destructive ml-1">*</span>}
-        </Label>
-      )}
+    <div className="space-y-3">
+      {/* 标题和输入框同行布局 */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+        {showLabel && (
+          <div className="md:col-span-1">
+            <Label htmlFor={id} className="text-sm font-medium leading-9">
+              {label}
+              {required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            {description && (
+              <p className="text-xs text-muted-foreground mt-1 leading-4">
+                {description}
+              </p>
+            )}
+          </div>
+        )}
 
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        <div className={showLabel ? "md:col-span-3" : "md:col-span-4"}>
+          {children}
+        </div>
+      </div>
 
-      <div>{children}</div>
-
+      {/* 错误信息 */}
       {hasErrors && (
-        <Alert variant="destructive" className="py-2">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            {errorList
-              .map((error) => (typeof error === 'string' ? error : String(error)))
-              .join(', ')}
-          </AlertDescription>
-        </Alert>
+        <div className={showLabel ? "md:col-start-2 md:col-span-3" : ""}>
+          <Alert variant="destructive" className="py-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              {errorList
+                .map((error) => (typeof error === 'string' ? error : String(error)))
+                .join(', ')}
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
-      {help && <p className="text-xs text-muted-foreground">{help}</p>}
+      {/* 帮助文本 */}
+      {help && (
+        <div className={showLabel ? "md:col-start-2 md:col-span-3" : ""}>
+          <p className="text-xs text-muted-foreground">{help}</p>
+        </div>
+      )}
     </div>
   )
 }

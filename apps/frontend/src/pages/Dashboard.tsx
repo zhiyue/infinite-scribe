@@ -40,11 +40,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ProjectCard } from '@/components/custom/ProjectCard'
 import type { Novel } from '@/types/api'
 
 // 模拟小说数据（后续将从API获取）
-const mockNovels = [
+const mockNovels: Novel[] = [
   {
     id: '1',
     title: '星际迷航：新纪元',

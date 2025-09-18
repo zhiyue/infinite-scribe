@@ -10,13 +10,15 @@ from ..enums import GenesisStage
 class InitialPromptConfig(BaseModel):
     """初始提示阶段配置"""
 
-    genre: str = Field(..., description="小说类型")
-    style: str = Field(..., description="写作风格")
-    target_word_count: int = Field(..., description="目标字数", ge=10000, le=1000000)
-    special_requirements: list[str] = Field(default_factory=list, description="特殊要求列表")
+    genre: str = Field(..., title="小说类型", description="选择小说的基本类型，如玄幻、都市、武侠等")
+    style: str = Field(..., title="写作风格", description="选择叙述视角和写作风格，如第一人称、第三人称等")
+    target_word_count: int = Field(..., title="目标字数", description="预期完成的小说总字数", ge=10000, le=1000000)
+    special_requirements: list[str] = Field(default_factory=list, title="特殊要求", description="对创作的特殊要求或限制条件")
 
     class Config:
         json_schema_extra = {
+            "title": "初始灵感配置",
+            "description": "设定小说的基本信息和创作方向",
             "example": {
                 "genre": "玄幻",
                 "style": "第三人称",
@@ -29,14 +31,16 @@ class InitialPromptConfig(BaseModel):
 class WorldviewConfig(BaseModel):
     """世界观阶段配置"""
 
-    time_period: str = Field(..., description="时代设定")
-    geography_type: str = Field(..., description="地理环境")
-    tech_magic_level: str = Field(..., description="科技/魔法水平")
-    social_structure: str = Field(..., description="社会结构")
-    power_system: str | None = Field(None, description="力量体系")
+    time_period: str = Field(..., title="时代背景", description="故事发生的时代，如古代、现代、未来等")
+    geography_type: str = Field(..., title="地理环境", description="故事世界的地理特征，如大陆、星球、岛屿等")
+    tech_magic_level: str = Field(..., title="科技魔法水平", description="世界的科技发展水平或魔法系统强度")
+    social_structure: str = Field(..., title="社会结构", description="社会制度和政治体系，如封建制、共和制等")
+    power_system: str | None = Field(None, title="力量体系", description="世界中的特殊力量系统，如修真、魔法、异能等")
 
     class Config:
         json_schema_extra = {
+            "title": "世界观配置",
+            "description": "构建故事世界的背景设定和基本规则",
             "example": {
                 "time_period": "古代",
                 "geography_type": "大陆",
@@ -50,13 +54,15 @@ class WorldviewConfig(BaseModel):
 class CharactersConfig(BaseModel):
     """角色阶段配置"""
 
-    protagonist_count: int = Field(..., description="主角数量", ge=1, le=5)
-    relationship_complexity: str = Field(..., description="角色关系复杂度")
-    personality_preferences: list[str] = Field(..., description="性格类型偏好")
-    include_villains: bool = Field(True, description="是否包含反派角色")
+    protagonist_count: int = Field(..., title="主角数量", description="故事的主角人数，建议1-3人", ge=1, le=5)
+    relationship_complexity: str = Field(..., title="角色关系复杂度", description="角色间关系的复杂程度，如简单、中等、复杂")
+    personality_preferences: list[str] = Field(..., title="性格偏好", description="希望角色具备的性格特征")
+    include_villains: bool = Field(True, title="包含反派", description="是否在故事中设置反派角色")
 
     class Config:
         json_schema_extra = {
+            "title": "角色配置",
+            "description": "定义主要角色的特征和关系设定",
             "example": {
                 "protagonist_count": 1,
                 "relationship_complexity": "中等",
@@ -69,13 +75,15 @@ class CharactersConfig(BaseModel):
 class PlotOutlineConfig(BaseModel):
     """情节大纲阶段配置"""
 
-    chapter_count_preference: int = Field(..., description="章节数量偏好", ge=5, le=100)
-    plot_complexity: str = Field(..., description="情节复杂度")
-    conflict_types: list[str] = Field(..., description="冲突类型")
-    pacing_preference: str = Field("中等", description="节奏偏好")
+    chapter_count_preference: int = Field(..., title="章节数量", description="预期的章节总数，建议20-50章", ge=5, le=100)
+    plot_complexity: str = Field(..., title="情节复杂度", description="故事情节的复杂程度，如简单、中等、复杂")
+    conflict_types: list[str] = Field(..., title="冲突类型", description="故事中包含的主要冲突类型")
+    pacing_preference: str = Field("中等", title="节奏偏好", description="故事发展的节奏快慢，如缓慢、中等、快速")
 
     class Config:
         json_schema_extra = {
+            "title": "剧情大纲配置",
+            "description": "规划整体故事结构和发展脉络",
             "example": {
                 "chapter_count_preference": 30,
                 "plot_complexity": "中等",
@@ -252,7 +260,7 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
     for field in required_fields:
         if field not in config or config[field] is None:
             missing_fields.append(field)
-        elif isinstance(config[field], (str, list)) and not config[field]:
+        elif isinstance(config[field], str | list) and not config[field]:
             # 空字符串或空列表也视为缺失
             missing_fields.append(field)
 

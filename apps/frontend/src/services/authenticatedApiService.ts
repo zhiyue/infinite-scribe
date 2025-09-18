@@ -5,7 +5,6 @@
 
 import { authService } from './auth'
 import type { IHttpClient } from './auth/types'
-import type { ApiResponse } from '@/types'
 import { API_BASE_URL } from '@/config/api'
 
 /**
