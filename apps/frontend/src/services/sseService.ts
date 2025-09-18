@@ -115,7 +115,7 @@ class SSEService {
       try {
         console.log(`[SSE] 正在获取SSE token...`)
         const token = await sseTokenService.getValidSSEToken()
-        url.searchParams.set('token', token)
+        url.searchParams.set('sse_token', token)
         console.log(`[SSE] ✅ 已添加SSE token到URL参数`)
       } catch (tokenError) {
         console.error(`[SSE] ❌ 获取SSE token失败:`, tokenError)
@@ -125,7 +125,7 @@ class SSEService {
         return
       }
 
-      console.log(`[SSE] 最终连接URL: ${url.toString().replace(/token=[^&]+/, 'token=***')}`)
+      console.log(`[SSE] 最终连接URL: ${url.toString().replace(/sse_token=[^&]+/, 'sse_token=***')}`)
       this.eventSource = new EventSource(url.toString())
       console.log(`[SSE] EventSource 创建成功，初始状态: ${this.eventSource.readyState}`)
 
