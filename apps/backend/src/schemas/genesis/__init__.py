@@ -12,7 +12,10 @@ from .stage_schemas import (
 )
 from .stage_session_schemas import (
     CreateStageSessionRequest,
+    SessionInfo,
+    StageInfo,
     StageSessionResponse,
+    StageWithActiveSessionResponse,
     UpdateStageSessionRequest,
 )
 
@@ -24,6 +27,9 @@ __all__ = [
     "StageResponse",
     "UpdateStageRequest",
     "CreateStageSessionRequest",
+    "SessionInfo",
+    "StageInfo",
     "StageSessionResponse",
+    "StageWithActiveSessionResponse",
     "UpdateStageSessionRequest",
 ]

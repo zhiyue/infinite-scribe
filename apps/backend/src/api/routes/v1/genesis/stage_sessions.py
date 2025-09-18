@@ -15,7 +15,7 @@ from src.middleware.auth import require_auth
 from src.models.user import User
 from src.schemas.base import ApiResponse
 from src.schemas.enums import StageSessionStatus
-from src.schemas.genesis import CreateStageSessionRequest, StageSessionResponse
+from src.schemas.genesis import CreateStageSessionRequest, StageSessionResponse, StageWithActiveSessionResponse
 
 from .dependencies import get_genesis_stage_service, get_novel_service
 from .validation import validate_stage_ownership
@@ -150,3 +150,47 @@ async def list_stage_sessions(
     except Exception as e:
         logger.exception(f"Unexpected error in list_stage_sessions endpoint: {e}")
         raise HTTPException(status_code=500, detail="Failed to list stage sessions") from None
+
+
+@router.get(
+    "/stages/{stage_id}/active-session",
+    response_model=ApiResponse[StageWithActiveSessionResponse],
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def get_stage_with_active_session(
+    stage_id: UUID,
+    response: Response,
+    current_user: User = Depends(require_auth),
+    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    stage_service: GenesisStageService = Depends(get_genesis_stage_service),
+    novel_service: NovelService = Depends(get_novel_service),
+) -> ApiResponse[StageWithActiveSessionResponse]:
+    """Get stage information along with its active session details."""
+    try:
+        corr_id = get_or_create_correlation_id(x_correlation_id)
+        logger.info(f"Getting stage {stage_id} with active session")
+
+        # Validate stage ownership
+        await validate_stage_ownership(
+            stage_id=stage_id,
+            user=current_user,
+            stage_service=stage_service,
+            novel_service=novel_service,
+        )
+
+        db = stage_service.db_session
+
+        # Get aggregated stage and session information
+        result = await stage_session_service.get_stage_with_active_session(db, stage_id)
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Stage not found")
+
+        set_common_headers(response, correlation_id=corr_id)
+        return ApiResponse(code=0, msg="Stage with active session retrieved successfully", data=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in get_stage_with_active_session endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get stage with active session") from None

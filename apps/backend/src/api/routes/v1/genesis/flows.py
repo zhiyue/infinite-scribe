@@ -36,7 +36,12 @@ async def get_flow_service(db: AsyncSession = Depends(get_db)) -> GenesisFlowSer
     flow_repository = SqlAlchemyGenesisFlowRepository(db)
     from src.common.repositories.genesis.stage_repository import SqlAlchemyGenesisStageRepository
     stage_repository = SqlAlchemyGenesisStageRepository(db)
-    return GenesisFlowService(flow_repository, db, stage_repository)
+
+    # Add GenesisStageSessionService dependency
+    from src.common.services.genesis.stage_session_service import GenesisStageSessionService
+    stage_session_service = GenesisStageSessionService()
+
+    return GenesisFlowService(flow_repository, db, stage_repository, stage_session_service)
 
 
 async def get_novel_service() -> NovelService:

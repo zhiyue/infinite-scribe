@@ -8,10 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.repositories.conversation import SqlAlchemyConversationSessionRepository
 from src.common.repositories.genesis import (
     GenesisStageSessionRepository,
+    SqlAlchemyGenesisStageRepository,
     SqlAlchemyGenesisStageSessionRepository,
 )
 from src.models.genesis_flows import GenesisStageSession
 from src.schemas.enums import StageSessionStatus
+from src.schemas.genesis import SessionInfo, StageInfo, StageWithActiveSessionResponse
+from src.schemas.novel.dialogue import SessionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -312,3 +315,81 @@ class GenesisStageSessionService:
             logger.warning(f"Failed to delete association {association_id}: not found")
 
         return deleted
+
+    async def get_stage_with_active_session(
+        self, db: AsyncSession, stage_id: UUID
+    ) -> StageWithActiveSessionResponse | None:
+        """
+        Get stage information along with its active session details.
+
+        Args:
+            db: Database session
+            stage_id: Stage record ID
+
+        Returns:
+            Aggregated stage and session information, or None if stage not found
+        """
+        # Get stage information
+        stage_repo = SqlAlchemyGenesisStageRepository(db)
+        stage_record = await stage_repo.find_by_id(stage_id)
+
+        if not stage_record:
+            logger.warning(f"Stage {stage_id} not found")
+            return None
+
+        # Convert stage to StageInfo
+        stage_info = StageInfo(
+            id=stage_record.id,
+            flow_id=stage_record.flow_id,
+            stage=stage_record.stage,
+            status=stage_record.status,
+            config=stage_record.config,
+            result=stage_record.result,
+            iteration_count=stage_record.iteration_count,
+            metrics=stage_record.metrics,
+            started_at=stage_record.started_at,
+            completed_at=stage_record.completed_at,
+            created_at=stage_record.created_at,
+            updated_at=stage_record.updated_at,
+        )
+
+        # Get primary session association for this stage
+        primary_association = await self.get_primary_session(db, stage_id)
+
+        session_info = None
+        association_info = None
+
+        if primary_association:
+            # Get conversation session details
+            conversation_repo = SqlAlchemyConversationSessionRepository(db)
+            session = await conversation_repo.find_by_id(primary_association.session_id)
+
+            if session:
+                session_info = SessionInfo(
+                    id=session.id,
+                    scope_type=session.scope_type,
+                    scope_id=session.scope_id,
+                    status=SessionStatus(session.status),
+                    version=session.version,
+                    created_at=session.created_at,
+                    updated_at=session.updated_at,
+                )
+
+                # Convert association to response format
+                from src.schemas.genesis import StageSessionResponse
+                association_info = StageSessionResponse(
+                    id=primary_association.id,
+                    stage_id=primary_association.stage_id,
+                    session_id=primary_association.session_id,
+                    status=primary_association.status,
+                    is_primary=primary_association.is_primary,
+                    session_kind=primary_association.session_kind,
+                    created_at=primary_association.created_at,
+                    updated_at=primary_association.updated_at,
+                )
+
+        return StageWithActiveSessionResponse(
+            stage=stage_info,
+            active_session=session_info,
+            association=association_info,
+        )

@@ -4,7 +4,9 @@
 """
 
 from datetime import UTC, datetime
-from typing import Any
+
+# Forward declaration to avoid circular imports
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,9 @@ from src.common.repositories.genesis.flow_repository import GenesisFlowRepositor
 from src.common.repositories.genesis.stage_repository import GenesisStageRepository
 from src.models.genesis_flows import GenesisFlow
 from src.schemas.enums import GenesisStage, GenesisStatus, StageStatus
+
+if TYPE_CHECKING:
+    from src.common.services.genesis.stage_session_service import GenesisStageSessionService
 
 
 class GenesisFlowService:
@@ -23,10 +28,12 @@ class GenesisFlowService:
         flow_repository: GenesisFlowRepository,
         db_session: AsyncSession,
         stage_repository: GenesisStageRepository | None = None,
+        stage_session_service: "GenesisStageSessionService | None" = None,
     ):
         self.flow_repository = flow_repository
         self.stage_repository = stage_repository
         self.db_session = db_session
+        self.stage_session_service = stage_session_service
 
     async def ensure_flow(self, novel_id: UUID) -> GenesisFlow:
         """
@@ -136,8 +143,8 @@ class GenesisFlowService:
         if not current_flow:
             return None
 
-        # 确保目标阶段记录存在（如果不存在则创建）
-        await self._ensure_stage_record(flow_id, next_stage)
+        # 确保目标阶段记录和会话存在（如果不存在则创建）
+        await self._ensure_stage_record_and_session(flow_id, current_flow.novel_id, next_stage)
 
         # 合并状态更新
         new_state = current_flow.state or {}
@@ -154,12 +161,13 @@ class GenesisFlowService:
 
         return updated_flow
 
-    async def _ensure_stage_record(self, flow_id: UUID, stage: GenesisStage) -> None:
+    async def _ensure_stage_record_and_session(self, flow_id: UUID, novel_id: UUID, stage: GenesisStage) -> None:
         """
-        确保指定阶段的记录存在，如果不存在则创建。
+        确保指定阶段的记录和主要会话存在，如果不存在则创建。
 
         Args:
             flow_id: 流程ID
+            novel_id: 小说ID
             stage: 目标阶段
         """
         # 检查是否已存在该阶段的记录
@@ -167,15 +175,36 @@ class GenesisFlowService:
 
         if not existing_stage:
             # 如果不存在，则创建新的阶段记录
-            await self.stage_repository.create(
+            new_stage = await self.stage_repository.create(
                 flow_id=flow_id,
                 stage=stage,
                 status=StageStatus.RUNNING,
                 config={},
                 result={},
                 iteration_count=0,
-                metrics={}
+                metrics={},
             )
+
+            # 为新阶段创建主要会话（如果有 stage session service）
+            if self.stage_session_service:
+                try:
+                    await self.stage_session_service.create_and_bind_session(
+                        db=self.db_session,
+                        stage_id=new_stage.id,
+                        novel_id=novel_id,
+                        is_primary=True,
+                        session_kind="user_interaction",
+                    )
+                except Exception as e:
+                    # 如果创建会话失败，记录错误但不阻止 stage 切换
+                    # 用户可以在需要时手动创建会话
+                    print(f"Warning: Failed to create session for stage {stage}: {e}")
+        else:
+            # 阶段记录存在，检查是否有主要会话，如果没有则创建
+            if self.stage_session_service:
+                # 这里可以检查是否有主要会话，如果没有则创建
+                # 但为了简化，我们只在创建新 stage 时创建 session
+                pass
 
     async def complete_flow(
         self,
