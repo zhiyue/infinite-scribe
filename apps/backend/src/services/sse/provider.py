@@ -118,12 +118,26 @@ class SSEProvider:
                     logger.warning(f"Error stopping periodic cleanup: {e}")
 
                 try:
-                    # Final cleanup of remaining stale connections
-                    stale = await manager.cleanup_stale_connections()
-                    if stale:
-                        logger.info(f"Cleaned up {stale} stale SSE connections")
+                    # Complete cleanup of all remaining stale connections
+                    cleanup_summary = await manager.cleanup_all_stale_connections_for_shutdown(max_iterations=10)
+
+                    if cleanup_summary["total_cleaned"] > 0:
+                        logger.info(
+                            f"Shutdown cleanup completed: cleaned {cleanup_summary['total_cleaned']} "
+                            f"stale SSE connections in {cleanup_summary['iterations']} iteration(s), "
+                            f"duration: {cleanup_summary['cleanup_duration_ms']:.2f}ms"
+                        )
+
+                    # Warn if cleanup was incomplete
+                    if cleanup_summary["connections_after"] > 0:
+                        logger.warning(
+                            f"Shutdown cleanup incomplete: {cleanup_summary['connections_after']} "
+                            f"connections remain after {cleanup_summary['iterations']} iterations. "
+                            f"Redis counters may be inconsistent on next startup."
+                        )
+
                 except Exception as e:
-                    logger.warning(f"Error cleaning stale SSE connections: {e}")
+                    logger.warning(f"Error during complete SSE cleanup: {e}")
 
                 try:
                     # Reset global counter to prevent drift

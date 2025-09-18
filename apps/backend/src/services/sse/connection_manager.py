@@ -16,6 +16,8 @@ Architecture:
 """
 
 import logging
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import HTTPException, Request
 from sse_starlette import EventSourceResponse
@@ -218,6 +220,21 @@ class SSEConnectionManager:
         """Garbage collection for zombie connections."""
         return await self.state_manager.cleanup_stale_connections(batch_size=batch_size)
 
+    async def cleanup_all_stale_connections_for_shutdown(self, max_iterations: int = 10) -> dict[str, Any]:
+        """
+        Complete cleanup of all stale connections during service shutdown.
+
+        This method ensures all stale connections are cleaned up during service shutdown
+        to prevent Redis counter drift and connection leaks.
+
+        Args:
+            max_iterations: Maximum cleanup iterations to prevent infinite loops.
+
+        Returns:
+            dict: Cleanup summary with statistics
+        """
+        return await self.state_manager.cleanup_all_stale_connections(max_iterations=max_iterations)
+
     async def get_connection_count(self) -> dict[str, int]:
         """Get connection statistics for monitoring."""
         return await self.state_manager.get_connection_count()
@@ -242,3 +259,168 @@ class SSEConnectionManager:
     async def is_periodic_cleanup_running(self) -> bool:
         """Check if periodic cleanup is currently running."""
         return self.state_manager._cleanup_task is not None and not self.state_manager._cleanup_task.done()
+
+    async def get_detailed_monitoring_stats(self) -> dict[str, Any]:
+        """
+        Get comprehensive SSE monitoring statistics for dashboard integration.
+
+        This method combines connection counts, cleanup statistics, and performance
+        metrics to provide a complete view of SSE service health for monitoring
+        dashboards and alerting systems.
+
+        Returns:
+            dict: Comprehensive monitoring statistics including:
+                - connection_stats: Current connection counts and Redis counters
+                - cleanup_stats: Detailed cleanup performance and error metrics
+                - health_indicators: Service health indicators for alerting
+                - performance_metrics: Performance-related measurements
+        """
+        # Get basic connection statistics
+        connection_stats = await self.get_connection_count()
+
+        # Get detailed cleanup statistics
+        cleanup_stats = await self.state_manager.get_cleanup_statistics()
+
+        # Calculate health indicators for alerting
+        health_indicators = self._calculate_health_indicators(connection_stats, cleanup_stats)
+
+        # Performance metrics
+        total_connections_cleaned = cleanup_stats.get("total_connections_cleaned", 0)
+        failed_connections = cleanup_stats.get("failed_connections", 0)
+        connection_attempts = total_connections_cleaned + failed_connections
+        cleanup_success_rate = total_connections_cleaned / connection_attempts * 100 if connection_attempts else 100.0
+
+        performance_metrics = {
+            "avg_cleanup_duration_ms": cleanup_stats.get("last_cleanup_duration_ms", 0),
+            "cleanup_efficiency_rate": cleanup_success_rate,
+            "cleanup_error_rate": cleanup_stats.get("error_rate", 0),
+            "connections_cleaned_per_operation": cleanup_stats.get("connections_per_cleanup", 0),
+        }
+
+        return {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "service_name": "sse_connection_manager",
+            "connection_stats": connection_stats,
+            "cleanup_stats": cleanup_stats,
+            "health_indicators": health_indicators,
+            "performance_metrics": performance_metrics,
+            "configuration": {
+                "cleanup_interval_seconds": sse_config.CLEANUP_INTERVAL_SECONDS,
+                "cleanup_batch_size": sse_config.CLEANUP_BATCH_SIZE,
+                "stale_threshold_seconds": sse_config.STALE_CONNECTION_THRESHOLD_SECONDS,
+                "periodic_cleanup_enabled": sse_config.ENABLE_PERIODIC_CLEANUP,
+            },
+        }
+
+    def _calculate_health_indicators(self, connection_stats: dict, cleanup_stats: dict) -> dict[str, Any]:
+        """
+        Calculate health indicators for monitoring and alerting.
+
+        Args:
+            connection_stats: Current connection statistics
+            cleanup_stats: Cleanup performance statistics
+
+        Returns:
+            dict: Health indicators with status and severity levels
+        """
+        indicators = {
+            "overall_health": "healthy",
+            "alerts": [],
+            "warnings": [],
+        }
+
+        # Check connection health
+        active_connections = connection_stats.get("active_connections", 0)
+        redis_connections = connection_stats.get("redis_connection_counters", 0)
+
+        # Alert: Redis counters under-report relative to in-memory tracking (likely drift)
+        mismatch = redis_connections - active_connections
+        mismatch_threshold = max(5, int(max(active_connections, redis_connections) * 0.2))
+        if mismatch < -mismatch_threshold:
+            mismatch_value = abs(mismatch)
+            indicators["alerts"].append(
+                {
+                    "type": "redis_counter_underreporting",
+                    "message": (
+                        "Redis connection counters are lower than in-memory tracking; "
+                        f"local={active_connections}, redis={redis_connections}, difference={mismatch_value}"
+                    ),
+                    "severity": "high",
+                    "value": mismatch_value,
+                }
+            )
+            indicators["overall_health"] = "degraded"
+
+        # Warning: High connection count
+        if active_connections > 1000:
+            indicators["warnings"].append(
+                {
+                    "type": "high_connection_count",
+                    "message": f"High number of active connections: {active_connections}",
+                    "severity": "medium",
+                    "value": active_connections,
+                }
+            )
+
+        # Check cleanup health
+        error_rate = cleanup_stats.get("error_rate", 0)
+        cleanup_running = connection_stats.get("cleanup_task_running", False)
+
+        # Alert: High cleanup error rate
+        if error_rate > 10:
+            indicators["alerts"].append(
+                {
+                    "type": "high_cleanup_error_rate",
+                    "message": f"High cleanup error rate: {error_rate:.1f}%",
+                    "severity": "high",
+                    "value": error_rate,
+                }
+            )
+            indicators["overall_health"] = "unhealthy"
+        elif error_rate > 5:
+            indicators["warnings"].append(
+                {
+                    "type": "elevated_cleanup_error_rate",
+                    "message": f"Elevated cleanup error rate: {error_rate:.1f}%",
+                    "severity": "medium",
+                    "value": error_rate,
+                }
+            )
+
+        # Alert: Cleanup not running when enabled
+        if sse_config.ENABLE_PERIODIC_CLEANUP and not cleanup_running:
+            indicators["alerts"].append(
+                {
+                    "type": "cleanup_not_running",
+                    "message": "Periodic cleanup is enabled but not running",
+                    "severity": "high",
+                    "value": False,
+                }
+            )
+            indicators["overall_health"] = "degraded"
+
+        # Warning: Stale connections accumulating
+        stale_connections = cleanup_stats.get("stale", 0)
+        if stale_connections > 50:
+            indicators["warnings"].append(
+                {
+                    "type": "stale_connections_accumulating",
+                    "message": f"Large number of stale connections detected: {stale_connections}",
+                    "severity": "medium",
+                    "value": stale_connections,
+                }
+            )
+
+        # Warning: Very old connections (potential memory leak)
+        very_old_connections = cleanup_stats.get("very_old", 0)
+        if very_old_connections > 10:
+            indicators["warnings"].append(
+                {
+                    "type": "very_old_connections",
+                    "message": f"Connections older than 6 hours detected: {very_old_connections}",
+                    "severity": "medium",
+                    "value": very_old_connections,
+                }
+            )
+
+        return indicators

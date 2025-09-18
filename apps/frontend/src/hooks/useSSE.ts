@@ -6,7 +6,7 @@
  * 这些 hooks 保留用于向后兼容
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { sseService, SSEConnectionState } from '@/services/sseService'
 import { useSSE } from '@/contexts'
 import type { DomainEvent, SSEMessage } from '@/types/events'
@@ -166,11 +166,17 @@ export function useDomainEvent<T extends DomainEvent = DomainEvent>(
   deps: React.DependencyList = [],
 ) {
   const handlerRef = useRef(handler)
+  const wrappedHandlerRef = useRef<((message: SSEMessage) => void) | null>(null)
   handlerRef.current = handler
 
-  useEffect(() => {
-    const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
+  // 使用 useMemo 稳定 eventTypes 的引用
+  const eventTypes = useMemo(() =>
+    Array.isArray(eventType) ? eventType : [eventType],
+    [JSON.stringify(eventType)]
+  )
 
+  useEffect(() => {
+    // 创建稳定的handler引用
     const wrappedHandler = (message: SSEMessage) => {
       // 检查事件类型匹配
       if (eventTypes.includes(message.event)) {
@@ -179,14 +185,26 @@ export function useDomainEvent<T extends DomainEvent = DomainEvent>(
       }
     }
 
-    // 使用新的消息监听器
+    // 先清理旧的监听器（如果存在）
+    if (wrappedHandlerRef.current) {
+      console.log(`[SSE] 🗑️ 清理旧的事件监听器`)
+      sseService.removeMessageListener(wrappedHandlerRef.current)
+    }
+
+    // 保存新的handler引用
+    wrappedHandlerRef.current = wrappedHandler
+
+    // 添加新的监听器
     sseService.addMessageListener(wrappedHandler)
 
     return () => {
       // 清理事件监听器
-      sseService.removeMessageListener(wrappedHandler)
+      if (wrappedHandlerRef.current) {
+        sseService.removeMessageListener(wrappedHandlerRef.current)
+        wrappedHandlerRef.current = null
+      }
     }
-  }, [eventType, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eventTypes, ...deps]) // 使用稳定的eventTypes引用
 }
 
 /**
@@ -200,15 +218,27 @@ export function useNovelEvents(
 ) {
   const { enabled = true } = options
 
+  // 使用useRef保存当前的过滤参数，避免依赖项变化
+  const filterRef = useRef({ novelId, enabled })
+  filterRef.current = { novelId, enabled }
+
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
   useDomainEvent(
     ['novel.created', 'novel.status-changed', 'chapter.draft-created', 'chapter.status-changed'],
     (event) => {
+      const { novelId: currentNovelId, enabled: currentEnabled } = filterRef.current
+
+      // 如果禁用，不处理事件
+      if (!currentEnabled) return
+
       // 过滤出与指定小说相关的事件
-      if ('novel_id' in event && event.novel_id === novelId) {
-        handler(event)
+      if ('novel_id' in event && event.novel_id === currentNovelId) {
+        handlerRef.current(event)
       }
     },
-    [novelId, enabled],
+    [], // 移除依赖项，避免频繁重新注册
   )
 }
 
@@ -224,15 +254,27 @@ export function useGenesisEvents(
   const { sessionId, novelId } = params
   const { enabled = true } = options
 
+  // 使用useRef保存当前的过滤参数，避免依赖项变化
+  const filterRef = useRef({ sessionId, novelId, enabled })
+  filterRef.current = { sessionId, novelId, enabled }
+
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
   useDomainEvent(
     'genesis.step-completed',
     (event) => {
+      const { sessionId: currentSessionId, novelId: currentNovelId, enabled: currentEnabled } = filterRef.current
+
+      // 如果禁用，不处理事件
+      if (!currentEnabled) return
+
       // 过滤出与指定会话相关的事件
       const data = event as any
 
-      if (data.session_id === sessionId) {
+      if (data.session_id === currentSessionId) {
         // 如果指定了 novelId，也要匹配
-        if (novelId && data.novel_id && data.novel_id !== novelId) {
+        if (currentNovelId && data.novel_id && data.novel_id !== currentNovelId) {
           return
         }
 
@@ -243,10 +285,10 @@ export function useGenesisEvents(
           status: data.status
         })
 
-        handler(event)
+        handlerRef.current(event)
       }
     },
-    [sessionId, novelId, enabled],
+    [], // 移除依赖项，避免频繁重新注册
   )
 }
 
@@ -265,10 +307,21 @@ export function useAgentActivity(
 ) {
   const { enabled = true } = options
 
+  // 使用useRef保存当前的过滤参数，避免依赖项变化
+  const filterRef = useRef({ ...filter, enabled })
+  filterRef.current = { ...filter, enabled }
+
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
   useDomainEvent(
     'system.notification-sent',  // 更新为新的事件类型
     (event) => {
-      const { agentType, activityType, novelId } = filter
+      const { agentType, activityType, novelId, enabled: currentEnabled } = filterRef.current
+
+      // 如果禁用，不处理事件
+      if (!currentEnabled) return
+
       const data = event as any
 
       // 应用过滤条件
@@ -276,9 +329,9 @@ export function useAgentActivity(
       if (activityType && data.activity_type !== activityType) return
       if (novelId && data.novel_id !== novelId) return
 
-      handler(event)
+      handlerRef.current(event)
     },
-    [filter.agentType, filter.activityType, filter.novelId, enabled],
+    [], // 移除依赖项，避免频繁重新注册
   )
 }
 

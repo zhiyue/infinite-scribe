@@ -172,6 +172,12 @@ class SSEService {
       // 连接打开
       this.eventSource.onopen = () => {
         console.log(`[SSE] ✅ 连接已成功建立，readyState: ${this.eventSource?.readyState}`)
+        console.log(`[SSE] 🔗 连接详情:`, {
+          url: this.eventSource?.url?.replace(/sse_token=[^&]+/, 'sse_token=***'),
+          readyState: this.eventSource?.readyState,
+          withCredentials: this.eventSource?.withCredentials
+        })
+
         this.setState(SSEConnectionState.CONNECTED)
         this.reconnectAttempts = 0
         this.consecutiveFailures = 0
@@ -184,6 +190,11 @@ class SSEService {
         this.startTokenMaintenance()
 
         console.log(`[SSE] 重连计数器和失败计数器已重置为 0`)
+        console.log(`[SSE] 💡 Ping机制说明:`)
+        console.log(`[SSE] - 后端每15秒发送ping注释 (: ping - timestamp)`)
+        console.log(`[SSE] - 浏览器EventSource会接收ping保持连接活跃`)
+        console.log(`[SSE] - 但开发者工具不显示SSE注释行，这是正常的`)
+        console.log(`[SSE] - 如果连接稳定且无重连，说明ping工作正常`)
       }
 
       // 接收消息
@@ -207,7 +218,7 @@ class SSEService {
 
           // 必须包含 _scope 和 _version（后端格式）
           if (!parsedData._scope || !parsedData._version) {
-            console.error(`[SSE] ❌ 消息格式不正确，缺少 _scope 或 _version:`, parsedData)
+            console.warn(`[SSE] ⚠️ 收到非标准格式消息:`, parsedData)
             return
           }
 
@@ -423,6 +434,7 @@ class SSEService {
   isConnectionLimitExceeded(): boolean {
     return this.connectionLimitExceeded
   }
+
 
   /**
    * 获取连接信息

@@ -195,6 +195,7 @@ class TestSSEConnectionManager:
                 user_id=f"user-{i}",
                 connected_at=old_datetime,
                 last_activity_at=old_datetime,
+                last_event_id=None,
             )
             sse_manager.connections[conn_id] = connection_state
 
@@ -215,6 +216,7 @@ class TestSSEConnectionManager:
             user_id="user-keep",
             connected_at=old_connected_at,
             last_activity_at=recent_activity,
+            last_event_id=None,
         )
         sse_manager.connections[conn_id] = connection_state
 
@@ -235,6 +237,7 @@ class TestSSEConnectionManager:
                 user_id=f"user-{i}",
                 connected_at=now,
                 last_activity_at=now,
+                last_event_id=None,
             )
 
         # Mock Redis scan for connection counters
@@ -634,6 +637,7 @@ class TestSSEConnectionManager:
                 user_id=f"user-{i}",
                 connected_at=old_datetime,
                 last_activity_at=old_datetime,  # Set as stale (old activity time)
+                last_event_id=None,
             )
             sse_manager.connections[conn_id] = connection_state
 
@@ -696,3 +700,490 @@ class TestSSEConnectionManager:
         await sse_manager.stop_periodic_cleanup()
         stats = await sse_manager.get_connection_count()
         assert stats["cleanup_task_running"] is False
+
+    @pytest.mark.asyncio
+    async def test_get_cleanup_statistics(self, sse_manager):
+        """Test that cleanup statistics are properly tracked and reported."""
+        # Initially no cleanup stats
+        stats = await sse_manager.state_manager.get_cleanup_statistics()
+        assert stats["total_cleanups"] == 0
+        assert stats["total_connections_cleaned"] == 0
+        assert stats["error_rate"] == 0.0
+        assert stats["failed_connections"] == 0
+        assert stats["connection_failure_rate"] == 0.0
+
+        # Add some stale connections and run cleanup
+        from datetime import UTC, datetime
+
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        for i in range(3):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run cleanup
+        cleaned = await sse_manager.cleanup_stale_connections()
+        assert cleaned == 3
+
+        # Verify stats are updated
+        stats = await sse_manager.state_manager.get_cleanup_statistics()
+        assert stats["total_cleanups"] == 1
+        assert stats["total_connections_cleaned"] == 3
+        assert stats["cleanup_errors"] == 0
+        assert stats["failed_connections"] == 0
+        assert stats["connection_failure_rate"] == 0.0
+        assert stats["connections_per_cleanup"] == 3.0
+        assert stats["last_cleanup_duration_ms"] > 0
+        assert stats["last_cleanup_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_detailed_monitoring_stats(self, sse_manager):
+        """Test comprehensive monitoring statistics for dashboard integration."""
+        # Add some connections with different ages
+        now = datetime.now(UTC)
+        connections_data = [
+            ("conn-1", "user-1", now, now),  # Fresh connection
+            ("conn-2", "user-2", now - timedelta(hours=2), now - timedelta(minutes=5)),  # Long-lived, recent activity
+            ("conn-3", "user-3", now - timedelta(hours=8), now - timedelta(hours=7)),  # Very old, stale
+        ]
+
+        for conn_id, user_id, connected_at, last_activity in connections_data:
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=user_id,
+                connected_at=connected_at,
+                last_activity_at=last_activity,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Get detailed monitoring stats
+        detailed_stats = await sse_manager.get_detailed_monitoring_stats()
+
+        # Verify structure
+        assert "timestamp" in detailed_stats
+        assert "service_name" in detailed_stats
+        assert "connection_stats" in detailed_stats
+        assert "cleanup_stats" in detailed_stats
+        assert "health_indicators" in detailed_stats
+        assert "performance_metrics" in detailed_stats
+        assert "configuration" in detailed_stats
+
+        # Verify connection stats
+        connection_stats = detailed_stats["connection_stats"]
+        assert connection_stats["active_connections"] == 3
+
+        # Verify cleanup stats include age analysis
+        cleanup_stats = detailed_stats["cleanup_stats"]
+        assert "stale" in cleanup_stats
+        assert "active" in cleanup_stats
+        assert "long_lived" in cleanup_stats
+        assert "very_old" in cleanup_stats
+        assert "failed_connections" in cleanup_stats
+        assert "connection_failure_rate" in cleanup_stats
+
+        # Verify health indicators
+        health_indicators = detailed_stats["health_indicators"]
+        assert "overall_health" in health_indicators
+        assert "alerts" in health_indicators
+        assert "warnings" in health_indicators
+
+        # Verify performance metrics surface success/error rates
+        performance_metrics = detailed_stats["performance_metrics"]
+        assert "cleanup_efficiency_rate" in performance_metrics
+        assert "cleanup_error_rate" in performance_metrics
+
+        # Verify configuration is included
+        config = detailed_stats["configuration"]
+        assert config["cleanup_interval_seconds"] == sse_config.CLEANUP_INTERVAL_SECONDS
+        assert config["periodic_cleanup_enabled"] == sse_config.ENABLE_PERIODIC_CLEANUP
+
+    @pytest.mark.asyncio
+    async def test_health_indicators_alerts(self, sse_manager):
+        """Test that health indicators properly detect alert conditions."""
+        # Mock Redis connection count mismatch
+        sse_manager.redis_counter_service.get_total_redis_connections = AsyncMock(return_value=0)
+
+        # Add only 10 active connections (40 connection mismatch)
+        for i in range(10):
+            conn_id = f"conn-{i}"
+            now = datetime.now(UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=now,
+                last_activity_at=now,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Set high error rate in cleanup stats
+        sse_manager.state_manager._cleanup_stats["total_cleanups"] = 10
+        sse_manager.state_manager._cleanup_stats["cleanup_errors"] = 2  # 20% error rate
+
+        # Get health indicators
+        detailed_stats = await sse_manager.get_detailed_monitoring_stats()
+        health_indicators = detailed_stats["health_indicators"]
+
+        # Should detect connection mismatch alert
+        alerts = health_indicators["alerts"]
+        alert_types = [alert["type"] for alert in alerts]
+        assert "redis_counter_underreporting" in alert_types
+
+        # Should detect high cleanup error rate alert
+        assert "high_cleanup_error_rate" in alert_types
+
+        # Overall health should be degraded or unhealthy
+        assert health_indicators["overall_health"] in ["degraded", "unhealthy"]
+
+    @pytest.mark.asyncio
+    async def test_connection_age_analysis(self, sse_manager):
+        """Test connection age analysis for monitoring insights."""
+        now = datetime.now(UTC)
+        cutoff_time = now.timestamp() - sse_config.STALE_CONNECTION_THRESHOLD_SECONDS
+
+        # Create connections with different ages
+        connections = [
+            # Stale connection (old activity)
+            SSEConnectionState(
+                connection_id="stale-1",
+                user_id="user-1",
+                connected_at=now - timedelta(hours=1),
+                last_activity_at=now - timedelta(seconds=sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 60),
+                last_event_id=None,
+            ),
+            # Active connection (recent activity)
+            SSEConnectionState(
+                connection_id="active-1",
+                user_id="user-2",
+                connected_at=now - timedelta(minutes=30),
+                last_activity_at=now - timedelta(minutes=1),
+                last_event_id=None,
+            ),
+            # Long-lived active connection
+            SSEConnectionState(
+                connection_id="long-lived-1",
+                user_id="user-3",
+                connected_at=now - timedelta(hours=2),
+                last_activity_at=now - timedelta(minutes=5),
+                last_event_id=None,
+            ),
+            # Very old connection (6+ hours)
+            SSEConnectionState(
+                connection_id="very-old-1",
+                user_id="user-4",
+                connected_at=now - timedelta(hours=8),
+                last_activity_at=now - timedelta(minutes=2),
+                last_event_id=None,
+            ),
+        ]
+
+        # Add connections to manager
+        for conn in connections:
+            sse_manager.connections[conn.connection_id] = conn
+
+        # Analyze connection ages
+        age_analysis = sse_manager.state_manager._analyze_connection_ages(cutoff_time)
+
+        # Verify categorization
+        assert age_analysis["stale"] == 1
+        assert age_analysis["active"] == 3  # active-1, long-lived-1, very-old-1
+        assert age_analysis["long_lived"] == 2  # long-lived-1, very-old-1
+        assert age_analysis["very_old"] == 1  # very-old-1
+
+    @pytest.mark.asyncio
+    async def test_config_validation_warnings(self, sse_manager, caplog):
+        """Test that configuration validation properly warns about suboptimal settings."""
+        # The validation happens during initialization, so we need to create a new manager
+        # with modified config to test warnings
+
+        original_cleanup_interval = sse_config.CLEANUP_INTERVAL_SECONDS
+        original_batch_size = sse_config.CLEANUP_BATCH_SIZE
+
+        try:
+            # Test very short cleanup interval warning
+            sse_config.CLEANUP_INTERVAL_SECONDS = 5  # Less than 10
+            sse_config.CLEANUP_BATCH_SIZE = 150  # Greater than 100
+
+            # Create new manager to trigger validation
+            from src.services.sse.redis_counter import RedisCounterService
+            from src.services.sse.connection_state import SSEConnectionStateManager
+
+            test_counter_service = RedisCounterService(sse_manager.redis_counter_service._pubsub_client)
+            test_state_manager = SSEConnectionStateManager(test_counter_service)
+            # Trigger validation by accessing a method
+            _ = test_state_manager
+
+            # Check that warnings were logged
+            assert "very short" in caplog.text or "very large" in caplog.text
+
+        finally:
+            # Restore original config
+            sse_config.CLEANUP_INTERVAL_SECONDS = original_cleanup_interval
+            sse_config.CLEANUP_BATCH_SIZE = original_batch_size
+
+    @pytest.mark.asyncio
+    async def test_cleanup_unlimited_batch_size(self, sse_manager):
+        """Test that unlimited batch size cleans all stale connections."""
+        from datetime import UTC, datetime
+
+        # Create many stale connections (more than default batch size)
+        stale_count = 15  # More than default batch size of 10
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        for i in range(stale_count):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Test limited batch size first
+        cleaned_limited = await sse_manager.cleanup_stale_connections(batch_size=5)
+        assert cleaned_limited == 5
+        assert len(sse_manager.connections) == stale_count - 5
+
+        # Test unlimited batch size
+        cleaned_unlimited = await sse_manager.cleanup_stale_connections(batch_size=None)
+        assert cleaned_unlimited == stale_count - 5  # Remaining connections
+        assert len(sse_manager.connections) == 0
+
+    @pytest.mark.asyncio
+    async def test_complete_shutdown_cleanup(self, sse_manager):
+        """Test complete shutdown cleanup for all stale connections."""
+        from datetime import UTC, datetime
+
+        # Create many stale connections that would require multiple iterations
+        # if using batch size, but should be cleaned in one iteration with unlimited batch
+        total_stale = 25
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        for i in range(total_stale):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run complete shutdown cleanup
+        summary = await sse_manager.cleanup_all_stale_connections_for_shutdown()
+
+        # Verify all connections were cleaned
+        assert summary["total_cleaned"] == total_stale
+        assert summary["connections_before"] == total_stale
+        assert summary["connections_after"] == 0
+        assert summary["iterations"] >= 1
+        assert not summary["max_iterations_reached"]
+        assert summary["cleanup_duration_ms"] > 0
+
+        # Verify no connections remain
+        assert len(sse_manager.connections) == 0
+
+    @pytest.mark.asyncio
+    async def test_shutdown_cleanup_with_active_connections(self, sse_manager):
+        """Test that shutdown cleanup only removes stale connections, not active ones."""
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        old_time = now.timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        # Create mix of stale and active connections
+        stale_count = 10
+        active_count = 5
+
+        # Add stale connections
+        for i in range(stale_count):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"stale-user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Add active connections
+        for i in range(active_count):
+            conn_id = f"active-conn-{i}"
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"active-user-{i}",
+                connected_at=now,
+                last_activity_at=now,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run shutdown cleanup
+        summary = await sse_manager.cleanup_all_stale_connections_for_shutdown()
+
+        # Verify only stale connections were cleaned
+        assert summary["total_cleaned"] == stale_count
+        assert summary["connections_after"] == active_count
+        assert len(sse_manager.connections) == active_count
+
+        # Verify remaining connections are the active ones
+        remaining_ids = set(sse_manager.connections.keys())
+        expected_active_ids = {f"active-conn-{i}" for i in range(active_count)}
+        assert remaining_ids == expected_active_ids
+
+    @pytest.mark.asyncio
+    async def test_shutdown_cleanup_max_iterations_protection(self, sse_manager):
+        """Test that shutdown cleanup respects max iterations limit."""
+        from unittest.mock import AsyncMock
+
+        # Mock cleanup_stale_connections to always return 1 (simulating persistent connections)
+        original_cleanup = sse_manager.state_manager.cleanup_stale_connections
+
+        call_count = 0
+
+        async def mock_cleanup(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Return 1 for first few calls, then 0 to eventually stop
+            return 1 if call_count <= 3 else 0
+
+        sse_manager.state_manager.cleanup_stale_connections = AsyncMock(side_effect=mock_cleanup)
+
+        # Run with low max_iterations
+        summary = await sse_manager.cleanup_all_stale_connections_for_shutdown(max_iterations=2)
+
+        # Should stop at max iterations
+        assert summary["iterations"] == 2
+        assert summary["max_iterations_reached"] is True
+        assert summary["total_cleaned"] == 2  # Called twice, returned 1 each time
+
+        # Restore original method
+        sse_manager.state_manager.cleanup_stale_connections = original_cleanup
+
+    @pytest.mark.asyncio
+    async def test_shutdown_cleanup_no_stale_connections(self, sse_manager):
+        """Test shutdown cleanup when no stale connections exist."""
+        from datetime import UTC, datetime
+
+        # Add only active connections
+        now = datetime.now(UTC)
+        for i in range(3):
+            conn_id = f"active-conn-{i}"
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=now,
+                last_activity_at=now,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run shutdown cleanup
+        summary = await sse_manager.cleanup_all_stale_connections_for_shutdown()
+
+        # Should complete immediately with no cleanups
+        assert summary["total_cleaned"] == 0
+        assert summary["iterations"] == 1
+        assert summary["connections_before"] == 3
+        assert summary["connections_after"] == 3
+        assert not summary["max_iterations_reached"]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_stale_connections_zero_batch_size(self, sse_manager):
+        """Test that zero or negative batch size falls back to default."""
+        from datetime import UTC, datetime
+
+        # Create some stale connections
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        for i in range(5):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Test with zero batch size (should use default)
+        cleaned = await sse_manager.cleanup_stale_connections(batch_size=0)
+        assert cleaned == min(5, sse_config.CLEANUP_BATCH_SIZE)  # Should respect default batch size
+
+        # Add more connections for negative test
+        for i in range(5, 10):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Test with negative batch size (should use default)
+        remaining_before_cleanup = len(sse_manager.connections)  # Get count BEFORE cleanup
+        cleaned = await sse_manager.cleanup_stale_connections(batch_size=-1)
+        expected_cleaned = min(remaining_before_cleanup, sse_config.CLEANUP_BATCH_SIZE)
+        assert cleaned == expected_cleaned
+
+    @pytest.mark.asyncio
+    async def test_shutdown_cleanup_monitoring_stats(self, sse_manager):
+        """Test that shutdown cleanup updates monitoring statistics correctly."""
+        from datetime import UTC, datetime
+
+        # Get initial stats
+        initial_stats = await sse_manager.state_manager.get_cleanup_statistics()
+        initial_shutdown_cleanups = initial_stats["shutdown_cleanups"]
+        initial_shutdown_connections_cleaned = initial_stats["shutdown_connections_cleaned"]
+
+        # Create stale connections
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+        stale_count = 8
+
+        for i in range(stale_count):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
+                last_event_id=None,
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run shutdown cleanup
+        summary = await sse_manager.cleanup_all_stale_connections_for_shutdown()
+
+        # Verify statistics were updated
+        updated_stats = await sse_manager.state_manager.get_cleanup_statistics()
+
+        assert updated_stats["shutdown_cleanups"] == initial_shutdown_cleanups + 1
+        assert updated_stats["shutdown_connections_cleaned"] == initial_shutdown_connections_cleaned + stale_count
+        assert updated_stats["last_shutdown_cleanup_summary"] == summary
+
+        # Verify summary details are preserved in stats
+        assert updated_stats["last_shutdown_cleanup_summary"]["total_cleaned"] == stale_count
+        assert updated_stats["last_shutdown_cleanup_summary"]["connections_before"] == stale_count
+        assert updated_stats["last_shutdown_cleanup_summary"]["connections_after"] == 0
