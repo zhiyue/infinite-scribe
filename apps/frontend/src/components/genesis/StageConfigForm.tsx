@@ -54,7 +54,6 @@ export interface StageConfigFormHandle {
   reload: () => void
 }
 
-
 /**
  * 创建默认 UI Schema
  */
@@ -214,34 +213,131 @@ const StageConfigFormComponent = (
   )
 
   /**
+   * 从 schema 中提取字段名映射
+   */
+  const getFieldNameMap = useCallback((): Record<string, string> => {
+    if (!schema?.properties) return {}
+
+    const fieldMap: Record<string, string> = {}
+
+    // 遍历 schema 的 properties，提取 title 作为中文字段名
+    const traverseProperties = (properties: any, prefix = '') => {
+      Object.entries(properties).forEach(([key, value]: [string, any]) => {
+        const fullKey = prefix ? `${prefix}/${key}` : key
+
+        if (value.title) {
+          fieldMap[fullKey] = value.title
+          fieldMap[key] = value.title // 也支持简单字段名匹配
+        }
+
+        // 递归处理嵌套对象的 properties
+        if (value.properties) {
+          traverseProperties(value.properties, fullKey)
+        }
+
+        // 处理数组项的 properties
+        if (value.items?.properties) {
+          traverseProperties(value.items.properties, `${fullKey}/items`)
+        }
+      })
+    }
+
+    traverseProperties(schema.properties)
+    return fieldMap
+  }, [schema])
+
+  /**
+   * 翻译验证错误消息
+   */
+  const translateErrorMessage = useCallback((message: string): string => {
+    const errorMap: Record<string, string> = {
+      'must be integer': '必须是整数',
+      'must be number': '必须是数字',
+      'must be string': '必须是字符串',
+      'must be boolean': '必须是布尔值',
+      'must be array': '必须是数组',
+      'must be object': '必须是对象',
+      'must have required property': '缺少必填属性',
+      'must NOT have additional properties': '不允许额外属性',
+      'must be equal to one of the allowed values': '必须是允许的值之一',
+      'must match pattern': '格式不正确',
+      'must be valid': '必须是有效值',
+      'must be at least': '不能少于',
+      'must be at most': '不能超过',
+      'must be greater than': '必须大于',
+      'must be less than': '必须小于',
+      'must NOT be valid': '不能是有效值',
+    }
+
+    for (const [english, chinese] of Object.entries(errorMap)) {
+      if (message.includes(english)) {
+        return message.replace(english, chinese)
+      }
+    }
+
+    return message
+  }, [])
+
+  /**
    * 处理表单验证错误
    */
-  const handleError = useCallback((errors: any[]) => {
-    console.log('[StageConfigForm] Form validation errors:', errors)
-    const errorMessages = errors.map(error => {
-      // 提取更友好的字段名和错误信息
-      const instancePath = error.instancePath || ''
-      const schemaPath = error.schemaPath || ''
-      let fieldName = '未知字段'
+  const handleError = useCallback(
+    (errors: any[]) => {
+      console.log('[StageConfigForm] Form validation errors:', errors)
+      const fieldNameMap = getFieldNameMap()
 
-      if (instancePath) {
-        fieldName = instancePath.replace(/^\//, '').replace(/\//g, ' > ')
-      } else if (error.property) {
-        fieldName = error.property
-      }
+      const errorMessages = errors.map((error) => {
+        // 提取更友好的字段名和错误信息
+        const instancePath = error.instancePath || ''
+        let fieldName = '未知字段'
 
-      const message = error.message || '验证失败'
-      return fieldName ? `${fieldName}: ${message}` : message
-    })
+        if (instancePath) {
+          // 清理路径，移除开头的 / 和 .
+          const path = instancePath.replace(/^[\/\.]+/, '')
+          // 尝试多种匹配方式
+          const candidates = [
+            path, // 完整路径，如 "target_word_count"
+            path.split('/').pop(), // 最后一个字段名，如 "target_word_count"
+            path.replace(/\//g, ' > '), // 带层级的路径，如 "items > property"
+          ]
 
-    setValidationErrors(errorMessages)
-    setShowValidationAlert(true)
+          for (const candidate of candidates) {
+            if (candidate && fieldNameMap[candidate]) {
+              fieldName = fieldNameMap[candidate]
+              break
+            }
+          }
 
-    // 5秒后隐藏验证错误提示
-    setTimeout(() => {
-      setShowValidationAlert(false)
-    }, 5000)
-  }, [])
+          // 如果没找到映射，使用原始路径
+          if (fieldName === '未知字段') {
+            fieldName = path.replace(/\//g, ' > ') || '未知字段'
+          }
+        } else if (error.property) {
+          // 清理 property 路径，移除开头的 / 和 .
+          const cleanProperty = error.property.replace(/^[\/\.]+/, '')
+          if (fieldNameMap[cleanProperty]) {
+            fieldName = fieldNameMap[cleanProperty]
+            console.log('[StageConfigForm] Mapped property:', error.property, '->', cleanProperty, '->', fieldName)
+          } else {
+            fieldName = cleanProperty || error.property
+          }
+        }
+
+        const rawMessage = error.message || '验证失败'
+        const message = translateErrorMessage(rawMessage)
+        return fieldName ? `${fieldName}: ${message}` : message
+      })
+
+      setValidationErrors(errorMessages)
+      setShowValidationAlert(true)
+
+      // 5秒后隐藏验证错误提示
+      setTimeout(() => {
+        setShowValidationAlert(false)
+      }, 5000)
+    },
+    [getFieldNameMap, translateErrorMessage],
+  )
 
   /**
    * 处理表单数据变化
