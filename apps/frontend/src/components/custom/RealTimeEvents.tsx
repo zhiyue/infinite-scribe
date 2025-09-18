@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
+  useSSE,
   useSSEEvents,
   useSSEConditionalEvent,
   useGenesisEvents,
   useNovelEvents,
-} from '@/hooks/useSSE'
-import { useSSE } from '@/contexts'
+} from '@/hooks/sse'
 import type { DomainEvent } from '@/types/events'
 import React, { useState } from 'react'
 

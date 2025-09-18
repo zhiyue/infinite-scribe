@@ -2,4 +2,4 @@
  * Contexts exports
  */
 
-export { SSEProvider, useSSE, useSSEStatus, useSSEInfo } from './SSEContext'
+export { SSEProvider, useSSE, useSSEEvent } from './sse/SSEProvider'

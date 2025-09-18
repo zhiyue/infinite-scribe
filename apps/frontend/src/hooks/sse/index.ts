@@ -1,11 +1,29 @@
 /**
- * SSE React Hooks
+ * SSE Hooks 统一导出
  * 基于最佳实践的SSE事件订阅hooks
  */
 
-import { useEffect, useState, useCallback } from 'react'
-import { useSSE as useSSEContext } from '@/contexts/SSEContext'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSSE as useSSEContext } from '@/contexts/sse/SSEProvider'
 import type { SSEMessage } from '@/types/events'
+import { SSE_EVENT_NAMES } from '@/config/sse.config'
+
+// 导出基础Context Hook
+export { useSSE, useSSEEvent } from '@/contexts/sse/SSEProvider'
+
+/**
+ * 辅助hook：稳定的handler引用
+ */
+function useStableHandler<T extends (...args: any[]) => any>(fn: T): T {
+  const ref = useRef(fn)
+
+  useEffect(() => {
+    ref.current = fn
+  }, [fn])
+
+  // @ts-ignore
+  return useCallback((...args) => ref.current(...args), [])
+}
 
 /**
  * 获取SSE连接状态
@@ -14,7 +32,7 @@ export function useSSEStatus() {
   const context = useSSEContext()
 
   return {
-    status: context.connectionState,
+    status: context.status,
     isConnected: context.isConnected,
     isConnecting: context.isConnecting,
     isRetrying: context.isReconnecting,
@@ -28,32 +46,15 @@ export function useSSEStatus() {
  * 获取SSE控制方法
  */
 export function useSSEControl() {
-  const { connect, disconnect, reconnect } = useSSEContext()
+  const { connect, disconnect, reconnect, pause, resume } = useSSEContext()
 
   return {
     connect,
     disconnect,
-    reconnect
+    reconnect,
+    pause,
+    resume
   }
-}
-
-/**
- * 订阅SSE事件 - 使用 addMessageListener
- */
-export function useSSEEvent<T = any>(
-  handler: (message: SSEMessage) => void,
-  deps: React.DependencyList = []
-) {
-  const { addMessageListener, removeMessageListener } = useSSEContext()
-
-  useEffect(() => {
-    const listener = (message: SSEMessage) => {
-      handler(message)
-    }
-
-    addMessageListener(listener)
-    return () => removeMessageListener(listener)
-  }, [addMessageListener, removeMessageListener, ...deps])
 }
 
 /**
@@ -65,17 +66,18 @@ export function useSSEEvents<T = any>(
   deps: React.DependencyList = []
 ) {
   const { addMessageListener, removeMessageListener } = useSSEContext()
+  const stableHandler = useStableHandler(handler)
 
   useEffect(() => {
     const listener = (message: SSEMessage) => {
       if (events.includes(message.event)) {
-        handler(message.event, message.data as T)
+        stableHandler(message.event, message.data as T)
       }
     }
 
     addMessageListener(listener)
     return () => removeMessageListener(listener)
-  }, [addMessageListener, removeMessageListener, JSON.stringify(events), ...deps])
+  }, [addMessageListener, removeMessageListener, JSON.stringify(events), stableHandler, ...deps])
 }
 
 /**
@@ -88,20 +90,22 @@ export function useSSEConditionalEvent<T = any>(
   deps: React.DependencyList = []
 ) {
   const { addMessageListener, removeMessageListener } = useSSEContext()
+  const stableHandler = useStableHandler(handler)
+  const stableCondition = useStableHandler(condition)
 
   useEffect(() => {
     const listener = (message: SSEMessage) => {
       if (message.event === event) {
         const data = message.data as T
-        if (condition(data)) {
-          handler(data)
+        if (stableCondition(data)) {
+          stableHandler(data)
         }
       }
     }
 
     addMessageListener(listener)
     return () => removeMessageListener(listener)
-  }, [addMessageListener, removeMessageListener, event, ...deps])
+  }, [addMessageListener, removeMessageListener, event, stableHandler, stableCondition, ...deps])
 }
 
 /**
@@ -112,10 +116,10 @@ export function useGenesisEvents(
   handler: (event: string, data: any) => void
 ) {
   const events = [
-    'genesis.step-completed',
-    'genesis.step-failed',
-    'genesis.session-completed',
-    'genesis.session-failed'
+    SSE_EVENT_NAMES.GENESIS_STEP_COMPLETED,
+    SSE_EVENT_NAMES.GENESIS_STEP_FAILED,
+    SSE_EVENT_NAMES.GENESIS_SESSION_COMPLETED,
+    SSE_EVENT_NAMES.GENESIS_SESSION_FAILED
   ]
 
   useSSEEvents(
@@ -137,7 +141,7 @@ export function useCommandEvents(
   handler: (status: string, data: any) => void
 ) {
   useSSEConditionalEvent(
-    'command.status',
+    SSE_EVENT_NAMES.COMMAND,
     (data: any) => handler(data.status, data),
     (data: any) => data.command_id === commandId,
     [commandId]
@@ -152,10 +156,10 @@ export function useNovelEvents(
   handler: (event: string, data: any) => void
 ) {
   const events = [
-    'novel.created',
-    'novel.status-changed',
-    'chapter.draft-created',
-    'chapter.status-changed'
+    SSE_EVENT_NAMES.NOVEL_CREATED,
+    SSE_EVENT_NAMES.NOVEL_STATUS_CHANGED,
+    SSE_EVENT_NAMES.CHAPTER_DRAFT_CREATED,
+    SSE_EVENT_NAMES.CHAPTER_STATUS_CHANGED
   ]
 
   useSSEEvents(
@@ -188,13 +192,13 @@ export function useSSEInfo() {
  */
 export function useSSEDebug() {
   const [events, setEvents] = useState<SSEMessage[]>([])
-  const { addMessageListener, removeMessageListener, connectionState } = useSSEContext()
+  const { addMessageListener, removeMessageListener, status } = useSSEContext()
 
   useEffect(() => {
     if (import.meta.env.DEV) {
       const listener = (message: SSEMessage) => {
         console.log('[SSE Debug]', {
-          connectionState,
+          status,
           message
         })
         setEvents(prev => [...prev.slice(-99), message])
@@ -203,14 +207,11 @@ export function useSSEDebug() {
       addMessageListener(listener)
       return () => removeMessageListener(listener)
     }
-  }, [addMessageListener, removeMessageListener, connectionState])
+  }, [addMessageListener, removeMessageListener, status])
 
   return {
-    status: connectionState,
+    status,
     events,
     eventCount: events.length
   }
 }
-
-// 导出 useSSEContext 的别名，方便使用
-export const useSSE = useSSEContext

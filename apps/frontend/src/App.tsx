@@ -23,6 +23,8 @@ import CreateNovel from './pages/CreateNovel'
 // Test Component
 import { TestMSW } from './components/TestMSW'
 import SSEDebugPanel from './components/debug/SSEDebugPanel'
+import SSEFeatureDemo from './components/debug/SSEFeatureDemo'
+import SSEPersistenceDemo from './components/debug/SSEPersistenceDemo'
 
 // Global styles
 import './index.css'
@@ -32,11 +34,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <SSEProvider
         endpoint={SSE_CONNECTION_CONFIG.ENDPOINT_PATH}
-        config={{
-          reconnectInterval: SSE_CONNECTION_CONFIG.MIN_RETRY_DELAY,
-          maxReconnectAttempts: 10,
-          healthCheckInterval: 30000
-        }}
+        minRetry={SSE_CONNECTION_CONFIG.MIN_RETRY_DELAY}
+        maxRetry={SSE_CONNECTION_CONFIG.MAX_RETRY_DELAY}
+        crossTabKey={SSE_CONNECTION_CONFIG.CROSS_TAB_KEY}
+        withCredentials={SSE_CONNECTION_CONFIG.WITH_CREDENTIALS}
       >
         <Router>
           <div className="App">
@@ -49,6 +50,18 @@ function App() {
                   <div className="container mx-auto p-4">
                     <h1 className="text-2xl font-bold mb-4">SSE调试面板</h1>
                     <SSEDebugPanel />
+                  </div>
+                } />
+                <Route path="/debug/sse-features" element={
+                  <div className="container mx-auto p-4">
+                    <h1 className="text-2xl font-bold mb-4">SSE功能演示</h1>
+                    <SSEFeatureDemo />
+                  </div>
+                } />
+                <Route path="/debug/sse-persistence" element={
+                  <div className="container mx-auto p-4">
+                    <h1 className="text-2xl font-bold mb-4">SSE持久化与页面刷新恢复</h1>
+                    <SSEPersistenceDemo />
                   </div>
                 } />
               </>

@@ -9,8 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useSSE, useSSEStatus, useSSEInfo } from '@/contexts'
-import { useSSEEvent } from '@/hooks/useSSE'
+import { useSSE, useSSEEvent, useSSEStatus, useSSEInfo } from '@/hooks/sse'
 import type { SSEMessage } from '@/types/events'
 import {
   Activity,
