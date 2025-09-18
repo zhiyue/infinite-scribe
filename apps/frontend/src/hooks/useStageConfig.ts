@@ -8,7 +8,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GenesisStage } from '@/types/enums'
 import {
   genesisService,
-  type StageRecordResponse,
   type ActiveSessionResponse
 } from '@/services/genesisService'
 

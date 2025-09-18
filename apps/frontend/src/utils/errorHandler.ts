@@ -116,8 +116,16 @@ const httpStatusToErrorCode: Record<number, ErrorCode> = {
   504: ErrorCode.GATEWAY_TIMEOUT,
 }
 
+// 缓存正则表达式以提升性能
+const MISSING_FIELDS_REGEX = /Required fields are missing - (.+?)\./
+
 // 解析 API 响应错误
 export function parseApiError(response: Response, data?: unknown): AppError {
+  const isDev = import.meta.env.DEV
+  if (isDev) {
+    console.log('[parseApiError] Parsing error response:', response.status, data)
+  }
+
   const defaultErrorCode = httpStatusToErrorCode[response.status] || ErrorCode.UNKNOWN_ERROR
 
   // 尝试从响应数据中获取错误信息
@@ -128,21 +136,29 @@ export function parseApiError(response: Response, data?: unknown): AppError {
 
       // 检查是否是 Genesis 错误格式
       if ('type' in detail && 'user_message' in detail && 'action_required' in detail) {
+        // 快速解析缺失字段（使用缓存的正则表达式）
+        let missing_fields: string[] = []
+        if (detail.message && typeof detail.message === 'string') {
+          const match = detail.message.match(MISSING_FIELDS_REGEX)
+          if (match) {
+            missing_fields = match[1].split(', ').map(field => field.trim())
+          }
+        }
+
         const genesisError: GenesisErrorDetail = {
           type: detail.type,
           message: detail.message || '',
           user_message: detail.user_message,
           action_required: detail.action_required,
-          missing_fields: detail.missing_fields
+          missing_fields: detail.missing_fields || missing_fields
         }
 
         // 根据错误类型映射到适当的错误码
-        let errorCode = defaultErrorCode
-        if (detail.type === 'stage_config_incomplete') {
-          errorCode = ErrorCode.STAGE_CONFIG_INCOMPLETE
-        } else if (detail.type === 'stage_validation_error') {
-          errorCode = ErrorCode.STAGE_VALIDATION_ERROR
-        }
+        const errorCode = detail.type === 'stage_config_incomplete'
+          ? ErrorCode.STAGE_CONFIG_INCOMPLETE
+          : detail.type === 'stage_validation_error'
+          ? ErrorCode.STAGE_VALIDATION_ERROR
+          : defaultErrorCode
 
         return new AppError(
           errorCode,
@@ -197,9 +213,29 @@ export function handleNetworkError(error: unknown): AppError {
 
 // 统一错误处理函数
 export function handleError(error: unknown): AppError {
+  const isDev = import.meta.env.DEV
+  if (isDev) {
+    console.log('[handleError] Processing error:', error)
+  }
+
   // 如果已经是 AppError，直接返回
   if (error instanceof AppError) {
     return error
+  }
+
+  // 检查是否是 Axios 错误（有 response 属性的）
+  if (error && typeof error === 'object' && 'response' in error) {
+    const axiosError = error as any
+
+    if (axiosError.response) {
+      // 创建一个假的 Response 对象来兼容 parseApiError
+      const fakeResponse = {
+        status: axiosError.response.status,
+        statusText: axiosError.response.statusText || 'Unknown'
+      } as Response
+
+      return parseApiError(fakeResponse, axiosError.response.data)
+    }
   }
 
   // 处理其他类型的错误

@@ -249,7 +249,7 @@ async def switch_flow_stage(
         error_msg = str(e)
         logger.warning(f"Stage validation failed for novel {novel_id}: {error_msg}")
 
-        # Extract user-friendly information from the error message
+        # Extract user-friendly information from the error message and return structured error
         if "Required fields are missing" in error_msg:
             raise HTTPException(
                 status_code=400,

@@ -5,7 +5,7 @@
 
 import { genesisService, type GenesisFlowResponse } from '@/services/genesisService'
 import { GenesisStage } from '@/types/enums'
-import { AppError, getUserFriendlyMessage, isUserActionRequired } from '@/utils/errorHandler'
+import { AppError } from '@/utils/errorHandler'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface UseGenesisFlowOptions {
@@ -101,6 +101,8 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
     onError: (error) => {
       handleError(error, 'Failed to switch stage')
     },
+    // 避免重复请求
+    retry: false,
   })
 
   // 完成流程

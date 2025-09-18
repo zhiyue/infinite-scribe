@@ -96,28 +96,35 @@ function handleApiResponse<T>(response: ApiResponse<T>): T {
  * 兼容 AxiosError 和其他错误类型
  */
 function handleHttpError(error: any): never {
-  console.log('[genesisService] handleHttpError called with:', error)
+  // 开发环境调试日志
+  const isDev = import.meta.env.DEV
+  if (isDev) {
+    console.log('[genesisService] handleHttpError called with:', error)
+  }
 
+  // 如果已经是 AppError，直接抛出
+  if (error instanceof AppError) {
+    throw error
+  }
+
+  // 检查是否是 Axios 错误
   if (error?.response) {
-    // Axios HTTP错误响应
-    console.log('[genesisService] HTTP error response:', error.response)
-    console.log('[genesisService] Response status:', error.response.status)
-    console.log('[genesisService] Response data:', error.response.data)
-
     // 创建一个假的 Response 对象来兼容 parseApiError
     const fakeResponse = {
       status: error.response.status,
       statusText: error.response.statusText
-    }
+    } as Response
     const httpError = parseApiError(fakeResponse, error.response.data)
     throw httpError
-  } else if (error?.code) {
-    // 网络错误
-    throw handleError(error)
-  } else {
-    // 其他错误
+  }
+
+  // 检查是否是包含 axios 信息的错误
+  if (error?.config && error?.request) {
     throw handleError(error)
   }
+
+  // 其他错误
+  throw handleError(error)
 }
 
 /**
@@ -189,7 +196,7 @@ export class GenesisService {
       )
       return handleApiResponse(response)
     } catch (error) {
-      handleHttpError(error)
+      throw handleHttpError(error)
     }
   }
 

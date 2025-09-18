@@ -31,8 +31,6 @@
   "include": [
     "src",
     "src/**/*.ts",
-    "src/**/*.tsx",
-    "e2e/**/*.ts",
-    "e2e/**/*.tsx"
+    "src/**/*.tsx"
   ]
 }

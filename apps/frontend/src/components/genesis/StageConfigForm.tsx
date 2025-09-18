@@ -13,7 +13,8 @@ import {
 } from 'react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
-import type { RJSFSchema, UiSchema, FormProps } from '@rjsf/utils'
+import type { RJSFSchema, UiSchema } from '@rjsf/utils'
+import type { IChangeEvent as RJSFChangeEvent } from '@rjsf/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -176,7 +177,7 @@ const StageConfigFormComponent = (
    * 处理表单提交
    */
   const handleSubmit = useCallback(
-    async (data: { formData?: any }) => {
+    async (data: RJSFChangeEvent) => {
       if (data.formData) {
         const success = await handleFormSubmit(data.formData)
         if (!success) {
@@ -191,7 +192,7 @@ const StageConfigFormComponent = (
    * 处理表单数据变化
    */
   const handleChange = useCallback(
-    (event: IChangeEvent) => {
+    (event: RJSFChangeEvent) => {
       if (event.formData) {
         onDataChange(event.formData)
       }
@@ -293,6 +294,7 @@ const StageConfigFormComponent = (
             noHtml5Validate
             showErrorList={false}
             liveValidate
+            className="cursor-default [&_input]:cursor-text [&_textarea]:cursor-text [&_select]:cursor-pointer [&_button]:cursor-pointer [&_label]:cursor-default [&_.array-item]:cursor-default [&_input]:select-text [&_textarea]:select-text [&_label]:select-none [&_button]:select-none [&_span]:select-none [&_div]:select-none [&_fieldset]:cursor-default [&_legend]:cursor-default [&_legend]:select-none"
           />
         </div>
       </CardContent>

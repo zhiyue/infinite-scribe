@@ -229,7 +229,14 @@ export function ArrayFieldTemplate({
   const orderable = uiOptions.orderable !== false
   const addable = uiOptions.addable !== false && canAdd
   const removable = uiOptions.removable !== false
-  const addButtonText = uiOptions.addButtonText || (items.length === 0 ? '添加项目' : '添加更多')
+  const baseAddText = uiOptions.addButtonText as string | undefined
+  const addButtonText = baseAddText
+    ? items.length === 0
+      ? baseAddText
+      : `继续${baseAddText}`
+    : items.length === 0
+      ? '添加项目'
+      : '添加更多'
   const itemTitle = uiOptions.itemTitle as string | undefined
   const maxListHeight = uiOptions.maxListHeight as number | undefined
 
@@ -240,13 +247,13 @@ export function ArrayFieldTemplate({
         style={maxListHeight ? { maxHeight: `${maxListHeight}px` } : undefined}
       >
         {items.map((item, index) => {
-          const dynamicTitle = item.children?.props?.schema?.title as string | undefined
+          const dynamicTitle = (item.children?.props as any)?.schema?.title as string | undefined
           const finalTitle = dynamicTitle || itemTitle
 
           return (
             <div
               key={item.key}
-              className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-3"
+              className="array-item flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-3"
             >
               {orderable && (
                 <div className="flex flex-col gap-1 pt-1.5 text-muted-foreground">
@@ -274,7 +281,7 @@ export function ArrayFieldTemplate({
               )}
 
               <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground select-none">
                   <Badge variant="outline" className="text-[11px] py-0 px-1.5 font-medium">
                     {index + 1}
                   </Badge>
@@ -360,13 +367,13 @@ export function FieldTemplate({
     <div className="space-y-2">
       <div className="flex flex-col gap-2 md:flex-row md:gap-6">
         {showLabel && (
-          <div className="md:w-48 md:min-w-[12rem]">
-            <Label htmlFor={id} className="text-sm font-medium">
+          <div className="md:w-48 md:min-w-[12rem] select-none">
+            <Label htmlFor={id} className="text-sm font-medium cursor-default">
               {label}
               {required && <span className="text-destructive ml-1">*</span>}
             </Label>
             {description && (
-              <p className="text-xs text-muted-foreground mt-1 leading-4">
+              <p className="text-xs text-muted-foreground mt-1 leading-4 select-none">
                 {description}
               </p>
             )}

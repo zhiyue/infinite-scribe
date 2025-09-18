@@ -14,7 +14,7 @@ import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
 import { useParams } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 /**
  * 创世页面主组件
@@ -22,6 +22,16 @@ import { useState } from 'react'
 export default function GenesisPage() {
   const { id: novelId } = useParams<{ id: string }>()
   const [showErrorDialog, setShowErrorDialog] = useState(false)
+  const errorTimeoutRef = useRef<NodeJS.Timeout>()
+
+  // 防抖的错误显示函数
+  const showErrorWithDebounce = useCallback((error: Error) => {
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current)
+    }
+    // 立即显示错误，避免延迟
+    setShowErrorDialog(true)
+  }, [])
 
   // 使用新的Genesis会话管理hook
   const {
@@ -44,8 +54,10 @@ export default function GenesisPage() {
     },
     onError: (error) => {
       console.error('[GenesisPage] Session error:', error)
-      // 当有错误时显示对话框
-      setShowErrorDialog(true)
+      // 使用防抖机制显示错误对话框
+      if (error) {
+        showErrorWithDebounce(error)
+      }
     },
     onFlowReady: (flow) => {
       console.log('[GenesisPage] Flow ready:', flow)
@@ -70,6 +82,15 @@ export default function GenesisPage() {
     }
   }
 
+  // 清理函数，避免内存泄漏
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // 处理错误对话框
   const handleErrorDialogClose = () => {
     setShowErrorDialog(false)
@@ -77,8 +98,22 @@ export default function GenesisPage() {
   }
 
   const handleRetryStageSwitch = () => {
-    // 重试上一次的阶段切换操作
-    handleStageComplete()
+    // 对于配置不完整的错误，不应该重试切换，而是清除错误让用户完成配置
+    if (error?.code === 'STAGE_CONFIG_INCOMPLETE') {
+      console.log('[GenesisPage] Stage config incomplete, clearing error to let user complete configuration')
+      handleErrorDialogClose()
+      return
+    }
+
+    // 对于其他类型的错误，重试上一次的阶段切换操作
+    const stages = Object.values(GenesisStage)
+    const currentIndex = stages.indexOf(currentStage)
+
+    if (currentIndex < stages.length - 1) {
+      const nextStage = stages[currentIndex + 1]
+      console.log('[GenesisPage] Retrying stage switch to:', nextStage)
+      switchToStage(nextStage)
+    }
   }
 
 

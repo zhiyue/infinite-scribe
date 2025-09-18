@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 import { GenesisStage } from '@/types/enums'
 import { useGenesisFlow } from '@/hooks/useGenesisFlow'
 import { GenesisErrorAlert, GenesisSuccessAlert } from './GenesisErrorAlert'
-import { AppError } from '@/utils/errorHandler'
 import {
   AlertCircle,
   BookOpen,
@@ -21,7 +20,6 @@ import {
   Sparkles,
   Users,
   Settings,
-  X,
 } from 'lucide-react'
 
 export interface GenesisStageInfo {
@@ -99,7 +97,6 @@ export function EnhancedGenesisNavigation({
     isSwitchingStage,
     switchStageError,
     hasStageConfigError,
-    hasValidationError,
     initializeFlow,
   } = useGenesisFlow(novelId, {
     onStageChanged: (flow) => {
@@ -125,7 +122,7 @@ export function EnhancedGenesisNavigation({
   }
 
   // 计算阶段状态
-  const getStageStatus = (stage: GenesisStageInfo, index: number): GenesisStageInfo['status'] => {
+  const getStageStatus = (_stage: GenesisStageInfo, index: number): GenesisStageInfo['status'] => {
     if (!currentStage) return 'locked'
 
     const currentIndex = GENESIS_STAGES.findIndex((s) => s.key === currentStage)

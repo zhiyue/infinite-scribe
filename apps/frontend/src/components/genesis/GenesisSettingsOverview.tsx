@@ -5,13 +5,11 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import {
   BookOpen,
-  ChevronRight,
   Globe,
   Sparkles,
   Users,
@@ -210,7 +208,7 @@ export function GenesisSettingsOverview({
   const [configModalStage, setConfigModalStage] = useState<GenesisStage | null>(null)
 
   // 获取 Genesis 流程信息
-  const { flow, hasFlow } = useGenesisFlow(novelId)
+  const { flow } = useGenesisFlow(novelId)
 
   // 定义阶段顺序
   const stageOrder = [
@@ -410,7 +408,7 @@ export function GenesisSettingsOverview({
         open={modalStage !== null}
         onOpenChange={(open) => !open && setModalStage(null)}
         stage={modalStage}
-        settings={settings}
+        novelId={novelId}
       />
 
       {/* 配置编辑模态窗口 - 可编辑表单 */}

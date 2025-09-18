@@ -179,7 +179,7 @@ export function StageConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0 flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0 flex flex-col cursor-default [&_.form-container_*]:select-text [&>*:not(.form-container)]:select-none">
         {/* 头部 */}
         <DialogHeader className="p-6 pb-4 border-b bg-muted/20">
           <div className="flex items-start justify-between">
@@ -226,7 +226,7 @@ export function StageConfigModal({
         </DialogHeader>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden form-container">
           <div className="h-full overflow-y-auto px-6 py-6">
             <div className="mx-auto flex max-w-3xl flex-col gap-4">
               {disabled && (
