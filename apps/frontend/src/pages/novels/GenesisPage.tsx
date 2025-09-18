@@ -100,7 +100,9 @@ export default function GenesisPage() {
   const handleRetryStageSwitch = () => {
     // 对于配置不完整的错误，不应该重试切换，而是清除错误让用户完成配置
     if (error?.code === 'STAGE_CONFIG_INCOMPLETE') {
-      console.log('[GenesisPage] Stage config incomplete, clearing error to let user complete configuration')
+      console.log(
+        '[GenesisPage] Stage config incomplete, clearing error to let user complete configuration',
+      )
       handleErrorDialogClose()
       return
     }
@@ -115,7 +117,6 @@ export default function GenesisPage() {
       switchToStage(nextStage)
     }
   }
-
 
   // 如果没有会话，显示创建会话界面
   if (!sessionId) {
@@ -205,6 +206,8 @@ export default function GenesisPage() {
         <div className="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2">
           <EnhancedGenesisNavigation
             novelId={novelId || ''}
+            currentStage={currentStage}
+            onStageChange={handleStageChange}
           />
         </div>
 
@@ -224,21 +227,7 @@ export default function GenesisPage() {
           <GenesisSettingsOverview
             currentStage={currentStage}
             novelId={novelId || ''}
-            settings={{
-              // 示例数据 - 实际应从API获取
-              initialPrompt: {
-                title: '未来科幻',
-                genre: '科幻',
-                theme: '人工智能与人性',
-                inspiration: '探索AI与人类共存的未来世界',
-              },
-              worldview: {
-                setting: '2150年的地球，AI与人类共存',
-                timeframe: '22世纪中叶',
-                geography: '全球化的智慧城市群',
-                rules: ['AI具有自主意识', '人类与AI需要协作', '技术伦理法则严格'],
-              },
-            }}
+            onStageJump={handleStageChange}
           />
         </div>
       </div>

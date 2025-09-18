@@ -33,6 +33,8 @@ export interface GenesisStageInfo {
 
 interface EnhancedGenesisNavigationProps {
   novelId: string
+  currentStage?: GenesisStage
+  onStageChange?: (stage: GenesisStage) => void
   onStageConfigRequired?: (stage: GenesisStage) => void
   className?: string
 }
@@ -81,6 +83,8 @@ const GENESIS_STAGES: GenesisStageInfo[] = [
  */
 export function EnhancedGenesisNavigation({
   novelId,
+  currentStage: propCurrentStage,
+  onStageChange,
   onStageConfigRequired,
   className,
 }: EnhancedGenesisNavigationProps) {
@@ -91,7 +95,7 @@ export function EnhancedGenesisNavigation({
   // 使用增强的 Genesis Flow hook
   const {
     flow,
-    currentStage,
+    currentStage: flowCurrentStage,
     isLoading,
     switchStage,
     isSwitchingStage,
@@ -104,6 +108,11 @@ export function EnhancedGenesisNavigation({
       setShowSuccessMessage(true)
       // 3秒后自动隐藏成功消息
       setTimeout(() => setShowSuccessMessage(false), 3000)
+
+      // 通知父组件阶段已变更
+      if (onStageChange && flow.current_stage) {
+        onStageChange(flow.current_stage)
+      }
     },
     onStageConfigIncomplete: (error) => {
       // 这个错误会在UI中显示，不需要额外处理
@@ -115,10 +124,13 @@ export function EnhancedGenesisNavigation({
     },
   })
 
+  // 优先使用父组件传递的当前阶段，如果没有则使用 flow 的状态
+  const currentStage = propCurrentStage || flowCurrentStage
+
   // 获取阶段标签
   const getStageLabel = (stage: GenesisStage | null) => {
     if (!stage) return ''
-    return GENESIS_STAGES.find(s => s.key === stage)?.label || stage
+    return GENESIS_STAGES.find((s) => s.key === stage)?.label || stage
   }
 
   // 计算阶段状态
@@ -143,7 +155,14 @@ export function EnhancedGenesisNavigation({
     if (status === 'locked' || isSwitchingStage) return
 
     setSelectedStage(stage.key)
-    switchStage(stage.key)
+
+    // 如果有父组件的阶段变更回调，优先使用它
+    if (onStageChange) {
+      onStageChange(stage.key)
+    } else {
+      // 否则使用内部的 switchStage
+      switchStage(stage.key)
+    }
   }
 
   // 处理配置错误 - 跳转到配置页面
@@ -222,9 +241,7 @@ export function EnhancedGenesisNavigation({
         {flow && (
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
             <span>流程ID: {flow.id.slice(0, 8)}...</span>
-            {flow.current_stage_id && (
-              <span>阶段ID: {flow.current_stage_id.slice(0, 8)}...</span>
-            )}
+            {flow.current_stage_id && <span>阶段ID: {flow.current_stage_id.slice(0, 8)}...</span>}
           </div>
         )}
       </div>
@@ -346,3 +363,4 @@ export function EnhancedGenesisNavigation({
     </div>
   )
 }
+

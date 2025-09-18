@@ -26,6 +26,7 @@ import type {
   WidgetProps,
 } from '@rjsf/utils'
 import { AlertCircle, Minus, Plus, ArrowUp, ArrowDown } from 'lucide-react'
+import { useFieldErrors } from './StageConfigForm'
 
 /**
  * 文本输入框 Widget
@@ -365,8 +366,20 @@ export function FieldTemplate({
   displayLabel,
 }: FieldTemplateProps) {
   const showLabel = displayLabel && label
-  const errorList = Array.isArray(errors) ? errors : []
+  const fieldErrors = useFieldErrors()
+
+  // 从字段 ID 中提取字段名 (如: "root_target_word_count" -> "target_word_count")
+  const fieldName = id?.replace(/^root_/, '') || ''
+
+  // 获取上下文中的错误信息
+  const contextError = fieldErrors[fieldName]
+
+  // 使用上下文错误或 RJSF 原生错误
+  const errorList = contextError
+    ? [contextError]
+    : (Array.isArray(errors) ? errors : [])
   const hasErrors = errorList.length > 0
+
 
   return (
     <div className="space-y-2">
@@ -389,9 +402,12 @@ export function FieldTemplate({
           {children}
 
           {hasErrors && (
-            <Alert variant="destructive" className="py-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
+            <Alert
+              variant="destructive"
+              className="flex items-center gap-2 py-2 pl-3 pr-3 [&>svg]:static [&>svg]:left-0 [&>svg]:top-0 [&>svg+div]:translate-y-0 [&>svg~*]:pl-0"
+            >
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <AlertDescription className="text-sm leading-snug">
                 {errorList
                   .map((error) => (typeof error === 'string' ? error : String(error)))
                   .join(', ')}

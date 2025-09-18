@@ -4,8 +4,10 @@
  */
 
 import {
+  createContext,
   forwardRef,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -24,6 +26,12 @@ import { GenesisStage } from '@/types/enums'
 import { useStageConfigForm } from '@/hooks/useStageConfig'
 import { customTheme } from './CustomWidgets'
 import { cn } from '@/lib/utils'
+
+// 创建错误上下文
+const FieldErrorsContext = createContext<Record<string, string>>({})
+
+// Hook 用于在 FieldTemplate 中获取错误
+export const useFieldErrors = () => useContext(FieldErrorsContext)
 
 interface StageConfigFormProps {
   /** 阶段类型 */
@@ -63,6 +71,8 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
     'ui:submitButtonOptions': {
       norender: true, // 隐藏默认提交按钮，使用自定义按钮
     },
+    'ui:showErrors': true, // 显示字段级错误
+    'ui:ErrorFieldTemplate': true, // 启用错误字段模板
   }
 
   switch (stage) {
@@ -152,8 +162,7 @@ const StageConfigFormComponent = (
 ) => {
   const formRef = useRef<any>(null)
   const uiSchema = createDefaultUiSchema(stage)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [showValidationAlert, setShowValidationAlert] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // 使用阶段配置表单 Hook
   const {
@@ -198,10 +207,6 @@ const StageConfigFormComponent = (
    */
   const handleSubmit = useCallback(
     async (data: RJSFChangeEvent) => {
-      // 清除之前的验证错误
-      setValidationErrors([])
-      setShowValidationAlert(false)
-
       if (data.formData) {
         const success = await handleFormSubmit(data.formData)
         if (!success) {
@@ -279,14 +284,13 @@ const StageConfigFormComponent = (
   }, [])
 
   /**
-   * 处理表单验证错误
+   * 转换错误信息 - 用于字段级错误显示
    */
-  const handleError = useCallback(
+  const transformErrors = useCallback(
     (errors: any[]) => {
-      console.log('[StageConfigForm] Form validation errors:', errors)
       const fieldNameMap = getFieldNameMap()
 
-      const errorMessages = errors.map((error) => {
+      const transformed = errors.map((error) => {
         // 提取更友好的字段名和错误信息
         const instancePath = error.instancePath || ''
         let fieldName = '未知字段'
@@ -317,24 +321,35 @@ const StageConfigFormComponent = (
           const cleanProperty = error.property.replace(/^[\/\.]+/, '')
           if (fieldNameMap[cleanProperty]) {
             fieldName = fieldNameMap[cleanProperty]
-            console.log('[StageConfigForm] Mapped property:', error.property, '->', cleanProperty, '->', fieldName)
           } else {
             fieldName = cleanProperty || error.property
           }
         }
 
         const rawMessage = error.message || '验证失败'
-        const message = translateErrorMessage(rawMessage)
-        return fieldName ? `${fieldName}: ${message}` : message
+        const translatedMessage = translateErrorMessage(rawMessage)
+
+        // 返回转换后的错误对象，使用中文字段名和消息
+        const transformedError = {
+          ...error,
+          message: translatedMessage,
+          stack: `${fieldName}: ${translatedMessage}`,
+        }
+
+        return transformedError
       })
 
-      setValidationErrors(errorMessages)
-      setShowValidationAlert(true)
+      // 同时将错误保存到组件状态中，用于字段级显示
+      const errorMap: Record<string, string> = {}
+      transformed.forEach((error) => {
+        const fieldPath = error.property?.replace(/^\./, '') || error.instancePath?.replace(/^\//, '')
+        if (fieldPath) {
+          errorMap[fieldPath] = error.message
+        }
+      })
+      setFieldErrors(errorMap)
 
-      // 5秒后隐藏验证错误提示
-      setTimeout(() => {
-        setShowValidationAlert(false)
-      }, 5000)
+      return transformed
     },
     [getFieldNameMap, translateErrorMessage],
   )
@@ -345,6 +360,8 @@ const StageConfigFormComponent = (
   const handleChange = useCallback(
     (event: RJSFChangeEvent) => {
       if (event.formData) {
+        // 清除字段错误当数据变化时
+        setFieldErrors({})
         onDataChange(event.formData)
       }
     },
@@ -355,26 +372,16 @@ const StageConfigFormComponent = (
    * 手动触发表单提交
    */
   const triggerSubmit = useCallback(() => {
-    // 清除之前的验证错误
-    setValidationErrors([])
-    setShowValidationAlert(false)
-
     if (formRef.current) {
       formRef.current.submit()
     }
   }, [])
 
   const handleReset = useCallback(() => {
-    // 清除验证错误
-    setValidationErrors([])
-    setShowValidationAlert(false)
     onReset()
   }, [onReset])
 
   const handleReload = useCallback(() => {
-    // 清除验证错误
-    setValidationErrors([])
-    setShowValidationAlert(false)
     onReload()
   }, [onReload])
 
@@ -441,40 +448,26 @@ const StageConfigFormComponent = (
     <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
       <CardContent className="p-5">
         <div className="space-y-5">
-          {/* 验证错误提示 */}
-          {showValidationAlert && validationErrors.length > 0 && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="space-y-1">
-                  <p className="font-medium">表单验证失败，请检查以下字段：</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {validationErrors.map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                  </ul>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <Form
-            ref={formRef}
-            schema={schema as RJSFSchema}
-            formData={formData}
-            uiSchema={uiSchema as any}
-            validator={validator as any}
-            onSubmit={handleSubmit}
-            onError={handleError}
-            onChange={handleChange as any}
-            disabled={disabled || isSaving}
-            widgets={customTheme.widgets}
-            templates={customTheme.templates}
-            noHtml5Validate
-            showErrorList={false}
-            liveValidate
-            className="cursor-default [&_input]:cursor-text [&_textarea]:cursor-text [&_select]:cursor-pointer [&_button]:cursor-pointer [&_label]:!cursor-default [&_label]:!pointer-events-none [&_.array-item]:cursor-default [&_input]:select-text [&_textarea]:select-text [&_label]:!select-none [&_button]:select-none [&_span]:select-none [&_div]:select-none [&_p]:!cursor-default [&_p]:!select-none [&_fieldset]:cursor-default [&_legend]:cursor-default [&_legend]:select-none"
-          />
+          <FieldErrorsContext.Provider value={fieldErrors}>
+            <Form
+              ref={formRef}
+              schema={schema as RJSFSchema}
+              formData={formData}
+              uiSchema={uiSchema as any}
+              validator={validator as any}
+              onSubmit={handleSubmit}
+              onChange={handleChange as any}
+              transformErrors={transformErrors}
+              disabled={disabled || isSaving}
+              widgets={customTheme.widgets}
+              templates={customTheme.templates}
+              noHtml5Validate
+              showErrorList={false}
+              liveValidate={false}
+              focusOnFirstError={false}
+              className="cursor-default [&_input]:cursor-text [&_textarea]:cursor-text [&_select]:cursor-pointer [&_button]:cursor-pointer [&_label]:!cursor-default [&_label]:!pointer-events-none [&_.array-item]:cursor-default [&_input]:select-text [&_textarea]:select-text [&_label]:!select-none [&_button]:select-none [&_span]:select-none [&_div]:select-none [&_p]:!cursor-default [&_p]:!select-none [&_fieldset]:cursor-default [&_legend]:cursor-default [&_legend]:select-none"
+            />
+          </FieldErrorsContext.Provider>
         </div>
       </CardContent>
     </Card>
