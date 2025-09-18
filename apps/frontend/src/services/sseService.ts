@@ -330,11 +330,15 @@ class SSEService {
         this.lastErrorTime = now
         this.notifyErrorListeners(error)
 
-        // 检查是否是token相关的认证错误 (HTTP 401/403)
-        const isAuthError = this.eventSource?.readyState === EventSource.CLOSED &&
-                           (now - this.lastErrorTime < 5000) // 快速失败通常是认证问题
-
-        if (isAuthError) {
+        // 只有在明确是认证错误时才处理token过期
+        // 注意：SSE连接一旦建立成功，token过期不会导致连接断开
+        // 只有在建立新连接时才需要有效token
+        if (this.connectionLimitExceeded) {
+          // 429错误不是token问题，跳过token处理
+          console.log('[SSE] 连接数超限，不是token问题')
+        } else if (this.eventSource?.readyState === EventSource.CLOSED &&
+                   this.consecutiveFailures <= 1) {
+          // 只在第一次失败且不是连接限制时才考虑是token问题
           console.warn('[SSE] 🔑 检测到可能的token过期错误，触发token刷新重连')
           this.handleTokenExpirationError()
           return

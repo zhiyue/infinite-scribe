@@ -12,7 +12,8 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useRounds, useSubmitCommand, usePollCommandStatus } from '@/hooks/useConversations'
-import { useGenesisEvents, useSSEConnection } from '@/hooks/useSSE'
+import { useGenesisEvents } from '@/hooks/useSSE'
+import { useSSEStatus } from '@/contexts'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
@@ -99,11 +100,8 @@ export function GenesisConversation({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
 
-  // SSE连接状态管理
-  const { isConnected: isSSEConnected, connectionState } = useSSEConnection({
-    autoConnect: true,
-    enabled: true,
-  })
+  // SSE连接状态管理 - 使用全局SSE Context
+  const { isConnected: isSSEConnected, connectionState } = useSSEStatus()
 
   // 获取对话轮次
   const {

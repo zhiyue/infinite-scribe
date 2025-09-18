@@ -12,8 +12,8 @@ import {
   useEventHistory,
   useGenesisEvents,
   useNovelEvents,
-  useSSEConnection,
 } from '@/hooks/useSSE'
+import { useSSE } from '@/contexts'
 import { SSEConnectionState } from '@/services/sseService'
 import type { DomainEvent } from '@/types/events'
 import { useState } from 'react'
@@ -22,7 +22,7 @@ import { useState } from 'react'
  * 连接状态显示组件
  */
 function ConnectionStatus() {
-  const { connectionState, error, isConnected, connect, disconnect, reconnect } = useSSEConnection()
+  const { connectionState, error, isConnected, connect, disconnect, reconnect } = useSSE()
 
   const getStatusColor = () => {
     switch (connectionState) {
