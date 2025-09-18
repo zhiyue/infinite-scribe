@@ -97,7 +97,9 @@ class SSEEventStreamer:
                 if connection_id and self.state_manager:
                     self.state_manager.update_connection_activity(connection_id)
 
-                yield ServerSentEvent(data=json.dumps(event.data, ensure_ascii=False), event=event.event, id=event.id)
+                # 添加元信息到数据中，供前端验证
+                data_with_meta = {**event.data, "_scope": event.scope.value, "_version": event.version}
+                yield ServerSentEvent(data=json.dumps(data_with_meta, ensure_ascii=False), event=event.event, id=event.id)
         except Exception as e:
             logger.error(f"Error pushing historical events for user {user_id}: {e}")
 
@@ -115,9 +117,12 @@ class SSEEventStreamer:
             if connection_id and self.state_manager:
                 self.state_manager.update_connection_activity(connection_id)
 
+            # 添加元信息到数据中，供前端验证
+            data_with_meta = {**sse_message.data, "_scope": sse_message.scope.value, "_version": sse_message.version}
+
             # Use ServerSentEvent for structured events
             yield ServerSentEvent(
-                data=json.dumps(sse_message.data, ensure_ascii=False),
+                data=json.dumps(data_with_meta, ensure_ascii=False),
                 event=sse_message.event,
                 id=sse_message.id,
             )
