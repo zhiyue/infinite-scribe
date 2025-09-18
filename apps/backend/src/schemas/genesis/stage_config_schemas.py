@@ -172,3 +172,95 @@ def get_all_stage_config_schemas() -> dict[str, dict]:
                 # 跳过不支持的阶段类型
                 continue
     return schemas
+
+
+def get_stage_order() -> list[GenesisStage]:
+    """获取阶段顺序列表
+
+    Returns:
+        按顺序排列的阶段列表
+    """
+    return [
+        GenesisStage.INITIAL_PROMPT,
+        GenesisStage.WORLDVIEW,
+        GenesisStage.CHARACTERS,
+        GenesisStage.PLOT_OUTLINE,
+        GenesisStage.FINISHED,
+    ]
+
+
+def is_stage_advancement(current_stage: GenesisStage, target_stage: GenesisStage) -> bool:
+    """判断是否为阶段推进（向前）
+
+    Args:
+        current_stage: 当前阶段
+        target_stage: 目标阶段
+
+    Returns:
+        True 如果是向前推进，False 如果是回退或同级
+    """
+    stage_order = get_stage_order()
+
+    try:
+        current_index = stage_order.index(current_stage)
+        target_index = stage_order.index(target_stage)
+        return target_index > current_index
+    except ValueError:
+        # 如果阶段不在列表中，认为不是推进
+        return False
+
+
+def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] | None) -> dict[str, Any]:
+    """检查阶段配置的完整性
+
+    Args:
+        stage: 阶段类型
+        config: 配置数据
+
+    Returns:
+        包含校验结果的字典，格式：
+        {
+            "is_complete": bool,
+            "missing_fields": list[str],
+            "message": str
+        }
+
+    Raises:
+        ValueError: 当阶段类型不支持时
+    """
+    if stage == GenesisStage.FINISHED:
+        # FINISHED阶段不需要配置
+        return {"is_complete": True, "missing_fields": [], "message": "FINISHED stage does not require configuration"}
+
+    if not config:
+        config = {}
+
+    # 获取阶段的必填字段
+    required_fields_map = {
+        GenesisStage.INITIAL_PROMPT: ["genre", "style", "target_word_count"],
+        GenesisStage.WORLDVIEW: ["time_period", "geography_type", "tech_magic_level", "social_structure"],
+        GenesisStage.CHARACTERS: ["protagonist_count", "relationship_complexity", "personality_preferences"],
+        GenesisStage.PLOT_OUTLINE: ["chapter_count_preference", "plot_complexity", "conflict_types"],
+    }
+
+    if stage not in required_fields_map:
+        raise ValueError(f"Unsupported stage type for validation: {stage}")
+
+    required_fields = required_fields_map[stage]
+    missing_fields = []
+
+    for field in required_fields:
+        if field not in config or config[field] is None:
+            missing_fields.append(field)
+        elif isinstance(config[field], (str, list)) and not config[field]:
+            # 空字符串或空列表也视为缺失
+            missing_fields.append(field)
+
+    is_complete = len(missing_fields) == 0
+
+    if is_complete:
+        message = f"Stage {stage.value} configuration is complete"
+    else:
+        message = f"Stage {stage.value} configuration is incomplete. Missing fields: {', '.join(missing_fields)}"
+
+    return {"is_complete": is_complete, "missing_fields": missing_fields, "message": message}

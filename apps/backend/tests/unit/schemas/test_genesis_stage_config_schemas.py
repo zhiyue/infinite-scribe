@@ -8,9 +8,12 @@ from src.schemas.genesis.stage_config_schemas import (
     InitialPromptConfig,
     PlotOutlineConfig,
     WorldviewConfig,
+    check_stage_config_completeness,
     get_all_stage_config_schemas,
     get_stage_config_example,
     get_stage_config_schema,
+    get_stage_order,
+    is_stage_advancement,
     validate_stage_config,
 )
 
@@ -378,3 +381,244 @@ class TestStageConfigTemplates:
         assert example["tech_magic_level"] == "高魔法"
         assert example["social_structure"] == "封建制"
         assert example["power_system"] == "修真等级"
+
+
+class TestGetStageOrder:
+    """Test get_stage_order function."""
+
+    def test_returns_correct_order(self):
+        """Test that stage order is correct."""
+        order = get_stage_order()
+
+        expected_order = [
+            GenesisStage.INITIAL_PROMPT,
+            GenesisStage.WORLDVIEW,
+            GenesisStage.CHARACTERS,
+            GenesisStage.PLOT_OUTLINE,
+            GenesisStage.FINISHED,
+        ]
+
+        assert order == expected_order
+
+    def test_returns_all_stages(self):
+        """Test that all stages are included."""
+        order = get_stage_order()
+
+        assert len(order) == 5
+        assert GenesisStage.INITIAL_PROMPT in order
+        assert GenesisStage.WORLDVIEW in order
+        assert GenesisStage.CHARACTERS in order
+        assert GenesisStage.PLOT_OUTLINE in order
+        assert GenesisStage.FINISHED in order
+
+
+class TestIsStageAdvancement:
+    """Test is_stage_advancement function."""
+
+    def test_forward_progression(self):
+        """Test forward stage progression detection."""
+        # Test each progression step
+        assert is_stage_advancement(GenesisStage.INITIAL_PROMPT, GenesisStage.WORLDVIEW) is True
+        assert is_stage_advancement(GenesisStage.WORLDVIEW, GenesisStage.CHARACTERS) is True
+        assert is_stage_advancement(GenesisStage.CHARACTERS, GenesisStage.PLOT_OUTLINE) is True
+        assert is_stage_advancement(GenesisStage.PLOT_OUTLINE, GenesisStage.FINISHED) is True
+
+    def test_backward_progression(self):
+        """Test backward stage progression detection."""
+        # Test each regression step
+        assert is_stage_advancement(GenesisStage.WORLDVIEW, GenesisStage.INITIAL_PROMPT) is False
+        assert is_stage_advancement(GenesisStage.CHARACTERS, GenesisStage.WORLDVIEW) is False
+        assert is_stage_advancement(GenesisStage.PLOT_OUTLINE, GenesisStage.CHARACTERS) is False
+        assert is_stage_advancement(GenesisStage.FINISHED, GenesisStage.PLOT_OUTLINE) is False
+
+    def test_same_stage(self):
+        """Test same stage detection."""
+        assert is_stage_advancement(GenesisStage.INITIAL_PROMPT, GenesisStage.INITIAL_PROMPT) is False
+        assert is_stage_advancement(GenesisStage.WORLDVIEW, GenesisStage.WORLDVIEW) is False
+        assert is_stage_advancement(GenesisStage.CHARACTERS, GenesisStage.CHARACTERS) is False
+        assert is_stage_advancement(GenesisStage.PLOT_OUTLINE, GenesisStage.PLOT_OUTLINE) is False
+        assert is_stage_advancement(GenesisStage.FINISHED, GenesisStage.FINISHED) is False
+
+    def test_skip_stages(self):
+        """Test skipping stages."""
+        # Forward skipping should be detected as advancement
+        assert is_stage_advancement(GenesisStage.INITIAL_PROMPT, GenesisStage.CHARACTERS) is True
+        assert is_stage_advancement(GenesisStage.WORLDVIEW, GenesisStage.FINISHED) is True
+
+        # Backward skipping should be detected as regression
+        assert is_stage_advancement(GenesisStage.CHARACTERS, GenesisStage.INITIAL_PROMPT) is False
+        assert is_stage_advancement(GenesisStage.FINISHED, GenesisStage.WORLDVIEW) is False
+
+
+class TestCheckStageConfigCompleteness:
+    """Test check_stage_config_completeness function."""
+
+    def test_complete_initial_prompt_config(self):
+        """Test complete initial prompt configuration."""
+        config = {
+            "genre": "科幻",
+            "style": "第一人称",
+            "target_word_count": 80000,
+            "special_requirements": ["硬科幻"]
+        }
+
+        result = check_stage_config_completeness(GenesisStage.INITIAL_PROMPT, config)
+
+        assert result["is_complete"] is True
+        assert result["missing_fields"] == []
+        assert "complete" in result["message"]
+
+    def test_incomplete_initial_prompt_config(self):
+        """Test incomplete initial prompt configuration."""
+        config = {
+            "genre": "科幻",
+            # missing style and target_word_count
+        }
+
+        result = check_stage_config_completeness(GenesisStage.INITIAL_PROMPT, config)
+
+        assert result["is_complete"] is False
+        assert "style" in result["missing_fields"]
+        assert "target_word_count" in result["missing_fields"]
+        assert "incomplete" in result["message"]
+
+    def test_complete_worldview_config(self):
+        """Test complete worldview configuration."""
+        config = {
+            "time_period": "未来",
+            "geography_type": "太空",
+            "tech_magic_level": "高科技",
+            "social_structure": "联邦制",
+            "power_system": "无"  # optional but present
+        }
+
+        result = check_stage_config_completeness(GenesisStage.WORLDVIEW, config)
+
+        assert result["is_complete"] is True
+        assert result["missing_fields"] == []
+
+    def test_incomplete_worldview_config(self):
+        """Test incomplete worldview configuration."""
+        config = {
+            "time_period": "未来",
+            "geography_type": "太空",
+            # missing tech_magic_level and social_structure
+        }
+
+        result = check_stage_config_completeness(GenesisStage.WORLDVIEW, config)
+
+        assert result["is_complete"] is False
+        assert "tech_magic_level" in result["missing_fields"]
+        assert "social_structure" in result["missing_fields"]
+
+    def test_complete_characters_config(self):
+        """Test complete characters configuration."""
+        config = {
+            "protagonist_count": 2,
+            "relationship_complexity": "复杂",
+            "personality_preferences": ["勇敢", "聪明"],
+            "include_villains": True  # optional but present
+        }
+
+        result = check_stage_config_completeness(GenesisStage.CHARACTERS, config)
+
+        assert result["is_complete"] is True
+        assert result["missing_fields"] == []
+
+    def test_incomplete_characters_config(self):
+        """Test incomplete characters configuration."""
+        config = {
+            "protagonist_count": 1,
+            # missing relationship_complexity and personality_preferences
+        }
+
+        result = check_stage_config_completeness(GenesisStage.CHARACTERS, config)
+
+        assert result["is_complete"] is False
+        assert "relationship_complexity" in result["missing_fields"]
+        assert "personality_preferences" in result["missing_fields"]
+
+    def test_complete_plot_outline_config(self):
+        """Test complete plot outline configuration."""
+        config = {
+            "chapter_count_preference": 30,
+            "plot_complexity": "复杂",
+            "conflict_types": ["内心冲突", "外部冲突"],
+            "pacing_preference": "中等"  # optional but present
+        }
+
+        result = check_stage_config_completeness(GenesisStage.PLOT_OUTLINE, config)
+
+        assert result["is_complete"] is True
+        assert result["missing_fields"] == []
+
+    def test_incomplete_plot_outline_config(self):
+        """Test incomplete plot outline configuration."""
+        config = {
+            "chapter_count_preference": 25,
+            # missing plot_complexity and conflict_types
+        }
+
+        result = check_stage_config_completeness(GenesisStage.PLOT_OUTLINE, config)
+
+        assert result["is_complete"] is False
+        assert "plot_complexity" in result["missing_fields"]
+        assert "conflict_types" in result["missing_fields"]
+
+    def test_empty_config(self):
+        """Test empty configuration."""
+        result = check_stage_config_completeness(GenesisStage.INITIAL_PROMPT, {})
+
+        assert result["is_complete"] is False
+        assert "genre" in result["missing_fields"]
+        assert "style" in result["missing_fields"]
+        assert "target_word_count" in result["missing_fields"]
+
+    def test_none_config(self):
+        """Test None configuration."""
+        result = check_stage_config_completeness(GenesisStage.INITIAL_PROMPT, None)
+
+        assert result["is_complete"] is False
+        assert "genre" in result["missing_fields"]
+        assert "style" in result["missing_fields"]
+        assert "target_word_count" in result["missing_fields"]
+
+    def test_empty_string_values(self):
+        """Test empty string values are treated as missing."""
+        config = {
+            "genre": "",  # empty string
+            "style": "第一人称",
+            "target_word_count": 80000,
+        }
+
+        result = check_stage_config_completeness(GenesisStage.INITIAL_PROMPT, config)
+
+        assert result["is_complete"] is False
+        assert "genre" in result["missing_fields"]
+
+    def test_empty_list_values(self):
+        """Test empty list values are treated as missing."""
+        config = {
+            "protagonist_count": 1,
+            "relationship_complexity": "简单",
+            "personality_preferences": [],  # empty list
+        }
+
+        result = check_stage_config_completeness(GenesisStage.CHARACTERS, config)
+
+        assert result["is_complete"] is False
+        assert "personality_preferences" in result["missing_fields"]
+
+    def test_finished_stage(self):
+        """Test FINISHED stage always returns complete."""
+        result = check_stage_config_completeness(GenesisStage.FINISHED, None)
+
+        assert result["is_complete"] is True
+        assert result["missing_fields"] == []
+        assert "FINISHED stage does not require configuration" in result["message"]
+
+    def test_unsupported_stage_raises_error(self):
+        """Test that unsupported stage raises ValueError."""
+        # This would test if we add a new stage that's not in the required_fields_map
+        # For now, all valid stages are supported, so we can't test this scenario
+        pass

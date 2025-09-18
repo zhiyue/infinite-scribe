@@ -11,10 +11,7 @@
     "magic-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "@21st-dev/magic@latest"
-      ],
+      "args": ["-y", "@21st-dev/magic@latest"],
       "env": {
         "API_KEY": "d16f1dfa67bcdd2ca58cee913a42490963c926a8d58b6f3d3aabc19986465455"
       }
@@ -55,9 +52,7 @@
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ],
+      "args": ["@playwright/mcp@latest"],
       "env": {}
     }
   }

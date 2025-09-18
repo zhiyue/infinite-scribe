@@ -12,7 +12,18 @@ ignore_all_files_in_gitignore: true
 # same syntax as gitignore, so you can use * and **
 # Was previously called `ignored_dirs`, please update your config if you are using that.
 # Added (renamed) on 2025-04-07
-ignored_paths: ['.specstory', '.claude', '.bmad-core', '.clinerules', '.cursor', '.gemini', '.kiro', '.taskmaster', '.trae']
+ignored_paths:
+  [
+    '.specstory',
+    '.claude',
+    '.bmad-core',
+    '.clinerules',
+    '.cursor',
+    '.gemini',
+    '.kiro',
+    '.taskmaster',
+    '.trae',
+  ]
 
 # whether the project is in read-only mode
 # If set to true, all editing tools will be disabled and attempts to use them will result in an error
@@ -66,4 +77,7 @@ initial_prompt: ''
 
 project_name: 'infinite-scribe'
 
-web_dashboard_open_on_launch: false
+web_dashboard: false # 彻底禁用 Web 仪表盘服务
+web_dashboard_open_on_launch: false # 不在启动时打开浏览器
+gui_log_window: false #（可选）禁用 GUI 日志窗口
+
