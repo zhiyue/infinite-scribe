@@ -243,11 +243,10 @@ export class GenesisService {
     stage: GenesisStage,
     headers?: ConversationHeaders,
   ): Promise<Record<string, any>> {
-    const response = await authenticatedApiService.get<ApiResponse<Record<string, any>>>(
+    return authenticatedApiService.get<Record<string, any>>(
       `${this.basePath}/stages/${stage}/config/schema`,
       { headers: buildHeaders(headers) },
     )
-    return handleApiResponse(response)
   }
 
   /**
@@ -258,11 +257,10 @@ export class GenesisService {
     stage: GenesisStage,
     headers?: ConversationHeaders,
   ): Promise<Record<string, any>> {
-    const response = await authenticatedApiService.get<ApiResponse<Record<string, any>>>(
+    return authenticatedApiService.get<Record<string, any>>(
       `${this.basePath}/stages/${stage}/config/template`,
       { headers: buildHeaders(headers) },
     )
-    return handleApiResponse(response)
   }
 
   /**

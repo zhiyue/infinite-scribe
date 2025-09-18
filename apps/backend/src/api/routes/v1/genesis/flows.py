@@ -231,6 +231,34 @@ async def switch_flow_stage(
         set_common_headers(response, correlation_id=corr_id, etag=f'"{data.version}"')
         return ApiResponse(code=0, msg="Genesis flow stage switched successfully", data=data)
 
+    except ValueError as e:
+        # Handle stage configuration validation errors
+        await flow_service.db_session.rollback()
+        error_msg = str(e)
+        logger.warning(f"Stage validation failed for novel {novel_id}: {error_msg}")
+
+        # Extract user-friendly information from the error message
+        if "Required fields are missing" in error_msg:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "type": "stage_config_incomplete",
+                    "message": error_msg,
+                    "user_message": "当前阶段配置不完整，请先完成必填字段的配置后再切换到下一阶段",
+                    "action_required": "complete_current_stage_config"
+                }
+            ) from e
+        else:
+            # Other validation errors
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "type": "stage_validation_error",
+                    "message": error_msg,
+                    "user_message": "阶段切换失败，请检查当前阶段状态",
+                    "action_required": "check_stage_status"
+                }
+            ) from e
     except HTTPException:
         raise
     except Exception as e:

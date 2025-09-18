@@ -66,7 +66,7 @@ describe('HTTP Clients', () => {
           status: 200,
           statusText: 'OK',
           headers: {},
-          config: {},
+          config: { headers: {} },
           request: {},
         }
 
@@ -85,7 +85,7 @@ describe('HTTP Clients', () => {
           status: 201,
           statusText: 'Created',
           headers: {},
-          config: {},
+          config: { headers: {} },
           request: {},
         }
 
@@ -104,7 +104,7 @@ describe('HTTP Clients', () => {
           status: 200,
           statusText: 'OK',
           headers: {},
-          config: {},
+          config: { headers: {} },
           request: {},
         }
 
@@ -122,7 +122,7 @@ describe('HTTP Clients', () => {
           status: 204,
           statusText: 'No Content',
           headers: {},
-          config: {},
+          config: { headers: {} },
           request: {},
         }
 
@@ -145,7 +145,7 @@ describe('HTTP Clients', () => {
           status: 200,
           statusText: 'OK',
           headers: {},
-          config: {},
+          config: { headers: {} },
           request: {},
         })
 
@@ -339,7 +339,7 @@ describe('HTTP Clients', () => {
           },
         }
 
-        const customClient = new AxiosHttpClient(customConfig)
+        new AxiosHttpClient(customConfig)
 
         expect(mockedAxios.create).toHaveBeenCalledWith({
           timeout: 10000,
@@ -552,7 +552,7 @@ describe('HTTP Clients', () => {
 
         httpClient.addRequestInterceptor()
         httpClient.addResponseInterceptor()
-        httpClient.removeInterceptor('request', 1)
+        httpClient.removeInterceptor()
 
         expect(consoleSpy).toHaveBeenCalledWith(
           'Request interceptors not supported in FetchHttpClient',
@@ -688,7 +688,7 @@ describe('HTTP Clients', () => {
       it('应该提供拦截器方法存根', () => {
         expect(httpClient.addRequestInterceptor()).toBe(0)
         expect(httpClient.addResponseInterceptor()).toBe(0)
-        expect(() => httpClient.removeInterceptor('request', 1)).not.toThrow()
+        expect(() => httpClient.removeInterceptor()).not.toThrow()
       })
     })
   })
@@ -741,10 +741,10 @@ describe('HTTP Clients', () => {
         createHttpClient('axios', config)
 
         expect(mockedAxios.create).toHaveBeenCalledWith({
-          timeout: 10000,
           headers: {
             'Content-Type': 'application/json',
           },
+          timeout: 10000,
           ...config,
         })
       })
@@ -773,10 +773,10 @@ describe('HTTP Clients', () => {
         createAutoHttpClient(config)
 
         expect(mockedAxios.create).toHaveBeenCalledWith({
-          timeout: 10000,
           headers: {
             'Content-Type': 'application/json',
           },
+          timeout: 10000,
           ...config,
         })
       })

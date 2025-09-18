@@ -17,10 +17,11 @@ import {
   Users,
   Eye,
   EyeOff,
-  ExternalLink,
+  Settings,
 } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 import { GenesisSettingsModal } from './GenesisSettingsModal'
+import { StageConfigModal } from './StageConfigModal'
 import { useGenesisFlow } from '@/hooks/useGenesisFlow'
 
 interface NovelSettings {
@@ -75,7 +76,8 @@ interface SettingsSectionProps {
   hasContent: boolean
   preview?: string
   onJumpTo?: (stage: GenesisStage) => void
-  onViewDetails?: () => void
+  onViewDetails?: (stage: GenesisStage) => void
+  onConfigStage?: (stage: GenesisStage) => void
 }
 
 /**
@@ -91,6 +93,7 @@ function SettingsSection({
   preview,
   onJumpTo,
   onViewDetails,
+  onConfigStage,
 }: SettingsSectionProps) {
   return (
     <Card
@@ -99,7 +102,7 @@ function SettingsSection({
         stage === currentStage && 'border-primary',
         isCompleted && 'bg-muted/30',
       )}
-      onClick={onViewDetails}
+      onClick={() => handleViewDetails(stage)}
     >
       <CardHeader className="pb-2 pt-3">
         <div className="flex items-center justify-between">
@@ -112,12 +115,6 @@ function SettingsSection({
               )}
             />
             <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
-            <Badge
-              variant={stage === currentStage ? 'default' : isCompleted ? 'secondary' : 'outline'}
-              className="h-5 px-1.5 text-xs ml-auto flex-shrink-0"
-            >
-              {stage === currentStage ? '进行中' : isCompleted ? '已完成' : '未开始'}
-            </Badge>
           </div>
 
           <div className="flex items-center gap-1 ml-2">
@@ -135,17 +132,48 @@ function SettingsSection({
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onViewDetails?.()
-              }}
-              className="h-6 w-6 p-0"
-            >
-              <ExternalLink className="h-3 w-3" />
-            </Button>
+            {/* 当前阶段显示配置和查看两个按钮，之前阶段只显示查看按钮 */}
+            {stage === currentStage ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleConfigStage(stage)
+                  }}
+                  className="h-6 w-6 p-0"
+                  title="配置此阶段"
+                >
+                  <Settings className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleViewDetails(stage)
+                  }}
+                  className="h-6 w-6 p-0"
+                  title="查看详情"
+                >
+                  <Eye className="h-3 w-3" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleViewDetails(stage)
+                }}
+                className="h-6 w-6 p-0"
+                title="查看详情"
+              >
+                <Eye className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -158,7 +186,9 @@ function SettingsSection({
 
       {!hasContent && (
         <CardContent className="pt-0 pb-3">
-          <p className="text-xs text-muted-foreground">点击配置此阶段</p>
+          <p className="text-xs text-muted-foreground">
+            {stage === currentStage ? '点击配置此阶段' : '点击查看详情'}
+          </p>
         </CardContent>
       )}
     </Card>
@@ -177,6 +207,7 @@ export function GenesisSettingsOverview({
 }: GenesisSettingsOverviewProps) {
   const [isVisible, setIsVisible] = useState(true)
   const [modalStage, setModalStage] = useState<GenesisStage | null>(null)
+  const [configModalStage, setConfigModalStage] = useState<GenesisStage | null>(null)
 
   // 获取 Genesis 流程信息
   const { flow, hasFlow } = useGenesisFlow(novelId)
@@ -194,6 +225,26 @@ export function GenesisSettingsOverview({
     const currentIndex = stageOrder.indexOf(currentStage)
     const stageIndex = stageOrder.indexOf(stage)
     return stageIndex <= currentIndex && stageIndex >= 0
+  }
+
+  // 处理点击查看详情 - 只读模式
+  const handleViewDetails = (stage: GenesisStage) => {
+    // 所有阶段的查看都是只读模式
+    setModalStage(stage)
+  }
+
+  // 处理点击配置 - 只有当前阶段可用
+  const handleConfigStage = (stage: GenesisStage) => {
+    if (stage === currentStage && flow?.current_stage_id) {
+      // 当前阶段，打开可编辑的配置表单
+      setConfigModalStage(stage)
+    }
+  }
+
+  // 处理配置保存成功
+  const handleConfigSaved = (config: Record<string, any>) => {
+    console.log('[GenesisSettingsOverview] Config saved:', config)
+    // 可以在这里刷新相关数据或显示成功提示
   }
 
   // 判断阶段是否完成（简化版本，实际应该从API获取）
@@ -297,7 +348,7 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.INITIAL_PROMPT)}
                   preview={getStagePreview(GenesisStage.INITIAL_PROMPT)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => setModalStage(GenesisStage.INITIAL_PROMPT)}
+                  onViewDetails={() => handleViewDetails(GenesisStage.INITIAL_PROMPT)}
                 />
               )}
 
@@ -312,7 +363,7 @@ export function GenesisSettingsOverview({
                   hasContent={hasStageContent(GenesisStage.WORLDVIEW)}
                   preview={getStagePreview(GenesisStage.WORLDVIEW)}
                   onJumpTo={onStageJump}
-                  onViewDetails={() => setModalStage(GenesisStage.WORLDVIEW)}
+                  onViewDetails={() => handleViewDetails(GenesisStage.WORLDVIEW)}
                 />
               )}
 
@@ -350,13 +401,24 @@ export function GenesisSettingsOverview({
         </CardContent>
       </Card>
 
-      {/* 设定详情模态窗口 */}
+      {/* 设定详情模态窗口 - 只读查看 */}
       <GenesisSettingsModal
         open={modalStage !== null}
         onOpenChange={(open) => !open && setModalStage(null)}
         stage={modalStage}
         settings={settings}
       />
+
+      {/* 配置编辑模态窗口 - 可编辑表单 */}
+      {configModalStage && flow?.current_stage_id && (
+        <StageConfigModal
+          open={configModalStage !== null}
+          onOpenChange={(open) => !open && setConfigModalStage(null)}
+          stage={configModalStage}
+          stageId={flow.current_stage_id}
+          onConfigSaved={handleConfigSaved}
+        />
+      )}
     </>
   )
 }

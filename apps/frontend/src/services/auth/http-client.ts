@@ -507,7 +507,7 @@ export class MockHttpClient implements IHttpClient {
     // Mock implementation
   }
 
-  setBaseURL(baseURL: string): void {
+  setBaseURL(_baseURL: string): void {
     // Mock implementation - not actually used in mock client
   }
 
@@ -605,7 +605,12 @@ export function createAutoHttpClient(config?: AxiosRequestConfig): IHttpClient {
   try {
     return new AxiosHttpClient(config)
   } catch {
-    // 降级到 fetch
-    return new FetchHttpClient(config)
+    // 降级到 fetch - 转换配置格式
+    const fetchConfig = config ? {
+      baseURL: config.baseURL,
+      timeout: config.timeout,
+      headers: config.headers as Record<string, string>
+    } : undefined
+    return new FetchHttpClient(fetchConfig)
   }
 }
