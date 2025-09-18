@@ -172,27 +172,83 @@ class RedisSSEService:
 
     async def publish_event(self, user_id: str, event: SSEMessage) -> str:
         """Publish event to user channel via Streams + Pub/Sub architecture."""
-        client: Redis = self._get_pubsub_client()
+        logger.info(f"📤 Publishing SSE event", extra={
+            "user_id": user_id,
+            "event_type": event.event,
+            "event_scope": event.scope.value if event.scope else None,
+            "event_id": event.id,
+            "has_data": bool(event.data),
+            "data_size": len(json.dumps(event.data, default=str)) if event.data else 0
+        })
 
-        stream_key = f"events:user:{user_id}"
-        channel = f"sse:user:{user_id}"
+        try:
+            client: Redis = self._get_pubsub_client()
 
-        # Add to stream for persistence
-        async with self.redis_service.acquire() as redis_client:
-            stream_id = await redis_client.xadd(
-                stream_key,
-                {"event": event.event, "data": json.dumps(event.data, ensure_ascii=False, default=str)},
-                maxlen=settings.database.redis_sse_stream_maxlen,
-                approximate=True,
-            )
+            stream_key = f"events:user:{user_id}"
+            channel = f"sse:user:{user_id}"
 
-        # Set event ID for consistency
-        event.id = stream_id
+            logger.debug(f"📝 Preparing Redis operations", extra={
+                "user_id": user_id,
+                "stream_key": stream_key,
+                "channel": channel,
+                "maxlen": settings.database.redis_sse_stream_maxlen
+            })
 
-        # Publish pointer for real-time notification
-        await client.publish(channel, json.dumps({"stream_key": stream_key, "stream_id": stream_id}))
+            # Add to stream for persistence
+            async with self.redis_service.acquire() as redis_client:
+                logger.debug(f"💾 Adding event to Redis stream", extra={
+                    "user_id": user_id,
+                    "stream_key": stream_key,
+                    "event_type": event.event
+                })
 
-        return stream_id
+                stream_id = await redis_client.xadd(
+                    stream_key,
+                    {"event": event.event, "data": json.dumps(event.data, ensure_ascii=False, default=str)},
+                    maxlen=settings.database.redis_sse_stream_maxlen,
+                    approximate=True,
+                )
+
+                logger.debug(f"✅ Event added to stream", extra={
+                    "user_id": user_id,
+                    "stream_key": stream_key,
+                    "stream_id": stream_id,
+                    "event_type": event.event
+                })
+
+            # Set event ID for consistency
+            event.id = stream_id
+
+            # Publish pointer for real-time notification
+            pointer_data = {"stream_key": stream_key, "stream_id": stream_id}
+            
+            logger.debug(f"📡 Publishing real-time notification", extra={
+                "user_id": user_id,
+                "channel": channel,
+                "stream_id": stream_id,
+                "pointer_data": pointer_data
+            })
+
+            await client.publish(channel, json.dumps(pointer_data))
+
+            logger.info(f"✅ SSE event published successfully", extra={
+                "user_id": user_id,
+                "event_type": event.event,
+                "stream_id": stream_id,
+                "stream_key": stream_key,
+                "channel": channel
+            })
+
+            return stream_id
+
+        except Exception as e:
+            logger.error(f"❌ Failed to publish SSE event", extra={
+                "user_id": user_id,
+                "event_type": event.event,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            raise
 
     async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
         """

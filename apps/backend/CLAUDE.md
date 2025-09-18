@@ -535,7 +535,8 @@ class MyServiceClient(BaseHttpClient):
 2. **Database connection**: Verify services are running (`pnpm check services`)
 3. **Migration conflicts**: Use `alembic merge` for branch conflicts
 4. **Test failures**: Ensure test database is clean between runs
-5. **Testcontainer issues**:
+5. **Backend logs**: Check `apps/backend/logs/is-launcher_YYYYMMDD.log` (e.g., `is-launcher_20250919.log` for current date)
+6. **Testcontainer issues**:
    - Docker daemon not running: Start Docker Desktop or Docker service
    - Permission errors: Ensure user is in docker group (Linux)
    - Port conflicts: Let testcontainers auto-assign ports

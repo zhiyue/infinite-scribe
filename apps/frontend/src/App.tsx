@@ -3,6 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import RequireAuth from './components/auth/RequireAuth'
 import { queryClient } from './lib/queryClient'
+import { SSEProvider } from './contexts'
+import { API_ENDPOINTS } from './config/api'
 
 // Pages
 import EmailVerificationPage from './pages/auth/EmailVerification'
@@ -19,6 +21,7 @@ import CreateNovel from './pages/CreateNovel'
 
 // Test Component
 import { TestMSW } from './components/TestMSW'
+import SSEDebugPanel from './components/debug/SSEDebugPanel'
 
 // Global styles
 import './index.css'
@@ -26,11 +29,22 @@ import './index.css'
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="App">
-          <Routes>
-            {/* Test Route - Only in development */}
-            {import.meta.env.DEV && <Route path="/test-msw" element={<TestMSW />} />}
+      <SSEProvider endpoint={API_ENDPOINTS.sse.stream}>
+        <Router>
+          <div className="App">
+            <Routes>
+            {/* Test Routes - Only in development */}
+            {import.meta.env.DEV && (
+              <>
+                <Route path="/test-msw" element={<TestMSW />} />
+                <Route path="/debug/sse" element={
+                  <div className="container mx-auto p-4">
+                    <h1 className="text-2xl font-bold mb-4">SSE调试面板</h1>
+                    <SSEDebugPanel />
+                  </div>
+                } />
+              </>
+            )}
 
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -98,11 +112,12 @@ function App() {
 
             {/* Catch all route - redirect to login */}
             <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </div>
-      </Router>
-      {/* React Query DevTools - 仅在开发环境显示 */}
-      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+            </Routes>
+          </div>
+        </Router>
+        {/* React Query DevTools - 仅在开发环境显示 */}
+        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+      </SSEProvider>
     </QueryClientProvider>
   )
 }

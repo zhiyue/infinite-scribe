@@ -3,9 +3,10 @@
  * 管理与后端的实时事件连接
  */
 
-import { API_BASE_URL } from '@/config/api'
+import { API_BASE_URL, API_ENDPOINTS } from '@/config/api'
 import type { DomainEvent, SSEEvent } from '@/types/events'
 import { authService } from './auth'
+import { sseTokenService } from './sseTokenService'
 
 /**
  * SSE 连接配置
@@ -49,6 +50,10 @@ class SSEService {
   private reconnectAttempts = 0
   private reconnectTimer: NodeJS.Timeout | null = null
   private connectionState: SSEConnectionState = SSEConnectionState.DISCONNECTED
+  private lastErrorTime: number = 0
+  private isReconnecting = false
+  private consecutiveFailures = 0
+  private lastFailureTime: number = 0
 
   // 事件监听器
   private eventListeners = new Map<string, Set<SSEEventListener>>()
@@ -69,73 +74,162 @@ class SSEService {
   /**
    * 连接到 SSE 端点
    */
-  connect(endpoint = '/events'): void {
+  async connect(endpoint = API_ENDPOINTS.sse.stream): Promise<void> {
+    console.log(`[SSE] 开始连接到端点: ${endpoint}`)
+
+    // 防止重复连接
     if (this.eventSource?.readyState === EventSource.OPEN) {
-      if (import.meta.env.DEV) {
-        console.warn('[SSE] 连接已存在')
-      }
+      console.warn(`[SSE] 连接已存在，状态: ${this.eventSource.readyState}`)
       return
     }
 
+    // 防止在重连过程中重复调用
+    if (this.isReconnecting) {
+      console.warn(`[SSE] 重连已在进行中，忽略新的连接请求`)
+      return
+    }
+
+    // 检查是否刚刚失败过，避免过于频繁的重试
+    const now = Date.now()
+    if (this.lastErrorTime && (now - this.lastErrorTime) < 1000) {
+      console.warn(`[SSE] 距离上次错误时间过短，延迟重连`)
+      return
+    }
+
+    // 检查是否已达到最大重连次数
+    if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
+      console.error(`[SSE] ❌ 已达到最大重连次数 (${this.config.maxReconnectAttempts})，停止连接`)
+      this.setState(SSEConnectionState.ERROR)
+      return
+    }
+
+    console.log(`[SSE] 设置连接状态为 CONNECTING`)
     this.setState(SSEConnectionState.CONNECTING)
     this.cleanup()
 
     try {
       const url = new URL(endpoint, this.baseURL)
+      console.log(`[SSE] 构建连接URL: ${this.baseURL}${endpoint}`)
 
-      // 添加认证token到URL参数
-      const token = authService.getAccessToken()
-      if (token) {
+      // 获取SSE专用token
+      try {
+        console.log(`[SSE] 正在获取SSE token...`)
+        const token = await sseTokenService.getValidSSEToken()
         url.searchParams.set('token', token)
+        console.log(`[SSE] ✅ 已添加SSE token到URL参数`)
+      } catch (tokenError) {
+        console.error(`[SSE] ❌ 获取SSE token失败:`, tokenError)
+        this.setState(SSEConnectionState.ERROR)
+        this.lastErrorTime = now
+        this.notifyErrorListeners(tokenError as Error)
+        return
       }
 
+      console.log(`[SSE] 最终连接URL: ${url.toString().replace(/token=[^&]+/, 'token=***')}`)
       this.eventSource = new EventSource(url.toString())
+      console.log(`[SSE] EventSource 创建成功，初始状态: ${this.eventSource.readyState}`)
 
       // 连接打开
       this.eventSource.onopen = () => {
-        if (import.meta.env.DEV) {
-          console.log('[SSE] 连接已建立')
-        }
+        console.log(`[SSE] ✅ 连接已成功建立，readyState: ${this.eventSource?.readyState}`)
         this.setState(SSEConnectionState.CONNECTED)
         this.reconnectAttempts = 0
+        this.consecutiveFailures = 0
+        this.isReconnecting = false
+        this.lastErrorTime = 0
+        this.lastFailureTime = 0
+        console.log(`[SSE] 重连计数器和失败计数器已重置为 0`)
       }
 
       // 接收消息
       this.eventSource.onmessage = (event) => {
+        console.log(`[SSE] 📨 收到原始消息:`, {
+          type: event.type,
+          data: event.data,
+          lastEventId: event.lastEventId,
+          origin: event.origin
+        })
+
         try {
           const data = JSON.parse(event.data) as SSEEvent
+          console.log(`[SSE] 📋 解析后的消息:`, {
+            type: data.type,
+            dataKeys: Object.keys(data.data || {}),
+            id: data.id
+          })
           this.handleEvent(data, event)
         } catch (error) {
-          if (import.meta.env.DEV) {
-            console.error('[SSE] 解析消息失败:', error)
-          }
+          console.error(`[SSE] ❌ 解析消息失败:`, {
+            error: error,
+            rawData: event.data,
+            eventType: event.type
+          })
           this.notifyErrorListeners(error as Error)
         }
       }
 
       // 连接错误
       this.eventSource.onerror = (error) => {
-        if (import.meta.env.DEV) {
-          console.error('[SSE] 连接错误:', error)
+        const now = Date.now()
+
+        // 检测连续快速失败
+        if (this.lastFailureTime && (now - this.lastFailureTime) < 2000) {
+          this.consecutiveFailures++
+        } else {
+          this.consecutiveFailures = 1
         }
+        this.lastFailureTime = now
+
+        console.error(`[SSE] ❌ 连接错误发生:`, {
+          readyState: this.eventSource?.readyState,
+          reconnectAttempts: this.reconnectAttempts,
+          consecutiveFailures: this.consecutiveFailures,
+          maxAttempts: this.config.maxReconnectAttempts,
+          error: error
+        })
+
         this.setState(SSEConnectionState.ERROR)
+        this.lastErrorTime = now
         this.notifyErrorListeners(error)
 
-        if (
-          this.config.enableReconnect &&
-          this.reconnectAttempts < this.config.maxReconnectAttempts
-        ) {
+        // 如果连续快速失败超过3次，可能是端点不存在或配置错误，停止重连
+        const shouldStopReconnecting =
+          !this.config.enableReconnect ||
+          this.reconnectAttempts >= this.config.maxReconnectAttempts ||
+          this.isReconnecting ||
+          this.consecutiveFailures >= 3
+
+        if (!shouldStopReconnecting) {
+          console.log(`[SSE] 🔄 准备进行重连 (${this.reconnectAttempts + 1}/${this.config.maxReconnectAttempts})`)
           this.scheduleReconnect(endpoint)
+        } else {
+          console.warn(`[SSE] ⛔ 停止重连:`, {
+            enableReconnect: this.config.enableReconnect,
+            reconnectAttempts: this.reconnectAttempts,
+            maxAttempts: this.config.maxReconnectAttempts,
+            consecutiveFailures: this.consecutiveFailures,
+            isReconnecting: this.isReconnecting
+          })
+
+          // 确保状态设置为ERROR并停止重连
+          this.setState(SSEConnectionState.ERROR)
+          this.isReconnecting = false
+          this.cleanup()
         }
       }
 
       // 监听特定事件类型
       this.setupEventListeners()
+      console.log(`[SSE] 特定事件监听器已设置`)
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[SSE] 连接失败:', error)
-      }
+      console.error(`[SSE] ❌ 连接建立失败:`, {
+        endpoint,
+        error: error,
+        baseURL: this.baseURL
+      })
       this.setState(SSEConnectionState.ERROR)
+      this.lastErrorTime = Date.now()
+      this.isReconnecting = false
       this.notifyErrorListeners(error as Error)
     }
   }
@@ -144,21 +238,26 @@ class SSEService {
    * 断开连接
    */
   disconnect(): void {
+    console.log(`[SSE] 🔌 开始断开连接`)
+    this.isReconnecting = false
     this.cleanup()
     this.setState(SSEConnectionState.DISCONNECTED)
-    if (import.meta.env.DEV) {
-      console.log('[SSE] 连接已断开')
-    }
+    console.log(`[SSE] ✅ 连接已断开完成`)
   }
 
   /**
    * 添加事件监听器
    */
   addEventListener<T = unknown>(eventType: string, listener: SSEEventListener<T>): void {
+    console.log(`[SSE] 📝 添加事件监听器: ${eventType}`)
+
     if (!this.eventListeners.has(eventType)) {
       this.eventListeners.set(eventType, new Set())
+      console.log(`[SSE] 🆕 为事件类型 ${eventType} 创建新的监听器集合`)
     }
+
     this.eventListeners.get(eventType)!.add(listener as SSEEventListener)
+    console.log(`[SSE] ✅ 监听器已添加，${eventType} 类型现有 ${this.eventListeners.get(eventType)!.size} 个监听器`)
   }
 
   /**
@@ -214,6 +313,30 @@ class SSEService {
    */
   isConnected(): boolean {
     return this.connectionState === SSEConnectionState.CONNECTED
+  }
+
+  /**
+   * 是否正在重连
+   */
+  isReconnectingNow(): boolean {
+    return this.isReconnecting
+  }
+
+  /**
+   * 获取重连状态信息
+   */
+  getReconnectInfo(): {
+    attempts: number,
+    maxAttempts: number,
+    isReconnecting: boolean,
+    lastErrorTime: number
+  } {
+    return {
+      attempts: this.reconnectAttempts,
+      maxAttempts: this.config.maxReconnectAttempts,
+      isReconnecting: this.isReconnecting,
+      lastErrorTime: this.lastErrorTime
+    }
   }
 
   /**
@@ -313,24 +436,34 @@ class SSEService {
   }
 
   /**
-   * 安排重连
+   * 安排重连 (带指数退避)
    */
   private scheduleReconnect(endpoint: string): void {
-    if (this.reconnectTimer) return
+    if (this.reconnectTimer || this.isReconnecting) {
+      console.log(`[SSE] 重连已在进行中，跳过新的重连安排`)
+      return
+    }
 
     this.setState(SSEConnectionState.RECONNECTING)
+    this.isReconnecting = true
     this.reconnectAttempts++
+
+    // 指数退避：第1次3秒，第2次6秒，第3次12秒，以此类推
+    const backoffDelay = this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1)
+    const maxDelay = 30000 // 最大30秒
+    const actualDelay = Math.min(backoffDelay, maxDelay)
 
     if (import.meta.env.DEV) {
       console.log(
-        `[SSE] ${this.config.reconnectInterval}ms 后进行第 ${this.reconnectAttempts} 次重连`,
+        `[SSE] ${actualDelay}ms 后进行第 ${this.reconnectAttempts} 次重连 (指数退避)`,
       )
     }
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
+      console.log(`[SSE] 执行重连尝试 ${this.reconnectAttempts}`)
       this.connect(endpoint)
-    }, this.config.reconnectInterval)
+    }, actualDelay)
   }
 
   /**

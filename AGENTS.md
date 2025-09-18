@@ -172,7 +172,9 @@ When multiple valid approaches exist, choose based on:
 ## Project Structure & Module Organization
 
 - `apps/backend/`: FastAPI service and agents. Code in `src/` (API, agents,
-  models, schemas, middleware). Tests in `tests/unit` and `tests/integration`.
+  models, schemas, middleware). Tests in `tests/unit` and `tests/integration`。
+  排查日志时到 `apps/backend/logs` 查看当日文件，例如 `is-launcher_20250919.log`
+  中的 `20250919` 为当前日期（格式 `YYYYMMDD`）。
 - `apps/frontend/`: React + Vite + TypeScript app. App code in `src/`, E2E in
   `e2e/`.
 - `scripts/`: Unified runner and deployment tooling. `deploy/` contains Compose

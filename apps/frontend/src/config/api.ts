@@ -5,6 +5,11 @@ export const API_VERSION = 'v1'
 // API端点
 export const API_ENDPOINTS = {
   health: '/health',
+  // SSE (Server-Sent Events) 端点
+  sse: {
+    stream: `/api/${API_VERSION}/events/stream`,
+    health: `/api/${API_VERSION}/events/health`,
+  },
   genesis: {
     start: `/api/${API_VERSION}/genesis/start`,
     status: (sessionId: string) => `/api/${API_VERSION}/genesis/status/${sessionId}`,

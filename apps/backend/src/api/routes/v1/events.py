@@ -69,16 +69,49 @@ async def sse_stream(
     sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
 ):
     """SSE streaming endpoint for real-time events."""
-    user_id = verify_sse_token(sse_token)
+    logger.info(f"🌟 SSE stream endpoint accessed", extra={
+        "client_host": request.client.host if request.client else "unknown",
+        "user_agent": request.headers.get("user-agent", "unknown"),
+        "has_sse_token": bool(sse_token),
+        "last_event_id": request.headers.get("last-event-id"),
+        "endpoint": "/api/v1/events/stream"
+    })
 
     try:
-        return await sse_connection_manager.add_connection(request, user_id)
-    except HTTPException:
+        # 验证SSE token并获取用户ID
+        logger.debug("🔐 开始验证SSE token")
+        user_id = verify_sse_token(sse_token)
+        logger.info(f"✅ SSE token验证成功", extra={
+            "user_id": user_id,
+            "client_host": request.client.host if request.client else "unknown"
+        })
+
+        # 建立SSE连接
+        logger.info(f"🔗 准备建立SSE连接", extra={
+            "user_id": user_id,
+            "endpoint": "/api/v1/events/stream"
+        })
+
+        response = await sse_connection_manager.add_connection(request, user_id)
+
+        logger.info(f"🎉 SSE连接建立成功", extra={
+            "user_id": user_id,
+            "response_type": type(response).__name__
+        })
+
+        return response
+
+    except HTTPException as e:
+        logger.warning(f"SSE连接被拒绝: {e.detail}", extra={
+            "status_code": e.status_code,
+            "user_agent": request.headers.get("user-agent", "unknown")[:50]
+        })
         raise
     except Exception as e:
-        logger.error(f"Error establishing SSE connection for user {user_id}: {e}")
+        logger.error(f"SSE连接失败: {type(e).__name__}: {e!s}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to establish SSE connection"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to establish SSE connection"
         ) from e
 
 

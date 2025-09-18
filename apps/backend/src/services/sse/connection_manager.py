@@ -17,7 +17,7 @@ Architecture:
 
 import logging
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from sse_starlette import EventSourceResponse
 
 from .config import sse_config
@@ -125,26 +125,94 @@ class SSEConnectionManager:
             HTTPException: If user exceeds concurrency limits (429)
             RuntimeError: If Redis client is not initialized
         """
-        # 1) Enforce concurrency limits
-        await self.redis_counter_service.check_connection_limit(user_id)
-
-        # 2) Read Last-Event-ID from headers for reconnection support
-        last_event_id = request.headers.get("last-event-id")
-
-        # 3) Create connection state
-        connection_id, connection_state = self.state_manager.create_connection_state(user_id, last_event_id)
-
-        # 4) Create cleanup callback
-        async def cleanup_callback():
-            await self.state_manager.cleanup_connection(connection_id, user_id)
-
-        # 5) Create EventSourceResponse with built-in ping and error handling
-        return EventSourceResponse(
-            self.event_streamer.create_event_generator(request, user_id, connection_state, cleanup_callback),
-            ping=self.ping_interval,
-            send_timeout=self.SEND_TIMEOUT_SECONDS,
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        logger.info(
+            "📡 SSE connection request received",
+            extra={
+                "user_id": user_id,
+                "client_host": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
+                "last_event_id": request.headers.get("last-event-id"),
+            },
         )
+
+        try:
+            # 1) Enforce concurrency limits
+            logger.debug(f"🔒 Checking connection limits for user {user_id}")
+            if not self.redis_counter_service.redis_client:
+                logger.error("Redis client未初始化，无法建立SSE连接")
+                raise RuntimeError("Redis client not available")
+            await self.redis_counter_service.check_connection_limit(user_id)
+            logger.debug(f"✅ Connection limit check passed for user {user_id}")
+
+            # 2) Read Last-Event-ID from headers for reconnection support
+            last_event_id = request.headers.get("last-event-id")
+            if last_event_id:
+                logger.info(
+                    f"🔄 Reconnection detected with last event ID: {last_event_id}",
+                    extra={"user_id": user_id, "last_event_id": last_event_id},
+                )
+            else:
+                logger.info("🆕 New SSE connection (no last event ID)", extra={"user_id": user_id})
+
+            # 3) Create connection state
+            logger.debug(f"🔧 Creating connection state for user {user_id}")
+            connection_id, connection_state = self.state_manager.create_connection_state(user_id, last_event_id)
+
+            logger.info(
+                "✅ SSE connection state created",
+                extra={"user_id": user_id, "connection_id": connection_id, "has_last_event_id": bool(last_event_id)},
+            )
+
+            # 4) Create cleanup callback
+            async def cleanup_callback():
+                logger.info(
+                    "🧹 Starting SSE connection cleanup", extra={"user_id": user_id, "connection_id": connection_id}
+                )
+                await self.state_manager.cleanup_connection(connection_id, user_id)
+                logger.info(
+                    "✅ SSE connection cleanup completed", extra={"user_id": user_id, "connection_id": connection_id}
+                )
+
+            # 5) Create EventSourceResponse with built-in ping and error handling
+            logger.info(
+                "🚀 Creating EventSourceResponse",
+                extra={
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                    "ping_interval": self.ping_interval,
+                    "send_timeout": self.SEND_TIMEOUT_SECONDS,
+                },
+            )
+
+            response = EventSourceResponse(
+                self.event_streamer.create_event_generator(request, user_id, connection_state, cleanup_callback),
+                ping=self.ping_interval,
+                send_timeout=self.SEND_TIMEOUT_SECONDS,
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
+
+            logger.info(
+                "✅ SSE connection established successfully",
+                extra={"user_id": user_id, "connection_id": connection_id, "response_type": "EventSourceResponse"},
+            )
+
+            return response
+
+        except HTTPException as e:
+            logger.warning(
+                "⚠️ SSE connection rejected",
+                extra={
+                    "user_id": user_id,
+                    "status_code": e.status_code,
+                    "detail": e.detail,
+                    "error_type": "HTTPException",
+                },
+            )
+            raise
+
+        except Exception as e:
+            logger.error(f"SSE连接失败: {type(e).__name__}: {e!s}", extra={"user_id": user_id})
+            raise
 
     async def cleanup_stale_connections(self) -> int:
         """Garbage collection for zombie connections."""

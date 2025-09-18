@@ -338,6 +338,7 @@ pnpm check services:full --remote    # 完整健康检查 (开发服务器)
 - **Service connectivity**: Run `pnpm check services` (本地) 或 `pnpm check services --remote` (开发服务器)
 - **Build failures**: Try `pnpm infra down` then `pnpm infra up` to rebuild
 - **Test failures**: Use Docker containers (`pnpm test all`)
+- **Backend logs**: Check `apps/backend/logs/is-launcher_YYYYMMDD.log` (e.g., `is-launcher_20250919.log` for current date)
 - **Command not found**: Use `pnpm run` to see all available commands or `pnpm <target>` for specific help
 
 ### Getting Help

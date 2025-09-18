@@ -1,10 +1,14 @@
 /**
  * React hooks for Server-Sent Events (SSE) integration
  * 提供实时事件监听和连接管理
+ *
+ * 注意：推荐使用新的 useSSE Context hooks（从 @/contexts 导入）
+ * 这些 hooks 保留用于向后兼容
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { sseService, SSEConnectionState } from '@/services/sseService'
+import { useSSE } from '@/contexts'
 import type { DomainEvent, SSEEvent } from '@/types/events'
 
 /**
@@ -32,10 +36,15 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
 
   // 连接函数
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (enabled) {
       setError(null)
-      sseService.connect(endpoint)
+      try {
+        await sseService.connect(endpoint)
+      } catch (error) {
+        console.error('[useSSEConnection] 连接失败:', error)
+        setError(error as Error)
+      }
     }
   }, [endpoint, enabled])
 
@@ -45,9 +54,11 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
   }, [])
 
   // 重连函数
-  const reconnect = useCallback(() => {
+  const reconnect = useCallback(async () => {
     sseService.disconnect()
-    setTimeout(() => connect(), 100)
+    setTimeout(async () => {
+      await connect()
+    }, 100)
   }, [connect])
 
   useEffect(() => {
@@ -66,7 +77,9 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
 
     // 自动连接
     if (autoConnect && enabled) {
-      connect()
+      connect().catch(error => {
+        console.error('[useSSEConnection] 自动连接失败:', error)
+      })
     }
 
     return () => {
@@ -93,6 +106,8 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
 /**
  * SSE 事件监听 Hook
  * 监听特定类型的 SSE 事件
+ *
+ * 注意：推荐使用 Context 中的 useSSE hook
  */
 export function useSSEEvent<T = any>(
   eventType: string | string[],
@@ -101,6 +116,15 @@ export function useSSEEvent<T = any>(
 ) {
   const handlerRef = useRef(handler)
   handlerRef.current = handler
+
+  // 尝试使用SSE Context，如果不可用则回退到直接使用sseService
+  let sseContext: ReturnType<typeof useSSE> | null = null
+  try {
+    sseContext = useSSE()
+  } catch {
+    // Context 不可用，使用直接的 sseService
+    console.warn('[useSSEEvent] SSE Context 不可用，使用直接的 sseService')
+  }
 
   useEffect(() => {
     const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
@@ -111,16 +135,26 @@ export function useSSEEvent<T = any>(
 
     // 注册事件监听器
     eventTypes.forEach((type) => {
-      sseService.addEventListener(type, wrappedHandler)
+      if (sseContext) {
+        // 使用 Context
+        sseContext.addEventListener(type, wrappedHandler)
+      } else {
+        // 回退到直接使用 sseService
+        sseService.addEventListener(type, wrappedHandler)
+      }
     })
 
     return () => {
       // 清理事件监听器
       eventTypes.forEach((type) => {
-        sseService.removeEventListener(type, wrappedHandler)
+        if (sseContext) {
+          sseContext.removeEventListener(type, wrappedHandler)
+        } else {
+          sseService.removeEventListener(type, wrappedHandler)
+        }
       })
     }
-  }, [eventType, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eventType, sseContext, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**
@@ -185,21 +219,36 @@ export function useNovelEvents(
  * 监听创世流程相关的事件
  */
 export function useGenesisEvents(
-  sessionId: string,
+  params: { sessionId: string; novelId?: string },
   handler: (event: DomainEvent) => void,
   options: { enabled?: boolean } = {},
 ) {
+  const { sessionId, novelId } = params
   const { enabled = true } = options
 
   useDomainEvent(
     'genesis.progress',
     (event) => {
       // 过滤出与指定会话相关的事件
-      if (event.payload.session_id === sessionId) {
+      const payload = event.payload as any
+
+      if (payload.session_id === sessionId) {
+        // 如果指定了 novelId，也要匹配
+        if (novelId && payload.novel_id && payload.novel_id !== novelId) {
+          return
+        }
+
+        console.log(`[useGenesisEvents] 收到Genesis事件:`, {
+          eventType: event.event_type,
+          sessionId: payload.session_id,
+          novelId: payload.novel_id,
+          status: payload.status
+        })
+
         handler(event)
       }
     },
-    [sessionId, enabled],
+    [sessionId, novelId, enabled],
   )
 }
 
