@@ -69,13 +69,11 @@ class ConversationService:
         session_id: UUID,
         *,
         status: SessionStatus | None = None,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
         expected_version: int | None = None,
     ) -> dict[str, Any]:
-        """Update a conversation session with optimistic concurrency control."""
+        """Update a conversation session with optimistic concurrency control (Genesis 解耦后的精简版本)."""
         return await self.session_service.update_session(
-            db, user_id, session_id, status=status, stage=stage, state=state, expected_version=expected_version
+            db, user_id, session_id, status=status, expected_version=expected_version
         )
 
     async def delete_session(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:

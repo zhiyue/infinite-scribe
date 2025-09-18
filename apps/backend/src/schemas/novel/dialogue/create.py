@@ -48,12 +48,10 @@ class ConversationRoundCreate(BaseSchema):
 
 
 class CreateSessionRequest(BaseSchema):
-    """创建会话请求 (API兼容)"""
+    """创建会话请求 (Genesis 解耦后的精简版本)"""
 
     scope_type: ScopeType = Field(..., description="对话范围类型", examples=["GENESIS"])
     scope_id: str = Field(..., description="业务实体ID，例如 novel_id")
-    stage: str | None = Field(None, description="范围内的可选阶段")
-    initial_state: dict[str, Any] = Field(default_factory=dict, description="初始会话状态")
 
 
 class RoundCreateRequest(BaseSchema):

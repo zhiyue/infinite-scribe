@@ -53,8 +53,6 @@ async def create_session(
             current_user.id,
             request.scope_type,
             request.scope_id,
-            stage=request.stage,
-            initial_state=request.initial_state,
         )
 
         logger.info(f"Service result: {result}")
@@ -83,8 +81,6 @@ async def create_session(
             scope_type=scope_type,
             scope_id=scope_id,
             status=SessionStatus(s["status"]),
-            stage=s.get("stage"),
-            state=s.get("state", {}),
             version=version,
             created_at=s.get("created_at") or format_iso_datetime(utc_now()),
             updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
@@ -102,8 +98,6 @@ async def create_session(
             scope_type=scope_type,
             scope_id=scope_id,
             status=SessionStatus(s.status),
-            stage=s.stage,
-            state=s.state or {},
             version=version,
             created_at=s.created_at.isoformat() if getattr(s, "created_at", None) else format_iso_datetime(utc_now()),
             updated_at=s.updated_at.isoformat() if getattr(s, "updated_at", None) else format_iso_datetime(utc_now()),
@@ -174,8 +168,6 @@ async def list_sessions(
                 scope_type=scope_type,
                 scope_id=scope_id,
                 status=SessionStatus(s["status"]),
-                stage=s.get("stage"),
-                state=s.get("state", {}),
                 version=version,
                 created_at=s.get("created_at") or format_iso_datetime(utc_now()),
                 updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
@@ -193,8 +185,6 @@ async def list_sessions(
                 scope_type=scope_type,
                 scope_id=scope_id,
                 status=SessionStatus(s.status),
-                stage=s.stage,
-                state=s.state or {},
                 version=version,
                 created_at=s.created_at.isoformat()
                 if getattr(s, "created_at", None)
@@ -240,8 +230,6 @@ async def get_session(
             scope_type=scope_type,
             scope_id=scope_id,
             status=SessionStatus(s["status"]),
-            stage=s.get("stage"),
-            state=s.get("state", {}),
             version=version,
             created_at=s.get("created_at") or format_iso_datetime(utc_now()),
             updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
@@ -259,8 +247,6 @@ async def get_session(
             scope_type=scope_type,
             scope_id=scope_id,
             status=SessionStatus(s.status),
-            stage=s.stage,
-            state=s.state or {},
             version=version,
             created_at=s.created_at.isoformat() if getattr(s, "created_at", None) else format_iso_datetime(utc_now()),
             updated_at=s.updated_at.isoformat() if getattr(s, "updated_at", None) else format_iso_datetime(utc_now()),
@@ -298,8 +284,6 @@ async def update_session(
             current_user.id,
             session_id,
             status=request.status,
-            stage=request.stage,
-            state=request.state,
             expected_version=expected_version,
         )
         if not result.get("success"):
@@ -319,8 +303,6 @@ async def update_session(
                 scope_type=scope_type,
                 scope_id=scope_id,
                 status=SessionStatus(s["status"]),
-                stage=s.get("stage"),
-                state=s.get("state", {}),
                 version=s.get("version", 1),
                 created_at=s.get("created_at") or format_iso_datetime(utc_now()),
                 updated_at=s.get("updated_at") or format_iso_datetime(utc_now()),
@@ -339,8 +321,6 @@ async def update_session(
                 scope_type=scope_type,
                 scope_id=scope_id,
                 status=SessionStatus(s.status),
-                stage=s.stage,
-                state=s.state or {},
                 version=s.version,
                 created_at=s.created_at.isoformat()
                 if getattr(s, "created_at", None)

@@ -107,20 +107,16 @@ class ConversationSessionService:
         session_id: UUID,
         *,
         status: SessionStatus | None = None,
-        stage: str | None = None,
-        state: dict[str, Any] | None = None,
         expected_version: int | None = None,
     ) -> dict[str, Any]:
         """
-        Update a conversation session with optimistic concurrency control.
+        Update a conversation session with optimistic concurrency control (Genesis 解耦后的精简版本).
 
         Args:
             db: Database session
             user_id: User ID for ownership verification
             session_id: Session ID to update
             status: New status (optional)
-            stage: New stage (optional)
-            state: New state (optional)
             expected_version: Expected version for optimistic locking (optional)
 
         Returns:
@@ -131,8 +127,6 @@ class ConversationSessionService:
             user_id=user_id,
             session_id=session_id,
             status=status,
-            stage=stage,
-            state=state,
             expected_version=expected_version,
         )
 

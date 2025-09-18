@@ -42,8 +42,6 @@ class ConversationRoundUpdate(BaseSchema):
 
 
 class UpdateSessionRequest(BaseSchema):
-    """更新会话请求 (API兼容)"""
+    """更新会话请求 (Genesis 解耦后的精简版本)"""
 
     status: SessionStatus | None = None
-    stage: str | None = None
-    state: dict[str, Any] | None = None
