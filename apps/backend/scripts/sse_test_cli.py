@@ -186,6 +186,81 @@ async def cmd_demo(args):
         print("💡 请检查前端是否收到这些事件")
 
 
+async def cmd_unique(args):
+    """发送5个完全不同类型的事件（用于故障排除）。"""
+    # 5个完全不同类型的事件，避免重复
+    unique_events = [
+        {
+            "event_type": "system.notification-sent",
+            "data": {
+                "level": "info",
+                "title": "独特测试1",
+                "message": "系统通知事件",
+                "action_required": False,
+            },
+        },
+        {
+            "event_type": "novel.created",
+            "data": {
+                "id": f"unique-novel-{int(datetime.now(UTC).timestamp())}",
+                "title": "独特测试小说",
+                "theme": "测试",
+                "status": "draft",
+                "created_at": datetime.now(UTC).isoformat(),
+            },
+        },
+        {
+            "event_type": "task.status-changed",
+            "data": {
+                "task_id": f"unique-task-{int(datetime.now(UTC).timestamp())}",
+                "old_status": "pending",
+                "new_status": "completed",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "reason": "独特测试任务完成",
+            },
+        },
+        {
+            "event_type": "chapter.draft-created",
+            "data": {
+                "chapter_id": f"unique-chapter-{int(datetime.now(UTC).timestamp())}",
+                "chapter_number": 1,
+                "title": "独特测试章节",
+                "novel_id": "test-novel",
+            },
+        },
+        {
+            "event_type": "content.updated",
+            "data": {
+                "entity_type": "novel",
+                "entity_id": "test-novel",
+                "action": "updated",
+                "summary": "独特测试内容更新",
+                "changed_fields": ["title", "content"],
+            },
+        },
+    ]
+
+    async with SSETestClient() as client:
+        print(f"🧪 正在为用户 {args.user_id} 发送5个完全不同类型的事件")
+        print(f"📤 事件间隔 {args.interval} 秒...")
+
+        for i, event in enumerate(unique_events, 1):
+            print(f"\n📨 [{i}/{len(unique_events)}] 发送: {event['event_type']}")
+
+            stream_id = await client.send_event(
+                user_id=args.user_id, event_type=event["event_type"], data=event["data"]
+            )
+
+            print(f"   ✅ 已发送 (stream_id: {stream_id})")
+
+            if i < len(unique_events):  # 最后一个事件不等待
+                print(f"   ⏱️  等待 {args.interval} 秒...")
+                await asyncio.sleep(args.interval)
+
+        print(f"\n🎉 独特测试完成! 已发送 {len(unique_events)} 个不同类型的事件")
+        print("💡 每个事件类型都不同，应该都能被前端接收")
+
+
 async def cmd_history(args):
     """查看用户的 SSE 事件历史。"""
     async with SSETestClient() as client:
@@ -249,6 +324,16 @@ def main():
         type=int,
         default=10,
         help="显示最近的事件数量，默认: 10",
+    )
+
+    # Test unique command - 只发送不同类型的事件
+    unique_parser = subparsers.add_parser("unique", help="发送5个完全不同类型的事件（用于故障排除）")
+    unique_parser.add_argument("--user-id", required=True, help="目标用户 ID")
+    unique_parser.add_argument(
+        "--interval",
+        type=int,
+        default=2,
+        help="事件间隔时间（秒），默认: 2",
     )
 
     args = parser.parse_args()
