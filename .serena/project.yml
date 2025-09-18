@@ -65,3 +65,5 @@ excluded_tools: []
 initial_prompt: ''
 
 project_name: 'infinite-scribe'
+
+web_dashboard_open_on_launch: false
