@@ -391,9 +391,9 @@ export function FieldTemplate({
               {required && <span className="text-destructive ml-1">*</span>}
             </Label>
             {description && (
-              <p className="text-xs text-muted-foreground mt-1 leading-4 select-none cursor-default">
+              <div className="text-xs text-muted-foreground mt-1 leading-4 select-none cursor-default">
                 {description}
-              </p>
+              </div>
             )}
           </div>
         )}
@@ -415,7 +415,7 @@ export function FieldTemplate({
             </Alert>
           )}
 
-          {help && <p className="text-xs text-muted-foreground cursor-default select-none">{help}</p>}
+          {help && <div className="text-xs text-muted-foreground cursor-default select-none">{help}</div>}
         </div>
       </div>
     </div>
