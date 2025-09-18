@@ -8,6 +8,91 @@
 **状态**
 - 提案（Proposal）
 
+**已实现端点（阶段配置/RJSF）**
+- 说明：为前端 RJSF 动态表单提供阶段配置 Schema/模板获取与配置更新能力，均已在后端实现。
+
+- GET `/api/v1/genesis/stages/{stage}/config/schema`
+  - 用途：获取指定阶段的 JSON Schema（供 RJSF 的 `schema` 使用）。
+  - 认证：无需。
+  - 路径参数：`stage ∈ {INITIAL_PROMPT|WORLDVIEW|CHARACTERS|PLOT_OUTLINE}`；`FINISHED` 不支持（返回 400）。
+  - 头：可选 `X-Correlation-Id`（原样回传）。
+  - 200 响应（示例，结构简化）：
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "genre": {"type": "string"},
+        "style": {"type": "string"},
+        "target_word_count": {"type": "integer", "minimum": 10000, "maximum": 1000000},
+        "special_requirements": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["genre", "style", "target_word_count"]
+    }
+    ```
+
+- GET `/api/v1/genesis/stages/{stage}/config/template`
+  - 用途：获取指定阶段的默认模板/示例数据（供 RJSF 的 `formData` 初始值）。
+  - 认证：无需。
+  - 路径参数：同上；`FINISHED` 不支持（返回 400）。
+  - 头：可选 `X-Correlation-Id`（原样回传）。
+  - 200 响应（示例，INITIAL_PROMPT）：
+    ```json
+    {
+      "genre": "玄幻",
+      "style": "第三人称",
+      "target_word_count": 100000,
+      "special_requirements": ["融入中国传统文化元素", "避免过于血腥的情节", "加入轻松幽默的元素"]
+    }
+    ```
+
+- PATCH `/api/v1/genesis/stages/{stage_id}/config`
+  - 用途：更新某阶段记录的配置；服务端使用 Pydantic 按阶段 Schema 校验并标准化后入库。
+  - 认证：需要（Bearer Token）；还将校验用户对该阶段所属小说的所有权。
+  - 路径参数：`stage_id: UUID`。
+  - 头：`Authorization: Bearer <token>`；可选 `X-Correlation-Id`（原样回传）。
+  - 请求体（示例，INITIAL_PROMPT）：
+    ```json
+    {
+      "genre": "科幻",
+      "style": "第一人称",
+      "target_word_count": 80000,
+      "special_requirements": ["硬科幻元素", "未来科技"]
+    }
+    ```
+  - 200 响应（ApiResponse）：
+    ```json
+    {
+      "code": 0,
+      "msg": "Stage configuration updated successfully",
+      "data": {
+        "stage_id": "<uuid>",
+        "stage": "INITIAL_PROMPT",
+        "config": {"genre": "科幻", "style": "第一人称", "target_word_count": 80000, "special_requirements": ["硬科幻元素", "未来科技"]}
+      }
+    }
+    ```
+  - 可能的错误：
+    - 400 `Invalid configuration for stage ...`（Pydantic 校验失败）
+    - 404 `Stage record not found`
+    - 403 权限不足（生产环境）
+
+- GET `/api/v1/genesis/stages/config/schemas`
+  - 用途：一次性获取所有受支持阶段的 JSON Schema 聚合（便于前端缓存/预载）。
+  - 认证：无需。
+  - 头：可选 `X-Correlation-Id`（原样回传）。
+  - 200 响应（示例，键为阶段名）：
+    ```json
+    {
+      "INITIAL_PROMPT": {"type": "object", "properties": {"genre": {"type": "string"}, "style": {"type": "string"}, "target_word_count": {"type": "integer"}, "special_requirements": {"type": "array"}}, "required": ["genre", "style", "target_word_count"]},
+      "WORLDVIEW": {"type": "object", "properties": {"time_period": {"type": "string"}, "geography_type": {"type": "string"}, "tech_magic_level": {"type": "string"}, "social_structure": {"type": "string"}, "power_system": {"type": ["string", "null"]}}, "required": ["time_period", "geography_type", "tech_magic_level", "social_structure"]},
+      "CHARACTERS": {"type": "object", "properties": {"protagonist_count": {"type": "integer"}, "relationship_complexity": {"type": "string"}, "personality_preferences": {"type": "array"}, "include_villains": {"type": "boolean"}}, "required": ["protagonist_count", "relationship_complexity", "personality_preferences"]},
+      "PLOT_OUTLINE": {"type": "object", "properties": {"chapter_count_preference": {"type": "integer"}, "plot_complexity": {"type": "string"}, "conflict_types": {"type": "array"}, "pacing_preference": {"type": "string"}}, "required": ["chapter_count_preference", "plot_complexity", "conflict_types"]}
+    }
+    ```
+  - 说明：`FINISHED` 阶段不包含在聚合结果中。
+
+提示：上述端点均支持 `X-Correlation-Id` 透传，便于前后端与日志的链路追踪；前端可将 `schema/template` 作为对话内「阶段设置」模态的表单数据源（RJSF）。
+
 **背景与问题**
 - 现有系统用通用对话聚合 `conversation_sessions/rounds` 承载用户与 Agent 的交互，并在 `conversation_sessions.stage/state` 中混合了创世（Genesis）业务状态。
 - 当一个 Genesis 阶段需要多个独立会话（并行/历史/复盘），或跨阶段管理与统计时，耦合在 `conversation_sessions` 难以清晰表达、复用与审计。
@@ -351,4 +436,3 @@ CREATE INDEX ix_stage_sessions_session ON genesis_stage_sessions(session_id);
 - **✅ 查询分离**: 对话轮次查询通过独立函数处理
 - **✅ 命令集成**: 消息发送通过现有 ConversationCommand 处理
 - **✅ 权限验证**: 完整的所有权校验机制
-

@@ -54,6 +54,31 @@ export interface CreateStageSessionRequest {
 }
 
 /**
+ * 阶段记录响应
+ */
+export interface StageRecordResponse {
+  id: string
+  flow_id: string
+  stage: GenesisStage
+  config: Record<string, any> | null
+  iteration_count: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * 活跃会话响应
+ */
+export interface ActiveSessionResponse {
+  stage: StageRecordResponse
+  session?: {
+    id: string
+    status: string
+    created_at: string
+  }
+}
+
+/**
  * 处理API响应的辅助函数
  */
 function handleApiResponse<T>(response: ApiResponse<T>): T {
@@ -190,6 +215,70 @@ export class GenesisService {
     const response = await authenticatedApiService.get<ApiResponse<StageSessionResponse[]>>(url, {
       headers: buildHeaders(headers),
     })
+    return handleApiResponse(response)
+  }
+
+  /**
+   * 获取活跃会话
+   * GET /api/v1/genesis/stages/{stage_id}/active-session
+   */
+  async getActiveSession(
+    stageId: string,
+    headers?: ConversationHeaders,
+  ): Promise<ActiveSessionResponse> {
+    const response = await authenticatedApiService.get<ApiResponse<ActiveSessionResponse>>(
+      `${this.basePath}/stages/${stageId}/active-session`,
+      { headers: buildHeaders(headers) },
+    )
+    return handleApiResponse(response)
+  }
+
+  // ===== Stage Config Management =====
+
+  /**
+   * 获取阶段配置 JSON Schema
+   * GET /api/v1/genesis/stages/{stage}/config/schema
+   */
+  async getStageConfigSchema(
+    stage: GenesisStage,
+    headers?: ConversationHeaders,
+  ): Promise<Record<string, any>> {
+    const response = await authenticatedApiService.get<ApiResponse<Record<string, any>>>(
+      `${this.basePath}/stages/${stage}/config/schema`,
+      { headers: buildHeaders(headers) },
+    )
+    return handleApiResponse(response)
+  }
+
+  /**
+   * 获取阶段配置默认模板
+   * GET /api/v1/genesis/stages/{stage}/config/template
+   */
+  async getStageConfigTemplate(
+    stage: GenesisStage,
+    headers?: ConversationHeaders,
+  ): Promise<Record<string, any>> {
+    const response = await authenticatedApiService.get<ApiResponse<Record<string, any>>>(
+      `${this.basePath}/stages/${stage}/config/template`,
+      { headers: buildHeaders(headers) },
+    )
+    return handleApiResponse(response)
+  }
+
+  /**
+   * 更新阶段配置
+   * PATCH /api/v1/genesis/stages/{stage_id}/config
+   */
+  async updateStageConfig(
+    stageId: string,
+    config: Record<string, any>,
+    headers?: ConversationHeaders,
+  ): Promise<StageRecordResponse> {
+    const response = await authenticatedApiService.patch<ApiResponse<StageRecordResponse>>(
+      `${this.basePath}/stages/${stageId}/config`,
+      config,
+      { headers: buildHeaders(headers) },
+    )
     return handleApiResponse(response)
   }
 
