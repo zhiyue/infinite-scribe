@@ -17,6 +17,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+// Form data interface (includes confirm_password for validation)
+interface ChangePasswordFormData {
+  current_password: string
+  new_password: string
+  confirm_password: string
+}
+
 // Validation schema
 const changePasswordSchema = z
   .object({
@@ -69,7 +76,7 @@ const ChangePasswordPage: React.FC = () => {
     watch,
     reset,
     formState: { errors },
-  } = useForm<ChangePasswordRequest>({
+  } = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
   })
 
@@ -85,12 +92,18 @@ const ChangePasswordPage: React.FC = () => {
     }
   }, [watchNewPassword])
 
-  const onSubmit = async (data: ChangePasswordRequest) => {
+  const onSubmit = async (data: ChangePasswordFormData) => {
     console.log('[ChangePassword] onSubmit called')
     setUpdateError(null)
     setUpdateSuccess(false)
 
-    changePasswordMutation.mutate(data, {
+    // Extract only the fields needed for the API call
+    const apiData: ChangePasswordRequest = {
+      current_password: data.current_password,
+      new_password: data.new_password
+    }
+
+    changePasswordMutation.mutate(apiData, {
       onSuccess: () => {
         console.log('[ChangePassword] Success!')
         setUpdateSuccess(true)

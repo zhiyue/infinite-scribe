@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { z } from 'zod'
 import { useRegister } from '../../hooks/useAuthMutations'
 import type { RegisterFormData } from '../../types/auth'
@@ -43,7 +43,6 @@ const registerSchema = z
   })
 
 const RegisterPage: React.FC = () => {
-  const navigate = useNavigate()
   const registerMutation = useRegister()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)

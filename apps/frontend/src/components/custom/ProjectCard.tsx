@@ -8,12 +8,6 @@ interface ProjectCardProps {
   project: Project
 }
 
-// 状态映射
-const statusMap = {
-  drafting: { label: '草稿', color: 'text-yellow-600' },
-  reviewing: { label: '审核中', color: 'text-blue-600' },
-  completed: { label: '已完成', color: 'text-green-600' },
-}
 
 export function ProjectCard({ project }: ProjectCardProps) {
   const getStatusVariant = (status: string) => {

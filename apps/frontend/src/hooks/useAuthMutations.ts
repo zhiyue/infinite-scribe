@@ -114,7 +114,7 @@ export function useUpdateProfile() {
     },
 
     // 错误回滚
-    onError: (err, newData, context) => {
+    onError: (_err, _newData, context) => {
       if (context?.previousUser) {
         queryClient.setQueryData(queryKeys.currentUser(), context.previousUser)
       }

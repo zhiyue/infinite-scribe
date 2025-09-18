@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 import { GenesisSettingsModal } from './GenesisSettingsModal'
+import { useGenesisFlow } from '@/hooks/useGenesisFlow'
 
 interface NovelSettings {
   initialPrompt?: {
@@ -134,19 +135,17 @@ function SettingsSection({
               </Button>
             )}
 
-            {hasContent && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onViewDetails?.()
-                }}
-                className="h-6 w-6 p-0"
-              >
-                <ExternalLink className="h-3 w-3" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onViewDetails?.()
+              }}
+              className="h-6 w-6 p-0"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -159,7 +158,7 @@ function SettingsSection({
 
       {!hasContent && (
         <CardContent className="pt-0 pb-3">
-          <p className="text-xs text-muted-foreground">点击查看详情</p>
+          <p className="text-xs text-muted-foreground">点击配置此阶段</p>
         </CardContent>
       )}
     </Card>
@@ -171,13 +170,31 @@ function SettingsSection({
  */
 export function GenesisSettingsOverview({
   currentStage,
-  novelId: _novelId,
+  novelId,
   settings = {},
   onStageJump,
   className,
 }: GenesisSettingsOverviewProps) {
   const [isVisible, setIsVisible] = useState(true)
   const [modalStage, setModalStage] = useState<GenesisStage | null>(null)
+
+  // 获取 Genesis 流程信息
+  const { flow, hasFlow } = useGenesisFlow(novelId)
+
+  // 定义阶段顺序
+  const stageOrder = [
+    GenesisStage.INITIAL_PROMPT,
+    GenesisStage.WORLDVIEW,
+    GenesisStage.CHARACTERS,
+    GenesisStage.PLOT_OUTLINE,
+  ]
+
+  // 判断阶段是否应该显示（只显示当前阶段及之前的阶段）
+  const shouldShowStage = (stage: GenesisStage): boolean => {
+    const currentIndex = stageOrder.indexOf(currentStage)
+    const stageIndex = stageOrder.indexOf(stage)
+    return stageIndex <= currentIndex && stageIndex >= 0
+  }
 
   // 判断阶段是否完成（简化版本，实际应该从API获取）
   const isStageCompleted = (stage: GenesisStage): boolean => {
@@ -270,56 +287,64 @@ export function GenesisSettingsOverview({
           <ScrollArea className="h-[calc(100vh-300px)] max-h-[800px] pr-4">
             <div className="space-y-4">
               {/* 初始灵感 */}
-              <SettingsSection
-                title="初始灵感"
-                icon={Sparkles}
-                stage={GenesisStage.INITIAL_PROMPT}
-                currentStage={currentStage}
-                isCompleted={isStageCompleted(GenesisStage.INITIAL_PROMPT)}
-                hasContent={hasStageContent(GenesisStage.INITIAL_PROMPT)}
-                preview={getStagePreview(GenesisStage.INITIAL_PROMPT)}
-                onJumpTo={onStageJump}
-                onViewDetails={() => setModalStage(GenesisStage.INITIAL_PROMPT)}
-              />
+              {shouldShowStage(GenesisStage.INITIAL_PROMPT) && (
+                <SettingsSection
+                  title="初始灵感"
+                  icon={Sparkles}
+                  stage={GenesisStage.INITIAL_PROMPT}
+                  currentStage={currentStage}
+                  isCompleted={isStageCompleted(GenesisStage.INITIAL_PROMPT)}
+                  hasContent={hasStageContent(GenesisStage.INITIAL_PROMPT)}
+                  preview={getStagePreview(GenesisStage.INITIAL_PROMPT)}
+                  onJumpTo={onStageJump}
+                  onViewDetails={() => setModalStage(GenesisStage.INITIAL_PROMPT)}
+                />
+              )}
 
               {/* 世界观设定 */}
-              <SettingsSection
-                title="世界观设定"
-                icon={Globe}
-                stage={GenesisStage.WORLDVIEW}
-                currentStage={currentStage}
-                isCompleted={isStageCompleted(GenesisStage.WORLDVIEW)}
-                hasContent={hasStageContent(GenesisStage.WORLDVIEW)}
-                preview={getStagePreview(GenesisStage.WORLDVIEW)}
-                onJumpTo={onStageJump}
-                onViewDetails={() => setModalStage(GenesisStage.WORLDVIEW)}
-              />
+              {shouldShowStage(GenesisStage.WORLDVIEW) && (
+                <SettingsSection
+                  title="世界观设定"
+                  icon={Globe}
+                  stage={GenesisStage.WORLDVIEW}
+                  currentStage={currentStage}
+                  isCompleted={isStageCompleted(GenesisStage.WORLDVIEW)}
+                  hasContent={hasStageContent(GenesisStage.WORLDVIEW)}
+                  preview={getStagePreview(GenesisStage.WORLDVIEW)}
+                  onJumpTo={onStageJump}
+                  onViewDetails={() => setModalStage(GenesisStage.WORLDVIEW)}
+                />
+              )}
 
               {/* 角色设定 */}
-              <SettingsSection
-                title="角色塑造"
-                icon={Users}
-                stage={GenesisStage.CHARACTERS}
-                currentStage={currentStage}
-                isCompleted={isStageCompleted(GenesisStage.CHARACTERS)}
-                hasContent={hasStageContent(GenesisStage.CHARACTERS)}
-                preview={getStagePreview(GenesisStage.CHARACTERS)}
-                onJumpTo={onStageJump}
-                onViewDetails={() => setModalStage(GenesisStage.CHARACTERS)}
-              />
+              {shouldShowStage(GenesisStage.CHARACTERS) && (
+                <SettingsSection
+                  title="角色塑造"
+                  icon={Users}
+                  stage={GenesisStage.CHARACTERS}
+                  currentStage={currentStage}
+                  isCompleted={isStageCompleted(GenesisStage.CHARACTERS)}
+                  hasContent={hasStageContent(GenesisStage.CHARACTERS)}
+                  preview={getStagePreview(GenesisStage.CHARACTERS)}
+                  onJumpTo={onStageJump}
+                  onViewDetails={() => setModalStage(GenesisStage.CHARACTERS)}
+                />
+              )}
 
               {/* 剧情大纲 */}
-              <SettingsSection
-                title="剧情大纲"
-                icon={BookOpen}
-                stage={GenesisStage.PLOT_OUTLINE}
-                currentStage={currentStage}
-                isCompleted={isStageCompleted(GenesisStage.PLOT_OUTLINE)}
-                hasContent={hasStageContent(GenesisStage.PLOT_OUTLINE)}
-                preview={getStagePreview(GenesisStage.PLOT_OUTLINE)}
-                onJumpTo={onStageJump}
-                onViewDetails={() => setModalStage(GenesisStage.PLOT_OUTLINE)}
-              />
+              {shouldShowStage(GenesisStage.PLOT_OUTLINE) && (
+                <SettingsSection
+                  title="剧情大纲"
+                  icon={BookOpen}
+                  stage={GenesisStage.PLOT_OUTLINE}
+                  currentStage={currentStage}
+                  isCompleted={isStageCompleted(GenesisStage.PLOT_OUTLINE)}
+                  hasContent={hasStageContent(GenesisStage.PLOT_OUTLINE)}
+                  preview={getStagePreview(GenesisStage.PLOT_OUTLINE)}
+                  onJumpTo={onStageJump}
+                  onViewDetails={() => setModalStage(GenesisStage.PLOT_OUTLINE)}
+                />
+              )}
             </div>
           </ScrollArea>
         </CardContent>

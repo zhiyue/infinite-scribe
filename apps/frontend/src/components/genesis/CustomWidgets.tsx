@@ -3,21 +3,12 @@
  * 使用 shadcn/ui 组件来保持视觉一致性
  */
 
-import type {
-  WidgetProps,
-  ArrayFieldTemplateProps,
-  ObjectFieldTemplateProps,
-  FieldTemplateProps,
-} from '@rjsf/utils'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -25,12 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Plus,
-  Minus,
-  GripVertical,
-  AlertCircle,
-} from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import type {
+  ArrayFieldTemplateProps,
+  FieldTemplateProps,
+  ObjectFieldTemplateProps,
+  WidgetProps,
+} from '@rjsf/utils'
+import { AlertCircle, GripVertical, Minus, Plus } from 'lucide-react'
 
 /**
  * 文本输入框 Widget
@@ -45,11 +40,18 @@ export function TextWidget({
   onChange,
   onFocus,
   onBlur,
-  schema,
   options,
 }: WidgetProps) {
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     onChange(event.target.value === '' ? options.emptyValue : event.target.value)
+  }
+
+  const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (onFocus) onFocus(id, event.target.value)
+  }
+
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (onBlur) onBlur(id, event.target.value)
   }
 
   return (
@@ -61,8 +63,8 @@ export function TextWidget({
       disabled={disabled}
       value={value || ''}
       onChange={handleChange}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       className="w-full"
     />
   )
@@ -87,6 +89,14 @@ export function TextareaWidget({
     onChange(event.target.value === '' ? options.emptyValue : event.target.value)
   }
 
+  const handleFocus = (event: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (onFocus) onFocus(id, event.target.value)
+  }
+
+  const handleBlur = (event: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (onBlur) onBlur(id, event.target.value)
+  }
+
   return (
     <Textarea
       id={id}
@@ -96,8 +106,8 @@ export function TextareaWidget({
       disabled={disabled}
       value={value || ''}
       onChange={handleChange}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       className="w-full min-h-[100px]"
       rows={4}
     />
@@ -125,6 +135,14 @@ export function NumberWidget({
     onChange(newValue === '' ? options.emptyValue : Number(newValue))
   }
 
+  const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (onFocus) onFocus(id, event.target.value)
+  }
+
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (onBlur) onBlur(id, event.target.value)
+  }
+
   return (
     <Input
       id={id}
@@ -135,11 +153,11 @@ export function NumberWidget({
       disabled={disabled}
       value={value ?? ''}
       onChange={handleChange}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      min={schema.minimum}
-      max={schema.maximum}
-      step={schema.multipleOf || 1}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      min={schema?.minimum}
+      max={schema?.maximum}
+      step={schema?.multipleOf || 1}
       className="w-full"
     />
   )
@@ -150,7 +168,6 @@ export function NumberWidget({
  */
 export function SelectWidget({
   id,
-  required,
   readonly,
   disabled,
   value,
@@ -161,11 +178,7 @@ export function SelectWidget({
   const { enumOptions = [] } = options
 
   return (
-    <Select
-      value={value || ''}
-      onValueChange={onChange}
-      disabled={disabled || readonly}
-    >
+    <Select value={value || ''} onValueChange={onChange} disabled={disabled || readonly}>
       <SelectTrigger id={id} className="w-full">
         <SelectValue placeholder={placeholder || '请选择...'} />
       </SelectTrigger>
@@ -183,15 +196,7 @@ export function SelectWidget({
 /**
  * 布尔值开关 Widget
  */
-export function CheckboxWidget({
-  id,
-  value,
-  required,
-  disabled,
-  readonly,
-  onChange,
-  label,
-}: WidgetProps) {
+export function CheckboxWidget({ id, value, disabled, readonly, onChange, label }: WidgetProps) {
   return (
     <div className="flex items-center space-x-2">
       <Switch
@@ -217,7 +222,6 @@ export function ArrayFieldTemplate({
   onAddClick,
   canAdd,
   title,
-  schema,
   uiSchema,
   disabled,
   readonly,
@@ -311,22 +315,13 @@ export function ArrayFieldTemplate({
 /**
  * 对象字段模板
  */
-export function ObjectFieldTemplate({
-  title,
-  description,
-  properties,
-  required,
-  disabled,
-  readonly,
-}: ObjectFieldTemplateProps) {
+export function ObjectFieldTemplate({ title, description, properties }: ObjectFieldTemplateProps) {
   return (
     <div className="space-y-6">
       {title && (
         <div>
           <h3 className="text-lg font-medium">{title}</h3>
-          {description && (
-            <p className="text-sm text-muted-foreground mt-1">{description}</p>
-          )}
+          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
         </div>
       )}
 
@@ -353,7 +348,6 @@ export function FieldTemplate({
   description,
   errors,
   children,
-  schema,
   displayLabel,
 }: FieldTemplateProps) {
   const showLabel = displayLabel && label
@@ -369,9 +363,7 @@ export function FieldTemplate({
         </Label>
       )}
 
-      {description && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
 
       <div>{children}</div>
 
@@ -379,14 +371,14 @@ export function FieldTemplate({
         <Alert variant="destructive" className="py-2">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            {errorList.map(error => typeof error === 'string' ? error : String(error)).join(', ')}
+            {errorList
+              .map((error) => (typeof error === 'string' ? error : String(error)))
+              .join(', ')}
           </AlertDescription>
         </Alert>
       )}
 
-      {help && (
-        <p className="text-xs text-muted-foreground">{help}</p>
-      )}
+      {help && <p className="text-xs text-muted-foreground">{help}</p>}
     </div>
   )
 }

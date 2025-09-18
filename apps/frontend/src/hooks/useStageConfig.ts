@@ -89,10 +89,6 @@ export function useStageConfig(
     queryFn: () => genesisService.getActiveSession(stageId),
     enabled: !!stageId,
     retry: 2,
-    onError: (error: Error) => {
-      console.warn('[useStageConfig] Failed to load active session:', error)
-      // 不调用 onLoadError，因为这可能是正常的（会话不存在）
-    },
   })
 
   // 保存配置到后端
@@ -140,11 +136,11 @@ export function useStageConfig(
 
   // 重置配置到当前保存的版本
   const resetToSaved = useCallback(() => {
-    const savedConfig = activeSession?.stage?.config
+    const savedConfig = (activeSession as ActiveSessionResponse)?.stage?.config
     if (savedConfig) {
       setLocalConfig(savedConfig)
     }
-  }, [activeSession?.stage?.config])
+  }, [(activeSession as ActiveSessionResponse)?.stage?.config])
 
   // 重新加载所有数据
   const reloadAll = useCallback(async () => {
@@ -156,11 +152,11 @@ export function useStageConfig(
   }, [queryClient, schemaQueryKey, templateQueryKey, activeSessionQueryKey])
 
   // 计算当前使用的配置
-  const currentConfig = localConfig || activeSession?.stage?.config || template || {}
+  const currentConfig = localConfig || (activeSession as ActiveSessionResponse)?.stage?.config || template || {}
 
   // 检查是否有未保存的更改
   const hasUnsavedChanges = localConfig !== null &&
-    JSON.stringify(localConfig) !== JSON.stringify(activeSession?.stage?.config || {})
+    JSON.stringify(localConfig) !== JSON.stringify((activeSession as ActiveSessionResponse)?.stage?.config || {})
 
   // 计算加载状态
   const isLoading = isLoadingSchema || isLoadingTemplate || isLoadingSession
@@ -174,8 +170,8 @@ export function useStageConfig(
     schema,
     template,
     currentConfig,
-    stageRecord: activeSession?.stage || null,
-    session: activeSession?.session || null,
+    stageRecord: (activeSession as ActiveSessionResponse)?.stage || null,
+    session: (activeSession as ActiveSessionResponse)?.session || null,
 
     // 加载状态
     isLoading,

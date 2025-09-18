@@ -51,6 +51,10 @@ interface CompatibleAuthService {
   isAuthenticated(): boolean
   refreshTokens(): Promise<void>
 
+  // 权限和会话管理（可选方法）
+  getPermissions?(): Promise<ApiSuccessResponse<string[]>>
+  getSessions?(): Promise<ApiSuccessResponse<any[]>>
+
   // 私有方法（为了完全兼容性）
   clearTokens(): void
 
@@ -126,6 +130,25 @@ function createCompatibleAuthService(): CompatibleAuthService {
     clearTokens() {
       // 通过登出来清理 tokens（新架构的推荐方式）
       newAuthService.logout().catch(console.warn)
+    },
+
+    // 权限和会话管理（可选方法的默认实现）
+    async getPermissions() {
+      // 默认返回空权限列表，后续可以根据需要实现
+      return {
+        success: true as const,
+        data: [] as string[],
+        message: 'Permissions not implemented yet'
+      }
+    },
+
+    async getSessions() {
+      // 默认返回空会话列表，后续可以根据需要实现
+      return {
+        success: true as const,
+        data: [] as any[],
+        message: 'Sessions not implemented yet'
+      }
     },
 
     // 获取内部HTTP客户端（新增方法）

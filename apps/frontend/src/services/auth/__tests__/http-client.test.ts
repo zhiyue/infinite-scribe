@@ -17,6 +17,7 @@ import type { IHttpClient } from '../types'
 // Mock axios
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios)
+mockedAxios.create = vi.fn()
 
 describe('HTTP Clients', () => {
   afterEach(() => {
@@ -43,10 +44,12 @@ describe('HTTP Clients', () => {
           request: {
             use: vi.fn(),
             eject: vi.fn(),
+            clear: vi.fn(),
           },
           response: {
             use: vi.fn(),
             eject: vi.fn(),
+            clear: vi.fn(),
           },
         },
       }

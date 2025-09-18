@@ -314,3 +314,6 @@ export interface SystemStatistics {
 
 // 导出对话相关类型
 export * from './conversations'
+
+// 导出实体模型类型
+export type { Novel } from '../models/entities'
