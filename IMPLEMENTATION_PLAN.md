@@ -53,3 +53,24 @@
 **Success Criteria**: 表单项不再显示 ``-1`` 后缀标题，placeholder 正确出现；相关 lint/test 通过或记录已知阻塞。
 **Tests**: `pnpm --filter @infinitescribe/frontend lint`，手动回归 StageConfig 表单。
 **Status**: Complete
+
+## Stage 9: 梳理 Genesis 命令状态与 SSE 协同策略
+
+**Goal**: 明确 Genesis 会话命令提交后 SSE 事件与轮询的协同流程，识别需要调整的状态管理点。
+**Success Criteria**: 记录现有轮询触发点与 SSE 事件覆盖范围，确定 SSE 优先、轮询兜底的设计方案。
+**Tests**: 手动验证日志及现有 Hook 行为。
+**Status**: Complete
+
+## Stage 10: 实现 SSE 优先的命令状态管理
+
+**Goal**: 更新 GenesisConversation 及相关 Hook，使命令提交后优先等待 SSE 事件，必要时才启动轮询兜底。
+**Success Criteria**: 提交命令后不再立即连续调用命令状态接口；SSE 事件驱动 UI 状态更新，SSE 不可用时自动轮询。
+**Tests**: `pnpm --filter @infinitescribe/frontend test -- --runInBand GenesisConversation`（如有）或手动流程验证。
+**Status**: Complete
+
+## Stage 11: 回归检查与计划更新
+
+**Goal**: 运行相关前端检查或测试，确认无回归并同步计划状态。
+**Success Criteria**: 关键命令流程验证通过，无新增 lint/test 报错；计划文件状态更新。
+**Tests**: `pnpm --filter @infinitescribe/frontend lint` 或等效检查。
+**Status**: In Progress

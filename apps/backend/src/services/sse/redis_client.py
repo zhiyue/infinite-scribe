@@ -257,7 +257,9 @@ class RedisSSEService:
             )
             raise
 
-    async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
+    async def subscribe_user_events(
+        self, user_id: str, last_event_id: str | None = None
+    ) -> AsyncIterator[SSEMessage]:
         """
         Subscribe to real-time user events with connection resilience.
 
@@ -270,6 +272,8 @@ class RedisSSEService:
         max_retries = 3
         retry_delay = 1  # Initial delay in seconds
         retry_count = 0
+
+        current_last_event_id = last_event_id if last_event_id not in {None, "-"} else None
 
         while retry_count < max_retries:
             pubsub = None
@@ -285,6 +289,29 @@ class RedisSSEService:
                 retry_count = 0
                 retry_delay = 1
 
+                # Flush any events that may have arrived after history replay but before
+                # the Pub/Sub subscription was ready. This narrows the race window where
+                # events could otherwise be missed.
+                if current_last_event_id:
+                    try:
+                        pending_events = await self.get_recent_events(user_id, since_id=current_last_event_id)
+                    except Exception as gap_error:  # pragma: no cover - defensive logging
+                        logger.warning(
+                            "Failed to fetch catch-up events after subscribe",
+                            extra={
+                                "user_id": user_id,
+                                "last_event_id": current_last_event_id,
+                                "error": str(gap_error),
+                            },
+                        )
+                    else:
+                        for pending_event in pending_events:
+                            if pending_event.id == current_last_event_id:
+                                continue
+
+                            current_last_event_id = pending_event.id
+                            yield pending_event
+
                 try:
                     # Consume messages directly from the async iterator to avoid
                     # repeatedly timing out and cancelling __anext__(), which can
@@ -295,6 +322,7 @@ class RedisSSEService:
 
                         event = await self._process_pointer_message(message, user_id)
                         if event:
+                            current_last_event_id = event.id or current_last_event_id
                             yield event
 
                 except asyncio.CancelledError:

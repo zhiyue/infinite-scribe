@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useRounds, useSubmitCommand, usePollCommandStatus } from '@/hooks/useConversations'
-import { useGenesisEvents } from '@/hooks/useSSE'
+import { useGenesisEvents, useSSEConnection } from '@/hooks/useSSE'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
@@ -33,6 +33,7 @@ import {
   User,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { SSEConnectionState } from '@/services/sseService'
 
 interface GenesisConversationProps {
   stage: GenesisStage
@@ -93,9 +94,16 @@ export function GenesisConversation({
   const [isTyping, setIsTyping] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [currentCommandId, setCurrentCommandId] = useState<string | null>(null)
+  const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
+
+  // SSE连接状态管理
+  const { isConnected: isSSEConnected, connectionState } = useSSEConnection({
+    autoConnect: true,
+    enabled: true,
+  })
 
   // 获取对话轮次
   const {
@@ -119,6 +127,29 @@ export function GenesisConversation({
     return []
   }, [roundsData])
 
+  // 仅在 SSE 连接不可用时启用命令状态轮询
+  useEffect(() => {
+    if (!currentCommandId) {
+      if (shouldPollCommand) {
+        setShouldPollCommand(false)
+      }
+      return
+    }
+
+    const sseUnavailable =
+      connectionState === SSEConnectionState.ERROR ||
+      connectionState === SSEConnectionState.DISCONNECTED
+
+    if (sseUnavailable) {
+      if (!shouldPollCommand) {
+        console.warn('[GenesisConversation] SSE unavailable, enable polling fallback')
+        setShouldPollCommand(true)
+      }
+    } else if (shouldPollCommand) {
+      setShouldPollCommand(false)
+    }
+  }, [currentCommandId, connectionState, shouldPollCommand])
+
   // 检测是否有待回复的用户消息（用于页面刷新后恢复思考状态）
   const hasPendingUserMessage = useMemo(() => {
     return (
@@ -139,6 +170,16 @@ export function GenesisConversation({
     })
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
 
+  // SSE连接状态日志
+  useEffect(() => {
+    console.log('[GenesisConversation] SSE connection status:', {
+      isSSEConnected,
+      connectionState,
+      currentCommandId,
+      shouldPollCommand,
+    })
+  }, [isSSEConnected, connectionState, currentCommandId, shouldPollCommand])
+
   // 初始化时检查是否有待回复的用户消息
   useEffect(() => {
     // 当数据加载完成且检测到待回复的用户消息时，恢复等待状态
@@ -156,19 +197,48 @@ export function GenesisConversation({
   useGenesisEvents(
     { sessionId, novelId },
     (event) => {
-      console.log('[GenesisConversation] Genesis event received:', event)
+      console.log('[GenesisConversation] Genesis SSE event received:', event)
+      const eventData = (event as any) ?? {}
+      const payload = eventData.payload ?? eventData
+      const rawStatus =
+        typeof payload?.status === 'string'
+          ? payload.status
+          : typeof eventData?.status === 'string'
+            ? eventData.status
+            : ''
+      const status = rawStatus.toLowerCase()
 
-      // 检查是否是AI回复完成事件
-      if (event.payload.status === 'completed' || event.payload.status === 'finished') {
-        console.log('[GenesisConversation] AI response completed, allowing next message')
-        setIsWaitingForResponse(false)
-        setIsTyping(false)
+      if (!status) {
+        return
       }
 
-      // 检查是否是AI开始回复事件
-      if (event.payload.status === 'processing' || event.payload.status === 'generating') {
-        console.log('[GenesisConversation] AI response started')
+      if (['processing', 'generating', 'running', 'queued'].includes(status)) {
+        console.log('[GenesisConversation] SSE - AI response started')
         setIsTyping(true)
+        setIsWaitingForResponse(true)
+        setShouldPollCommand(false)
+        return
+      }
+
+      if (['completed', 'finished'].includes(status)) {
+        console.log('[GenesisConversation] SSE - AI response completed, allowing next message')
+        setIsWaitingForResponse(false)
+        setIsTyping(false)
+        setShouldPollCommand(false)
+        setCurrentCommandId(null)
+        void queryClient.invalidateQueries({
+          queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
+        })
+        return
+      }
+
+      if (['failed', 'error', 'cancelled'].includes(status)) {
+        console.error('[GenesisConversation] SSE - AI response failed:', payload)
+        setIsWaitingForResponse(false)
+        setIsTyping(false)
+        setShouldPollCommand(false)
+        setCurrentCommandId(null)
+        return
       }
     },
     { enabled: !!sessionId },
@@ -262,32 +332,35 @@ export function GenesisConversation({
       setIsTyping(false)
       setIsWaitingForResponse(false)
       setCurrentCommandId(null)
+      setShouldPollCommand(false)
     },
   })
 
-  // 轮询命令状态
+  // 轮询命令状态 - 仅在触发兜底策略时启用
   usePollCommandStatus(sessionId, currentCommandId || '', {
-    enabled: !!currentCommandId,
+    enabled: !!currentCommandId && shouldPollCommand,
     onProgress: (status) => {
-      console.log('[GenesisConversation] Command status update:', status)
+      console.log('[GenesisConversation] Fallback polling - Command status update:', status)
 
       if (status.status === 'completed') {
-        console.log('[GenesisConversation] Command completed successfully')
+        console.log('[GenesisConversation] Fallback polling - Command completed successfully')
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setCurrentCommandId(null)
+        setShouldPollCommand(false)
 
         // 刷新轮次数据以获取AI的回复
         queryClient.invalidateQueries({
           queryKey: ['conversations', 'sessions', sessionId, 'rounds']
         })
       } else if (status.status === 'failed') {
-        console.error('[GenesisConversation] Command failed:', status.error_message)
+        console.error('[GenesisConversation] Fallback polling - Command failed:', status.error_message)
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setCurrentCommandId(null)
+        setShouldPollCommand(false)
       } else if (status.status === 'processing') {
-        console.log('[GenesisConversation] Command is processing')
+        console.log('[GenesisConversation] Fallback polling - Command is processing')
         setIsTyping(true)
       }
     },

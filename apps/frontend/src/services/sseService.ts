@@ -89,6 +89,12 @@ class SSEService {
       enableReconnect: true,
       ...config,
     }
+
+    // 添加页面卸载监听器，确保页面刷新/关闭时正确清理SSE连接
+    this.setupPageUnloadHandlers()
+
+    // 检查页面加载时的连接状态，处理可能的连接限制问题
+    this.checkInitialConnectionState()
   }
 
   /**
@@ -123,9 +129,10 @@ class SSEService {
       return
     }
 
-    // 如果之前因连接限制失败，不要重连
+    // 如果之前因连接限制失败，禁止直接调用connect()
+    // 只能通过 scheduleConnectionLimitRetry() 的定时器重连
     if (this.connectionLimitExceeded) {
-      console.warn(`[SSE] ⛔ 连接数量已达上限，不进行重连`)
+      console.warn(`[SSE] ⛔ 连接数量已达上限，请等待定时重试或手动重置`)
       this.setState(SSEConnectionState.ERROR)
       return
     }
@@ -139,9 +146,10 @@ class SSEService {
       console.log(`[SSE] 构建连接URL: ${this.baseURL}${endpoint}`)
 
       // 获取SSE专用token
+      let token: string
       try {
         console.log(`[SSE] 正在获取SSE token...`)
-        const token = await sseTokenService.getValidSSEToken()
+        token = await sseTokenService.getValidSSEToken()
         url.searchParams.set('sse_token', token)
         console.log(`[SSE] ✅ 已添加SSE token到URL参数`)
       } catch (tokenError) {
@@ -150,6 +158,51 @@ class SSEService {
         this.lastErrorTime = now
         this.notifyErrorListeners(tokenError as Error)
         return
+      }
+
+      // Pre-flight check: Use fetch to detect 429 status before creating EventSource
+      try {
+        console.log(`[SSE] 执行连接前检查以检测429状态...`)
+        const preflightResponse = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+          },
+        })
+
+        if (preflightResponse.status === 429) {
+          console.error(`[SSE] ❌ 连接数量超过限制 (预检查检测到429):`, {
+            status: preflightResponse.status,
+            statusText: preflightResponse.statusText,
+            maxConnections: this.maxConnectionsPerUser,
+          })
+
+          this.connectionLimitExceeded = true
+          this.lastErrorTime = now  // 设置错误时间
+
+          // 保存连接限制状态到localStorage，以便页面刷新后恢复
+          localStorage.setItem('sse_connection_limit_exceeded', 'true')
+
+          this.setState(SSEConnectionState.ERROR)
+          this.notifyErrorListeners(new SSEConnectionLimitError(
+            `连接数量已达上限 (${this.maxConnectionsPerUser})`,
+            this.maxConnectionsPerUser
+          ))
+
+          // 安排连接限制重试而不是完全停止
+          if (this.config.enableReconnect) {
+            this.scheduleConnectionLimitRetry(endpoint)
+          }
+          return
+        }
+
+        // Close the preflight response to avoid interfering with EventSource
+        preflightResponse.body?.cancel()
+        console.log(`[SSE] ✅ 预检查通过，状态码: ${preflightResponse.status}`)
+      } catch (preflightError) {
+        console.warn(`[SSE] ⚠️ 预检查失败，继续尝试EventSource连接:`, preflightError)
+        // Continue with EventSource creation even if preflight fails
       }
 
       console.log(`[SSE] 最终连接URL: ${url.toString().replace(/sse_token=[^&]+/, 'sse_token=***')}`)
@@ -185,6 +238,9 @@ class SSEService {
         this.lastErrorTime = 0
         this.lastFailureTime = 0
         this.connectionLimitExceeded = false  // 重置连接限制标志
+
+        // 清除localStorage中的连接限制状态
+        localStorage.removeItem('sse_connection_limit_exceeded')
 
         // 启动token维护定时器以应对60秒的短期过期
         this.startTokenMaintenance()
@@ -284,12 +340,13 @@ class SSEService {
           return
         }
 
-        // 如果是连接限制错误，不要重连
+        // 如果是连接限制错误，使用更长的退避时间
         if (this.connectionLimitExceeded) {
-          console.warn(`[SSE] ⛔ 连接数量已达上限 (${this.maxConnectionsPerUser})，停止重连`)
+          console.warn(`[SSE] ⛔ 连接数量已达上限 (${this.maxConnectionsPerUser})，将在较长时间后重试`)
           this.setState(SSEConnectionState.ERROR)
-          this.isReconnecting = false
-          this.cleanup()
+
+          // 安排更长时间的重连（使用固定的30秒退避）
+          this.scheduleConnectionLimitRetry(endpoint)
           return
         }
 
@@ -330,11 +387,21 @@ class SSEService {
           error: error
         })
         this.connectionLimitExceeded = true
+        this.lastErrorTime = now  // 设置错误时间
+
+        // 保存连接限制状态到localStorage，以便页面刷新后恢复
+        localStorage.setItem('sse_connection_limit_exceeded', 'true')
+
         this.setState(SSEConnectionState.ERROR)
         this.notifyErrorListeners(new SSEConnectionLimitError(
           `连接数量已达上限 (${this.maxConnectionsPerUser})`,
           this.maxConnectionsPerUser
         ))
+
+        // 安排连接限制重试而不是完全停止
+        if (this.config.enableReconnect) {
+          this.scheduleConnectionLimitRetry(endpoint)
+        }
         return
       }
 
@@ -357,6 +424,10 @@ class SSEService {
     console.log(`[SSE] 🔌 开始断开连接`)
     this.isReconnecting = false
     this.connectionLimitExceeded = false  // 重置连接限制状态
+
+    // 清除localStorage中的连接限制状态
+    localStorage.removeItem('sse_connection_limit_exceeded')
+
     this.cleanup()
     this.setState(SSEConnectionState.DISCONNECTED)
     console.log(`[SSE] ✅ 连接已断开完成`)
@@ -481,7 +552,12 @@ class SSEService {
    */
   resetConnectionLimit(): void {
     this.connectionLimitExceeded = false
-    console.log(`[SSE] 🔄 连接限制状态已重置`)
+    this.lastErrorTime = 0  // 重置错误时间，允许立即重试
+
+    // 清除localStorage中的连接限制状态
+    localStorage.removeItem('sse_connection_limit_exceeded')
+
+    console.log(`[SSE] 🔄 连接限制状态已重置，可以立即重试`)
   }
 
   /**
@@ -626,6 +702,35 @@ class SSEService {
   }
 
   /**
+   * 安排连接限制重试 (使用固定的长延迟)
+   */
+  private scheduleConnectionLimitRetry(endpoint: string): void {
+    if (this.reconnectTimer || this.isReconnecting) {
+      console.log(`[SSE] 连接限制重试已在进行中，跳过新的重连安排`)
+      return
+    }
+
+    this.setState(SSEConnectionState.RECONNECTING)
+    this.isReconnecting = true
+
+    // 连接限制使用固定的30秒延迟，不增加重连计数
+    const retryDelay = 30000 // 30秒
+
+    console.log(`[SSE] 🕑 连接数量限制：${retryDelay/1000}秒后重试`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      console.log(`[SSE] 🔄 执行连接限制重试`)
+
+      // 重置连接限制标志，允许重新连接
+      this.connectionLimitExceeded = false
+
+      // 不增加 reconnectAttempts 计数器，因为这不是真正的连接失败
+      this.connect(endpoint)
+    }, retryDelay)
+  }
+
+  /**
    * 通知错误监听器
    */
   private notifyErrorListeners(error: Event | Error): void {
@@ -708,6 +813,92 @@ class SSEService {
       if (this.config.enableReconnect && this.reconnectAttempts < this.config.maxReconnectAttempts) {
         console.log('[SSE] 🔄 Token过期后重连尝试')
         this.connect()
+      }
+    }, 1000) // 1秒延迟
+  }
+
+  /**
+   * 设置页面卸载事件处理器
+   * 确保页面刷新/关闭时正确清理SSE连接
+   */
+  private setupPageUnloadHandlers(): void {
+    // 避免在服务器端运行时出错
+    if (typeof window === 'undefined') return
+
+    // beforeunload: 页面即将卸载时触发（刷新、关闭、导航离开）
+    const handleBeforeUnload = () => {
+      console.log('[SSE] 🚪 页面即将卸载，关闭SSE连接')
+      this.disconnect()
+    }
+
+    // unload: 页面卸载时触发（备用机制）
+    const handleUnload = () => {
+      console.log('[SSE] 🚪 页面已卸载，强制关闭SSE连接')
+      if (this.eventSource) {
+        this.eventSource.close()
+        this.eventSource = null
+      }
+    }
+
+    // pagehide: 页面隐藏时触发（适用于移动端和后退/前进缓存）
+    const handlePageHide = (event: PageTransitionEvent) => {
+      // persisted表示页面是否被缓存（bfcache）
+      if (!event.persisted) {
+        console.log('[SSE] 📱 页面隐藏且未缓存，关闭SSE连接')
+        this.disconnect()
+      } else {
+        console.log('[SSE] 📱 页面被缓存，保持SSE连接')
+      }
+    }
+
+    // visibilitychange: 页面可见性变化（标签页切换、最小化等）
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('[SSE] 👁️ 页面不可见，暂时保持SSE连接（标签页切换）')
+        // 注意：这里不断开连接，因为用户可能只是切换标签页
+      } else if (document.visibilityState === 'visible') {
+        console.log('[SSE] 👁️ 页面可见，检查SSE连接状态')
+        // 页面重新可见时，检查连接状态
+        if (!this.isConnected() && this.config.enableReconnect) {
+          console.log('[SSE] 🔄 页面重新可见，尝试重新连接')
+          this.connect()
+        }
+      }
+    }
+
+    // 注册事件监听器
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('unload', handleUnload)
+    window.addEventListener('pagehide', handlePageHide)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    console.log('[SSE] 📋 页面卸载事件监听器已设置')
+  }
+
+  /**
+   * 检查初始连接状态
+   * 在页面加载时检查是否有遗留的连接限制问题
+   */
+  private checkInitialConnectionState(): void {
+    // 避免在服务器端运行时出错
+    if (typeof window === 'undefined') return
+
+    // 延迟检查，等待页面完全加载
+    setTimeout(async () => {
+      console.log('[SSE] 🔍 检查初始连接状态...')
+
+      // 检查localStorage中是否有连接限制标志（页面刷新前的状态）
+      const storedLimitExceeded = localStorage.getItem('sse_connection_limit_exceeded')
+      if (storedLimitExceeded === 'true') {
+        console.warn('[SSE] ⚠️ 检测到上次会话的连接限制问题，重置状态')
+        this.connectionLimitExceeded = false
+        localStorage.removeItem('sse_connection_limit_exceeded')
+
+        // 给后端一些时间来清理过期的连接计数器
+        console.log('[SSE] 🕐 等待5秒让后端清理过期连接...')
+        setTimeout(() => {
+          console.log('[SSE] ✅ 连接限制状态已重置，可以尝试建立新连接')
+        }, 5000)
       }
     }, 1000) // 1秒延迟
   }

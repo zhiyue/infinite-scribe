@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { sseService, SSEConnectionState } from '@/services/sseService'
 import { useSSE } from '@/contexts'
+import { API_ENDPOINTS } from '@/config/api'
 import type { DomainEvent, SSEMessage } from '@/types/events'
 
 /**
@@ -28,7 +29,7 @@ interface UseSSEOptions {
  * 管理 SSE 连接的生命周期
  */
 export function useSSEConnection(options: UseSSEOptions = {}) {
-  const { endpoint = '/events', autoConnect = true, enabled = true } = options
+  const { endpoint = API_ENDPOINTS.sse.stream, autoConnect = true, enabled = true } = options
 
   const [connectionState, setConnectionState] = useState<SSEConnectionState>(
     sseService.getConnectionState(),

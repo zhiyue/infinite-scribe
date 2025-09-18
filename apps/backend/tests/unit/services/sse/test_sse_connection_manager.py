@@ -329,7 +329,10 @@ class TestSSEConnectionManager:
         # Call _send_historical_events on the event_streamer with specific since_id
         events = []
         async for event in sse_manager.event_streamer._send_historical_events(
-            mock_request, sample_user_id, since_id="event-0"
+            mock_request,
+            sample_user_id,
+            connection_state=None,
+            since_id="event-0",
         ):
             events.append(event)
 

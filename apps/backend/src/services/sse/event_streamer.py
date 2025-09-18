@@ -10,16 +10,14 @@ from fastapi import Request
 from sse_starlette import ServerSentEvent
 
 from .config import sse_config
-from .redis_client import RedisSSEService
 
 logger = logging.getLogger(__name__)
 
 
 class SSEEventStreamer:
-    """Service for managing SSE event streaming with history replay and real-time events."""
+    """Service for streaming events to SSE clients with history replay."""
 
-    def __init__(self, redis_sse_service: RedisSSEService, state_manager=None):
-        """Initialize with Redis SSE service and optional state manager."""
+    def __init__(self, redis_sse_service, state_manager=None):
         self.redis_sse = redis_sse_service
         self.state_manager = state_manager
 
@@ -33,16 +31,27 @@ class SSEEventStreamer:
             since_id = connection_state.last_event_id if connection_state and connection_state.last_event_id else "-"
             connection_id = connection_state.connection_id if connection_state else None
 
-            # Start background activity refresher so idle connections stay marked active
+            # Start background activity refresher that checks connection liveness
             if connection_id and self.state_manager:
-                keepalive_task = asyncio.create_task(self._refresh_connection_activity(connection_id))
+                keepalive_task = asyncio.create_task(self._refresh_connection_activity(request, connection_id))
 
             # Push missed/historical events first (for reconnection)
-            async for event in self._send_historical_events(request, user_id, connection_id, since_id=since_id):
+            async for event in self._send_historical_events(
+                request,
+                user_id,
+                connection_id,
+                connection_state,
+                since_id=since_id,
+            ):
                 yield event
 
             # Stream real-time events with client disconnection detection
-            async for event in self._stream_realtime_events(request, user_id, connection_id):
+            async for event in self._stream_realtime_events(
+                request,
+                user_id,
+                connection_id,
+                connection_state,
+            ):
                 yield event
 
         except asyncio.CancelledError:
@@ -61,53 +70,61 @@ class SSEEventStreamer:
             await cleanup_callback()
 
     async def _send_historical_events(
-        self, request: Request, user_id: str, connection_id: str | None = None, since_id: str = "-"
+        self,
+        request: Request,
+        user_id: str,
+        connection_id: str | None = None,
+        connection_state=None,
+        since_id: str = "-",
     ) -> AsyncGenerator[ServerSentEvent, None]:
-        """
-        Send historical events to newly connected client with improved backfill.
+        """Send historical events to client for replay/catch-up on reconnection."""
+        # Extract connection_id from connection_state if not provided (backward compatibility)
+        if connection_id is None and connection_state:
+            connection_id = getattr(connection_state, 'connection_id', None)
+        
+        # Retrieve missed events from since_id (if connection was resumed)
+        if since_id != "-":
+            logger.debug(f"Replaying events for user {user_id} since event ID: {since_id}")
 
-        This method now handles event history properly:
-        - Sends all events since Last-Event-ID (not just last 10)
-        - Processes events in batches to avoid memory issues
-        - Maintains chronological order
-        - Updates connection activity timestamp when sending events
-        """
-        try:
-            # Fetch all events since the given ID
+            # Get events from Redis stream since last_event_id
             historical_events = await self.redis_sse.get_recent_events(user_id, since_id=since_id)
-
-            # If no Last-Event-ID provided, limit to recent events for initial connection
-            if since_id in ("-", None) and len(historical_events) > sse_config.DEFAULT_HISTORY_LIMIT:
-                # For initial connections, send only recent events
-                historical_events = historical_events[-sse_config.DEFAULT_HISTORY_LIMIT :]
-                logger.info(
-                    f"Initial connection for user {user_id}, sending last {sse_config.DEFAULT_HISTORY_LIMIT} events"
-                )
-            else:
-                # For reconnections, send all events since Last-Event-ID
-                logger.info(f"Reconnection for user {user_id} from {since_id}, sending {len(historical_events)} events")
-
-            # Send events in chronological order
-            for event in historical_events:
+            
+            for sse_message in historical_events:
+                # Check disconnection before sending each historical event
                 if await request.is_disconnected():
-                    logger.info(f"Client disconnected during history replay for user {user_id}")
-                    return
+                    logger.info(f"Client disconnected for user {user_id}, stopping historical event replay")
+                    break
 
-                # Update connection activity timestamp when sending event
+                # Update activity when successfully sending historical events
                 if connection_id and self.state_manager:
                     self.state_manager.update_connection_activity(connection_id)
 
-                # 添加元信息到数据中，供前端验证
-                data_with_meta = {**event.data, "_scope": event.scope.value, "_version": event.version}
-                yield ServerSentEvent(data=json.dumps(data_with_meta, ensure_ascii=False), event=event.event, id=event.id)
-        except Exception as e:
-            logger.error(f"Error pushing historical events for user {user_id}: {e}")
+                # Update last delivered event ID
+                if connection_state and sse_message.id:
+                    connection_state.last_event_id = sse_message.id
+
+                # Prepare data with metadata
+                data_with_meta = {**sse_message.data, "_scope": sse_message.scope.value, "_version": sse_message.version}
+
+                yield ServerSentEvent(
+                    data=json.dumps(data_with_meta, ensure_ascii=False),
+                    event=sse_message.event,
+                    id=sse_message.id,
+                )
+
+            logger.debug(f"Finished replaying historical events for user {user_id}")
 
     async def _stream_realtime_events(
-        self, request: Request, user_id: str, connection_id: str | None = None
+        self,
+        request: Request,
+        user_id: str,
+        connection_id: str | None = None,
+        connection_state=None,
     ) -> AsyncGenerator[ServerSentEvent, None]:
         """Stream real-time events to client with disconnection detection and activity tracking."""
-        async for sse_message in self.redis_sse.subscribe_user_events(user_id):
+        last_event_id = connection_state.last_event_id if connection_state else None
+
+        async for sse_message in self.redis_sse.subscribe_user_events(user_id, last_event_id=last_event_id):
             # Check for client disconnection (sse-starlette feature)
             if await request.is_disconnected():
                 logger.info(f"Client disconnected for user {user_id}, stopping event stream")
@@ -116,6 +133,10 @@ class SSEEventStreamer:
             # Update connection activity timestamp when sending event
             if connection_id and self.state_manager:
                 self.state_manager.update_connection_activity(connection_id)
+
+            # Persist last delivered event ID for reconnection catch-up
+            if connection_state and sse_message.id:
+                connection_state.last_event_id = sse_message.id
 
             # 添加元信息到数据中，供前端验证
             data_with_meta = {**sse_message.data, "_scope": sse_message.scope.value, "_version": sse_message.version}
@@ -127,8 +148,17 @@ class SSEEventStreamer:
                 id=sse_message.id,
             )
 
-    async def _refresh_connection_activity(self, connection_id: str) -> None:
-        """Periodically refresh connection activity so idle connections are not GC'd prematurely."""
+    async def _check_connection_liveness(self, request: Request) -> bool:
+        """Check if the SSE connection is still alive by testing client disconnection status."""
+        try:
+            # Use FastAPI's built-in disconnection check
+            return not await request.is_disconnected()
+        except Exception as e:
+            logger.debug(f"Error checking connection liveness: {e}")
+            return False
+
+    async def _refresh_connection_activity(self, request: Request, connection_id: str) -> None:
+        """Periodically refresh connection activity only if connection is confirmed alive."""
         try:
             # Refresh at least once a minute, respecting configured ping interval when shorter
             refresh_interval = max(1, min(sse_config.PING_INTERVAL_SECONDS, sse_config.CLEANUP_INTERVAL_SECONDS))
@@ -139,8 +169,19 @@ class SSEEventStreamer:
                 if not self.state_manager:
                     break
 
-                updated = self.state_manager.update_connection_activity(connection_id)
-                if not updated:
+                # Only refresh activity if connection is confirmed alive
+                if await self._check_connection_liveness(request):
+                    updated = self.state_manager.update_connection_activity(connection_id)
+                    if not updated:
+                        break
+                    logger.debug(f"Connection {connection_id} confirmed alive, activity refreshed")
+                else:
+                    # Connection is dead, stop refreshing to allow cleanup
+                    logger.info(f"Connection {connection_id} detected as dead, stopping activity refresh")
                     break
         except asyncio.CancelledError:
             raise
+        except Exception as e:
+            logger.warning(f"Error in connection activity refresh for {connection_id}: {e}")
+            # Stop refreshing on any error to allow cleanup
+            return

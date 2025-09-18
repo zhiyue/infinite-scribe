@@ -124,19 +124,28 @@ class SSEConnectionStateManager:
 
         Args:
             batch_size: Maximum number of connections to clean in one batch.
-                       Defaults to CLEANUP_BATCH_SIZE from config.
-                       Set to None for unlimited batch size (useful for shutdown).
+                       If not provided, defaults to CLEANUP_BATCH_SIZE from config.
+                       Set to -1 for unlimited batch size (useful for shutdown).
 
         Returns:
             int: Number of stale connections cleaned up
         """
         self._cleanup_stats["total_cleanups"] += 1
         start_time = time.time()
-        unlimited_batch = batch_size is None
+
+        # Handle batch size logic correctly:
+        # - None (default) should use config default CLEANUP_BATCH_SIZE
+        # - -1 means unlimited (for shutdown scenarios)
+        # - <= 0 should fallback to config default
         if batch_size is None:
+            batch_size = sse_config.CLEANUP_BATCH_SIZE
+        elif batch_size == -1:
+            unlimited_batch = True
             batch_size = len(self.connections)  # Process all connections if unlimited
         elif batch_size <= 0:
             batch_size = sse_config.CLEANUP_BATCH_SIZE
+        else:
+            unlimited_batch = False
 
         total_connections_before = len(self.connections)
         stale_count = 0
@@ -236,8 +245,8 @@ class SSEConnectionStateManager:
         while iterations < max_iterations:
             iterations += 1
 
-            # Clean with unlimited batch size
-            cleaned = await self.cleanup_stale_connections(batch_size=None)
+            # Clean with unlimited batch size (-1)
+            cleaned = await self.cleanup_stale_connections(batch_size=-1)
 
             if cleaned == 0:
                 logger.debug(f"Complete cleanup finished after {iterations} iteration(s)")
