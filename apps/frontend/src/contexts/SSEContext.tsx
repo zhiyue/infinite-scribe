@@ -3,11 +3,11 @@
  * 提供全局SSE连接状态管理和生命周期控制
  */
 
-import React, { createContext, useContext, useEffect, useReducer, ReactNode } from 'react'
-import { sseService, SSEConnectionState } from '@/services/sseService'
+import React, { createContext, useContext, useEffect, useReducer, useRef, ReactNode } from 'react'
+import { SSEService, SSEConnectionState } from '@/services/sseService'
 import { useAuthStore } from '@/hooks/useAuth'
 import type { SSEMessage } from '@/types/events'
-import { API_ENDPOINTS } from '@/config/api'
+import { SSE_CONNECTION_CONFIG, SSE_LOG_MESSAGES } from '@/config/sse.config'
 
 // SSE状态类型定义
 interface SSEState {
@@ -175,11 +175,27 @@ interface SSEProviderProps {
  */
 export function SSEProvider({
   children,
-  endpoint = API_ENDPOINTS.sse.stream,
+  endpoint = SSE_CONNECTION_CONFIG.ENDPOINT_PATH,
   config = {}
 }: SSEProviderProps) {
   const [state, dispatch] = useReducer(sseReducer, initialState)
   const { isAuthenticated } = useAuthStore()
+
+  // 使用useRef保持SSEService实例，避免重复创建
+  const sseServiceRef = useRef<SSEService | null>(null)
+
+  // 懒初始化SSEService实例
+  if (!sseServiceRef.current) {
+    console.log(`${SSE_LOG_MESSAGES.PREFIX_CONTEXT} ${SSE_LOG_MESSAGES.DEBUG.SERVICE_CREATED}`)
+    sseServiceRef.current = new SSEService()
+
+    // 开发环境下挂载到window便于调试
+    if (import.meta.env.DEV) {
+      (window as any).__SSE_CONTEXT_SERVICE__ = sseServiceRef.current
+    }
+  }
+
+  const sseService = sseServiceRef.current
 
   const {
     reconnectInterval = 3000,
@@ -287,40 +303,48 @@ export function SSEProvider({
     }
   }, [])
 
-  // 监听认证状态变化 - 只在认证状态和连接状态变化时触发
+  // 监听认证状态变化 - 只在认证状态变化时触发
   useEffect(() => {
     console.log(`[SSE Context] 认证状态变化: ${isAuthenticated}`)
 
-    if (isAuthenticated && !state.isConnected && !state.isConnecting) {
-      // 检查SSE服务是否正在重连或已达到最大重连次数
-      const reconnectInfo = sseService.getConnectionInfo()
+    // 使用一个小延迟来避免StrictMode的重复执行问题
+    const timer = setTimeout(() => {
+      if (isAuthenticated && !state.isConnected && !state.isConnecting) {
+        // 检查SSE服务是否正在重连或已达到最大重连次数
+        const reconnectInfo = sseService.getConnectionInfo()
 
-      if (reconnectInfo.attempts >= maxReconnectAttempts) {
-        console.warn('[SSE Context] ⛔ 已达到最大重连次数，不会自动连接')
-        return
+        if (reconnectInfo.attempts >= maxReconnectAttempts) {
+          console.warn('[SSE Context] ⛔ 已达到最大重连次数，不会自动连接')
+          return
+        }
+
+        if (reconnectInfo.isReconnecting) {
+          console.log('[SSE Context] SSE服务正在重连中，跳过自动连接')
+          return
+        }
+
+        // 避免频繁重连：如果刚刚发生错误，等待一段时间
+        const timeSinceLastError = Date.now() - (reconnectInfo.lastErrorTime || 0)
+        if (reconnectInfo.lastErrorTime && timeSinceLastError < 5000) {
+          console.log(`[SSE Context] 距离上次错误时间过短 (${timeSinceLastError}ms)，延迟自动连接`)
+          return
+        }
+
+        console.log('[SSE Context] 用户已认证，自动建立SSE连接')
+        connect().catch(error => {
+          console.error('[SSE Context] 自动连接失败:', error)
+        })
+      } else if (!isAuthenticated && (state.isConnected || state.isConnecting)) {
+        console.log('[SSE Context] 用户已退出，断开SSE连接')
+        disconnect()
       }
+    }, 100)
 
-      if (reconnectInfo.isReconnecting) {
-        console.log('[SSE Context] SSE服务正在重连中，跳过自动连接')
-        return
-      }
-
-      // 避免频繁重连：如果刚刚发生错误，等待一段时间
-      const timeSinceLastError = Date.now() - (reconnectInfo.lastErrorTime || 0)
-      if (reconnectInfo.lastErrorTime && timeSinceLastError < 5000) {
-        console.log(`[SSE Context] 距离上次错误时间过短 (${timeSinceLastError}ms)，延迟自动连接`)
-        return
-      }
-
-      console.log('[SSE Context] 用户已认证，自动建立SSE连接')
-      connect().catch(error => {
-        console.error('[SSE Context] 自动连接失败:', error)
-      })
-    } else if (!isAuthenticated && (state.isConnected || state.isConnecting)) {
-      console.log('[SSE Context] 用户已退出，断开SSE连接')
-      disconnect()
+    // 清理函数：取消定时器
+    return () => {
+      clearTimeout(timer)
     }
-  }, [isAuthenticated, state.isConnected, state.isConnecting]) // 移除会导致循环的依赖
+  }, [isAuthenticated, state.isConnected, state.isConnecting, connect, disconnect, maxReconnectAttempts]) // 添加必要的依赖
 
   // 添加全局事件监听器来跟踪事件接收
   useEffect(() => {
@@ -379,6 +403,18 @@ export function SSEProvider({
 
     return () => clearInterval(healthCheckTimer)
   }, [state.isConnected, state.lastEventTime, state.lastErrorTime, state.reconnectAttempts, state.isHealthy, maxReconnectAttempts, healthCheckInterval])
+
+  // 真正卸载时清理（只在用户登出或应用卸载时）
+  useEffect(() => {
+    // 组件真正卸载时的清理（非StrictMode）
+    return () => {
+      // 只在用户未认证时才断开连接
+      if (!isAuthenticated && sseService) {
+        console.log('[SSE Context] 用户未认证，清理SSE连接')
+        sseService.disconnect()
+      }
+    }
+  }, [isAuthenticated, sseService])
 
   // Context value
   const contextValue: SSEContextType = {

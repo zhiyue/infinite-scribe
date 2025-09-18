@@ -66,52 +66,101 @@ async def get_sse_connection_manager(
 async def sse_stream(
     request: Request,
     sse_token: Annotated[str, Query(description="SSE authentication token")],
+    preflight: Annotated[bool, Query(description="Preflight check only (no stream)")] = False,
     sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
 ):
     """SSE streaming endpoint for real-time events."""
-    logger.info(f"🌟 SSE stream endpoint accessed", extra={
-        "client_host": request.client.host if request.client else "unknown",
-        "user_agent": request.headers.get("user-agent", "unknown"),
-        "has_sse_token": bool(sse_token),
-        "last_event_id": request.headers.get("last-event-id"),
-        "endpoint": "/api/v1/events/stream"
-    })
+    logger.info(
+        "🌟 SSE stream endpoint accessed",
+        extra={
+            "client_host": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "has_sse_token": bool(sse_token),
+            "last_event_id": request.headers.get("last-event-id"),
+            "endpoint": "/api/v1/events/stream",
+        },
+    )
 
     try:
         # 验证SSE token并获取用户ID
         logger.debug("🔐 开始验证SSE token")
         user_id = verify_sse_token(sse_token)
-        logger.info(f"✅ SSE token验证成功", extra={
-            "user_id": user_id,
-            "client_host": request.client.host if request.client else "unknown"
-        })
+        logger.info(
+            "✅ SSE token验证成功",
+            extra={"user_id": user_id, "client_host": request.client.host if request.client else "unknown"},
+        )
+
+        # 预检模式：仅进行连接数限制检查，不建立SSE流
+        if preflight:
+            from src.services.sse.config import sse_config
+
+            logger.info(
+                "🧪 SSE预检请求（不建立流）",
+                extra={
+                    "user_id": user_id,
+                    "endpoint": "/api/v1/events/stream",
+                    "preflight": True,
+                },
+            )
+
+            try:
+                # 读取当前用户的连接计数（不自增）
+                conn_count = 0
+                counter_service = getattr(sse_connection_manager, "redis_counter_service", None)
+                if counter_service and hasattr(counter_service, "get_user_connection_count"):
+                    conn_count = await counter_service.get_user_connection_count(str(user_id))
+
+                if conn_count >= sse_config.MAX_CONNECTIONS_PER_USER:
+                    logger.warning(
+                        "⛔ 预检失败：用户连接数已达上限",
+                        extra={
+                            "user_id": user_id,
+                            "conn_count": conn_count,
+                            "limit": sse_config.MAX_CONNECTIONS_PER_USER,
+                        },
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        content={
+                            "status": "too_many_connections",
+                            "message": "Too many concurrent SSE connections",
+                            "current": conn_count,
+                            "limit": sse_config.MAX_CONNECTIONS_PER_USER,
+                        },
+                        headers={"Retry-After": str(sse_config.RETRY_AFTER_SECONDS)},
+                    )
+
+                logger.info(
+                    "✅ 预检通过：可建立SSE连接",
+                    extra={"user_id": user_id, "conn_count": conn_count},
+                )
+                return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+            except Exception as e:
+                logger.error(f"SSE预检失败: {e}")
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"status": "unhealthy", "error": str(e)},
+                )
 
         # 建立SSE连接
-        logger.info(f"🔗 准备建立SSE连接", extra={
-            "user_id": user_id,
-            "endpoint": "/api/v1/events/stream"
-        })
+        logger.info("🔗 准备建立SSE连接", extra={"user_id": user_id, "endpoint": "/api/v1/events/stream"})
 
         response = await sse_connection_manager.add_connection(request, user_id)
 
-        logger.info(f"🎉 SSE连接建立成功", extra={
-            "user_id": user_id,
-            "response_type": type(response).__name__
-        })
+        logger.info("🎉 SSE连接建立成功", extra={"user_id": user_id, "response_type": type(response).__name__})
 
         return response
 
     except HTTPException as e:
-        logger.warning(f"SSE连接被拒绝: {e.detail}", extra={
-            "status_code": e.status_code,
-            "user_agent": request.headers.get("user-agent", "unknown")[:50]
-        })
+        logger.warning(
+            f"SSE连接被拒绝: {e.detail}",
+            extra={"status_code": e.status_code, "user_agent": request.headers.get("user-agent", "unknown")[:50]},
+        )
         raise
     except Exception as e:
         logger.error(f"SSE连接失败: {type(e).__name__}: {e!s}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to establish SSE connection"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to establish SSE connection"
         ) from e
 
 

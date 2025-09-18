@@ -105,19 +105,19 @@ class SSETestClient:
 
         cleanup_stats = {
             "event_streams_deleted": 0,
-            "session_keys_deleted": 0,
+            "connection_counters_deleted": 0,
             "other_keys_deleted": 0,
-            "total_deleted": 0
+            "total_deleted": 0,
         }
 
         # 扫描并删除所有 SSE 相关的键
         patterns_to_clean = [
-            "events:user:*",        # SSE 事件流
-            "sessions:*",           # 用户会话 (如果有)
-            "sse:connections:*",    # SSE 连接信息 (如果有)
+            "events:user:*",  # SSE 事件流
+            "user:*:sse_conns",  # 用户连接计数器
         ]
 
         async with self.redis_service.acquire() as redis_client:
+            # 处理模式匹配的键
             for pattern in patterns_to_clean:
                 logger.info(f"🔍 扫描匹配模式: {pattern}")
 
@@ -144,8 +144,8 @@ class SSETestClient:
                             key_str = key.decode() if isinstance(key, bytes) else key
                             if key_str.startswith("events:user:"):
                                 cleanup_stats["event_streams_deleted"] += 1
-                            elif key_str.startswith("sessions:"):
-                                cleanup_stats["session_keys_deleted"] += 1
+                            elif key_str.startswith("user:") and key_str.endswith(":sse_conns"):
+                                cleanup_stats["connection_counters_deleted"] += 1
                             else:
                                 cleanup_stats["other_keys_deleted"] += 1
 
@@ -157,14 +157,34 @@ class SSETestClient:
                             key_str = key.decode() if isinstance(key, bytes) else key
                             if key_str.startswith("events:user:"):
                                 cleanup_stats["event_streams_deleted"] += 1
-                            elif key_str.startswith("sessions:"):
-                                cleanup_stats["session_keys_deleted"] += 1
+                            elif key_str.startswith("user:") and key_str.endswith(":sse_conns"):
+                                cleanup_stats["connection_counters_deleted"] += 1
                             else:
                                 cleanup_stats["other_keys_deleted"] += 1
 
                         cleanup_stats["total_deleted"] += len(keys_to_delete)
                 else:
                     logger.info(f"✅ 没有找到匹配模式 {pattern} 的键")
+
+            # 处理全局连接计数器 (特定键名)
+            global_counter_key = "global:sse_connections_count"
+            logger.info(f"🔍 检查全局连接计数器: {global_counter_key}")
+
+            global_exists = await redis_client.exists(global_counter_key)
+            if global_exists:
+                logger.info("📋 找到全局连接计数器")
+
+                if not dry_run:
+                    deleted_count = await redis_client.delete(global_counter_key)
+                    logger.info("🗑️  删除了全局连接计数器")
+                    cleanup_stats["other_keys_deleted"] += deleted_count
+                    cleanup_stats["total_deleted"] += deleted_count
+                else:
+                    logger.info("🏃 试运行模式 - 将删除全局连接计数器")
+                    cleanup_stats["other_keys_deleted"] += 1
+                    cleanup_stats["total_deleted"] += 1
+            else:
+                logger.info("✅ 全局连接计数器不存在")
 
         return cleanup_stats
 
@@ -368,7 +388,7 @@ async def cmd_cleanup(args):
 
             if not args.force:
                 response = input("确认要继续吗? (输入 'yes' 确认): ")
-                if response.lower() != 'yes':
+                if response.lower() != "yes":
                     print("❌ 操作已取消")
                     return
 
@@ -381,7 +401,7 @@ async def cmd_cleanup(args):
             print()
             print("📊 清理统计:")
             print(f"   📨 SSE 事件流: {stats['event_streams_deleted']}")
-            print(f"   🔑 会话键: {stats['session_keys_deleted']}")
+            print(f"   🔢 连接计数器: {stats['connection_counters_deleted']}")
             print(f"   🗂️  其他键: {stats['other_keys_deleted']}")
             print(f"   📈 总计: {stats['total_deleted']}")
 
@@ -392,7 +412,7 @@ async def cmd_cleanup(args):
             else:
                 print()
                 print("✅ 清理完成!")
-                if stats['total_deleted'] == 0:
+                if stats["total_deleted"] == 0:
                     print("💡 没有找到需要清理的数据")
                 else:
                     print("💡 所有 SSE 相关数据已清理")
@@ -460,16 +480,8 @@ def main():
 
     # Cleanup command
     cleanup_parser = subparsers.add_parser("cleanup", help="清理所有 SSE 连接和事件流")
-    cleanup_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="试运行模式，显示将要删除的内容但不实际删除"
-    )
-    cleanup_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="跳过确认提示，直接执行清理"
-    )
+    cleanup_parser.add_argument("--dry-run", action="store_true", help="试运行模式，显示将要删除的内容但不实际删除")
+    cleanup_parser.add_argument("--force", action="store_true", help="跳过确认提示，直接执行清理")
 
     args = parser.parse_args()
 

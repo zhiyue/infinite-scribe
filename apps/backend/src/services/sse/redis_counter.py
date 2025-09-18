@@ -226,3 +226,30 @@ class RedisCounterService:
             logger.error(f"Error during connection scan: {e}")
 
         return total_connections
+
+    async def get_user_connection_count(self, user_id: str) -> int:
+        """Get current connection count for a specific user without modifying counters.
+
+        Args:
+            user_id: The user identifier
+
+        Returns:
+            int: Current connection count (0 if missing/unavailable)
+        """
+        if not self.redis_client:
+            return 0
+
+        try:
+            key = self.get_connection_key(user_id)
+            val = await self.redis_client.get(key)
+            if val is None:
+                return 0
+            try:
+                count = int(val)
+                return max(count, 0)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid user connection count value for {key}: {val}")
+                return 0
+        except Exception as e:
+            logger.warning(f"Error fetching user connection count for {user_id}: {e}")
+            return 0

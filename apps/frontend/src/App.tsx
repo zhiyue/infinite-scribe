@@ -5,6 +5,7 @@ import RequireAuth from './components/auth/RequireAuth'
 import { queryClient } from './lib/queryClient'
 import { SSEProvider } from './contexts'
 import { API_ENDPOINTS } from './config/api'
+import { SSE_CONNECTION_CONFIG } from './config/sse.config'
 
 // Pages
 import EmailVerificationPage from './pages/auth/EmailVerification'
@@ -29,7 +30,14 @@ import './index.css'
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SSEProvider endpoint={API_ENDPOINTS.sse.stream}>
+      <SSEProvider
+        endpoint={SSE_CONNECTION_CONFIG.ENDPOINT_PATH}
+        config={{
+          reconnectInterval: SSE_CONNECTION_CONFIG.MIN_RETRY_DELAY,
+          maxReconnectAttempts: 10,
+          healthCheckInterval: 30000
+        }}
+      >
         <Router>
           <div className="App">
             <Routes>

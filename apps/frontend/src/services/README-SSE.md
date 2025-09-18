@@ -6,21 +6,34 @@ InfiniteScribe 前端的 SSE 实时事件集成，用于接收后端推送的实
 
 ### 1. SSE 服务 (`sseService.ts`)
 
-负责管理 EventSource 连接的底层服务：
+负责管理 EventSource 连接的底层服务类（通过Context管理，不使用全局单例）：
 
 ```typescript
-import { sseService } from '@/services/sseService'
+import { SSEService } from '@/services/sseService'
 
-// 连接到 SSE 端点
-sseService.connect('/events')
+// SSE服务由SSEContext管理，在组件中通过useSSE hook使用
+// 不要直接创建SSEService实例
 
-// 监听特定事件
-sseService.addEventListener('novel.created', (event) => {
-  console.log('小说创建:', event.data)
-})
+// 在组件中使用：
+import { useSSE } from '@/contexts'
 
-// 断开连接
-sseService.disconnect()
+function MyComponent() {
+  const { connect, disconnect, addMessageListener } = useSSE()
+
+  // 连接到 SSE 端点
+  connect()
+
+  // 监听特定事件
+  const handler = (event) => {
+    console.log('小说创建:', event.data)
+  }
+  addMessageListener(handler)
+
+  // 清理
+  return () => {
+    removeMessageListener(handler)
+  }
+}
 ```
 
 ### 2. React Hooks (`useSSE.ts`)

@@ -14,6 +14,7 @@ import type { CreateNovelRequest } from '@/types/api'
 import { AlertCircle, ArrowLeft, BookOpen, Loader2, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { ROUTES } from '@/config/routes.config'
 
 export default function CreateNovel() {
   const navigate = useNavigate()
@@ -69,7 +70,7 @@ export default function CreateNovel() {
       })
 
       // 创建成功，跳转到小说详情页
-      navigate(`/novels/${novel.id}`)
+      navigate(ROUTES.novels.detail(novel.id))
     } catch (error) {
       console.error('创建小说失败:', error)
     }
@@ -93,7 +94,7 @@ export default function CreateNovel() {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/novels" className="flex items-center gap-2">
+              <Link to={ROUTES.novels.list} className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 返回
               </Link>

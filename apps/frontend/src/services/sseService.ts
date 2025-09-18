@@ -160,13 +160,17 @@ class SSEService {
         return
       }
 
-      // Pre-flight check: Use fetch to detect 429 status before creating EventSource
+      // Pre-flight check: call stream endpoint with preflight flag to detect 429 without opening SSE
       try {
-        console.log(`[SSE] 执行连接前检查以检测429状态...`)
-        const preflightResponse = await fetch(url.toString(), {
+        console.log(`[SSE] 执行连接前检查以检测429状态（无SSE）...`)
+        // 附加预检参数，后端将仅做限流检查并返回204/429，不建立SSE流
+        const preflightUrl = new URL(url.toString())
+        preflightUrl.searchParams.set('preflight', '1')
+
+        const preflightResponse = await fetch(preflightUrl.toString(), {
           method: 'GET',
           headers: {
-            'Accept': 'text/event-stream',
+            'Accept': 'application/json',
             'Cache-Control': 'no-cache',
           },
         })
@@ -197,8 +201,6 @@ class SSEService {
           return
         }
 
-        // Close the preflight response to avoid interfering with EventSource
-        preflightResponse.body?.cancel()
         console.log(`[SSE] ✅ 预检查通过，状态码: ${preflightResponse.status}`)
       } catch (preflightError) {
         console.warn(`[SSE] ⚠️ 预检查失败，继续尝试EventSource连接:`, preflightError)
@@ -432,7 +434,7 @@ class SSEService {
     // 清除localStorage中的连接限制状态
     localStorage.removeItem('sse_connection_limit_exceeded')
 
-    this.cleanup()
+    this.cleanup('disconnect_requested')
     this.setState(SSEConnectionState.DISCONNECTED)
     console.log(`[SSE] ✅ 连接已断开完成`)
   }
@@ -567,13 +569,28 @@ class SSEService {
   /**
    * 清理资源
    */
-  private cleanup(): void {
+  private cleanup(reason: string = 'unknown'): void {
+    console.log(`[SSE] 🧹 Cleanup called, reason: ${reason}`)
+    console.trace('[SSE] Cleanup stack trace')
+
     if (this.eventSource) {
-      this.eventSource.close()
+      const currentState = this.eventSource.readyState
+      console.log(`[SSE] 🔌 Closing EventSource, readyState was: ${currentState}`)
+
+      // 只有在连接不是已关闭状态时才尝试关闭
+      if (currentState !== EventSource.CLOSED) {
+        try {
+          this.eventSource.close()
+        } catch (error) {
+          console.error(`[SSE] 关闭EventSource时出错:`, error)
+        }
+      }
+
       this.eventSource = null
     }
 
     if (this.reconnectTimer) {
+      console.log(`[SSE] ⏰ Clearing reconnect timer`)
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
@@ -582,6 +599,7 @@ class SSEService {
     this.stopTokenMaintenance()
 
     // 注意：不清理 lastEventId，保持用于重连
+    console.log(`[SSE] ✅ Cleanup completed, lastEventId preserved: ${this.lastEventId}`)
   }
 
   /**
@@ -908,6 +926,6 @@ class SSEService {
   }
 }
 
-// 导出单例实例
-export const sseService = new SSEService()
+// 只导出类和类型，不创建任何实例
 export { SSEService }
+export type { SSEMessage, SSEConfig }

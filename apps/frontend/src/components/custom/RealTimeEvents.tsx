@@ -8,15 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  useAgentActivity,
-  useEventHistory,
+  useSSEEvents,
+  useSSEConditionalEvent,
   useGenesisEvents,
   useNovelEvents,
 } from '@/hooks/useSSE'
 import { useSSE } from '@/contexts'
-import { SSEConnectionState } from '@/services/sseService'
 import type { DomainEvent } from '@/types/events'
-import { useState } from 'react'
+import React, { useState } from 'react'
 
 /**
  * 连接状态显示组件
@@ -25,16 +24,23 @@ function ConnectionStatus() {
   const { connectionState, error, isConnected, connect, disconnect, reconnect } = useSSE()
 
   const getStatusColor = () => {
+    // 根据新的状态字符串返回对应颜色
+    if (isConnected) {
+      return 'bg-green-500'
+    }
     switch (connectionState) {
-      case SSEConnectionState.CONNECTED:
+      case 'open':
+      case 'connected':
         return 'bg-green-500'
-      case SSEConnectionState.CONNECTING:
+      case 'connecting':
         return 'bg-yellow-500'
-      case SSEConnectionState.RECONNECTING:
+      case 'retrying':
         return 'bg-orange-500'
-      case SSEConnectionState.ERROR:
+      case 'closed':
+      case 'error':
         return 'bg-red-500'
-      case SSEConnectionState.DISCONNECTED:
+      case 'idle':
+      case 'disconnected':
         return 'bg-gray-500'
       default:
         return 'bg-gray-500'
@@ -79,7 +85,11 @@ function ConnectionStatus() {
  * 事件历史显示组件
  */
 function EventHistory() {
-  const { events, clearHistory, count } = useEventHistory<DomainEvent>(
+  const [events, setEvents] = useState<Array<{ event: string; data: any; id: string }>>([])
+  const maxItems = 50
+
+  // 使用新的 useSSEEvents hook 订阅多个事件
+  useSSEEvents(
     [
       'novel.created',
       'chapter.updated',
@@ -88,8 +98,23 @@ function EventHistory() {
       'agent.activity',
       'genesis.progress',
     ],
-    50,
+    (eventType, data) => {
+      setEvents(prev => {
+        const newEvent = {
+          event: eventType,
+          data,
+          id: Date.now().toString(),
+          type: eventType,  // 为了兼容旧代码
+        }
+        const newEvents = [...prev, newEvent]
+        return newEvents.slice(-maxItems)
+      })
+    },
+    []
   )
+
+  const clearHistory = () => setEvents([])
+  const count = events.length
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString()
@@ -245,9 +270,20 @@ function GenesisProgressMonitor({ sessionId }: { sessionId: string }) {
 function AgentActivityMonitor() {
   const [activities, setActivities] = useState<DomainEvent[]>([])
 
-  useAgentActivity({}, (event) => {
-    setActivities((prev) => [event, ...prev.slice(0, 4)]) // 保留最近5条
-  })
+  // 使用新的 useSSEEvent hook 订阅 agent.activity 事件
+  useSSEConditionalEvent(
+    'system.notification',
+    (data: any) => {
+      const event: DomainEvent = {
+        event_type: 'agent.activity',
+        payload: data,
+        timestamp: new Date().toISOString(),
+      }
+      setActivities((prev) => [event, ...prev.slice(0, 4)]) // 保留最近5条
+    },
+    (data: any) => data.agent_type !== undefined,  // 条件过滤
+    []
+  )
 
   return (
     <Card>

@@ -12,8 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useRounds, useSubmitCommand, usePollCommandStatus } from '@/hooks/useConversations'
-import { useGenesisEvents } from '@/hooks/useSSE'
-import { useSSEStatus } from '@/contexts'
+import { useGenesisEvents, useSSEStatus } from '@/hooks/useSSE'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
@@ -34,7 +33,6 @@ import {
   User,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { SSEConnectionState } from '@/services/sseService'
 
 interface GenesisConversationProps {
   stage: GenesisStage
@@ -101,7 +99,7 @@ export function GenesisConversation({
   const queryClient = useQueryClient()
 
   // SSE连接状态管理 - 使用全局SSE Context
-  const { isConnected: isSSEConnected, connectionState } = useSSEStatus()
+  const { isConnected: isSSEConnected, status: connectionState, isError } = useSSEStatus()
 
   // 获取对话轮次
   const {
@@ -134,9 +132,7 @@ export function GenesisConversation({
       return
     }
 
-    const sseUnavailable =
-      connectionState === SSEConnectionState.ERROR ||
-      connectionState === SSEConnectionState.DISCONNECTED
+    const sseUnavailable = isError || !isSSEConnected
 
     if (sseUnavailable) {
       if (!shouldPollCommand) {

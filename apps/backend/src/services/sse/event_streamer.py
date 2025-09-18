@@ -27,15 +27,22 @@ class SSEEventStreamer:
         """Create async generator for SSE events with history replay and real-time streaming."""
         keepalive_task: asyncio.Task | None = None
         try:
+            logger.info(f"🚀 Starting SSE event generator for user {user_id}")
+
             # Get connection state to extract last_event_id and connection_id
             since_id = connection_state.last_event_id if connection_state and connection_state.last_event_id else "-"
             connection_id = connection_state.connection_id if connection_state else None
 
+            logger.debug(f"📋 SSE connection state: connection_id={connection_id}, since_id={since_id}")
+
             # Start background activity refresher that checks connection liveness
             if connection_id and self.state_manager:
+                logger.debug(f"⏰ Starting keepalive task for connection {connection_id}")
                 keepalive_task = asyncio.create_task(self._refresh_connection_activity(request, connection_id))
 
             # Push missed/historical events first (for reconnection)
+            logger.info(f"📜 Sending historical events for user {user_id} since {since_id}")
+            event_count = 0
             async for event in self._send_historical_events(
                 request,
                 user_id,
@@ -43,15 +50,22 @@ class SSEEventStreamer:
                 connection_state,
                 since_id=since_id,
             ):
+                event_count += 1
+                logger.debug(f"📤 Sent historical event #{event_count} to user {user_id}")
                 yield event
 
+            if event_count > 0:
+                logger.info(f"✅ Sent {event_count} historical events to user {user_id}")
+
             # Stream real-time events with client disconnection detection
+            logger.info(f"🔄 Starting real-time event stream for user {user_id}")
             async for event in self._stream_realtime_events(
                 request,
                 user_id,
                 connection_id,
                 connection_state,
             ):
+                logger.debug(f"📡 Streaming real-time event to user {user_id}: {event.event}")
                 yield event
 
         except asyncio.CancelledError:
@@ -62,12 +76,14 @@ class SSEEventStreamer:
             # Send error event to client
             yield ServerSentEvent(data=json.dumps({"error": "Stream error occurred", "reconnect": True}), event="error")
         finally:
+            logger.info(f"🧹 Cleaning up SSE connection for user {user_id}")
             if keepalive_task:
                 keepalive_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await keepalive_task
             # Cleanup connection state
             await cleanup_callback()
+            logger.info(f"✅ SSE connection cleanup completed for user {user_id}")
 
     async def _send_historical_events(
         self,
@@ -80,15 +96,15 @@ class SSEEventStreamer:
         """Send historical events to client for replay/catch-up on reconnection."""
         # Extract connection_id from connection_state if not provided (backward compatibility)
         if connection_id is None and connection_state:
-            connection_id = getattr(connection_state, 'connection_id', None)
-        
+            connection_id = getattr(connection_state, "connection_id", None)
+
         # Retrieve missed events from since_id (if connection was resumed)
         if since_id != "-":
             logger.debug(f"Replaying events for user {user_id} since event ID: {since_id}")
 
             # Get events from Redis stream since last_event_id
             historical_events = await self.redis_sse.get_recent_events(user_id, since_id=since_id)
-            
+
             for sse_message in historical_events:
                 # Check disconnection before sending each historical event
                 if await request.is_disconnected():
@@ -104,7 +120,11 @@ class SSEEventStreamer:
                     connection_state.last_event_id = sse_message.id
 
                 # Prepare data with metadata
-                data_with_meta = {**sse_message.data, "_scope": sse_message.scope.value, "_version": sse_message.version}
+                data_with_meta = {
+                    **sse_message.data,
+                    "_scope": sse_message.scope.value,
+                    "_version": sse_message.version,
+                }
 
                 yield ServerSentEvent(
                     data=json.dumps(data_with_meta, ensure_ascii=False),
@@ -124,29 +144,48 @@ class SSEEventStreamer:
         """Stream real-time events to client with disconnection detection and activity tracking."""
         last_event_id = connection_state.last_event_id if connection_state else None
 
-        async for sse_message in self.redis_sse.subscribe_user_events(user_id, last_event_id=last_event_id):
-            # Check for client disconnection (sse-starlette feature)
-            if await request.is_disconnected():
-                logger.info(f"Client disconnected for user {user_id}, stopping event stream")
-                break
+        logger.info(f"📡 Starting real-time event subscription for user {user_id}, last_event_id={last_event_id}")
 
-            # Update connection activity timestamp when sending event
-            if connection_id and self.state_manager:
-                self.state_manager.update_connection_activity(connection_id)
+        try:
+            event_count = 0
+            async for sse_message in self.redis_sse.subscribe_user_events(user_id, last_event_id=last_event_id):
+                event_count += 1
+                logger.debug(f"📨 Received real-time event #{event_count} for user {user_id}: {sse_message.event}")
 
-            # Persist last delivered event ID for reconnection catch-up
-            if connection_state and sse_message.id:
-                connection_state.last_event_id = sse_message.id
+                # Check for client disconnection (sse-starlette feature)
+                if await request.is_disconnected():
+                    logger.info(
+                        f"Client disconnected for user {user_id}, stopping event stream after {event_count} events"
+                    )
+                    break
 
-            # 添加元信息到数据中，供前端验证
-            data_with_meta = {**sse_message.data, "_scope": sse_message.scope.value, "_version": sse_message.version}
+                # Update connection activity timestamp when sending event
+                if connection_id and self.state_manager:
+                    self.state_manager.update_connection_activity(connection_id)
 
-            # Use ServerSentEvent for structured events
-            yield ServerSentEvent(
-                data=json.dumps(data_with_meta, ensure_ascii=False),
-                event=sse_message.event,
-                id=sse_message.id,
-            )
+                # Persist last delivered event ID for reconnection catch-up
+                if connection_state and sse_message.id:
+                    connection_state.last_event_id = sse_message.id
+
+                # 添加元信息到数据中，供前端验证
+                data_with_meta = {
+                    **sse_message.data,
+                    "_scope": sse_message.scope.value,
+                    "_version": sse_message.version,
+                }
+
+                # Use ServerSentEvent for structured events
+                logger.debug(f"📤 Yielding event to user {user_id}: event={sse_message.event}, id={sse_message.id}")
+                yield ServerSentEvent(
+                    data=json.dumps(data_with_meta, ensure_ascii=False),
+                    event=sse_message.event,
+                    id=sse_message.id,
+                )
+        except Exception as e:
+            logger.error(f"❌ Error in real-time event stream for user {user_id}: {type(e).__name__}: {e}")
+            raise
+        finally:
+            logger.info(f"🔚 Real-time event stream ended for user {user_id} after {event_count} events")
 
     async def _check_connection_liveness(self, request: Request) -> bool:
         """Check if the SSE connection is still alive by testing client disconnection status."""
