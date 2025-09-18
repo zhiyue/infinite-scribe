@@ -339,7 +339,9 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
       setError(null);
       const newConnectionId = `conn_${Date.now()}`;
       setConnectionId(newConnectionId);
-      setConnectedAt(Date.now());
+      const now = Date.now();
+      setConnectedAt(now);
+      setLastEventTime(now); // 连接成功时更新lastEventTime，防止健康检查误判
       // 持久化连接信息
       saveSSEState({ connectionId: newConnectionId });
       setReconnectAttempts(0);
@@ -669,15 +671,22 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
       const now = Date.now();
       let healthy = true;
 
-      // 如果连接超过30秒没有收到事件，标记为不健康
-      if (isConnected && lastEventTime && (now - lastEventTime) > 30000) {
-        healthy = false;
-        console.warn('SSE连接可能不健康：长时间未收到事件');
-      }
-
-      // 如果重连次数过多，标记为不健康
-      if (reconnectAttempts >= 5) {
-        healthy = false;
+      // 如果连接已建立，则认为健康（服务端会发送ping保持连接）
+      // 只有在以下情况才标记为不健康：
+      // 1. 连接断开且重连次数过多
+      // 2. 连接已建立但超过60秒没有收到任何事件（包括ping）
+      if (isConnected) {
+        // 连接已建立，检查是否长时间没有事件
+        if (lastEventTime && (now - lastEventTime) > 60000) {
+          healthy = false;
+          console.warn('SSE连接可能不健康：超过60秒未收到事件');
+        }
+      } else {
+        // 连接未建立，检查重连次数
+        if (reconnectAttempts >= 5) {
+          healthy = false;
+          console.warn('SSE连接不健康：重连次数过多');
+        }
       }
 
       setIsHealthy(healthy);
