@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { sseService, SSEConnectionState } from '@/services/sseService'
 import { useSSE } from '@/contexts'
-import type { DomainEvent, SSEEvent } from '@/types/events'
+import type { DomainEvent, SSEMessage } from '@/types/events'
 
 /**
  * SSE 连接配置
@@ -111,7 +111,7 @@ export function useSSEConnection(options: UseSSEOptions = {}) {
  */
 export function useSSEEvent<T = any>(
   eventType: string | string[],
-  handler: (event: SSEEvent<T>) => void,
+  handler: (event: SSEMessage) => void,
   deps: React.DependencyList = [],
 ) {
   const handlerRef = useRef(handler)
@@ -129,30 +129,29 @@ export function useSSEEvent<T = any>(
   useEffect(() => {
     const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
 
-    const wrappedHandler = (event: SSEEvent<T>) => {
-      handlerRef.current(event)
+    const wrappedHandler = (message: SSEMessage) => {
+      // 检查事件类型匹配
+      if (eventTypes.includes(message.event) || eventTypes.includes('*')) {
+        handlerRef.current(message)
+      }
     }
 
     // 注册事件监听器
-    eventTypes.forEach((type) => {
-      if (sseContext) {
-        // 使用 Context
-        sseContext.addEventListener(type, wrappedHandler)
-      } else {
-        // 回退到直接使用 sseService
-        sseService.addEventListener(type, wrappedHandler)
-      }
-    })
+    if (sseContext) {
+      // 使用 Context
+      sseContext.addMessageListener(wrappedHandler)
+    } else {
+      // 使用新的消息监听器
+      sseService.addMessageListener(wrappedHandler)
+    }
 
     return () => {
       // 清理事件监听器
-      eventTypes.forEach((type) => {
-        if (sseContext) {
-          sseContext.removeEventListener(type, wrappedHandler)
-        } else {
-          sseService.removeEventListener(type, wrappedHandler)
-        }
-      })
+      if (sseContext) {
+        sseContext.removeMessageListener(wrappedHandler)
+      } else {
+        sseService.removeMessageListener(wrappedHandler)
+      }
     }
   }, [eventType, sseContext, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
 }
@@ -162,7 +161,7 @@ export function useSSEEvent<T = any>(
  * 专门用于监听领域事件（类型安全）
  */
 export function useDomainEvent<T extends DomainEvent = DomainEvent>(
-  eventType: T['event_type'] | T['event_type'][],
+  eventType: string | string[],
   handler: (event: T) => void,
   deps: React.DependencyList = [],
 ) {
@@ -172,21 +171,20 @@ export function useDomainEvent<T extends DomainEvent = DomainEvent>(
   useEffect(() => {
     const eventTypes = Array.isArray(eventType) ? eventType : [eventType]
 
-    const wrappedHandler = (sseEvent: SSEEvent<T>) => {
-      // SSE事件的data字段包含领域事件
-      handlerRef.current(sseEvent.data)
+    const wrappedHandler = (message: SSEMessage) => {
+      // 检查事件类型匹配
+      if (eventTypes.includes(message.event)) {
+        // 将 SSE 消息数据作为领域事件传递
+        handlerRef.current(message.data as T)
+      }
     }
 
-    // 注册事件监听器
-    eventTypes.forEach((type) => {
-      sseService.addEventListener(type, wrappedHandler)
-    })
+    // 使用新的消息监听器
+    sseService.addMessageListener(wrappedHandler)
 
     return () => {
       // 清理事件监听器
-      eventTypes.forEach((type) => {
-        sseService.removeEventListener(type, wrappedHandler)
-      })
+      sseService.removeMessageListener(wrappedHandler)
     }
   }, [eventType, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
 }
@@ -203,10 +201,10 @@ export function useNovelEvents(
   const { enabled = true } = options
 
   useDomainEvent(
-    ['novel.created', 'chapter.updated', 'workflow.started', 'workflow.completed'],
+    ['novel.created', 'novel.status-changed', 'chapter.draft-created', 'chapter.status-changed'],
     (event) => {
       // 过滤出与指定小说相关的事件
-      if ('novel_id' in event.payload && event.payload.novel_id === novelId) {
+      if ('novel_id' in event && event.novel_id === novelId) {
         handler(event)
       }
     },
@@ -227,22 +225,22 @@ export function useGenesisEvents(
   const { enabled = true } = options
 
   useDomainEvent(
-    'genesis.progress',
+    'genesis.step-completed',
     (event) => {
       // 过滤出与指定会话相关的事件
-      const payload = event.payload as any
+      const data = event as any
 
-      if (payload.session_id === sessionId) {
+      if (data.session_id === sessionId) {
         // 如果指定了 novelId，也要匹配
-        if (novelId && payload.novel_id && payload.novel_id !== novelId) {
+        if (novelId && data.novel_id && data.novel_id !== novelId) {
           return
         }
 
         console.log(`[useGenesisEvents] 收到Genesis事件:`, {
-          eventType: event.event_type,
-          sessionId: payload.session_id,
-          novelId: payload.novel_id,
-          status: payload.status
+          event: 'genesis.step-completed',
+          sessionId: data.session_id,
+          novelId: data.novel_id,
+          status: data.status
         })
 
         handler(event)
@@ -268,15 +266,15 @@ export function useAgentActivity(
   const { enabled = true } = options
 
   useDomainEvent(
-    'agent.activity',
+    'system.notification-sent',  // 更新为新的事件类型
     (event) => {
       const { agentType, activityType, novelId } = filter
-      const payload = event.payload
+      const data = event as any
 
       // 应用过滤条件
-      if (agentType && payload.agent_type !== agentType) return
-      if (activityType && payload.activity_type !== activityType) return
-      if (novelId && payload.novel_id !== novelId) return
+      if (agentType && data.agent_type !== agentType) return
+      if (activityType && data.activity_type !== activityType) return
+      if (novelId && data.novel_id !== novelId) return
 
       handler(event)
     },
@@ -290,13 +288,13 @@ export function useAgentActivity(
  */
 export function useEventState<T = any>(eventType: string | string[], initialState: T) {
   const [state, setState] = useState<T>(initialState)
-  const [lastEvent, setLastEvent] = useState<SSEEvent<T> | null>(null)
+  const [lastEvent, setLastEvent] = useState<SSEMessage | null>(null)
 
-  useSSEEvent<T>(
+  useSSEEvent(
     eventType,
-    (event) => {
-      setState(event.data)
-      setLastEvent(event)
+    (message) => {
+      setState(message.data)
+      setLastEvent(message)
     },
     [],
   )
@@ -314,13 +312,13 @@ export function useEventState<T = any>(eventType: string | string[], initialStat
  * 保存接收到的事件历史
  */
 export function useEventHistory<T = any>(eventType: string | string[], maxItems = 100) {
-  const [events, setEvents] = useState<SSEEvent<T>[]>([])
+  const [events, setEvents] = useState<SSEMessage[]>([])
 
-  useSSEEvent<T>(
+  useSSEEvent(
     eventType,
-    (event) => {
+    (message) => {
       setEvents((prev) => {
-        const newEvents = [...prev, event]
+        const newEvents = [...prev, message]
         return newEvents.slice(-maxItems)
       })
     },

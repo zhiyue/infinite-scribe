@@ -6,7 +6,7 @@
 import React, { createContext, useContext, useEffect, useReducer, ReactNode } from 'react'
 import { sseService, SSEConnectionState } from '@/services/sseService'
 import { useAuthStore } from '@/hooks/useAuth'
-import type { DomainEvent, SSEEvent } from '@/types/events'
+import type { SSEMessage } from '@/types/events'
 import { API_ENDPOINTS } from '@/config/api'
 
 // SSE状态类型定义
@@ -54,8 +54,8 @@ interface SSEContextType extends SSEState {
   reconnect: () => void
 
   // 事件监听方法
-  addEventListener: <T = unknown>(eventType: string, listener: (event: SSEEvent<T>) => void) => void
-  removeEventListener: <T = unknown>(eventType: string, listener: (event: SSEEvent<T>) => void) => void
+  addMessageListener: (listener: (message: SSEMessage) => void) => void
+  removeMessageListener: (listener: (message: SSEMessage) => void) => void
 
   // 便捷方法
   getConnectionInfo: () => {
@@ -229,20 +229,18 @@ export function SSEProvider({
   }, [connect, disconnect])
 
   // 事件监听方法
-  const addEventListener = React.useCallback(<T = unknown>(
-    eventType: string,
-    listener: (event: SSEEvent<T>) => void
+  const addMessageListener = React.useCallback((
+    listener: (message: SSEMessage) => void
   ) => {
-    console.log(`[SSE Context] 📝 添加事件监听器: ${eventType}`)
-    sseService.addEventListener(eventType, listener)
+    console.log(`[SSE Context] 📝 添加SSE消息监听器`)
+    sseService.addMessageListener(listener)
   }, [])
 
-  const removeEventListener = React.useCallback(<T = unknown>(
-    eventType: string,
-    listener: (event: SSEEvent<T>) => void
+  const removeMessageListener = React.useCallback((
+    listener: (message: SSEMessage) => void
   ) => {
-    console.log(`[SSE Context] 🗑️ 移除事件监听器: ${eventType}`)
-    sseService.removeEventListener(eventType, listener)
+    console.log(`[SSE Context] 🗑️ 移除SSE消息监听器`)
+    sseService.removeMessageListener(listener)
   }, [])
 
   // 获取连接信息
@@ -295,7 +293,7 @@ export function SSEProvider({
 
     if (isAuthenticated && !state.isConnected && !state.isConnecting) {
       // 检查SSE服务是否正在重连或已达到最大重连次数
-      const reconnectInfo = sseService.getReconnectInfo()
+      const reconnectInfo = sseService.getConnectionInfo()
 
       if (reconnectInfo.attempts >= maxReconnectAttempts) {
         console.warn('[SSE Context] ⛔ 已达到最大重连次数，不会自动连接')
@@ -326,13 +324,13 @@ export function SSEProvider({
 
   // 添加全局事件监听器来跟踪事件接收
   useEffect(() => {
-    const handleGlobalEvent = (event: SSEEvent) => {
+    const handleGlobalEvent = (message: SSEMessage) => {
       const timestamp = Date.now()
 
       // 计算延迟（如果事件包含时间戳）
       let latency: number | undefined
-      if (event.data && typeof event.data === 'object' && 'timestamp' in event.data) {
-        latency = timestamp - (event.data.timestamp as number)
+      if (message.data && typeof message.data === 'object' && 'timestamp' in message.data) {
+        latency = timestamp - (message.data.timestamp as number)
       }
 
       dispatch({
@@ -342,10 +340,10 @@ export function SSEProvider({
     }
 
     // 监听所有事件类型
-    sseService.addEventListener('*', handleGlobalEvent)
+    sseService.addMessageListener(handleGlobalEvent)
 
     return () => {
-      sseService.removeEventListener('*', handleGlobalEvent)
+      sseService.removeMessageListener(handleGlobalEvent)
     }
   }, [])
 
@@ -388,8 +386,8 @@ export function SSEProvider({
     connect,
     disconnect,
     reconnect,
-    addEventListener,
-    removeEventListener,
+    addMessageListener,
+    removeMessageListener,
     getConnectionInfo,
   }
 

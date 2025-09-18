@@ -1,6 +1,6 @@
 """Unit tests for SSE Connection Manager."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException, Request
 from src.db.redis import RedisService
 from src.schemas.sse import EventScope, SSEMessage
+from src.services.sse.config import sse_config
 from src.services.sse.connection_manager import SSEConnectionManager
 from src.services.sse.connection_state import SSEConnectionState
 from src.services.sse.redis_client import RedisSSEService
@@ -158,10 +159,12 @@ class TestSSEConnectionManager:
         connection_id = "test-conn-123"
 
         # Add connection to memory first
+        now = datetime.now(UTC)
         sse_manager.connections[connection_id] = SSEConnectionState(
             connection_id=connection_id,
             user_id=sample_user_id,
-            connected_at=datetime.now(UTC),
+            connected_at=now,
+            last_activity_at=now,
         )
 
         # Call cleanup
@@ -186,10 +189,12 @@ class TestSSEConnectionManager:
         stale_connections_count = 2
         for i in range(stale_connections_count):
             conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
             connection_state = SSEConnectionState(
                 connection_id=conn_id,
                 user_id=f"user-{i}",
-                connected_at=datetime.fromtimestamp(old_time, tz=UTC),
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,
             )
             sse_manager.connections[conn_id] = connection_state
 
@@ -198,16 +203,38 @@ class TestSSEConnectionManager:
 
         assert stale_count == stale_connections_count
 
+    async def test_cleanup_skips_recent_activity_connections(self, sse_manager):
+        """Connections with recent activity should not be cleaned even if long-lived."""
+        threshold = sse_manager.STALE_CONNECTION_THRESHOLD_SECONDS
+        old_connected_at = datetime.now(UTC) - timedelta(seconds=threshold + 300)
+        recent_activity = datetime.now(UTC)
+
+        conn_id = "long-lived-conn"
+        connection_state = SSEConnectionState(
+            connection_id=conn_id,
+            user_id="user-keep",
+            connected_at=old_connected_at,
+            last_activity_at=recent_activity,
+        )
+        sse_manager.connections[conn_id] = connection_state
+
+        cleaned = await sse_manager.cleanup_stale_connections()
+
+        assert cleaned == 0
+        assert conn_id in sse_manager.connections
+
     async def test_get_connection_count_with_helper_methods(self, sse_manager):
         """Test connection count reporting using helper methods."""
         memory_connections_count = 3
         # Add some connections to memory
         for i in range(memory_connections_count):
             conn_id = f"conn-{i}"
+            now = datetime.now(UTC)
             sse_manager.connections[conn_id] = SSEConnectionState(
                 connection_id=conn_id,
                 user_id=f"user-{i}",
-                connected_at=datetime.now(UTC),
+                connected_at=now,
+                last_activity_at=now,
             )
 
         # Mock Redis scan for connection counters
@@ -545,3 +572,127 @@ class TestSSEConnectionManager:
 
         assert exc_info.value.status_code == 429
         sse_manager.redis_counter_service.safe_decr_counter.assert_called_once_with(sample_user_id)
+
+    @pytest.mark.asyncio
+    async def test_periodic_cleanup_start_and_stop(self, sse_manager):
+        """Test that periodic cleanup can be started and stopped correctly."""
+        # Initially not running
+        assert not await sse_manager.is_periodic_cleanup_running()
+
+        # Start periodic cleanup
+        await sse_manager.start_periodic_cleanup()
+        assert await sse_manager.is_periodic_cleanup_running()
+
+        # Try to start again (should not error, just log warning)
+        await sse_manager.start_periodic_cleanup()
+        assert await sse_manager.is_periodic_cleanup_running()
+
+        # Stop periodic cleanup
+        await sse_manager.stop_periodic_cleanup()
+        assert not await sse_manager.is_periodic_cleanup_running()
+
+        # Stop again (should not error)
+        await sse_manager.stop_periodic_cleanup()
+        assert not await sse_manager.is_periodic_cleanup_running()
+
+    @pytest.mark.asyncio
+    async def test_periodic_cleanup_disabled_by_config(self, configured_redis_sse_service):
+        """Test that periodic cleanup respects configuration disable flag."""
+        from src.services.sse.config import sse_config
+
+        # Temporarily disable periodic cleanup
+        original_enabled = sse_config.ENABLE_PERIODIC_CLEANUP
+        sse_config.ENABLE_PERIODIC_CLEANUP = False
+
+        try:
+            manager = SSEConnectionManager(configured_redis_sse_service)
+            await manager.start_periodic_cleanup()
+
+            # Should not be running when disabled
+            assert not await manager.is_periodic_cleanup_running()
+        finally:
+            # Restore original setting
+            sse_config.ENABLE_PERIODIC_CLEANUP = original_enabled
+
+    @pytest.mark.asyncio
+    async def test_cleanup_stale_connections_with_batch_size(self, sse_manager, sample_user_id):
+        """Test that cleanup respects batch size limits."""
+        from datetime import UTC, datetime
+
+        # Create multiple stale connections beyond batch size
+        batch_size = 3
+        total_stale = 5
+
+        # Create old timestamp beyond threshold
+        old_time = datetime.now(UTC).timestamp() - (sse_config.STALE_CONNECTION_THRESHOLD_SECONDS + 100)
+
+        for i in range(total_stale):
+            conn_id = f"stale-conn-{i}"
+            old_datetime = datetime.fromtimestamp(old_time, tz=UTC)
+            connection_state = SSEConnectionState(
+                connection_id=conn_id,
+                user_id=f"user-{i}",
+                connected_at=old_datetime,
+                last_activity_at=old_datetime,  # Set as stale (old activity time)
+            )
+            sse_manager.connections[conn_id] = connection_state
+
+        # Run cleanup with batch size limit
+        cleaned = await sse_manager.cleanup_stale_connections(batch_size=batch_size)
+
+        # Should only clean up batch_size connections
+        assert cleaned == batch_size
+        assert len(sse_manager.connections) == total_stale - batch_size
+
+    @pytest.mark.asyncio
+    async def test_periodic_cleanup_worker_handles_errors(self, sse_manager, caplog):
+        """Test that periodic cleanup worker handles errors gracefully."""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        # Mock cleanup to raise an error once, then succeed
+        original_cleanup = sse_manager.cleanup_stale_connections
+        call_count = 0
+
+        async def mock_cleanup(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Test error during cleanup")
+            return 0
+
+        sse_manager.cleanup_stale_connections = AsyncMock(side_effect=mock_cleanup)
+
+        # Start cleanup and let it run briefly
+        await sse_manager.start_periodic_cleanup()
+
+        # Let it run for a short time to trigger the error
+        await asyncio.sleep(0.1)
+
+        # Stop cleanup
+        await sse_manager.stop_periodic_cleanup()
+
+        # Restore original method
+        sse_manager.cleanup_stale_connections = original_cleanup
+
+        # Verify error was logged but cleanup continued
+        assert "Error during periodic SSE cleanup" in caplog.text
+        assert call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_get_connection_count_includes_cleanup_status(self, sse_manager):
+        """Test that connection count includes cleanup task status."""
+        # Initially not running
+        stats = await sse_manager.get_connection_count()
+        assert "cleanup_task_running" in stats
+        assert stats["cleanup_task_running"] is False
+
+        # Start cleanup
+        await sse_manager.start_periodic_cleanup()
+        stats = await sse_manager.get_connection_count()
+        assert stats["cleanup_task_running"] is True
+
+        # Stop cleanup
+        await sse_manager.stop_periodic_cleanup()
+        stats = await sse_manager.get_connection_count()
+        assert stats["cleanup_task_running"] is False

@@ -1,11 +1,10 @@
 /**
  * Server-Sent Events (SSE) 服务
- * 管理与后端的实时事件连接
+ * 管理与后端的实时事件连接 - 仅支持后端新版本格式
  */
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api'
-import type { DomainEvent, SSEEvent } from '@/types/events'
-import { authService } from './auth'
+import type { SSEMessage, EventScope } from '@/types/events'
 import { sseTokenService } from './sseTokenService'
 
 /**
@@ -36,12 +35,22 @@ export enum SSEConnectionState {
 /**
  * SSE 事件监听器类型
  */
-type SSEEventListener<T = unknown> = (event: SSEEvent<T>) => void
+type SSEMessageListener = (message: SSEMessage) => void
 type SSEErrorListener = (error: Event | Error) => void
 type SSEStateListener = (state: SSEConnectionState) => void
 
 /**
- * SSE 服务类
+ * 连接限制错误
+ */
+export class SSEConnectionLimitError extends Error {
+  constructor(message: string, public readonly maxConnections: number) {
+    super(message)
+    this.name = 'SSEConnectionLimitError'
+  }
+}
+
+/**
+ * SSE 服务类 - 仅支持后端新版本格式
  */
 class SSEService {
   private eventSource: EventSource | null = null
@@ -55,10 +64,21 @@ class SSEService {
   private consecutiveFailures = 0
   private lastFailureTime: number = 0
 
+  // Token maintenance for long-lived connections (60s token expiry)
+  private tokenMaintenanceTimer: NodeJS.Timeout | null = null
+  private readonly TOKEN_MAINTENANCE_INTERVAL = 30000 // 30 seconds
+
   // 事件监听器
-  private eventListeners = new Map<string, Set<SSEEventListener>>()
+  private messageListeners = new Set<SSEMessageListener>()
   private errorListeners = new Set<SSEErrorListener>()
   private stateListeners = new Set<SSEStateListener>()
+
+  // Last-Event-ID 支持
+  private lastEventId: string | null = null
+
+  // 连接限制支持
+  private maxConnectionsPerUser = 2  // 对应后端 MAX_CONNECTIONS_PER_USER
+  private connectionLimitExceeded = false
 
   constructor(baseURL: string = API_BASE_URL, config: SSEConfig = {}) {
     this.baseURL = baseURL
@@ -103,6 +123,13 @@ class SSEService {
       return
     }
 
+    // 如果之前因连接限制失败，不要重连
+    if (this.connectionLimitExceeded) {
+      console.warn(`[SSE] ⛔ 连接数量已达上限，不进行重连`)
+      this.setState(SSEConnectionState.ERROR)
+      return
+    }
+
     console.log(`[SSE] 设置连接状态为 CONNECTING`)
     this.setState(SSEConnectionState.CONNECTING)
     this.cleanup()
@@ -126,7 +153,20 @@ class SSEService {
       }
 
       console.log(`[SSE] 最终连接URL: ${url.toString().replace(/sse_token=[^&]+/, 'sse_token=***')}`)
-      this.eventSource = new EventSource(url.toString())
+
+      // 创建 EventSource，支持 Last-Event-ID
+      const eventSourceInitDict: EventSourceInit = {
+        withCredentials: false, // 使用 token 参数而不是 cookie
+      }
+
+      this.eventSource = new EventSource(url.toString(), eventSourceInitDict)
+
+      // 设置 Last-Event-ID 头（如果有的话）
+      if (this.lastEventId) {
+        console.log(`[SSE] 设置 Last-Event-ID: ${this.lastEventId}`)
+        // 注意：EventSource 会自动处理 Last-Event-ID，但我们也可以手动记录
+      }
+
       console.log(`[SSE] EventSource 创建成功，初始状态: ${this.eventSource.readyState}`)
 
       // 连接打开
@@ -138,6 +178,11 @@ class SSEService {
         this.isReconnecting = false
         this.lastErrorTime = 0
         this.lastFailureTime = 0
+        this.connectionLimitExceeded = false  // 重置连接限制标志
+
+        // 启动token维护定时器以应对60秒的短期过期
+        this.startTokenMaintenance()
+
         console.log(`[SSE] 重连计数器和失败计数器已重置为 0`)
       }
 
@@ -150,14 +195,39 @@ class SSEService {
           origin: event.origin
         })
 
+        // 更新 Last-Event-ID
+        if (event.lastEventId) {
+          this.lastEventId = event.lastEventId
+          console.log(`[SSE] 更新 Last-Event-ID: ${this.lastEventId}`)
+        }
+
         try {
-          const data = JSON.parse(event.data) as SSEEvent
-          console.log(`[SSE] 📋 解析后的消息:`, {
-            type: data.type,
-            dataKeys: Object.keys(data.data || {}),
-            id: data.id
+          // 解析后端 SSE 消息格式
+          const parsedData = JSON.parse(event.data)
+
+          // 必须包含 _scope 和 _version（后端格式）
+          if (!parsedData._scope || !parsedData._version) {
+            console.error(`[SSE] ❌ 消息格式不正确，缺少 _scope 或 _version:`, parsedData)
+            return
+          }
+
+          const sseMessage: SSEMessage = {
+            event: event.type || 'message',
+            data: parsedData,
+            id: event.lastEventId || undefined,
+            scope: parsedData._scope as EventScope,
+            version: parsedData._version
+          }
+
+          console.log(`[SSE] 📋 后端 SSE 消息:`, {
+            event: sseMessage.event,
+            scope: sseMessage.scope,
+            version: sseMessage.version,
+            dataKeys: Object.keys(sseMessage.data || {}),
+            id: sseMessage.id
           })
-          this.handleEvent(data, event)
+
+          this.handleSSEMessage(sseMessage)
         } catch (error) {
           console.error(`[SSE] ❌ 解析消息失败:`, {
             error: error,
@@ -185,12 +255,32 @@ class SSEService {
           reconnectAttempts: this.reconnectAttempts,
           consecutiveFailures: this.consecutiveFailures,
           maxAttempts: this.config.maxReconnectAttempts,
+          connectionLimitExceeded: this.connectionLimitExceeded,
           error: error
         })
 
         this.setState(SSEConnectionState.ERROR)
         this.lastErrorTime = now
         this.notifyErrorListeners(error)
+
+        // 检查是否是token相关的认证错误 (HTTP 401/403)
+        const isAuthError = this.eventSource?.readyState === EventSource.CLOSED &&
+                           (now - this.lastErrorTime < 5000) // 快速失败通常是认证问题
+
+        if (isAuthError) {
+          console.warn('[SSE] 🔑 检测到可能的token过期错误，触发token刷新重连')
+          this.handleTokenExpirationError()
+          return
+        }
+
+        // 如果是连接限制错误，不要重连
+        if (this.connectionLimitExceeded) {
+          console.warn(`[SSE] ⛔ 连接数量已达上限 (${this.maxConnectionsPerUser})，停止重连`)
+          this.setState(SSEConnectionState.ERROR)
+          this.isReconnecting = false
+          this.cleanup()
+          return
+        }
 
         // 如果连续快速失败超过3次，可能是端点不存在或配置错误，停止重连
         const shouldStopReconnecting =
@@ -222,6 +312,21 @@ class SSEService {
       this.setupEventListeners()
       console.log(`[SSE] 特定事件监听器已设置`)
     } catch (error) {
+      // 检查是否是连接限制错误 (HTTP 429)
+      if (error instanceof Error && (error.message.includes('429') || error.message.includes('Too Many Requests'))) {
+        console.error(`[SSE] ❌ 连接数量超过限制:`, {
+          maxConnections: this.maxConnectionsPerUser,
+          error: error
+        })
+        this.connectionLimitExceeded = true
+        this.setState(SSEConnectionState.ERROR)
+        this.notifyErrorListeners(new SSEConnectionLimitError(
+          `连接数量已达上限 (${this.maxConnectionsPerUser})`,
+          this.maxConnectionsPerUser
+        ))
+        return
+      }
+
       console.error(`[SSE] ❌ 连接建立失败:`, {
         endpoint,
         error: error,
@@ -240,38 +345,28 @@ class SSEService {
   disconnect(): void {
     console.log(`[SSE] 🔌 开始断开连接`)
     this.isReconnecting = false
+    this.connectionLimitExceeded = false  // 重置连接限制状态
     this.cleanup()
     this.setState(SSEConnectionState.DISCONNECTED)
     console.log(`[SSE] ✅ 连接已断开完成`)
   }
 
   /**
-   * 添加事件监听器
+   * 添加 SSE 消息监听器
    */
-  addEventListener<T = unknown>(eventType: string, listener: SSEEventListener<T>): void {
-    console.log(`[SSE] 📝 添加事件监听器: ${eventType}`)
-
-    if (!this.eventListeners.has(eventType)) {
-      this.eventListeners.set(eventType, new Set())
-      console.log(`[SSE] 🆕 为事件类型 ${eventType} 创建新的监听器集合`)
-    }
-
-    this.eventListeners.get(eventType)!.add(listener as SSEEventListener)
-    console.log(`[SSE] ✅ 监听器已添加，${eventType} 类型现有 ${this.eventListeners.get(eventType)!.size} 个监听器`)
+  addMessageListener(listener: SSEMessageListener): void {
+    console.log(`[SSE] 📝 添加 SSE 消息监听器`)
+    this.messageListeners.add(listener)
+    console.log(`[SSE] ✅ 消息监听器已添加，现有 ${this.messageListeners.size} 个监听器`)
   }
 
   /**
-   * 移除事件监听器
+   * 移除 SSE 消息监听器
    */
-  removeEventListener<T = unknown>(eventType: string, listener: SSEEventListener<T>): void {
-    const listeners = this.eventListeners.get(eventType)
-    if (listeners) {
-      listeners.delete(listener as SSEEventListener)
-      if (listeners.size === 0) {
-        this.eventListeners.delete(eventType)
-      }
-    }
+  removeMessageListener(listener: SSEMessageListener): void {
+    this.messageListeners.delete(listener)
   }
+
 
   /**
    * 添加错误监听器
@@ -323,20 +418,58 @@ class SSEService {
   }
 
   /**
-   * 获取重连状态信息
+   * 是否达到连接限制
    */
-  getReconnectInfo(): {
+  isConnectionLimitExceeded(): boolean {
+    return this.connectionLimitExceeded
+  }
+
+  /**
+   * 获取连接信息
+   */
+  getConnectionInfo(): {
+    state: SSEConnectionState,
     attempts: number,
     maxAttempts: number,
     isReconnecting: boolean,
-    lastErrorTime: number
+    lastErrorTime: number,
+    lastEventId: string | null,
+    connectionLimitExceeded: boolean,
+    maxConnectionsPerUser: number
   } {
     return {
+      state: this.connectionState,
       attempts: this.reconnectAttempts,
       maxAttempts: this.config.maxReconnectAttempts,
       isReconnecting: this.isReconnecting,
-      lastErrorTime: this.lastErrorTime
+      lastErrorTime: this.lastErrorTime,
+      lastEventId: this.lastEventId,
+      connectionLimitExceeded: this.connectionLimitExceeded,
+      maxConnectionsPerUser: this.maxConnectionsPerUser
     }
+  }
+
+  /**
+   * 手动设置 Last-Event-ID（用于测试或特殊情况）
+   */
+  setLastEventId(id: string | null): void {
+    this.lastEventId = id
+    console.log(`[SSE] 手动设置 Last-Event-ID: ${id}`)
+  }
+
+  /**
+   * 获取当前 Last-Event-ID
+   */
+  getLastEventId(): string | null {
+    return this.lastEventId
+  }
+
+  /**
+   * 重置连接限制状态（用于手动重试）
+   */
+  resetConnectionLimit(): void {
+    this.connectionLimitExceeded = false
+    console.log(`[SSE] 🔄 连接限制状态已重置`)
   }
 
   /**
@@ -352,6 +485,11 @@ class SSEService {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+
+    // 停止token维护定时器
+    this.stopTokenMaintenance()
+
+    // 注意：不清理 lastEventId，保持用于重连
   }
 
   /**
@@ -365,36 +503,21 @@ class SSEService {
   }
 
   /**
-   * 处理接收到的事件
+   * 处理后端 SSE 消息
    */
-  private handleEvent(sseEvent: SSEEvent, _originalEvent: MessageEvent): void {
-    // 通知通用事件监听器
-    const listeners = this.eventListeners.get(sseEvent.type)
-    if (listeners) {
-      listeners.forEach((listener) => {
-        try {
-          listener(sseEvent)
-        } catch (error) {
-          if (import.meta.env.DEV) {
-            console.error(`[SSE] 事件监听器错误 (${sseEvent.type}):`, error)
-          }
-        }
-      })
-    }
+  private handleSSEMessage(message: SSEMessage): void {
+    console.log(`[SSE] 📨 处理后端 SSE 消息: ${message.event}`)
 
-    // 通知通配符监听器
-    const wildcardListeners = this.eventListeners.get('*')
-    if (wildcardListeners) {
-      wildcardListeners.forEach((listener) => {
-        try {
-          listener(sseEvent)
-        } catch (error) {
-          if (import.meta.env.DEV) {
-            console.error('[SSE] 通配符监听器错误:', error)
-          }
+    // 通知 SSE 消息监听器
+    this.messageListeners.forEach((listener) => {
+      try {
+        listener(message)
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error(`[SSE] SSE 消息监听器错误:`, error)
         }
-      })
-    }
+      }
+    })
   }
 
   /**
@@ -403,28 +526,52 @@ class SSEService {
   private setupEventListeners(): void {
     if (!this.eventSource) return
 
-    // 监听各种事件类型
-    const eventTypes = [
+    // 监听后端支持的事件类型
+    const backendEventTypes = [
+      // 任务相关
+      'task.progress-updated',
+      'task.status-changed',
+      // 系统相关
+      'system.notification-sent',
+      'sse.error-occurred',
+      // 内容相关
+      'content.updated',
+      // 小说相关
       'novel.created',
-      'chapter.updated',
-      'workflow.started',
-      'workflow.completed',
-      'agent.activity',
-      'genesis.progress',
+      'novel.status-changed',
+      // 章节相关
+      'chapter.draft-created',
+      'chapter.status-changed',
+      // 创世相关
+      'genesis.step-completed',
+      // 工作流相关
+      'workflow.status-changed',
     ]
 
-    eventTypes.forEach((eventType) => {
+    // 监听后端事件
+    backendEventTypes.forEach((eventType) => {
       this.eventSource!.addEventListener(eventType, (event) => {
         try {
-          const data = JSON.parse(event.data) as DomainEvent
-          this.handleEvent(
-            {
-              type: eventType,
-              data,
-              id: event.lastEventId,
-            },
-            event,
-          )
+          // 更新 Last-Event-ID
+          if (event.lastEventId) {
+            this.lastEventId = event.lastEventId
+          }
+
+          const parsedData = JSON.parse(event.data)
+
+          // 如果数据包含元信息，则作为 SSE 消息处理
+          if (parsedData._scope && parsedData._version) {
+            const sseMessage: SSEMessage = {
+              event: eventType,
+              data: parsedData,
+              id: event.lastEventId || undefined,
+              scope: parsedData._scope as EventScope,
+              version: parsedData._version
+            }
+            this.handleSSEMessage(sseMessage)
+          } else {
+            console.warn(`[SSE] 收到不符合格式的 ${eventType} 事件:`, parsedData)
+          }
         } catch (error) {
           if (import.meta.env.DEV) {
             console.error(`[SSE] 解析 ${eventType} 事件失败:`, error)
@@ -494,6 +641,63 @@ class SSEService {
         }
       }
     })
+  }
+
+  /**
+   * 启动token维护定时器
+   * 应对60秒短期过期的token，定期主动刷新
+   */
+  private startTokenMaintenance(): void {
+    // 先停止现有的定时器
+    this.stopTokenMaintenance()
+
+    console.log(`[SSE] 🔄 启动token维护定时器，间隔: ${this.TOKEN_MAINTENANCE_INTERVAL}ms`)
+
+    this.tokenMaintenanceTimer = setInterval(async () => {
+      try {
+        await sseTokenService.maintainTokenFreshness()
+      } catch (error) {
+        console.error('[SSE] ❌ Token维护失败:', error)
+        // 如果token维护失败，可能需要重连
+        if (this.isConnected()) {
+          console.warn('[SSE] 由于token维护失败，将触发重连')
+          this.handleTokenExpirationError()
+        }
+      }
+    }, this.TOKEN_MAINTENANCE_INTERVAL)
+  }
+
+  /**
+   * 停止token维护定时器
+   */
+  private stopTokenMaintenance(): void {
+    if (this.tokenMaintenanceTimer) {
+      clearInterval(this.tokenMaintenanceTimer)
+      this.tokenMaintenanceTimer = null
+      console.log('[SSE] 🛑 Token维护定时器已停止')
+    }
+  }
+
+  /**
+   * 处理token过期错误
+   * 清除当前token并尝试重连
+   */
+  private handleTokenExpirationError(): void {
+    console.warn('[SSE] 🔑 处理token过期错误，清除token并重连')
+
+    // 清除过期的token
+    sseTokenService.clearToken()
+
+    // 关闭当前连接
+    this.cleanup()
+
+    // 设置短暂延迟后重连，给token刷新一些时间
+    setTimeout(() => {
+      if (this.config.enableReconnect && this.reconnectAttempts < this.config.maxReconnectAttempts) {
+        console.log('[SSE] 🔄 Token过期后重连尝试')
+        this.connect()
+      }
+    }, 1000) // 1秒延迟
   }
 }
 

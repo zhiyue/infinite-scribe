@@ -77,7 +77,7 @@ class SSEConnectionManager:
         # Initialize service components
         self.redis_counter_service = RedisCounterService(redis_sse_service._pubsub_client)
         self.state_manager = SSEConnectionStateManager(self.redis_counter_service)
-        self.event_streamer = SSEEventStreamer(redis_sse_service)
+        self.event_streamer = SSEEventStreamer(redis_sse_service, self.state_manager)
 
         # For backward compatibility with tests
         self.connections = self.state_manager.connections
@@ -214,9 +214,9 @@ class SSEConnectionManager:
             logger.error(f"SSE连接失败: {type(e).__name__}: {e!s}", extra={"user_id": user_id})
             raise
 
-    async def cleanup_stale_connections(self) -> int:
+    async def cleanup_stale_connections(self, batch_size: int | None = None) -> int:
         """Garbage collection for zombie connections."""
-        return await self.state_manager.cleanup_stale_connections()
+        return await self.state_manager.cleanup_stale_connections(batch_size=batch_size)
 
     async def get_connection_count(self) -> dict[str, int]:
         """Get connection statistics for monitoring."""
@@ -230,3 +230,15 @@ class SSEConnectionManager:
     async def _scan_total_connections(self) -> int:
         """Scan all user connection counters and sum them up."""
         return await self.redis_counter_service._scan_total_connections()
+
+    async def start_periodic_cleanup(self) -> None:
+        """Start periodic cleanup of stale connections."""
+        await self.state_manager.start_periodic_cleanup()
+
+    async def stop_periodic_cleanup(self) -> None:
+        """Stop periodic cleanup of stale connections."""
+        await self.state_manager.stop_periodic_cleanup()
+
+    async def is_periodic_cleanup_running(self) -> bool:
+        """Check if periodic cleanup is currently running."""
+        return self.state_manager._cleanup_task is not None and not self.state_manager._cleanup_task.done()

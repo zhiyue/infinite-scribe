@@ -18,7 +18,8 @@ class SSETokenService {
 
   /**
    * 获取有效的SSE token
-   * 如果当前token即将过期（30秒内），则获取新的token
+   * 如果当前token即将过期（15秒内），则获取新的token
+   * 调整为更激进的刷新策略以适应60秒的短期过期时间
    */
   async getValidSSEToken(): Promise<string> {
     console.log('[SSE Token] 检查当前SSE token状态', {
@@ -91,15 +92,16 @@ class SSETokenService {
   }
 
   /**
-   * 检查token是否即将过期（30秒内）
+   * 检查token是否即将过期（15秒内）
+   * 调整为更激进的阈值以适应60秒的短期过期时间
    */
   private willExpireSoon(): boolean {
     if (!this.tokenExpiry) return true
 
     const now = new Date()
-    const thirtySecondsFromNow = new Date(now.getTime() + 30 * 1000)
+    const fifteenSecondsFromNow = new Date(now.getTime() + 15 * 1000)
 
-    const willExpire = this.tokenExpiry <= thirtySecondsFromNow
+    const willExpire = this.tokenExpiry <= fifteenSecondsFromNow
 
     if (willExpire) {
       console.log('[SSE Token] ⏰ Token即将过期', {
@@ -109,6 +111,28 @@ class SSETokenService {
     }
 
     return willExpire
+  }
+
+  /**
+   * 主动检查并刷新token（用于长连接维护）
+   * 为了应对60秒的短期过期，在长期SSE连接中定期调用此方法
+   */
+  async maintainTokenFreshness(): Promise<boolean> {
+    try {
+      const tokenInfo = this.getTokenInfo()
+      console.log('[SSE Token] 🔄 主动维护token新鲜度', tokenInfo)
+
+      if (this.willExpireSoon()) {
+        console.log('[SSE Token] 🔄 主动刷新即将过期的token')
+        await this.refreshToken()
+        return true // Token was refreshed
+      }
+
+      return false // Token was still fresh
+    } catch (error) {
+      console.error('[SSE Token] ❌ 主动token维护失败:', error)
+      return false
+    }
   }
 
   /**

@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSSE, useSSEStatus, useSSEInfo } from '@/contexts'
 import { useSSEEvent } from '@/hooks/useSSE'
-import type { SSEEvent } from '@/types/events'
+import type { SSEMessage } from '@/types/events'
 import {
   Activity,
   Wifi,
@@ -66,14 +66,14 @@ export function SSEDebugPanel() {
   // 监听所有SSE事件
   useSSEEvent(
     '*', // 通配符监听所有事件
-    (event: SSEEvent) => {
+    (message: SSEMessage) => {
       const timestamp = Date.now()
       const newLog: EventLog = {
         id: `${timestamp}-${Math.random()}`,
         timestamp,
-        type: event.type || 'unknown',
-        data: event.data,
-        latency: event.data?.timestamp ? timestamp - event.data.timestamp : undefined,
+        type: message.event || 'unknown',
+        data: message.data,
+        latency: message.data?.timestamp ? timestamp - message.data.timestamp : undefined,
       }
 
       setEventLogs(prev => {

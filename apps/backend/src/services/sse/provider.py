@@ -79,6 +79,9 @@ class SSEProvider:
         await service.init_pubsub_client()
         manager = SSEConnectionManager(service)
 
+        # Start periodic cleanup if enabled
+        await manager.start_periodic_cleanup()
+
         # Publish state under lock without awaiting I/O
         async with self._lock:
             self._redis_sse_service = service
@@ -109,6 +112,13 @@ class SSEProvider:
         try:
             if manager is not None:
                 try:
+                    # Stop periodic cleanup first
+                    await manager.stop_periodic_cleanup()
+                except Exception as e:
+                    logger.warning(f"Error stopping periodic cleanup: {e}")
+
+                try:
+                    # Final cleanup of remaining stale connections
                     stale = await manager.cleanup_stale_connections()
                     if stale:
                         logger.info(f"Cleaned up {stale} stale SSE connections")

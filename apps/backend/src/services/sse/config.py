@@ -20,8 +20,11 @@ class SSEConfig:
     MAX_HISTORY_BATCH_SIZE: int = 100
     DEFAULT_HISTORY_LIMIT: int = 50
 
-    # Cleanup
+    # Cleanup configuration
     STALE_CONNECTION_THRESHOLD_SECONDS: int = 300
+    CLEANUP_INTERVAL_SECONDS: int = 60  # Run cleanup every 60 seconds
+    CLEANUP_BATCH_SIZE: int = 10  # Maximum connections to clean in one batch
+    ENABLE_PERIODIC_CLEANUP: bool = True  # Enable/disable periodic cleanup
 
 
 # Global configuration instance
