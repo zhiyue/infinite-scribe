@@ -583,15 +583,15 @@ export class MockHttpClient implements IHttpClient {
  */
 export function createHttpClient(
   type: 'axios' | 'fetch' | 'mock' = 'axios',
-  config?: any,
+  config?: AxiosRequestConfig | { baseURL?: string; timeout?: number; headers?: Record<string, string> } | { delay?: number },
 ): IHttpClient {
   switch (type) {
     case 'axios':
-      return new AxiosHttpClient(config)
+      return new AxiosHttpClient(config as AxiosRequestConfig)
     case 'fetch':
-      return new FetchHttpClient(config)
+      return new FetchHttpClient(config as { baseURL?: string; timeout?: number; headers?: Record<string, string> })
     case 'mock':
-      return new MockHttpClient(config)
+      return new MockHttpClient(config as { delay?: number })
     default:
       throw new Error(`Unsupported HTTP client type: ${type}`)
   }
