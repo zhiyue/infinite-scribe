@@ -101,14 +101,12 @@ class DialogueCache(BaseSchema):
 
 
 class SessionResponse(BaseSchema):
-    """会话响应 (API兼容)"""
+    """会话响应 (API兼容) - Genesis 解耦后的精简版本"""
 
     id: UUID
     scope_type: ScopeType
     scope_id: str
     status: SessionStatus
-    stage: str | None = None
-    state: dict[str, Any] = Field(default_factory=dict)
     version: int
     created_at: str
     updated_at: str

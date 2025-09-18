@@ -50,8 +50,8 @@ class TestSwitchStageErrorHandling:
         mock_flow.id = uuid4()
         mock_dependencies['flow_service'].get_flow.return_value = mock_flow
 
-        # Mock advance_stage to raise ValueError with specific message
-        error_message = "Required fields are missing - genre, style. Please complete configuration."
+        # Mock advance_stage to raise ValueError with specific message (now using Chinese field names)
+        error_message = "Required fields are missing - 小说类型, 写作风格. Please complete configuration."
         mock_dependencies['flow_service'].advance_stage.side_effect = ValueError(error_message)
 
         # Mock novel ownership validation to pass

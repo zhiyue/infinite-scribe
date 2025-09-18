@@ -243,7 +243,7 @@ export function ArrayFieldTemplate({
   return (
     <div className="space-y-3">
       <div
-        className={cn('space-y-2.5', maxListHeight ? 'overflow-y-auto pr-1' : '')}
+        className={cn('space-y-3', maxListHeight ? 'overflow-y-auto pr-1' : '')}
         style={maxListHeight ? { maxHeight: `${maxListHeight}px` } : undefined}
       >
         {items.map((item, index) => {
@@ -253,79 +253,84 @@ export function ArrayFieldTemplate({
           return (
             <div
               key={item.key}
-              className="array-item flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-3"
+              className="array-item rounded-lg border border-border/50 bg-muted/20 px-4 py-3 shadow-sm"
             >
-              {orderable && (
-                <div className="flex flex-col gap-1 pt-1.5 text-muted-foreground">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={item.onReorderClick(index, index - 1)}
-                    disabled={disabled || readonly || !item.hasMoveUp}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={item.onReorderClick(index, index + 1)}
-                    disabled={disabled || readonly || !item.hasMoveDown}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-
-              <div className="flex-1 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground select-none">
-                  <Badge variant="outline" className="text-[11px] py-0 px-1.5 font-medium">
-                    {index + 1}
+                  <Badge variant="outline" className="border-border/60 bg-background/90 px-1.5 py-0 text-[11px] font-medium">
+                    #{index + 1}
                   </Badge>
                   {finalTitle && (
-                    <span className="font-medium text-foreground/80">
+                    <span className="text-sm font-medium text-foreground/80">
                       {finalTitle}
                     </span>
                   )}
                 </div>
+                <div className="flex items-center gap-1">
+                  {orderable && (
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={item.onReorderClick(index, index - 1)}
+                        disabled={disabled || readonly || !item.hasMoveUp}
+                        aria-label={`上移${finalTitle ?? '项目'}${index + 1}`}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={item.onReorderClick(index, index + 1)}
+                        disabled={disabled || readonly || !item.hasMoveDown}
+                        aria-label={`下移${finalTitle ?? '项目'}${index + 1}`}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {removable && item.hasRemove && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={item.onDropIndexClick(index)}
+                      disabled={disabled || readonly}
+                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      aria-label={`删除${finalTitle ?? '项目'}${index + 1}`}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="mt-3">
                 {item.children}
               </div>
-
-              {removable && item.hasRemove && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={item.onDropIndexClick(index)}
-                  disabled={disabled || readonly}
-                  className="mt-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-              )}
             </div>
           )
         })}
-
-        {addable && (
-          <div className="flex justify-center pt-1.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAddClick}
-              disabled={disabled || readonly}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              {addButtonText}
-            </Button>
-          </div>
-        )}
       </div>
+
+      {addable && (
+        <div className="flex justify-center pt-0.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAddClick}
+            disabled={disabled || readonly}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            {addButtonText}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -368,12 +373,12 @@ export function FieldTemplate({
       <div className="flex flex-col gap-2 md:flex-row md:gap-6">
         {showLabel && (
           <div className="md:w-48 md:min-w-[12rem] select-none">
-            <Label htmlFor={id} className="text-sm font-medium cursor-default">
+            <Label className="text-sm font-medium cursor-default select-none pointer-events-none">
               {label}
               {required && <span className="text-destructive ml-1">*</span>}
             </Label>
             {description && (
-              <p className="text-xs text-muted-foreground mt-1 leading-4 select-none">
+              <p className="text-xs text-muted-foreground mt-1 leading-4 select-none cursor-default">
                 {description}
               </p>
             )}
@@ -394,7 +399,7 @@ export function FieldTemplate({
             </Alert>
           )}
 
-          {help && <p className="text-xs text-muted-foreground">{help}</p>}
+          {help && <p className="text-xs text-muted-foreground cursor-default select-none">{help}</p>}
         </div>
       </div>
     </div>

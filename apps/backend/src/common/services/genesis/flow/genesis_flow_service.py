@@ -227,7 +227,9 @@ class GenesisFlowService:
 
         if not validation_result["is_complete"]:
             # 配置不完整，抛出异常
-            missing_fields = ", ".join(validation_result["missing_fields"])
+            # 优先使用中文字段名，如果没有则使用英文字段名
+            missing_fields_chinese = validation_result.get("missing_fields_chinese", [])
+            missing_fields = ", ".join(missing_fields_chinese) if missing_fields_chinese else ", ".join(validation_result["missing_fields"])
             raise ValueError(
                 f"Cannot advance from stage {current_stage.value}: "
                 f"Required fields are missing - {missing_fields}. "

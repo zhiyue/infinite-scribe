@@ -32,3 +32,24 @@
 **Success Criteria**: 模态底部仅显示一组按钮；保存/刷新/放弃逻辑仍可用；禁用态下按钮正确灰显。
 **Tests**: `pnpm --filter @infinitescribe/frontend lint`（已因现有其他文件问题失败，需后续单独处理）。
 **Status**: Complete
+
+## Stage 6: 梳理数组字段显示问题
+
+**Goal**: 复现并记录特殊要求等数组字段的显示问题，明确需要的布局与交互调整。
+**Success Criteria**: 完成现状截图/描述，确定需要修改的组件与样式细节。
+**Tests**: 手动检查 StageConfigModal（初始灵感阶段）渲染效果。
+**Status**: Complete
+
+## Stage 7: 优化数组字段模板布局
+
+**Goal**: 更新自定义 ArrayFieldTemplate 布局，改善编号、按钮和输入区域的排版；去除重复标题。
+**Success Criteria**: 特殊要求/性格偏好等数组项显示更紧凑、编号清晰、按钮排列整齐；表单交互无回归。
+**Tests**: `pnpm --filter @infinitescribe/frontend lint`，手动检查 Genesis Stage 表单。
+**Status**: Complete
+
+## Stage 8: 更新 UI Schema 与回归验证
+
+**Goal**: 为数组项提供 placeholder/label 配置，隐藏冗余标题，并完成基础回归验证。
+**Success Criteria**: 表单项不再显示 ``-1`` 后缀标题，placeholder 正确出现；相关 lint/test 通过或记录已知阻塞。
+**Tests**: `pnpm --filter @infinitescribe/frontend lint`，手动回归 StageConfig 表单。
+**Status**: Complete

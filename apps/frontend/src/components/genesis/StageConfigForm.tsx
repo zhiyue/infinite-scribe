@@ -9,6 +9,7 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
   type ForwardedRef,
 } from 'react'
 import Form from '@rjsf/core'
@@ -78,6 +79,12 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
             itemTitle: '特殊要求',
             maxListHeight: 320,
           },
+          items: {
+            'ui:options': {
+              label: false,
+            },
+            'ui:placeholder': '请输入希望 AI 遵循的特殊限制或风格提示',
+          },
         },
       }
     case GenesisStage.WORLDVIEW:
@@ -99,6 +106,12 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
             addable: true,
             removable: true,
           },
+          items: {
+            'ui:options': {
+              label: false,
+            },
+            'ui:placeholder': '例如：坚韧、幽默、善良',
+          },
         },
       }
     case GenesisStage.PLOT_OUTLINE:
@@ -109,6 +122,12 @@ function createDefaultUiSchema(stage: GenesisStage): UiSchema {
             orderable: true,
             addable: true,
             removable: true,
+          },
+          items: {
+            'ui:options': {
+              label: false,
+            },
+            'ui:placeholder': '例如：人与人冲突、人与自然冲突',
           },
         },
       }
@@ -134,6 +153,8 @@ const StageConfigFormComponent = (
 ) => {
   const formRef = useRef<any>(null)
   const uiSchema = createDefaultUiSchema(stage)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [showValidationAlert, setShowValidationAlert] = useState(false)
 
   // 使用阶段配置表单 Hook
   const {
@@ -178,6 +199,10 @@ const StageConfigFormComponent = (
    */
   const handleSubmit = useCallback(
     async (data: RJSFChangeEvent) => {
+      // 清除之前的验证错误
+      setValidationErrors([])
+      setShowValidationAlert(false)
+
       if (data.formData) {
         const success = await handleFormSubmit(data.formData)
         if (!success) {
@@ -187,6 +212,36 @@ const StageConfigFormComponent = (
     },
     [handleFormSubmit],
   )
+
+  /**
+   * 处理表单验证错误
+   */
+  const handleError = useCallback((errors: any[]) => {
+    console.log('[StageConfigForm] Form validation errors:', errors)
+    const errorMessages = errors.map(error => {
+      // 提取更友好的字段名和错误信息
+      const instancePath = error.instancePath || ''
+      const schemaPath = error.schemaPath || ''
+      let fieldName = '未知字段'
+
+      if (instancePath) {
+        fieldName = instancePath.replace(/^\//, '').replace(/\//g, ' > ')
+      } else if (error.property) {
+        fieldName = error.property
+      }
+
+      const message = error.message || '验证失败'
+      return fieldName ? `${fieldName}: ${message}` : message
+    })
+
+    setValidationErrors(errorMessages)
+    setShowValidationAlert(true)
+
+    // 5秒后隐藏验证错误提示
+    setTimeout(() => {
+      setShowValidationAlert(false)
+    }, 5000)
+  }, [])
 
   /**
    * 处理表单数据变化
@@ -204,16 +259,26 @@ const StageConfigFormComponent = (
    * 手动触发表单提交
    */
   const triggerSubmit = useCallback(() => {
+    // 清除之前的验证错误
+    setValidationErrors([])
+    setShowValidationAlert(false)
+
     if (formRef.current) {
       formRef.current.submit()
     }
   }, [])
 
   const handleReset = useCallback(() => {
+    // 清除验证错误
+    setValidationErrors([])
+    setShowValidationAlert(false)
     onReset()
   }, [onReset])
 
   const handleReload = useCallback(() => {
+    // 清除验证错误
+    setValidationErrors([])
+    setShowValidationAlert(false)
     onReload()
   }, [onReload])
 
@@ -280,6 +345,23 @@ const StageConfigFormComponent = (
     <Card className={cn('rounded-lg border border-border/40 bg-card/95 shadow-sm', className)}>
       <CardContent className="p-5">
         <div className="space-y-5">
+          {/* 验证错误提示 */}
+          {showValidationAlert && validationErrors.length > 0 && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="font-medium">表单验证失败，请检查以下字段：</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    {validationErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form
             ref={formRef}
             schema={schema as RJSFSchema}
@@ -287,6 +369,7 @@ const StageConfigFormComponent = (
             uiSchema={uiSchema as any}
             validator={validator as any}
             onSubmit={handleSubmit}
+            onError={handleError}
             onChange={handleChange as any}
             disabled={disabled || isSaving}
             widgets={customTheme.widgets}
@@ -294,7 +377,7 @@ const StageConfigFormComponent = (
             noHtml5Validate
             showErrorList={false}
             liveValidate
-            className="cursor-default [&_input]:cursor-text [&_textarea]:cursor-text [&_select]:cursor-pointer [&_button]:cursor-pointer [&_label]:cursor-default [&_.array-item]:cursor-default [&_input]:select-text [&_textarea]:select-text [&_label]:select-none [&_button]:select-none [&_span]:select-none [&_div]:select-none [&_fieldset]:cursor-default [&_legend]:cursor-default [&_legend]:select-none"
+            className="cursor-default [&_input]:cursor-text [&_textarea]:cursor-text [&_select]:cursor-pointer [&_button]:cursor-pointer [&_label]:!cursor-default [&_label]:!pointer-events-none [&_.array-item]:cursor-default [&_input]:select-text [&_textarea]:select-text [&_label]:!select-none [&_button]:select-none [&_span]:select-none [&_div]:select-none [&_p]:!cursor-default [&_p]:!select-none [&_fieldset]:cursor-default [&_legend]:cursor-default [&_legend]:select-none"
           />
         </div>
       </CardContent>

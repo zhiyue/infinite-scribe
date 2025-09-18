@@ -230,6 +230,7 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
         {
             "is_complete": bool,
             "missing_fields": list[str],
+            "missing_fields_chinese": list[str],  # 新增：中文字段名
             "message": str
         }
 
@@ -238,7 +239,12 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
     """
     if stage == GenesisStage.FINISHED:
         # FINISHED阶段不需要配置
-        return {"is_complete": True, "missing_fields": [], "message": "FINISHED stage does not require configuration"}
+        return {
+            "is_complete": True,
+            "missing_fields": [],
+            "missing_fields_chinese": [],
+            "message": "FINISHED stage does not require configuration"
+        }
 
     if not config:
         config = {}
@@ -264,11 +270,34 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
             # 空字符串或空列表也视为缺失
             missing_fields.append(field)
 
+    # 获取缺失字段的中文名称
+    missing_fields_chinese = []
+    if missing_fields:
+        try:
+            schema_class = get_stage_config_schema(stage)
+            json_schema = schema_class.model_json_schema()
+            properties = json_schema.get("properties", {})
+
+            for field in missing_fields:
+                field_info = properties.get(field, {})
+                chinese_name = field_info.get("title", field)  # 使用title作为中文名称，如果没有则使用英文名
+                missing_fields_chinese.append(chinese_name)
+        except Exception:
+            # 如果获取中文名称失败，使用英文名称作为后备
+            missing_fields_chinese = missing_fields
+
     is_complete = len(missing_fields) == 0
 
     if is_complete:
         message = f"Stage {stage.value} configuration is complete"
     else:
-        message = f"Stage {stage.value} configuration is incomplete. Missing fields: {', '.join(missing_fields)}"
+        # 使用中文字段名生成消息
+        chinese_fields = ", ".join(missing_fields_chinese) if missing_fields_chinese else ", ".join(missing_fields)
+        message = f"Stage {stage.value} configuration is incomplete. Missing fields: {chinese_fields}"
 
-    return {"is_complete": is_complete, "missing_fields": missing_fields, "message": message}
+    return {
+        "is_complete": is_complete,
+        "missing_fields": missing_fields,
+        "missing_fields_chinese": missing_fields_chinese,
+        "message": message
+    }

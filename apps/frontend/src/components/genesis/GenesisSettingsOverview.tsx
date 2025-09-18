@@ -3,7 +3,7 @@
  * 显示小说的各项设定信息，方便用户总揽全局
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -217,6 +217,14 @@ export function GenesisSettingsOverview({
     GenesisStage.CHARACTERS,
     GenesisStage.PLOT_OUTLINE,
   ]
+
+  // 当前阶段变化时，关闭配置模态窗口
+  useEffect(() => {
+    // 如果当前打开的配置模态窗口不是当前阶段，则关闭它
+    if (configModalStage && configModalStage !== currentStage) {
+      setConfigModalStage(null)
+    }
+  }, [currentStage, configModalStage])
 
   // 判断阶段是否应该显示（只显示当前阶段及之前的阶段）
   const shouldShowStage = (stage: GenesisStage): boolean => {
