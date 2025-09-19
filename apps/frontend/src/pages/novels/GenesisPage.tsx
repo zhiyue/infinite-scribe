@@ -4,17 +4,17 @@
  */
 
 import { EnhancedGenesisNavigation } from '@/components/genesis/EnhancedGenesisNavigation'
+import { GenesisErrorDialog } from '@/components/genesis/GenesisErrorDialog'
 import { GenesisSettingsOverview } from '@/components/genesis/GenesisSettingsOverview'
 import { GenesisStageContent } from '@/components/genesis/GenesisStageContent'
-import { GenesisErrorDialog } from '@/components/genesis/GenesisErrorDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useGenesisSession } from '@/hooks/useGenesisSession'
 import { GenesisStage } from '@/types/enums'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useState, useCallback, useRef, useEffect } from 'react'
 
 /**
  * 创世页面主组件

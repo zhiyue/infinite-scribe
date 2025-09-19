@@ -186,6 +186,20 @@ export interface CommandStatusResponse {
   correlation_id: string
 }
 
+/**
+ * Pending命令响应 - GET /api/v1/conversations/sessions/{session_id}/pending-command
+ */
+export interface PendingCommandResponse {
+  /** 命令ID */
+  command_id: string | null
+  /** 命令类型 */
+  command_type: string | null
+  /** 命令状态 */
+  status: string | null
+  /** 提交时间 */
+  submitted_at: string | null
+}
+
 // ===== Stage 相关类型 =====
 
 /**

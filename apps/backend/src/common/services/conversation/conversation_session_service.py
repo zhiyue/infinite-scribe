@@ -82,8 +82,6 @@ class ConversationSessionService:
             user_id=user_id,
             scope_type=scope_type,
             scope_id=scope_id,
-            stage=stage,
-            initial_state=initial_state,
         )
 
     async def get_session(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:

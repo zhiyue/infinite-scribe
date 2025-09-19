@@ -22,6 +22,7 @@ from .read import (
     ConversationSessionResponse,
     DialogueCache,
     DialogueHistory,
+    PendingCommandResponse,
     RoundResponse,
     SessionResponse,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "SessionResponse",
     "RoundResponse",
     "CommandStatusResponse",
+    "PendingCommandResponse",
     # Update models (from update.py)
     "ConversationSessionUpdate",
     "ConversationRoundUpdate",

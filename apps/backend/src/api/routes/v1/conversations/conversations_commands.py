@@ -19,6 +19,7 @@ from src.schemas.base import ApiResponse
 from src.schemas.novel.dialogue import (
     CommandRequest,
     CommandStatusResponse,
+    PendingCommandResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,3 +101,36 @@ async def get_command_status(
         correlation_id=corr_id,
     )
     return ApiResponse(code=0, msg="查询命令状态成功", data=data)
+
+
+@router.get(
+    "/sessions/{session_id}/pending-command",
+    response_model=ApiResponse[PendingCommandResponse],
+    responses=COMMON_ERROR_RESPONSES,  # type: ignore[arg-type]
+)
+async def get_pending_command(
+    session_id: UUID,
+    response: Response,
+    x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> ApiResponse[PendingCommandResponse]:
+    """Get the current pending command for a session."""
+    corr_id = get_or_create_correlation_id(x_correlation_id)
+    set_common_headers(response, correlation_id=corr_id)
+
+    # Get pending command through service
+    result = await conversation_service.get_pending_command(db, current_user.id, session_id)
+    if not result.get("success"):
+        code = result.get("code", 422)
+        raise HTTPException(status_code=code, detail=result.get("error", "Failed to get pending command"))
+
+    command_data = result.get("data", {})
+
+    data = PendingCommandResponse(
+        command_id=command_data.get("command_id"),
+        command_type=command_data.get("command_type"),
+        status=command_data.get("status"),
+        submitted_at=command_data.get("submitted_at"),
+    )
+    return ApiResponse(code=0, msg="获取待处理命令成功", data=data)

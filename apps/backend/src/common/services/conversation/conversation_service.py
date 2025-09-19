@@ -148,6 +148,10 @@ class ConversationService:
             db, user_id, session_id, command_type=command_type, payload=payload, idempotency_key=idempotency_key
         )
 
+    async def get_pending_command(self, db: AsyncSession, user_id: int, session_id: UUID) -> dict[str, Any]:
+        """Get the current pending command for a session."""
+        return await self.command_service.get_pending_command(db, user_id, session_id)
+
 
 conversation_service = ConversationService()
 

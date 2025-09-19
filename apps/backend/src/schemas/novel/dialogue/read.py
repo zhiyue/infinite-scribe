@@ -134,3 +134,12 @@ class CommandStatusResponse(BaseSchema):
     status: str
     submitted_at: str
     correlation_id: str
+
+
+class PendingCommandResponse(BaseSchema):
+    """Pending命令响应"""
+
+    command_id: UUID | None
+    command_type: str | None
+    status: str | None
+    submitted_at: str | None

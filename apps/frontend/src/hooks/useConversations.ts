@@ -8,6 +8,7 @@ import type {
   CommandAcceptedResponse,
   CommandRequest,
   CommandStatusResponse,
+  PendingCommandResponse,
   ContentResponse,
   ContentSearchItem,
   ContentSearchRequest,
@@ -284,6 +285,21 @@ export function usePollCommandStatus(
       }),
     enabled: !!sessionId && !!commandId && options?.enabled !== false,
     refetchInterval: false, // 使用自定义轮询逻辑
+  })
+}
+
+/**
+ * 获取当前等待执行的命令
+ */
+export function usePendingCommand(
+  sessionId: string,
+  options?: Omit<UseQueryOptions<PendingCommandResponse, Error>, 'queryKey' | 'queryFn'>,
+) {
+  return useQuery({
+    queryKey: conversationKeys.session(sessionId, 'pending-command'),
+    queryFn: () => conversationsService.getPendingCommand(sessionId),
+    enabled: !!sessionId,
+    ...options,
   })
 }
 

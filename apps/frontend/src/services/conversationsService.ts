@@ -8,6 +8,7 @@ import type {
   CommandAcceptedResponse,
   CommandRequest,
   CommandStatusResponse,
+  PendingCommandResponse,
   ContentResponse,
   ContentSearchItem,
   ContentSearchRequest,
@@ -282,6 +283,17 @@ export class ConversationsService {
     }
 
     throw new Error(`Command ${commandId} timed out after ${timeout}ms`)
+  }
+
+  /**
+   * 获取当前等待执行的命令
+   * GET /api/v1/conversations/sessions/{session_id}/pending-command
+   */
+  async getPendingCommand(sessionId: string): Promise<PendingCommandResponse> {
+    const response = await authenticatedApiService.get<ApiResponse<PendingCommandResponse>>(
+      `${this.basePath}/sessions/${sessionId}/pending-command`,
+    )
+    return handleApiResponse(response)
   }
 
   // ===== Stage Management =====

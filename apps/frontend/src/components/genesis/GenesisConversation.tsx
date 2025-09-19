@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
-import { usePollCommandStatus, useRounds, useSubmitCommand } from '@/hooks/useConversations'
+import { usePendingCommand, usePollCommandStatus, useRounds, useSubmitCommand } from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
@@ -92,7 +92,6 @@ export function GenesisConversation({
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
-  const [currentCommandId, setCurrentCommandId] = useState<string | null>(null)
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -100,6 +99,14 @@ export function GenesisConversation({
 
   // SSE连接状态管理 - 使用全局SSE Context
   const { isConnected: isSSEConnected, status: connectionState, isError } = useSSEStatus()
+
+  // 获取当前等待执行的命令 - 只在初始加载时获取，后续通过SSE事件更新
+  const { data: pendingCommand, refetch: refetchPendingCommand } = usePendingCommand(sessionId, {
+    enabled: !!sessionId,
+    staleTime: Infinity, // 数据永不过期，只通过事件驱动更新
+  })
+
+  const currentCommandId = pendingCommand?.command_id || null
 
   // 获取对话轮次
   const {
@@ -211,6 +218,7 @@ export function GenesisConversation({
         setIsTyping(true)
         setIsWaitingForResponse(true)
         setShouldPollCommand(false)
+        refetchPendingCommand() // 更新pending command状态
         return
       }
 
@@ -219,7 +227,7 @@ export function GenesisConversation({
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setShouldPollCommand(false)
-        setCurrentCommandId(null)
+        refetchPendingCommand() // 更新pending command状态，清除已完成的命令
         void queryClient.invalidateQueries({
           queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
         })
@@ -231,7 +239,7 @@ export function GenesisConversation({
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setShouldPollCommand(false)
-        setCurrentCommandId(null)
+        refetchPendingCommand() // 更新pending command状态，清除失败的命令
         return
       }
     },
@@ -309,7 +317,7 @@ export function GenesisConversation({
     },
     onSuccess: (data) => {
       console.log('[GenesisConversation] Command submitted successfully:', data)
-      setCurrentCommandId(data.command_id)
+      refetchPendingCommand() // 立即刷新pending command状态
       setIsWaitingForResponse(true) // 等待AI回复
       // 不在这里设置isTyping为false，而是等SSE事件
       scrollToBottom()
@@ -325,7 +333,6 @@ export function GenesisConversation({
 
       setIsTyping(false)
       setIsWaitingForResponse(false)
-      setCurrentCommandId(null)
       setShouldPollCommand(false)
     },
   })
@@ -340,8 +347,8 @@ export function GenesisConversation({
         console.log('[GenesisConversation] Fallback polling - Command completed successfully')
         setIsWaitingForResponse(false)
         setIsTyping(false)
-        setCurrentCommandId(null)
         setShouldPollCommand(false)
+        refetchPendingCommand() // 更新pending command状态
 
         // 刷新轮次数据以获取AI的回复
         queryClient.invalidateQueries({
@@ -354,11 +361,12 @@ export function GenesisConversation({
         )
         setIsWaitingForResponse(false)
         setIsTyping(false)
-        setCurrentCommandId(null)
         setShouldPollCommand(false)
+        refetchPendingCommand() // 更新pending command状态
       } else if (status.status === 'processing') {
         console.log('[GenesisConversation] Fallback polling - Command is processing')
         setIsTyping(true)
+        refetchPendingCommand() // 更新pending command状态
       }
     },
   })

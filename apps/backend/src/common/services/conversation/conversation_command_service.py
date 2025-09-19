@@ -153,12 +153,12 @@ class ConversationCommandService:
         idempotency_key: str | None,
     ) -> Any:  # CommandInbox | None
         """
-        Check for existing commands by idempotency key or session+type.
+        Check for existing commands by idempotency key or any pending command in session.
 
         Args:
             db: Database session
             session_id: Session ID
-            command_type: Command type
+            command_type: Command type (used for logging only)
             idempotency_key: Optional idempotency key
 
         Returns:
@@ -173,13 +173,12 @@ class ConversationCommandService:
                 if existing_cmd:
                     return existing_cmd
 
-            # 2. Check for existing pending command of same type in session
+            # 2. Check for any existing pending command in session (global validation)
             from src.schemas.enums import CommandStatus
 
             existing_cmd = await db.scalar(
                 select(CommandInbox).where(
                     CommandInbox.session_id == session_id,
-                    CommandInbox.command_type == command_type,
                     CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING]),
                 )
             )
@@ -410,3 +409,71 @@ class ConversationCommandService:
             status=OutboxStatus.PENDING,
         )
         db.add(out)
+
+    async def get_pending_command(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        session_id: UUID,
+    ) -> dict[str, Any]:
+        """
+        Get the current pending command for a session.
+
+        Args:
+            db: Database session
+            user_id: User ID for ownership verification
+            session_id: Session ID to check
+
+        Returns:
+            Dict with success status and command details or None
+        """
+        try:
+            # 1. Verify session access
+            access_result = await self.access_control.verify_session_access(db, user_id, session_id)
+            if not access_result["success"]:
+                return access_result
+
+            # 2. Query for pending commands
+            from src.schemas.enums import CommandStatus
+
+            pending_cmd = await db.scalar(
+                select(CommandInbox)
+                .where(
+                    CommandInbox.session_id == session_id,
+                    CommandInbox.status.in_([CommandStatus.RECEIVED, CommandStatus.PROCESSING]),
+                )
+                .order_by(CommandInbox.created_at.desc())  # Get the most recent
+            )
+
+            if not pending_cmd:
+                # No pending command found
+                command_data = {
+                    "command_id": None,
+                    "command_type": None,
+                    "status": None,
+                    "submitted_at": None,
+                }
+            else:
+                # Build response data
+                command_data = {
+                    "command_id": pending_cmd.id,
+                    "command_type": pending_cmd.command_type,
+                    "status": pending_cmd.status.value if hasattr(pending_cmd.status, "value") else str(pending_cmd.status),
+                    "submitted_at": (
+                        pending_cmd.created_at.isoformat()
+                        if getattr(pending_cmd, "created_at", None)
+                        else None
+                    ),
+                }
+
+            return ConversationErrorHandler.success_response(command_data)
+
+        except Exception as e:
+            return ConversationErrorHandler.internal_error(
+                "Failed to get pending command",
+                logger_instance=logger,
+                context="Pending command query error",
+                exception=e,
+                session_id=str(session_id),
+                user_id=user_id,
+            )

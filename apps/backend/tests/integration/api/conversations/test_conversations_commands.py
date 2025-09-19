@@ -286,14 +286,14 @@ class TestConversationCommandsPost:
 
     @pytest.mark.asyncio
     async def test_post_command_different_types(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
-        """Test posting different command types."""
+        """Test that global validation prevents different command types in same session."""
         # Arrange
         user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
         login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
         token = login_response[1]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        # Create session
+        # Create single session for testing global validation
         from tests.integration.api.auth_test_helpers import create_test_novel
 
         novel_id = await create_test_novel(pg_session, user_data["email"], "Command Types Test Novel")
@@ -302,15 +302,15 @@ class TestConversationCommandsPost:
         assert session_response.status_code == 201
         session_id = session_response.json()["data"]["id"]
 
-        # Test different command types
+        # Test different command types - global validation should prevent additional commands
         command_types = [
             {"type": "analyze_plot", "payload": {"text": "Story to analyze"}},
             {"type": "generate_dialogue", "payload": {"characters": ["Alice", "Bob"]}},
             {"type": "refine_style", "payload": {"target_style": "formal"}},
-            {"type": "expand_scene", "payload": {"scene_id": "scene_1"}},
         ]
 
-        for command_data in command_types:
+        first_command_id = None
+        for i, command_data in enumerate(command_types):
             response = await client_with_lifespan.post(
                 f"/api/v1/conversations/sessions/{session_id}/commands", json=command_data, headers=headers
             )
@@ -319,7 +319,15 @@ class TestConversationCommandsPost:
             assert response.status_code == 202
             data = response.json()
             assert data["data"]["accepted"] is True
-            assert UUID(data["data"]["command_id"])
+            command_id = data["data"]["command_id"]
+            assert UUID(command_id)
+
+            if i == 0:
+                # First command should succeed
+                first_command_id = command_id
+            else:
+                # Subsequent commands should return existing command due to global validation
+                assert command_id == first_command_id, f"Command {i+1} should return existing command due to global validation"
 
     @pytest.mark.asyncio
     async def test_post_command_with_idempotency(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
@@ -464,6 +472,93 @@ class TestConversationCommandsPost:
 
         # Assert
         assert response.status_code == 422  # Validation error
+
+    @pytest.mark.asyncio
+    async def test_post_command_global_validation_blocks_new_commands(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+        """Test that global validation prevents new commands when another is pending."""
+        # Arrange
+        user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
+        login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
+        token = login_response[1]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Global Validation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
+        session_id = session_response.json()["data"]["id"]
+
+        # Step 1: Post first command
+        first_command_data = {"type": "first_command", "payload": {"task": "initial task"}}
+        first_response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{session_id}/commands", json=first_command_data, headers=headers
+        )
+        assert first_response.status_code == 202
+        first_command_id = first_response.json()["data"]["command_id"]
+
+        # Step 2: Try to post second command of different type - should return existing command
+        second_command_data = {"type": "second_command", "payload": {"task": "secondary task"}}
+        second_response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{session_id}/commands", json=second_command_data, headers=headers
+        )
+
+        # Assert - should return existing command (idempotent behavior)
+        assert second_response.status_code == 202
+        second_command_id = second_response.json()["data"]["command_id"]
+        # Due to global validation, the second command should return the existing command
+        assert first_command_id == second_command_id
+
+    @pytest.mark.asyncio
+    async def test_post_command_global_validation_with_idempotency_key(self, client_with_lifespan, pg_session, _mock_email_service_instance_methods):
+        """Test global validation behavior with idempotency keys."""
+        # Arrange
+        user_data = await create_and_verify_test_user(client_with_lifespan, pg_session)
+        login_response = await perform_login(client_with_lifespan, user_data["email"], user_data["password"])
+        token = login_response[1]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Create session
+        from tests.integration.api.auth_test_helpers import create_test_novel
+
+        novel_id = await create_test_novel(pg_session, user_data["email"], "Idempotency Global Validation Test Novel")
+        session_data = {"scope_type": "GENESIS", "scope_id": novel_id}
+        session_response = await client_with_lifespan.post("/api/v1/conversations/sessions", json=session_data, headers=headers)
+        assert session_response.status_code == 201
+        session_id = session_response.json()["data"]["id"]
+
+        # Step 1: Post first command with idempotency key
+        idempotency_key1 = "global-validation-test-1"
+        first_headers = {**headers, "Idempotency-Key": idempotency_key1}
+        first_command_data = {"type": "first_idempotent_command", "payload": {"task": "initial task"}}
+        first_response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{session_id}/commands", json=first_command_data, headers=first_headers
+        )
+        assert first_response.status_code == 202
+        first_command_id = first_response.json()["data"]["command_id"]
+
+        # Step 2: Post second command with different idempotency key - should still return existing due to global validation
+        idempotency_key2 = "global-validation-test-2"
+        second_headers = {**headers, "Idempotency-Key": idempotency_key2}
+        second_command_data = {"type": "second_idempotent_command", "payload": {"task": "secondary task"}}
+        second_response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{session_id}/commands", json=second_command_data, headers=second_headers
+        )
+
+        # Assert - global validation takes precedence over new idempotency key
+        assert second_response.status_code == 202
+        second_command_id = second_response.json()["data"]["command_id"]
+        assert first_command_id == second_command_id
+
+        # Step 3: Retry with same idempotency key as first command - should return same command
+        third_response = await client_with_lifespan.post(
+            f"/api/v1/conversations/sessions/{session_id}/commands", json=first_command_data, headers=first_headers
+        )
+        assert third_response.status_code == 202
+        third_command_id = third_response.json()["data"]["command_id"]
+        assert first_command_id == third_command_id
 
 
 class TestConversationCommandsStatus:
