@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.middleware.cancelled_error import CancelledErrorMiddleware
 from src.api.routes import docs, health, v1
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -104,6 +105,7 @@ async def lifespan(app: FastAPI):
 
         # Initialize shutdown event for graceful SSE connection handling
         import asyncio
+
         app.state.shutdown_event = asyncio.Event()
 
         # Initialize SSE provider (app-scoped) - lazy, singleflight ready
@@ -146,6 +148,7 @@ async def lifespan(app: FastAPI):
 
         # Set shutdown flag for SSE connections
         import asyncio
+
         if not hasattr(app.state, "shutdown_event"):
             app.state.shutdown_event = asyncio.Event()
         app.state.shutdown_event.set()
@@ -190,6 +193,8 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Place CancelledError middleware outermost to swallow shutdown cancellations early
+app.add_middleware(CancelledErrorMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,

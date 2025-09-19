@@ -185,7 +185,41 @@ class SSEConnectionManager:
                         # Retry limit check
                         await self.redis_counter_service.check_connection_limit(user_id)
                     else:
-                        raise
+                        # Fallback: if we have tab context but no in-memory candidate to evict,
+                        # the Redis counter may have drifted (e.g., previous connection not cleaned).
+                        # Only try a conservative one-slot release when:
+                        # - a tab_id is provided (explicit user intent), and
+                        # - in-memory tracked connections for this user are below the limit
+                        try:
+                            user_tracked = len(self.state_manager.get_user_connections(user_id))
+                        except Exception:
+                            user_tracked = 0
+
+                        if tab_id and user_tracked < self.MAX_CONNECTIONS_PER_USER:
+                            try:
+                                redis_count = await self.redis_counter_service.get_user_connection_count(user_id)
+                            except Exception:
+                                redis_count = self.MAX_CONNECTIONS_PER_USER
+
+                            if redis_count >= self.MAX_CONNECTIONS_PER_USER:
+                                logger.info(
+                                    "🛠️ Detected possible counter drift; releasing one slot to honor preemption",
+                                    extra={
+                                        "user_id": user_id,
+                                        "tab_id": tab_id,
+                                        "tracked": user_tracked,
+                                        "redis_count": redis_count,
+                                        "limit": self.MAX_CONNECTIONS_PER_USER,
+                                    },
+                                )
+                                # Free exactly one slot and retry once
+                                await self.redis_counter_service.safe_decr_counter(user_id)
+                                await self.redis_counter_service.check_connection_limit(user_id)
+                            else:
+                                # Redis already below limit; re-raise to surface unexpected state
+                                raise
+                        else:
+                            raise
                 else:
                     raise
             logger.debug(f"✅ Connection limit check passed for user {user_id}")

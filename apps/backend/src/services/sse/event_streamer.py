@@ -70,8 +70,9 @@ class SSEEventStreamer:
                 yield event
 
         except asyncio.CancelledError:
+            # Expected on server reload/stop or client disconnect; exit quietly
             logger.info(f"SSE stream cancelled for user {user_id}")
-            raise
+            return
         except Exception as e:
             logger.error(f"Error in event generator for user {user_id}: {e}")
             # Send error event to client
@@ -193,7 +194,9 @@ class SSEEventStreamer:
                     break
                 # Check for server shutdown
                 if shutdown_event is not None and shutdown_event.is_set():
-                    logger.info(f"Server shutting down, closing SSE stream for user {user_id} after {event_count} events")
+                    logger.info(
+                        f"Server shutting down, closing SSE stream for user {user_id} after {event_count} events"
+                    )
                     break
                 # Respect preemption
                 if stop_event is not None and stop_event.is_set():
@@ -222,6 +225,9 @@ class SSEEventStreamer:
                     event=sse_message.event,
                     id=sse_message.id,
                 )
+        except asyncio.CancelledError:
+            # Expected on reload/shutdown; exit without error noise
+            return
         except Exception as e:
             logger.error(f"❌ Error in real-time event stream for user {user_id}: {type(e).__name__}: {e}")
             raise

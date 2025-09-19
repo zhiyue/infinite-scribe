@@ -11,8 +11,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useRounds, useSubmitCommand, usePollCommandStatus } from '@/hooks/useConversations'
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
+import { usePollCommandStatus, useRounds, useSubmitCommand } from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
 import type { PaginatedResponse, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
@@ -345,10 +345,13 @@ export function GenesisConversation({
 
         // 刷新轮次数据以获取AI的回复
         queryClient.invalidateQueries({
-          queryKey: ['conversations', 'sessions', sessionId, 'rounds']
+          queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
         })
       } else if (status.status === 'failed') {
-        console.error('[GenesisConversation] Fallback polling - Command failed:', status.error_message)
+        console.error(
+          '[GenesisConversation] Fallback polling - Command failed:',
+          status.error_message,
+        )
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setCurrentCommandId(null)
@@ -414,9 +417,9 @@ export function GenesisConversation({
   // 渲染消息
   const renderMessage = (round: RoundResponse) => {
     const isUser = round.role === 'user'
-    // 用户消息从input获取，AI消息从output获取
+    // 用户消息从input.payload.content获取，AI消息从output.content获取
     const content = isUser
-      ? (round.input?.content as string) || ''
+      ? (round.input?.payload?.content as string) || ''
       : (round.output?.content as string) || ''
 
     // 对于AI消息，如果没有内容则不渲染；对于用户消息，始终渲染

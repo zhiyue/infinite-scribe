@@ -352,6 +352,8 @@ class Orchestrator:
                 "mode": self.config.default_mode,
                 # Pass launcher timeout down so adapter can show better errors within same window
                 "startup_timeout": getattr(self.config, "startup_timeout", 30),
+                # Align uvicorn graceful shutdown timeout with orchestrator stop_grace
+                "timeout_graceful_shutdown": getattr(self.config, "stop_grace", 10),
             }
             return ApiAdapter(cfg)
         if name == ComponentType.AGENTS.value:
