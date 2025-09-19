@@ -43,7 +43,7 @@ jobs:
           fetch-depth: 0
 
       - name: Auto Generate README with Progress Tracking
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-base-action@v1
         with:
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
 
@@ -105,6 +105,13 @@ jobs:
             --model ${{ vars.GLM_MODEL }}
             --allowedTools "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*)"
 
+          allowed_tools: >
+            Bash(git add:*),
+            Bash(git commit:*),
+            Bash(git status:*),
+            Bash(git diff:*),
+            Bash(git push:*)
+          model: ${{ vars.GLM_MODEL }}
           settings: |
             {
               "env": {
