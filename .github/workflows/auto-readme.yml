@@ -34,6 +34,7 @@ jobs:
     permissions:
       contents: write # 直接提交 README 文件到当前分支
       actions: read # Claude action 需要读取 CI 信息
+      pull-requests: write
 
     steps:
       - name: Checkout repository
