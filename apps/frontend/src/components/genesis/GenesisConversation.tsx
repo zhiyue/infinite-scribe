@@ -81,6 +81,13 @@ const STAGE_EXAMPLES: Record<GenesisStage, string[]> = {
 /**
  * 创世对话组件
  */
+// 临时消息类型定义
+interface OptimisticMessage {
+  id: string // 唯一标识符
+  content: string
+  initialRoundsLength: number // 发送时的rounds数量
+}
+
 export function GenesisConversation({
   stage,
   sessionId,
@@ -93,6 +100,7 @@ export function GenesisConversation({
   const [isTyping, setIsTyping] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
+  const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -239,6 +247,7 @@ export function GenesisConversation({
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setShouldPollCommand(false)
+        setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
         refetchPendingCommand() // 更新pending command状态，清除失败的命令
         return
       }
@@ -248,89 +257,16 @@ export function GenesisConversation({
 
   // 提交对话命令
   const submitCommand = useSubmitCommand(sessionId, {
-    onMutate: async (variables) => {
-      // 构建乐观更新的用户消息
-      const optimisticUserMessage: RoundResponse = {
-        session_id: sessionId,
-        round_path: `temp-${Date.now()}`, // 临时ID
-        role: 'user',
-        input: variables.input,
-        created_at: new Date().toISOString(),
-      }
-
-      // 使用与 useRounds 相同的查询键结构
-      const queryKey = ['conversations', 'sessions', sessionId, 'rounds', { order: 'asc' }]
-
-      // 取消正在进行的查询
-      await queryClient.cancelQueries({ queryKey })
-
-      // 获取当前数据 - 注意API返回的是分页格式
-      const previousData = queryClient.getQueryData(queryKey)
-      console.log(
-        '[GenesisConversation] Previous data:',
-        previousData,
-        'type:',
-        typeof previousData,
-      )
-
-      // 乐观更新：添加用户消息到缓存
-      queryClient.setQueryData<PaginatedResponse<RoundResponse> | RoundResponse[]>(
-        queryKey,
-        (old) => {
-          // 处理分页响应格式
-          let currentRounds: RoundResponse[] = []
-
-          if (old && typeof old === 'object' && 'items' in old) {
-            // 分页响应格式
-            const paginatedData = old
-            currentRounds = paginatedData.items
-          } else if (Array.isArray(old)) {
-            // 向后兼容：数组格式
-            currentRounds = old
-          }
-
-          console.log(
-            '[GenesisConversation] Optimistic update - current rounds:',
-            currentRounds.length,
-            'adding user message',
-          )
-
-          // 保持分页格式响应
-          if (old && typeof old === 'object' && 'items' in old) {
-            const paginatedData = old
-            return {
-              ...paginatedData,
-              items: [...currentRounds, optimisticUserMessage],
-              pagination: {
-                ...paginatedData.pagination,
-                total: paginatedData.pagination.total + 1,
-              },
-            }
-          }
-
-          // 向后兼容：如果原来是数组格式
-          return [...currentRounds, optimisticUserMessage]
-        },
-      )
-
-      return { previousData, queryKey }
-    },
     onSuccess: (data) => {
       console.log('[GenesisConversation] Command submitted successfully:', data)
+      // 不立即清除临时消息，等待实际round数据到达
       refetchPendingCommand() // 立即刷新pending command状态
       setIsWaitingForResponse(true) // 等待AI回复
-      // 不在这里设置isTyping为false，而是等SSE事件
       scrollToBottom()
     },
-    onError: (error, variables, context) => {
+    onError: (error) => {
       console.error('[GenesisConversation] Command submission failed:', error)
-
-      // 回滚乐观更新
-      if (context?.previousData && context?.queryKey) {
-        console.log('[GenesisConversation] Rolling back optimistic update')
-        queryClient.setQueryData(context.queryKey, context.previousData)
-      }
-
+      setOptimisticMessage(null) // 命令失败时立即清除临时消息
       setIsTyping(false)
       setIsWaitingForResponse(false)
       setShouldPollCommand(false)
@@ -362,6 +298,7 @@ export function GenesisConversation({
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setShouldPollCommand(false)
+        setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
         refetchPendingCommand() // 更新pending command状态
       } else if (status.status === 'processing') {
         console.log('[GenesisConversation] Fallback polling - Command is processing')
@@ -376,9 +313,16 @@ export function GenesisConversation({
     if (!input.trim() || submitCommand.isPending || isWaitingForResponse) return
 
     const messageContent = input.trim()
-    console.log('[GenesisConversation] Submitting command')
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+    console.log('[GenesisConversation] Submitting command with optimistic ID:', optimisticId)
 
+    // 清空输入框并立即显示用户消息
     setInput('')
+    setOptimisticMessage({
+      id: optimisticId,
+      content: messageContent,
+      initialRoundsLength: rounds.length, // 记录发送时的rounds数量
+    })
     setIsTyping(true)
 
     // 提交对话命令到后端
@@ -414,7 +358,31 @@ export function GenesisConversation({
   // 自动滚动
   useEffect(() => {
     scrollToBottom()
-  }, [rounds])
+  }, [rounds, optimisticMessage])
+
+  // 检测实际round数据到达，清除临时消息
+  useEffect(() => {
+    if (!optimisticMessage) return
+
+    // 检查rounds是否增加，且最新的用户round内容匹配
+    if (rounds.length > optimisticMessage.initialRoundsLength) {
+      // 查找在初始长度之后添加的用户round
+      const newRounds = rounds.slice(optimisticMessage.initialRoundsLength)
+      const matchingRound = newRounds.find(round =>
+        round.role === 'user' &&
+        round.input?.payload?.content === optimisticMessage.content
+      )
+
+      if (matchingRound) {
+        console.log(
+          '[GenesisConversation] Real user round detected for optimistic message',
+          optimisticMessage.id,
+          'clearing optimistic message'
+        )
+        setOptimisticMessage(null)
+      }
+    }
+  }, [rounds, optimisticMessage])
 
   // 处理示例点击
   const handleExampleClick = (example: string) => {
@@ -611,6 +579,29 @@ export function GenesisConversation({
 
               {/* 对话消息 */}
               {rounds.map(renderMessage).filter(Boolean)}
+
+              {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
+              {optimisticMessage &&
+               !(rounds.length > optimisticMessage.initialRoundsLength &&
+                 rounds.slice(optimisticMessage.initialRoundsLength).some(round =>
+                   round.role === 'user' &&
+                   round.input?.payload?.content === optimisticMessage.content
+                 )) && (
+                <div className="flex gap-3 flex-row-reverse opacity-80">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/10">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col gap-1 max-w-[70%]">
+                    <div className="rounded-lg px-4 py-2.5 bg-primary text-primary-foreground">
+                      <div className="whitespace-pre-wrap break-words text-sm">
+                        {optimisticMessage.content}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 输入中提示 - 移除停止生成按钮 */}
               {(isTyping || hasPendingUserMessage) && (
