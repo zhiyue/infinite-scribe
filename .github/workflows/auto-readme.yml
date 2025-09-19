@@ -109,9 +109,11 @@ jobs:
             3. `gh push` 推送到当前分支
 
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit,Bash(gh push:*),Bash(gh:*)'
+          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit,MultiEdit,Bash(gh push:*),Bash(gh:*)'
           model: ${{ vars.GLM_MODEL }}
           claude_env: |
             ANTHROPIC_BASE_URL: ${{ vars.GLM_BASE_URL }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
