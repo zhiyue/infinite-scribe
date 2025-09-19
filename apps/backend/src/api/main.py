@@ -1,6 +1,5 @@
 """API Gateway main entry point."""
 
-import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -9,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import docs, health, v1
 from src.core.config import settings
+from src.core.logging import get_logger
 
 
 @asynccontextmanager
@@ -20,13 +20,18 @@ async def lifespan(app: FastAPI):
     from src.db.redis import redis_service
     from src.db.sql import postgres_service
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     # Startup
     try:
         # Ensure structured logging is configured (use console in development)
         try:
-            configure_logging(environment=getattr(settings, "environment", "development"), level="INFO")
+            configure_logging(
+                environment=getattr(settings, "environment", "development"),
+                level="INFO",
+                enable_file_logging=True,  # Enable file logging for API subprocess
+                file_log_format="structured",  # Use structured format for better readability
+            )
             bind_service_context(service="api-gateway", component="lifespan")
         except Exception as e:
             # Fall back silently; uvicorn default logging will still work

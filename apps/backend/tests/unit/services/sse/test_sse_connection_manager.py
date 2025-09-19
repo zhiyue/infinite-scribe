@@ -652,7 +652,7 @@ class TestSSEConnectionManager:
         assert len(sse_manager.connections) == total_stale - batch_size
 
     @pytest.mark.asyncio
-    async def test_periodic_cleanup_worker_handles_errors(self, sse_manager, caplog):
+    async def test_periodic_cleanup_worker_handles_errors(self, sse_manager, caplog, capsys):
         """Test that periodic cleanup worker handles errors gracefully."""
         import asyncio
         from unittest.mock import AsyncMock
@@ -682,8 +682,9 @@ class TestSSEConnectionManager:
         # Restore original method
         sse_manager.state_manager.cleanup_stale_connections = original_cleanup
 
-        # Verify error was logged but cleanup continued
-        assert "Error during periodic SSE cleanup" in caplog.text
+        # Verify error was logged but cleanup continued (stdout fallback for structlog)
+        captured = capsys.readouterr()
+        assert "Error during periodic SSE cleanup" in captured.out
         assert call_count >= 1
 
     @pytest.mark.asyncio
@@ -903,7 +904,7 @@ class TestSSEConnectionManager:
         assert age_analysis["very_old"] == 1  # very-old-1
 
     @pytest.mark.asyncio
-    async def test_config_validation_warnings(self, sse_manager, caplog):
+    async def test_config_validation_warnings(self, sse_manager, caplog, capsys):
         """Test that configuration validation properly warns about suboptimal settings."""
         # The validation happens during initialization, so we need to create a new manager
         # with modified config to test warnings
@@ -925,8 +926,9 @@ class TestSSEConnectionManager:
             # Trigger validation by accessing a method
             _ = test_state_manager
 
-            # Check that warnings were logged
-            assert "very short" in caplog.text or "very large" in caplog.text
+            # Check that warnings were logged (stdout fallback for structlog)
+            captured = capsys.readouterr()
+            assert ("very short" in captured.out) or ("very large" in captured.out)
 
         finally:
             # Restore original config

@@ -12,15 +12,15 @@ Goals:
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
+from src.core.logging import get_logger
 from src.db.redis import RedisService
 from src.services.sse.connection_manager import SSEConnectionManager
 from src.services.sse.redis_client import RedisSSEService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SSEProvider:

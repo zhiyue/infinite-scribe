@@ -2,16 +2,17 @@
 
 import asyncio
 import json
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import suppress
 
 from fastapi import Request
 from sse_starlette import ServerSentEvent
 
+from src.core.logging import get_logger
+
 from .config import sse_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SSEEventStreamer:
@@ -95,7 +96,11 @@ class SSEEventStreamer:
     ) -> AsyncGenerator[ServerSentEvent, None]:
         """Send historical events to client for replay/catch-up on reconnection."""
         # Abort early if preempted
-        if connection_state and getattr(connection_state, "abort_event", None) and connection_state.abort_event.is_set():
+        if (
+            connection_state
+            and getattr(connection_state, "abort_event", None)
+            and connection_state.abort_event.is_set()
+        ):
             return
         # Extract connection_id from connection_state if not provided (backward compatibility)
         if connection_id is None and connection_state:
@@ -114,7 +119,11 @@ class SSEEventStreamer:
                     logger.info(f"Client disconnected for user {user_id}, stopping historical event replay")
                     break
                 # Respect preemption
-                if connection_state and getattr(connection_state, "abort_event", None) and connection_state.abort_event.is_set():
+                if (
+                    connection_state
+                    and getattr(connection_state, "abort_event", None)
+                    and connection_state.abort_event.is_set()
+                ):
                     logger.info(f"Connection preempted for user {user_id}, stopping historical replay")
                     break
 
@@ -170,9 +179,7 @@ class SSEEventStreamer:
                     break
                 # Respect preemption
                 if stop_event is not None and stop_event.is_set():
-                    logger.info(
-                        f"Connection preempted for user {user_id}, stopping stream after {event_count} events"
-                    )
+                    logger.info(f"Connection preempted for user {user_id}, stopping stream after {event_count} events")
                     break
 
                 # Update connection activity timestamp when sending event

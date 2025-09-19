@@ -15,7 +15,6 @@ Architecture:
 - Built-in client disconnection detection via request.is_disconnected()
 """
 
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -31,7 +30,9 @@ from .redis_counter import RedisCounterService
 # Re-export for backward compatibility
 __all__ = ["SSEConnectionManager", "SSEConnectionState"]
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SSEConnectionManager:

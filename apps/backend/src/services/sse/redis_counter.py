@@ -1,13 +1,13 @@
 """Redis Counter Service for SSE connection tracking."""
 
-import logging
-
 from fastapi import HTTPException
 from redis.asyncio import Redis
 
+from src.core.logging import get_logger
+
 from .config import sse_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RedisCounterService:

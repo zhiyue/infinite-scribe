@@ -1,7 +1,6 @@
 """SSE Connection State Manager for tracking connection state."""
 
 import asyncio
-import logging
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -9,10 +8,12 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.core.logging import get_logger
+
 from .config import sse_config
 from .redis_counter import RedisCounterService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SSEConnectionState(BaseModel):
@@ -185,9 +186,7 @@ class SSEConnectionStateManager:
         """Evict the least recently active connection for a user."""
         ids = list(self.user_connections.get(user_id, set()))
         candidates = [
-            (cid, self.connections[cid])
-            for cid in ids
-            if cid in self.connections and cid != exclude_connection_id
+            (cid, self.connections[cid]) for cid in ids if cid in self.connections and cid != exclude_connection_id
         ]
         if not candidates:
             return False

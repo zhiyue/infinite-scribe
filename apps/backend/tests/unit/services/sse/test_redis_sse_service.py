@@ -162,20 +162,16 @@ class TestRedisSSEService:
         # Make pubsub() a sync method that returns the mock
         mock_pubsub_client.pubsub = MagicMock(return_value=mock_pubsub)
 
-        # Mock pub/sub messages
+        # Mock pub/sub messages via async get_message
         pointer_message = {
             "type": "message",
             "data": json.dumps({"stream_key": f"events:user:{user_id}", "stream_id": stream_id}),
         }
 
-        async def mock_listen():
-            yield {"type": "subscribe"}
-            yield pointer_message
-            # Keep yielding non-message events to prevent hanging if break doesn't work
-            while True:
-                yield {"type": "subscribe"}
+        async def mock_get_message(ignore_subscribe_messages=True, timeout=1.0):
+            return pointer_message
 
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.get_message = AsyncMock(side_effect=mock_get_message)
 
         # Mock XRANGE response on RedisService client - returns exact entry by ID
         xrange_items = [
@@ -254,13 +250,19 @@ class TestRedisSSEService:
             ),
         }
 
-        async def mock_listen():
-            yield {"type": "subscribe"}
-            yield pointer_message
-            while True:
-                yield {"type": "subscribe"}
+        # Use get_message to emulate polling
+        import asyncio
+        queue: asyncio.Queue = asyncio.Queue()
 
-        mock_pubsub.listen.return_value = mock_listen()
+        async def mock_get_message(ignore_subscribe_messages=True, timeout=1.0):
+            try:
+                return await asyncio.wait_for(queue.get(), timeout=timeout)
+            except asyncio.TimeoutError:
+                return None
+
+        mock_pubsub.get_message = AsyncMock(side_effect=mock_get_message)
+        # Enqueue one realtime pointer; catch-up should still be delivered first
+        await queue.put(pointer_message)
 
         # Mock Redis XRANGE for real-time pointer
         mock_redis_client.xrange.return_value = [
@@ -484,23 +486,14 @@ class TestRedisSSEService:
         mock_pubsub.close = AsyncMock()
         mock_pubsub_client.pubsub = MagicMock(return_value=mock_pubsub)
 
-        async def listen_gen():
-            # Initial subscribe event ignored by service
-            yield {"type": "subscribe"}
-            # Wait until a pointer is published, then forward it
+        # Publish helper pushes message into get_message queue
+        async def mock_get_message(ignore_subscribe_messages=True, timeout=1.0):
             try:
-                msg = await asyncio.wait_for(queue.get(), timeout=0.1)
-                yield msg
-                # Keep yielding subscribe messages to keep the generator alive
-                # until the task is cancelled
-                while True:
-                    yield {"type": "subscribe"}
-            except TimeoutError:
-                # If no message comes, keep yielding subscribe messages
-                while True:
-                    yield {"type": "subscribe"}
+                return await asyncio.wait_for(queue.get(), timeout=timeout)
+            except asyncio.TimeoutError:
+                return None
 
-        mock_pubsub.listen.return_value = listen_gen()
+        mock_pubsub.get_message = AsyncMock(side_effect=mock_get_message)
 
         async def mock_publish(channel: str, data: str):
             await queue.put({"type": "message", "data": data})
