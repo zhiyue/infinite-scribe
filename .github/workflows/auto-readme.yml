@@ -1,0 +1,65 @@
+name: Auto Generate README
+
+on:
+  push:
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+
+jobs:
+  auto-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 直接提交 README 文件到当前分支
+      actions: read    # Claude action 需要读取 CI 信息
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude to generate README files
+        uses: anthropics/claude-code-action@v1-dev
+        with:
+          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
+
+          # Claude action 需要的额外权限
+          additional_permissions: |
+            actions: read
+
+          claude_args: |
+            --model ${{ vars.GLM_MODEL }}
+            --system-prompt "你是一个专业的技术文档生成助手。请执行以下任务：
+
+            1. 检测当前代码变更中有哪些子目录包含代码文件（.py, .ts, .tsx, .js, .jsx 等）
+            2. 为每个有代码变更的子目录生成专业的中文 README.md 文件
+            3. 直接提交生成的 README 文件到当前分支（不要创建 PR）
+
+            生成 README.md 的要求：
+            - 分析目录结构和代码文件，推断模块功能和用途
+            - 包含：项目简介、功能特性、目录结构、安装使用方法、API文档（如适用）
+            - 根据代码类型调整重点：前端重点说明组件和页面，后端重点说明API和服务
+            - 使用中文编写，内容简洁实用
+            - 如果目录已有 README.md，请更新而不是覆盖
+
+            项目上下文：InfiniteScribe - AI 驱动的小说写作平台，包含 Python FastAPI 后端和 React TypeScript 前端。
+
+            完成后请提交变更，提交信息格式：'docs: auto-generate README files for changed directories'"
+
+          settings: |
+            {
+              "env": {
+                "ANTHROPIC_BASE_URL": "${{ vars.GLM_BASE_URL }}"
+              }
+            }
