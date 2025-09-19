@@ -153,11 +153,14 @@ class SSEConnectionStateManager:
         if not tab_id:
             return None
         old_id = self.tab_connections.get(tab_id)
-        if not old_id:
-            return None
-        st = self.connections.get(old_id)
-        if st and st.user_id == user_id:
-            return old_id, st
+        if old_id:
+            st = self.connections.get(old_id)
+            if st and st.user_id == user_id:
+                return old_id, st
+        # Fallback scan: index may be missing after reload; search connections dict
+        for cid, st in self.connections.items():
+            if st.user_id == user_id and st.tab_id == tab_id:
+                return cid, st
         return None
 
     async def preempt_connection(
@@ -167,8 +170,9 @@ class SSEConnectionStateManager:
         st = self.connections.get(connection_id)
         if not st:
             return
-        if not st.abort_event.is_set():
-            st.abort_event.set()
+        abort = getattr(st, "abort_event", None)
+        if abort is not None and not abort.is_set():
+            abort.set()
         if free_slot_immediately and not st.counter_decremented:
             try:
                 await self.redis_counter_service.safe_decr_counter(st.user_id)
@@ -189,7 +193,12 @@ class SSEConnectionStateManager:
             (cid, self.connections[cid]) for cid in ids if cid in self.connections and cid != exclude_connection_id
         ]
         if not candidates:
-            return False
+            # Fallback scan: build candidates by scanning all connections for this user
+            for cid, st in self.connections.items():
+                if st.user_id == user_id and cid != exclude_connection_id:
+                    candidates.append((cid, st))
+            if not candidates:
+                return False
         candidates.sort(key=lambda x: (x[1].last_activity_at, x[1].connected_at))
         target_id, _ = candidates[0]
         await self.preempt_connection(target_id, reason="limit_eviction", free_slot_immediately=True)
