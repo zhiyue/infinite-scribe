@@ -2,31 +2,31 @@ name: Auto Generate README
 
 on:
   push:
-    paths-ignore:
-      - '**/test/**'
-      - '**/tests/**'
-      - '**/__tests__/**'
-      - '**/spec/**'
-      - '**/*.test.*'
-      - '**/*.spec.*'
-      - '**/*.md'
-      - '**/*.yml'
-      - '**/*.yaml'
-      - '**/*.json'
-      - '**/.*'
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '!**/test/**'
+      - '!**/tests/**'
+      - '!**/__tests__/**'
+      - '!**/spec/**'
+      - '!**/*.test.*'
+      - '!**/*.spec.*'
   pull_request:
-    paths-ignore:
-      - '**/test/**'
-      - '**/tests/**'
-      - '**/__tests__/**'
-      - '**/spec/**'
-      - '**/*.test.*'
-      - '**/*.spec.*'
-      - '**/*.md'
-      - '**/*.yml'
-      - '**/*.yaml'
-      - '**/*.json'
-      - '**/.*'
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - '!**/test/**'
+      - '!**/tests/**'
+      - '!**/__tests__/**'
+      - '!**/spec/**'
+      - '!**/*.test.*'
+      - '!**/*.spec.*'
 
 jobs:
   auto-readme:
