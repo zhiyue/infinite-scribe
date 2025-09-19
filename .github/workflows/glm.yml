@@ -11,12 +11,12 @@ on:
     types: [submitted]
 
 jobs:
-  claude:
+  glm:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.sender.login == 'zhiyue') ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.sender.login == 'zhiyue') ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.sender.login == 'zhiyue') ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.sender.login == 'zhiyue')
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@glm') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@glm') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@glm') && github.event.sender.login == 'zhiyue') ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@glm') || contains(github.event.issue.title, '@glm')) && github.event.sender.login == 'zhiyue')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,7 +41,7 @@ jobs:
             actions: read
 
           # Optional: Customize the trigger phrase (default: @claude)
-          trigger_phrase: '/glm'
+          trigger_phrase: '@glm'
 
           # Optional: Trigger when specific user is assigned to an issue
           assignee_trigger: 'glm'
