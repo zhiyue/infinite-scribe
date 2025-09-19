@@ -2,12 +2,6 @@ name: Auto Generate README
 
 on:
   push:
-    paths:
-      - '**/*.py'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.js'
-      - '**/*.jsx'
     paths-ignore:
       - '**/test/**'
       - '**/tests/**'
@@ -15,13 +9,12 @@ on:
       - '**/spec/**'
       - '**/*.test.*'
       - '**/*.spec.*'
+      - '**/*.md'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/.*'
   pull_request:
-    paths:
-      - '**/*.py'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.js'
-      - '**/*.jsx'
     paths-ignore:
       - '**/test/**'
       - '**/tests/**'
@@ -29,6 +22,11 @@ on:
       - '**/spec/**'
       - '**/*.test.*'
       - '**/*.spec.*'
+      - '**/*.md'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/.*'
 
 jobs:
   auto-readme:
@@ -63,6 +61,7 @@ jobs:
             1. **检测变更目录**
                - 分析当前代码变更中包含的文件
                - 识别包含代码文件的子目录（.py, .ts, .tsx, .js, .jsx 等）
+               - **排除测试目录**：跳过 test/、tests/、__tests__/、spec/ 等测试文件夹
                - 过滤掉配置文件、文档等非核心代码目录
 
             2. **目录结构分析**
