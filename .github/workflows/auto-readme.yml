@@ -42,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Auto Generate README with Progress Tracking
+      - name: Auto Generate README
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
@@ -52,21 +52,24 @@ jobs:
             你是一个专业的技术文档生成助手。请执行以下任务：
 
             ## 📋 任务目标
-            为有代码变更的子目录自动生成高质量的中文 README.md 文件
+            **严格要求**：仅为最近一次提交（HEAD）中有代码变更的子目录自动生成高质量的中文 README.md 文件
 
             ## 🔍 分析步骤
-            1. **检测变更目录**
-               - 分析当前代码变更中包含的文件
-               - 识别包含代码文件的子目录（.py, .ts, .tsx, .js, .jsx 等）
+            1. **严格限定变更范围**
+               - **必须使用 `git diff HEAD~1 HEAD --name-only` 获取最近一次提交的变更文件**
+               - **仅分析这些变更文件**
+               - 从变更文件列表中识别包含代码文件的子目录（.py, .ts, .tsx, .js, .jsx 等）
                - **排除测试目录**：跳过 test/、tests/、__tests__/、spec/ 等测试文件夹
                - 过滤掉配置文件、文档等非核心代码目录
 
-            2. **目录结构分析**
-               - 读取每个目录的文件结构
+            2. **限定目录结构分析**
+               - **仅读取变更涉及的子目录的文件结构**
+               - **禁止分析未在最近提交中变更的目录**
                - 识别关键配置文件（package.json, requirements.txt 等）
-               - 分析代码文件，推断模块功能和架构
+               - 仅分析变更的代码文件，推断模块功能和架构
 
             3. **README 内容生成**
+               - **仅为有变更的子目录生成/更新 README**
                - 项目/模块简介和核心功能
                - 目录结构说明
                - 安装和使用方法
@@ -83,9 +86,15 @@ jobs:
               * 工具目录：重点说明使用方法和配置
 
             ## 🔄 更新策略
+            - **仅更新有代码变更的目录的 README.md**
             - 如果目录已有 README.md，智能更新而不是完全覆盖
             - 保留用户自定义的重要内容
             - 增强和补充缺失的标准信息
+
+            ## ⚠️ 严格限制
+            - **禁止分析或修改未在最近提交中变更的目录**
+            - **禁止生成或更新未变更目录的 README 文件**
+            - **必须严格按照 git diff 结果确定工作范围**
 
             ## 📦 项目上下文
             **InfiniteScribe** - AI 驱动的小说写作平台
@@ -95,10 +104,10 @@ jobs:
 
             ## ✅ 完成操作
             直接提交生成的 README 文件到当前分支，提交信息：
-            `docs: auto-generate README files for changed directories`
+            `docs: auto-generate README files for changed directories [最近提交哈希前7位]`
 
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool'
+          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit'
           model: ${{ vars.GLM_MODEL }}
           claude_env: |
             ANTHROPIC_BASE_URL: ${{ vars.GLM_BASE_URL }}
