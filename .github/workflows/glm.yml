@@ -44,7 +44,9 @@ jobs:
           trigger_phrase: '@glm'
 
           # Optional: Trigger when specific user is assigned to an issue
-          assignee_trigger: 'glm'
+          assignee_trigger: '@glm'
+
+          label_trigger: '@glm'
 
           # Optional: Allow Claude to run specific commands
           # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
