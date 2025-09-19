@@ -59,6 +59,6 @@ jobs:
           settings: |
             {
               "env": {
-                "ANTHROPIC_BASE_URL": "${{ vars.GLM_BASE_URL }}"
+                "ANTHROPIC_BASE_URL": ${{ vars.GLM_BASE_URL }}
               }
             }
