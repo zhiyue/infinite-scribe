@@ -43,11 +43,8 @@ jobs:
           fetch-depth: 0
 
       - name: Auto Generate README with Progress Tracking
-        uses: anthropics/claude-code-base-action@v1
+        uses: anthropics/claude-code-base-action@beta
         with:
-          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-
-          # 自定义 README 生成提示词
           prompt: |
             REPO: ${{ github.repository }}
             BRANCH: ${{ github.ref_name }}
@@ -100,22 +97,8 @@ jobs:
             直接提交生成的 README 文件到当前分支，提交信息：
             `docs: auto-generate README files for changed directories`
 
-          # 允许的工具集
-          claude_args: |
-            --model ${{ vars.GLM_MODEL }}
-            --allowedTools "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*)"
-
-          allowed_tools: >
-            Bash(git add:*),
-            Bash(git commit:*),
-            Bash(git status:*),
-            Bash(git diff:*),
-            Bash(git push:*)
-
+          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
+          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool'
           model: ${{ vars.GLM_MODEL }}
-          settings: |
-            {
-              "env": {
-                "ANTHROPIC_BASE_URL": "${{ vars.GLM_BASE_URL }}"
-              }
-            }
+          claude_env: |
+            ANTHROPIC_BASE_URL: "${{ vars.GLM_BASE_URL }}"
