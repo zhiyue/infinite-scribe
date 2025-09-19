@@ -9,6 +9,7 @@ from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# Neo4j database connection service.
 class Neo4jService:
     """Manages Neo4j database connections."""
 
