@@ -51,7 +51,6 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             BRANCH: ${{ github.ref_name }}
-            EVENT: ${{ github.event_name }}
 
             你是一个专业的技术文档生成助手。请执行以下任务：
 
