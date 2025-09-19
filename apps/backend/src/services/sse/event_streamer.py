@@ -95,12 +95,19 @@ class SSEEventStreamer:
         since_id: str = "-",
     ) -> AsyncGenerator[ServerSentEvent, None]:
         """Send historical events to client for replay/catch-up on reconnection."""
+        # Get shutdown event from app state for graceful shutdown
+        shutdown_event = getattr(request.app.state, "shutdown_event", None) if hasattr(request, "app") else None
+
         # Abort early if preempted
         if (
             connection_state
             and getattr(connection_state, "abort_event", None)
             and connection_state.abort_event.is_set()
         ):
+            return
+        # Abort early if shutting down
+        if shutdown_event is not None and shutdown_event.is_set():
+            logger.debug(f"Server shutting down, skipping historical events for user {user_id}")
             return
         # Extract connection_id from connection_state if not provided (backward compatibility)
         if connection_id is None and connection_state:
@@ -117,6 +124,10 @@ class SSEEventStreamer:
                 # Check disconnection before sending each historical event
                 if await request.is_disconnected():
                     logger.info(f"Client disconnected for user {user_id}, stopping historical event replay")
+                    break
+                # Check for server shutdown
+                if shutdown_event is not None and shutdown_event.is_set():
+                    logger.info(f"Server shutting down, stopping historical replay for user {user_id}")
                     break
                 # Respect preemption
                 if (
@@ -162,6 +173,9 @@ class SSEEventStreamer:
 
         logger.info(f"📡 Starting real-time event subscription for user {user_id}, last_event_id={last_event_id}")
 
+        # Get shutdown event from app state for graceful shutdown
+        shutdown_event = getattr(request.app.state, "shutdown_event", None) if hasattr(request, "app") else None
+
         try:
             event_count = 0
             stop_event = getattr(connection_state, "abort_event", None)
@@ -176,6 +190,10 @@ class SSEEventStreamer:
                     logger.info(
                         f"Client disconnected for user {user_id}, stopping event stream after {event_count} events"
                     )
+                    break
+                # Check for server shutdown
+                if shutdown_event is not None and shutdown_event.is_set():
+                    logger.info(f"Server shutting down, closing SSE stream for user {user_id} after {event_count} events")
                     break
                 # Respect preemption
                 if stop_event is not None and stop_event.is_set():
@@ -221,12 +239,20 @@ class SSEEventStreamer:
 
     async def _refresh_connection_activity(self, request: Request, connection_id: str) -> None:
         """Periodically refresh connection activity only if connection is confirmed alive."""
+        # Get shutdown event from app state for graceful shutdown
+        shutdown_event = getattr(request.app.state, "shutdown_event", None) if hasattr(request, "app") else None
+
         try:
             # Refresh at least once a minute, respecting configured ping interval when shorter
             refresh_interval = max(1, min(sse_config.PING_INTERVAL_SECONDS, sse_config.CLEANUP_INTERVAL_SECONDS))
 
             while True:
                 await asyncio.sleep(refresh_interval)
+
+                # Check for server shutdown
+                if shutdown_event is not None and shutdown_event.is_set():
+                    logger.debug(f"Server shutting down, stopping activity refresh for connection {connection_id}")
+                    break
 
                 if not self.state_manager:
                     break

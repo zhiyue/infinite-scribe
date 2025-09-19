@@ -91,7 +91,16 @@ class ApiAdapter(BaseAdapter):
 
     async def _start_single_process(self, reload: bool) -> None:
         """Start API Gateway in single-process mode using asyncio task"""
-        config = uvicorn.Config("src.api.main:app", host=self._host, port=self._port, reload=reload, log_level="info")
+        # Allow configuring graceful shutdown timeout via adapter config (default 10s as fallback)
+        graceful = int(self.config.get("timeout_graceful_shutdown", 10))
+        config = uvicorn.Config(
+            "src.api.main:app",
+            host=self._host,
+            port=self._port,
+            reload=reload,
+            log_level="info",
+            timeout_graceful_shutdown=graceful,
+        )
         self._server = uvicorn.Server(config)
         self._task = asyncio.create_task(self._server.serve())
 
@@ -138,7 +147,8 @@ class ApiAdapter(BaseAdapter):
 
     async def _start_multi_process(self, reload: bool) -> None:
         """Start API Gateway in multi-process mode using subprocess"""
-        args = ProcessManager.build_uvicorn_command(self._host, self._port, reload)
+        graceful = int(self.config.get("timeout_graceful_shutdown", 10))
+        args = ProcessManager.build_uvicorn_command(self._host, self._port, reload, timeout_graceful_shutdown=graceful)
         kwargs = ProcessManager.create_subprocess_args(args)
 
         # Reuse BaseAdapter.process slot

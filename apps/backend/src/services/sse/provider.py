@@ -112,6 +112,14 @@ class SSEProvider:
         try:
             if manager is not None:
                 try:
+                    # Proactively signal all SSE connections to stop so generators exit quickly
+                    try:
+                        signaled = await manager.state_manager.preempt_all_connections(reason="shutdown")
+                        if signaled:
+                            logger.info("Signaled %d SSE connections to stop (shutdown)", signaled)
+                    except Exception as e:
+                        logger.debug(f"Error signaling SSE connections to stop: {e}")
+
                     # Stop periodic cleanup first
                     await manager.stop_periodic_cleanup()
                 except Exception as e:

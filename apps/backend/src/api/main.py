@@ -102,6 +102,10 @@ async def lifespan(app: FastAPI):
         if not redis_ok:
             logger.error("Failed to establish Redis connection")
 
+        # Initialize shutdown event for graceful SSE connection handling
+        import asyncio
+        app.state.shutdown_event = asyncio.Event()
+
         # Initialize SSE provider (app-scoped) - lazy, singleflight ready
         try:
             from src.services.sse.provider import SSEProvider
@@ -139,6 +143,15 @@ async def lifespan(app: FastAPI):
     # Shutdown
     try:
         logger.info("Shutting down services...")
+
+        # Set shutdown flag for SSE connections
+        import asyncio
+        if not hasattr(app.state, "shutdown_event"):
+            app.state.shutdown_event = asyncio.Event()
+        app.state.shutdown_event.set()
+
+        # Give SSE connections a moment to detect shutdown
+        await asyncio.sleep(0.5)
 
         # Clean up SSE provider if initialized
         try:

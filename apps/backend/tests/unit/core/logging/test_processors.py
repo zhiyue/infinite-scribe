@@ -40,7 +40,7 @@ class TestSerializationFallbackProcessor:
         # Assert
         assert result["obj"] == "NonSerializable(test_data)"
         assert result["normal_field"] == "normal_value"
-        assert result["serialization_fallback"] is True
+        # No longer adding serialization_fallback field
 
     def test_handles_mixed_serializable_and_non_serializable(self):
         """Test processor handles mixed object types"""
@@ -66,7 +66,7 @@ class TestSerializationFallbackProcessor:
         assert result["also_good"] == 123
         assert result["bad"] == "NonSerializable()"
         assert "lambda" in result["also_bad"]  # Lambda should be converted to string
-        assert result["serialization_fallback"] is True
+        # No longer adding serialization_fallback field
 
     def test_preserves_original_dict_reference(self):
         """Test processor modifies the original event dict"""
@@ -84,7 +84,7 @@ class TestSerializationFallbackProcessor:
         # Assert - should be the same dict reference
         assert result is event_dict
         assert event_dict["obj"] == "test"
-        assert event_dict["serialization_fallback"] is True
+        # No longer adding serialization_fallback field
 
 
 class TestStandardFieldsProcessor:

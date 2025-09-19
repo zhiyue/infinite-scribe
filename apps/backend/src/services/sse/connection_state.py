@@ -195,6 +195,24 @@ class SSEConnectionStateManager:
         await self.preempt_connection(target_id, reason="limit_eviction", free_slot_immediately=True)
         return True
 
+    async def preempt_all_connections(self, reason: str = "shutdown") -> int:
+        """Signal all active connections to terminate (e.g., on service shutdown).
+
+        Returns number of connections signaled.
+        """
+        count = 0
+        # Copy keys to avoid mutation during iteration
+        for cid in list(self.connections.keys()):
+            st = self.connections.get(cid)
+            if not st:
+                continue
+            if not st.abort_event.is_set():
+                st.abort_event.set()
+                count += 1
+        if count:
+            logger.debug("Signaled %d SSE connections to stop (reason=%s)", count, reason)
+        return count
+
     def get_user_connections(self, user_id: str) -> list[tuple[str, SSEConnectionState]]:
         """Return list of (connection_id, state) for the user."""
         ids = list(self.user_connections.get(user_id, set()))

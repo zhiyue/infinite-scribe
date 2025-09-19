@@ -292,7 +292,7 @@ class RedisSSEService:
                 pubsub = client.pubsub()
                 await pubsub.subscribe(channel)
 
-                logger.info(f"✅ Successfully subscribed to channel {channel}")
+                logger.debug(f"✅ Successfully subscribed to channel {channel}")
 
                 # Reset retry count on successful connection
                 retry_count = 0
@@ -331,7 +331,7 @@ class RedisSSEService:
                 restart_reason = None
                 try:
                     # Consume messages with cooperative stop support
-                    logger.info(f"🎯 Starting to listen for messages on channel {channel}")
+                    logger.debug(f"🎯 Starting to listen for messages on channel {channel}")
                     message_count = 0
 
                     # Single code path: poll via get_message to avoid cancelling __anext__ repeatedly
