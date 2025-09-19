@@ -101,4 +101,4 @@ jobs:
           allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool'
           model: ${{ vars.GLM_MODEL }}
           claude_env: |
-            ANTHROPIC_BASE_URL: "${{ vars.GLM_BASE_URL }}"
+            ANTHROPIC_BASE_URL: ${{ vars.GLM_BASE_URL }}
