@@ -111,6 +111,7 @@ jobs:
             Bash(git status:*),
             Bash(git diff:*),
             Bash(git push:*)
+
           model: ${{ vars.GLM_MODEL }}
           settings: |
             {
