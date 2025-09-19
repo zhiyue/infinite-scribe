@@ -49,7 +49,6 @@ async def login_user(
     Raises:
         HTTPException: If login fails
     """
-    # 登录
     try:
         # Get client info
         ip_address = req.client.host if req.client else None
