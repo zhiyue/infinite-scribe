@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Auto Generate README with Progress Tracking
-        uses: anthropics/claude-code-action@v1-dev
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
 
