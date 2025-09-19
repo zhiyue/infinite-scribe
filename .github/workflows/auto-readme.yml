@@ -20,8 +20,8 @@ jobs:
   auto-readme:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 直接提交 README 文件到当前分支
-      actions: read    # Claude action 需要读取 CI 信息
+      contents: write # 直接提交 README 文件到当前分支
+      actions: read # Claude action 需要读取 CI 信息
 
     steps:
       - name: Checkout repository
@@ -29,33 +29,68 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Claude to generate README files
+      - name: Auto Generate README with Progress Tracking
         uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
 
-          # Claude action 需要的额外权限
-          additional_permissions: |
-            actions: read
+          # 自定义 README 生成提示词
+          prompt: |
+            REPO: ${{ github.repository }}
+            BRANCH: ${{ github.ref_name }}
+            EVENT: ${{ github.event_name }}
 
+            你是一个专业的技术文档生成助手。请执行以下任务：
+
+            ## 📋 任务目标
+            为有代码变更的子目录自动生成高质量的中文 README.md 文件
+
+            ## 🔍 分析步骤
+            1. **检测变更目录**
+               - 分析当前代码变更中包含的文件
+               - 识别包含代码文件的子目录（.py, .ts, .tsx, .js, .jsx 等）
+               - 过滤掉配置文件、文档等非核心代码目录
+
+            2. **目录结构分析**
+               - 读取每个目录的文件结构
+               - 识别关键配置文件（package.json, requirements.txt 等）
+               - 分析代码文件，推断模块功能和架构
+
+            3. **README 内容生成**
+               - 项目/模块简介和核心功能
+               - 目录结构说明
+               - 安装和使用方法
+               - API 文档（如果是服务/库）
+               - 开发指南和贡献说明
+
+            ## 📝 内容要求
+            - **语言**: 使用中文编写
+            - **风格**: 简洁实用，重点突出
+            - **结构**: 清晰的层次和格式
+            - **针对性**:
+              * 前端目录：重点说明组件、页面、路由
+              * 后端目录：重点说明 API、服务、数据模型
+              * 工具目录：重点说明使用方法和配置
+
+            ## 🔄 更新策略
+            - 如果目录已有 README.md，智能更新而不是完全覆盖
+            - 保留用户自定义的重要内容
+            - 增强和补充缺失的标准信息
+
+            ## 📦 项目上下文
+            **InfiniteScribe** - AI 驱动的小说写作平台
+            - 后端：Python 3.11 + FastAPI + SQLAlchemy
+            - 前端：React 18 + TypeScript + Vite
+            - 架构：微服务 + 事件驱动
+
+            ## ✅ 完成操作
+            直接提交生成的 README 文件到当前分支，提交信息：
+            `docs: auto-generate README files for changed directories`
+
+          # 允许的工具集
           claude_args: |
             --model ${{ vars.GLM_MODEL }}
-            --system-prompt "你是一个专业的技术文档生成助手。请执行以下任务：
-
-            1. 检测当前代码变更中有哪些子目录包含代码文件（.py, .ts, .tsx, .js, .jsx 等）
-            2. 为每个有代码变更的子目录生成专业的中文 README.md 文件
-            3. 直接提交生成的 README 文件到当前分支（不要创建 PR）
-
-            生成 README.md 的要求：
-            - 分析目录结构和代码文件，推断模块功能和用途
-            - 包含：项目简介、功能特性、目录结构、安装使用方法、API文档（如适用）
-            - 根据代码类型调整重点：前端重点说明组件和页面，后端重点说明API和服务
-            - 使用中文编写，内容简洁实用
-            - 如果目录已有 README.md，请更新而不是覆盖
-
-            项目上下文：InfiniteScribe - AI 驱动的小说写作平台，包含 Python FastAPI 后端和 React TypeScript 前端。
-
-            完成后请提交变更，提交信息格式：'docs: auto-generate README files for changed directories'"
+            --allowedTools "Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*)"
 
           settings: |
             {
