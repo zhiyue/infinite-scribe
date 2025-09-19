@@ -347,7 +347,7 @@ async def apply_db_functions():
                 print(f"    ✓ {view}")
 
 
-## 测试
+## 测试收到
 
 if __name__ == "__main__":
     asyncio.run(apply_db_functions())
