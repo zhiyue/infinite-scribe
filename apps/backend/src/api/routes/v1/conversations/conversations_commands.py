@@ -125,12 +125,12 @@ async def get_pending_command(
         code = result.get("code", 422)
         raise HTTPException(status_code=code, detail=result.get("error", "Failed to get pending command"))
 
-    command_data = result.get("data", {})
-
+    # Extract command fields directly from result (not from nested "data")
+    # ConversationErrorHandler.success_response merges payload into top-level dict
     data = PendingCommandResponse(
-        command_id=command_data.get("command_id"),
-        command_type=command_data.get("command_type"),
-        status=command_data.get("status"),
-        submitted_at=command_data.get("submitted_at"),
+        command_id=result.get("command_id"),
+        command_type=result.get("command_type"),
+        status=result.get("status"),
+        submitted_at=result.get("submitted_at"),
     )
     return ApiResponse(code=0, msg="获取待处理命令成功", data=data)
