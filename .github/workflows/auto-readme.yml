@@ -103,11 +103,15 @@ jobs:
             - 架构：微服务 + 事件驱动
 
             ## ✅ 完成操作
-            直接提交生成的 README 文件到当前分支，提交信息：
-            `docs: auto-generate README files for changed directories [最近提交哈希前7位]`
+            使用以下步骤提交生成的 README 文件：
+            1. `git add` 添加生成/修改的 README 文件
+            2. `git commit` 提交，消息格式：`docs: auto-generate README files for changed directories [最近提交哈希前7位]`
+            3. `gh push` 推送到当前分支
 
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit'
+          allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit,Bash(gh push:*),Bash(gh:*)'
           model: ${{ vars.GLM_MODEL }}
           claude_env: |
             ANTHROPIC_BASE_URL: ${{ vars.GLM_BASE_URL }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
