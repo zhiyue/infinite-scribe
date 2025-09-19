@@ -658,7 +658,7 @@ class TestSSEConnectionManager:
         from unittest.mock import AsyncMock
 
         # Mock cleanup to raise an error once, then succeed
-        original_cleanup = sse_manager.cleanup_stale_connections
+        original_cleanup = sse_manager.state_manager.cleanup_stale_connections
         call_count = 0
 
         async def mock_cleanup(*args, **kwargs):
@@ -668,7 +668,7 @@ class TestSSEConnectionManager:
                 raise RuntimeError("Test error during cleanup")
             return 0
 
-        sse_manager.cleanup_stale_connections = AsyncMock(side_effect=mock_cleanup)
+        sse_manager.state_manager.cleanup_stale_connections = AsyncMock(side_effect=mock_cleanup)
 
         # Start cleanup and let it run briefly
         await sse_manager.start_periodic_cleanup()
@@ -680,7 +680,7 @@ class TestSSEConnectionManager:
         await sse_manager.stop_periodic_cleanup()
 
         # Restore original method
-        sse_manager.cleanup_stale_connections = original_cleanup
+        sse_manager.state_manager.cleanup_stale_connections = original_cleanup
 
         # Verify error was logged but cleanup continued
         assert "Error during periodic SSE cleanup" in caplog.text
@@ -917,10 +917,10 @@ class TestSSEConnectionManager:
             sse_config.CLEANUP_BATCH_SIZE = 150  # Greater than 100
 
             # Create new manager to trigger validation
-            from src.services.sse.redis_counter import RedisCounterService
             from src.services.sse.connection_state import SSEConnectionStateManager
+            from src.services.sse.redis_counter import RedisCounterService
 
-            test_counter_service = RedisCounterService(sse_manager.redis_counter_service._pubsub_client)
+            test_counter_service = RedisCounterService(sse_manager.redis_counter_service.redis_client)
             test_state_manager = SSEConnectionStateManager(test_counter_service)
             # Trigger validation by accessing a method
             _ = test_state_manager

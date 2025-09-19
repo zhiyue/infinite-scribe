@@ -138,16 +138,63 @@ class SSEConnectionManager:
         )
 
         try:
-            # 1) Enforce concurrency limits
+            # Extract tab_id from headers or query params
+            qp = getattr(request, "query_params", None)
+            qp_get = None
+            if qp is not None and hasattr(qp, "get"):
+                try:
+                    qp_get = qp.get  # type: ignore[attr-defined]
+                except Exception:
+                    qp_get = None
+            tab_id_val = qp_get("tab_id") if callable(qp_get) else None  # type: ignore[misc]
+            tab_id = request.headers.get("x-tab-id") or request.headers.get("x-tabid")
+            if not tab_id and isinstance(tab_id_val, str):
+                tab_id = tab_id_val
+
+            # Same-tab preemption: if an existing connection from the same tab exists, preempt it
+            if tab_id:
+                existing = self.state_manager.find_connection_by_tab(user_id, tab_id)
+                if existing:
+                    old_conn_id, _ = existing
+                    logger.info(
+                        "🔄 Preempting existing connection from same tab",
+                        extra={"user_id": user_id, "tab_id": tab_id, "old_connection_id": old_conn_id},
+                    )
+                    # Free slot immediately to avoid limit rejection
+                    await self.state_manager.preempt_connection(
+                        old_conn_id, reason="same_tab", free_slot_immediately=True
+                    )
+
+            # 1) Enforce concurrency limits (after potential same-tab preemption)
             logger.debug(f"🔒 Checking connection limits for user {user_id}")
             if not self.redis_counter_service.redis_client:
                 logger.error("Redis client未初始化，无法建立SSE连接")
                 raise RuntimeError("Redis client not available")
-            await self.redis_counter_service.check_connection_limit(user_id)
+            try:
+                await self.redis_counter_service.check_connection_limit(user_id)
+            except HTTPException as e:
+                if e.status_code == 429:
+                    # Attempt eviction of least-active connection and retry once
+                    evicted = await self.state_manager.evict_least_active(user_id)
+                    if evicted:
+                        logger.info(
+                            "🧹 Evicted least-active connection to admit new one",
+                            extra={"user_id": user_id},
+                        )
+                        # Retry limit check
+                        await self.redis_counter_service.check_connection_limit(user_id)
+                    else:
+                        raise
+                else:
+                    raise
             logger.debug(f"✅ Connection limit check passed for user {user_id}")
 
             # 2) Read Last-Event-ID from headers for reconnection support
-            last_event_id = request.headers.get("last-event-id")
+            last_event_id = request.headers.get("last-event-id") or request.headers.get("last_event_id")
+            if not last_event_id and callable(qp_get):
+                le = qp_get("last-event-id") or qp_get("lastEventId")
+                if isinstance(le, str):
+                    last_event_id = le
             if last_event_id:
                 logger.info(
                     f"🔄 Reconnection detected with last event ID: {last_event_id}",
@@ -158,7 +205,7 @@ class SSEConnectionManager:
 
             # 3) Create connection state
             logger.debug(f"🔧 Creating connection state for user {user_id}")
-            connection_id, connection_state = self.state_manager.create_connection_state(user_id, last_event_id)
+            connection_id, connection_state = self.state_manager.create_connection_state(user_id, last_event_id, tab_id)
 
             logger.info(
                 "✅ SSE connection state created",

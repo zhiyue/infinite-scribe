@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .config import sse_config
 from .redis_counter import RedisCounterService
@@ -20,10 +20,17 @@ class SSEConnectionState(BaseModel):
 
     connection_id: str = Field(..., description="Unique connection identifier")
     user_id: str = Field(..., description="User ID associated with connection")
+    tab_id: str | None = Field(None, description="Browser tab identifier for same-tab preemption")
     connected_at: datetime = Field(..., description="Connection timestamp")
     last_activity_at: datetime = Field(..., description="Last activity timestamp (events, heartbeat)")
     last_event_id: str | None = Field(None, description="Last processed event ID for reconnection")
     channel_subscriptions: list[str] = Field(default_factory=list, description="Subscribed channels")
+
+    # Runtime controls (not serialized)
+    abort_event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
+    counter_decremented: bool = Field(default=False, exclude=True)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def update_activity(self) -> None:
         """Update the last activity timestamp to current time."""
@@ -37,6 +44,11 @@ class SSEConnectionStateManager:
         """Initialize with Redis counter service."""
         self.redis_counter_service = redis_counter_service
         self.connections: dict[str, SSEConnectionState] = {}
+
+        # Connection registry for efficient lookups
+        self.user_connections: dict[str, set[str]] = {}  # user_id -> Set of connection_ids
+        self.tab_connections: dict[str, str] = {}  # tab_id -> connection_id
+
         self._cleanup_task: asyncio.Task | None = None
         self._cleanup_running = False
 
@@ -51,24 +63,143 @@ class SSEConnectionStateManager:
             "shutdown_cleanups": 0,
             "shutdown_connections_cleaned": 0,
             "last_shutdown_cleanup_summary": None,
+            "tab_preemptions": 0,  # Track same-tab preemptions
+            "limit_evictions": 0,  # Track global limit evictions
         }
 
         # Validate configuration on startup
         self._validate_config()
 
-    def create_connection_state(self, user_id: str, last_event_id: str | None = None) -> tuple[str, SSEConnectionState]:
-        """Create and store a new connection state."""
+    def create_connection_state(
+        self, user_id: str, last_event_id: str | None = None, tab_id: str | None = None
+    ) -> tuple[str, SSEConnectionState]:
+        """Create and store a new connection state (registration only)."""
         connection_id = str(uuid4())
         now = datetime.now(UTC)
         connection_state = SSEConnectionState(
             connection_id=connection_id,
             user_id=user_id,
+            tab_id=tab_id,
             connected_at=now,
-            last_activity_at=now,  # Initialize with current time
+            last_activity_at=now,
             last_event_id=last_event_id,
         )
+
+        # Update registries
         self.connections[connection_id] = connection_state
+
+        # Update user connections registry
+        if user_id not in self.user_connections:
+            self.user_connections[user_id] = set()
+        self.user_connections[user_id].add(connection_id)
+
+        # Update tab connections registry
+        if tab_id:
+            self.tab_connections[tab_id] = connection_id
+
+        logger.debug(
+            "✅ Connection state created",
+            extra={
+                "connection_id": connection_id,
+                "user_id": user_id,
+                "tab_id": tab_id,
+                "has_last_event_id": bool(last_event_id),
+            },
+        )
+
         return connection_id, connection_state
+
+    async def enforce_global_limit(self, user_id: str, max_per_user: int = 2) -> None:
+        """Enforce global connection limit per user by evicting oldest connections.
+
+        Args:
+            user_id: User identifier
+            max_per_user: Maximum connections per user (default: 2)
+        """
+        if user_id not in self.user_connections:
+            return
+
+        user_conn_ids = self.user_connections[user_id]
+        if len(user_conn_ids) <= max_per_user:
+            return
+
+        # Find oldest connections to evict
+        user_conns = [(conn_id, self.connections[conn_id]) for conn_id in user_conn_ids if conn_id in self.connections]
+
+        # Sort by connection time (oldest first)
+        user_conns.sort(key=lambda x: x[1].connected_at)
+
+        # Evict oldest connections to stay within limit
+        evict_count = len(user_conns) - max_per_user
+        for i in range(evict_count):
+            old_conn_id, old_conn = user_conns[i]
+            logger.info(
+                "🚫 Global limit eviction: closing oldest connection",
+                extra={
+                    "user_id": user_id,
+                    "connection_id": old_conn_id,
+                    "connected_at": old_conn.connected_at.isoformat(),
+                    "current_count": len(user_conn_ids),
+                    "limit": max_per_user,
+                },
+            )
+            # Signal old connection to stop and free slot immediately
+            await self.preempt_connection(old_conn_id, reason="limit_eviction", free_slot_immediately=True)
+            self._cleanup_stats["limit_evictions"] += 1
+
+    def find_connection_by_tab(self, user_id: str, tab_id: str | None) -> tuple[str, SSEConnectionState] | None:
+        """Find existing connection for the same user and tab."""
+        if not tab_id:
+            return None
+        old_id = self.tab_connections.get(tab_id)
+        if not old_id:
+            return None
+        st = self.connections.get(old_id)
+        if st and st.user_id == user_id:
+            return old_id, st
+        return None
+
+    async def preempt_connection(
+        self, connection_id: str, reason: str | None = None, free_slot_immediately: bool = False
+    ) -> None:
+        """Signal a connection to terminate; optionally free Redis slot immediately."""
+        st = self.connections.get(connection_id)
+        if not st:
+            return
+        if not st.abort_event.is_set():
+            st.abort_event.set()
+        if free_slot_immediately and not st.counter_decremented:
+            try:
+                await self.redis_counter_service.safe_decr_counter(st.user_id)
+                st.counter_decremented = True
+            except Exception:
+                logger.debug("Failed to preemptively decrement counter for %s", connection_id)
+
+        # Update stats
+        if reason == "same_tab":
+            self._cleanup_stats["tab_preemptions"] = self._cleanup_stats.get("tab_preemptions", 0) + 1
+        elif reason in {"limit_eviction", "teardown"}:
+            self._cleanup_stats["limit_evictions"] = self._cleanup_stats.get("limit_evictions", 0) + 1
+
+    async def evict_least_active(self, user_id: str, exclude_connection_id: str | None = None) -> bool:
+        """Evict the least recently active connection for a user."""
+        ids = list(self.user_connections.get(user_id, set()))
+        candidates = [
+            (cid, self.connections[cid])
+            for cid in ids
+            if cid in self.connections and cid != exclude_connection_id
+        ]
+        if not candidates:
+            return False
+        candidates.sort(key=lambda x: (x[1].last_activity_at, x[1].connected_at))
+        target_id, _ = candidates[0]
+        await self.preempt_connection(target_id, reason="limit_eviction", free_slot_immediately=True)
+        return True
+
+    def get_user_connections(self, user_id: str) -> list[tuple[str, SSEConnectionState]]:
+        """Return list of (connection_id, state) for the user."""
+        ids = list(self.user_connections.get(user_id, set()))
+        return [(cid, self.connections[cid]) for cid in ids if cid in self.connections]
 
     def get_connection_state(self, connection_id: str) -> SSEConnectionState | None:
         """Get connection state by connection ID."""
@@ -95,7 +226,7 @@ class SSEConnectionStateManager:
         Clean up connection resources and Redis counters.
 
         This method ensures proper resource cleanup:
-        1. Removes connection from memory tracking
+        1. Removes connection from memory tracking and registries
         2. Decrements Redis connection counter (with negative protection)
         3. sse-starlette handles heartbeat/ping cleanup automatically
 
@@ -103,11 +234,30 @@ class SSEConnectionStateManager:
             connection_id: Connection ID to clean up
             user_id: User ID associated with connection
         """
-        # Clean up memory connection record
-        self.connections.pop(connection_id, None)
+        # Get connection details before removing
+        connection = self.connections.get(connection_id)
 
-        # Decrement Redis connection counter (with negative protection)
-        await self.redis_counter_service.safe_decr_counter(user_id)
+        # Clean up memory connection record
+        if connection_id in self.connections:
+            del self.connections[connection_id]
+
+        # Clean up from user connections registry
+        if user_id in self.user_connections:
+            self.user_connections[user_id].discard(connection_id)
+            # Remove the user entry if no more connections
+            if not self.user_connections[user_id]:
+                del self.user_connections[user_id]
+
+        # Clean up from tab connections registry
+        if connection and connection.tab_id and self.tab_connections.get(connection.tab_id) == connection_id:
+            del self.tab_connections[connection.tab_id]
+
+        # Decrement Redis connection counter (with negative protection),
+        # unless it was already decremented during preemption
+        if not (connection and connection.counter_decremented):
+            await self.redis_counter_service.safe_decr_counter(user_id)
+            if connection:
+                connection.counter_decremented = True
 
         logger.debug(f"Cleaned up SSE connection {connection_id} for user {user_id}")
 
@@ -137,6 +287,7 @@ class SSEConnectionStateManager:
         # - None (default) should use config default CLEANUP_BATCH_SIZE
         # - -1 means unlimited (for shutdown scenarios)
         # - <= 0 should fallback to config default
+        unlimited_batch = False
         if batch_size is None:
             batch_size = sse_config.CLEANUP_BATCH_SIZE
         elif batch_size == -1:
@@ -385,7 +536,7 @@ class SSEConnectionStateManager:
                     self._cleanup_stats["cleanup_errors"] += 1
 
                     logger.error(
-                        "Periodic SSE cleanup error (attempt %d/%d): %s",
+                        "Error during periodic SSE cleanup (attempt %d/%d): %s",
                         consecutive_errors,
                         max_consecutive_errors,
                         e,

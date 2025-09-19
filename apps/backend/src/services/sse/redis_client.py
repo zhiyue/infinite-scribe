@@ -22,7 +22,6 @@ Key Benefits:
 import asyncio
 import json
 import logging
-import time
 from collections.abc import AsyncIterator
 
 import redis.asyncio as redis
@@ -258,7 +257,12 @@ class RedisSSEService:
             )
             raise
 
-    async def subscribe_user_events(self, user_id: str, last_event_id: str | None = None) -> AsyncIterator[SSEMessage]:
+    async def subscribe_user_events(
+        self,
+        user_id: str,
+        last_event_id: str | None = None,
+        stop_event: asyncio.Event | None = None,
+    ) -> AsyncIterator[SSEMessage]:
         """
         Subscribe to real-time user events with connection resilience.
 
@@ -327,24 +331,25 @@ class RedisSSEService:
                             logger.info(f"✅ Flushed {pending_count} pending events for user {user_id}")
 
                 try:
-                    # Consume messages directly from the async iterator to avoid
-                    # repeatedly timing out and cancelling __anext__(), which can
-                    # accumulate pending tasks and increase memory usage.
+                    # Consume messages with cooperative stop support
                     logger.info(f"🎯 Starting to listen for messages on channel {channel}")
                     message_count = 0
 
-                    # 添加一个初始的心跳事件，确保连接立即有数据
-                    # 注意：使用 "message" 作为事件类型，这样前端的 onmessage 才能接收到
-                    yield SSEMessage(
-                        event="message",  # 使用默认的 message 事件类型
-                        data={"type": "connection_established", "status": "connected", "channel": channel},
-                        id=f"init-{int(time.time() * 1000)}",
-                        scope=EventScope.USER,
-                        version="1.0.0",
-                    )
-                    logger.info(f"📤 Sent initial connection established event to user {user_id}")
+                    # Start consuming messages directly (avoid synthetic initial events)
+                    listener = pubsub.listen()
 
-                    async for message in pubsub.listen():
+                    while True:
+                        if stop_event is not None and stop_event.is_set():
+                            logger.info(f"🛑 Stop signal received for user {user_id}, breaking listen loop")
+                            break
+
+                        try:
+                            message = await asyncio.wait_for(listener.__anext__(), timeout=1.0)
+                        except asyncio.TimeoutError:
+                            continue
+                        except StopAsyncIteration:  # pragma: no cover - defensive
+                            break
+
                         message_type = message.get("type")
                         logger.debug(f"📥 Received message type '{message_type}' on channel {channel}")
 
@@ -406,6 +411,10 @@ class RedisSSEService:
                 if pubsub:
                     logger.debug(f"🧹 Cleaning up Pub/Sub resources for user {user_id}")
                     await self._safe_cleanup(pubsub, channel, user_id)
+                # If we've been asked to stop (preempt/teardown), exit outer retry loop
+                if stop_event is not None and stop_event.is_set():
+                    logger.info(f"🛑 Stop signal honored for user {user_id}, exiting subscription loop")
+                    return
 
     async def _process_pointer_message(self, message: dict, user_id: str) -> SSEMessage | None:
         """Process a pointer message and return the SSE event."""

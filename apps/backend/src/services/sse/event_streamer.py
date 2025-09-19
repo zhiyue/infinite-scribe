@@ -94,6 +94,9 @@ class SSEEventStreamer:
         since_id: str = "-",
     ) -> AsyncGenerator[ServerSentEvent, None]:
         """Send historical events to client for replay/catch-up on reconnection."""
+        # Abort early if preempted
+        if connection_state and getattr(connection_state, "abort_event", None) and connection_state.abort_event.is_set():
+            return
         # Extract connection_id from connection_state if not provided (backward compatibility)
         if connection_id is None and connection_state:
             connection_id = getattr(connection_state, "connection_id", None)
@@ -109,6 +112,10 @@ class SSEEventStreamer:
                 # Check disconnection before sending each historical event
                 if await request.is_disconnected():
                     logger.info(f"Client disconnected for user {user_id}, stopping historical event replay")
+                    break
+                # Respect preemption
+                if connection_state and getattr(connection_state, "abort_event", None) and connection_state.abort_event.is_set():
+                    logger.info(f"Connection preempted for user {user_id}, stopping historical replay")
                     break
 
                 # Update activity when successfully sending historical events
@@ -148,7 +155,10 @@ class SSEEventStreamer:
 
         try:
             event_count = 0
-            async for sse_message in self.redis_sse.subscribe_user_events(user_id, last_event_id=last_event_id):
+            stop_event = getattr(connection_state, "abort_event", None)
+            async for sse_message in self.redis_sse.subscribe_user_events(
+                user_id, last_event_id=last_event_id, stop_event=stop_event
+            ):
                 event_count += 1
                 logger.debug(f"📨 Received real-time event #{event_count} for user {user_id}: {sse_message.event}")
 
@@ -156,6 +166,12 @@ class SSEEventStreamer:
                 if await request.is_disconnected():
                     logger.info(
                         f"Client disconnected for user {user_id}, stopping event stream after {event_count} events"
+                    )
+                    break
+                # Respect preemption
+                if stop_event is not None and stop_event.is_set():
+                    logger.info(
+                        f"Connection preempted for user {user_id}, stopping stream after {event_count} events"
                     )
                     break
 

@@ -130,6 +130,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
   // 认证
   const { isAuthenticated } = useAuthStore();
   const tokenServiceRef = useRef(new SSETokenService());
+  const lastTokenRef = useRef<string | null>(null);
 
   // 计算派生状态
   const isConnected = status === SSE_STATUS.OPEN;
@@ -152,6 +153,16 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
   };
 
   // 默认的URL构建函数
+  const getTabId = (): string => {
+    const key = 'infinitescribe_tab_id';
+    let id = sessionStorage.getItem(key);
+    if (!id) {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try { sessionStorage.setItem(key, id); } catch {}
+    }
+    return id;
+  };
+
   const defaultBuildUrl = async (): Promise<string> => {
     const token = await tokenServiceRef.current.getValidSSEToken();
     if (!token) {
@@ -161,6 +172,8 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
     const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
     const url = new URL(endpoint, baseUrl);
     url.searchParams.set(SSE_CONNECTION_CONFIG.TOKEN_PARAM, token);
+    url.searchParams.set('tab_id', getTabId());
+    lastTokenRef.current = token;
 
     // 添加Last-Event-ID用于断线续播
     if (shouldResumeFromLastEvent() && lastEventId) {
@@ -495,6 +508,21 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
     } catch {}
 
     sourceRef.current = null;
+    
+    // Proactively notify backend to teardown this tab's connection (best-effort)
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+      const url = new URL('/api/v1/events/teardown', baseUrl);
+      const tabId = sessionStorage.getItem('infinitescribe_tab_id') || '';
+      if (tabId) url.searchParams.set('tab_id', tabId);
+      const token = lastTokenRef.current;
+      if (token) url.searchParams.set('sse_token', token);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url.toString(), '');
+      } else {
+        fetch(url.toString(), { method: 'POST', keepalive: true, mode: 'cors', credentials: 'include' }).catch(() => {});
+      }
+    } catch {}
     setStatus(SSE_STATUS.CLOSED);
     setConnectionId(null);
     setConnectedAt(null);
@@ -564,6 +592,19 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
       } catch {}
 
       sourceRef.current = null;
+
+      // Best-effort teardown via sendBeacon
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+        const url = new URL('/api/v1/events/teardown', baseUrl);
+        const tabId = sessionStorage.getItem('infinitescribe_tab_id') || '';
+        if (tabId) url.searchParams.set('tab_id', tabId);
+        const token = lastTokenRef.current;
+        if (token) url.searchParams.set('sse_token', token);
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url.toString(), '');
+        }
+      } catch {}
 
       if (import.meta.env.DEV && SSE_DEV_CONFIG.EXPOSE_TO_WINDOW) {
         delete (window as any)[SSE_DEV_CONFIG.WINDOW_PROPERTY];

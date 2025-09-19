@@ -163,6 +163,7 @@ When multiple valid approaches exist, choose based on:
 - Disable tests instead of fixing them
 - Commit code that doesn't compile
 - Make assumptions - verify with existing code
+- **Run backend processes proactively** - If you need to check backend status or debug issues, read the log files directly at `apps/backend/logs/is-launcher_YYYYMMDD.log` instead of starting processes
 
 **ALWAYS**:
 
@@ -170,6 +171,7 @@ When multiple valid approaches exist, choose based on:
 - Update plan documentation as you go
 - Learn from existing implementations
 - Stop after 3 failed attempts and reassess
+- **Check existing log files** when debugging backend issues rather than starting new processes
 
 # Project-Specific Information
 

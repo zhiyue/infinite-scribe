@@ -231,3 +231,36 @@ def _determine_overall_status(redis_healthy: bool, connection_stats: dict) -> st
         return "unhealthy"
 
     return "healthy"
+
+
+@router.post("/teardown")
+async def sse_teardown(
+    request: Request,
+    sse_token: Annotated[str, Query(description="SSE authentication token")],
+    tab_id: Annotated[str | None, Query(description="Browser tab id to teardown", alias="tab_id")] = None,
+):
+    """Teardown SSE connections for current user (optionally by tab).
+
+    Allows front-end to proactively release server-side resources on page unload.
+    """
+    try:
+        user_id = verify_sse_token(sse_token)
+        provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+        if provider is None:
+            provider = get_default_provider()
+        manager = await provider.get_connection_manager()
+
+        if tab_id:
+            existing = manager.state_manager.find_connection_by_tab(user_id, tab_id)
+            if existing:
+                conn_id, _ = existing
+                await manager.state_manager.preempt_connection(conn_id, reason="teardown", free_slot_immediately=True)
+        else:
+            # Teardown all connections for this user
+            for conn_id, _ in manager.state_manager.get_user_connections(user_id):  # type: ignore[attr-defined]
+                await manager.state_manager.preempt_connection(conn_id, reason="teardown", free_slot_immediately=True)
+
+        return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+    except Exception as e:
+        logger.warning(f"SSE teardown failed: {e}")
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
