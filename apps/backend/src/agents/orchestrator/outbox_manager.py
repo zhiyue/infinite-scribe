@@ -264,7 +264,7 @@ class OutboxEntryCreator:
         # 添加created_at作为下游时间戳的备用值
         try:
             if getattr(domain_event, "created_at", None):
-                outbox_payload["created_at"] = domain_event.created_at.isoformat()  # type: ignore[attr-defined]
+                outbox_payload["created_at"] = domain_event.created_at.isoformat()
         except Exception:
             pass
 

@@ -164,7 +164,12 @@ class CapabilityEventHandlers:
 
     @staticmethod
     def handle_consistency_check_result(
-        msg_type: str, session_id: str, data: dict[str, Any], correlation_id: str | None, scope_type: str, causation_id: str | None = None
+        msg_type: str,
+        session_id: str,
+        data: dict[str, Any],
+        correlation_id: str | None,
+        scope_type: str,
+        causation_id: str | None = None,
     ) -> EventAction | None:
         """Handle consistency check result events.
 

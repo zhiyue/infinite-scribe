@@ -45,7 +45,7 @@ class CharacterRequestStrategy(CommandStrategy):
             "Character.Request",
             "CHARACTER_REQUEST",
             "Character.Requested",
-            "Command.Genesis.Session.Character.Request"
+            "Command.Genesis.Session.Character.Request",
         }
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
@@ -65,12 +65,7 @@ class ThemeRequestStrategy(CommandStrategy):
     """Strategy for theme generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {
-            "Theme.Request",
-            "THEME_REQUEST",
-            "Theme.Requested",
-            "Command.Genesis.Session.Theme.Request"
-        }
+        return {"Theme.Request", "THEME_REQUEST", "Theme.Requested", "Command.Genesis.Session.Theme.Request"}
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
@@ -89,12 +84,7 @@ class SeedRequestStrategy(CommandStrategy):
     """Strategy for initial seed/concept generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {
-            "Seed.Request",
-            "SEED_REQUEST",
-            "Seed.Requested",
-            "Command.Genesis.Session.Seed.Request"
-        }
+        return {"Seed.Request", "SEED_REQUEST", "Seed.Requested", "Command.Genesis.Session.Seed.Request"}
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
@@ -113,12 +103,7 @@ class WorldRequestStrategy(CommandStrategy):
     """Strategy for world/worldview generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {
-            "World.Request",
-            "WORLD_REQUEST",
-            "World.Requested",
-            "Command.Genesis.Session.World.Request"
-        }
+        return {"World.Request", "WORLD_REQUEST", "World.Requested", "Command.Genesis.Session.World.Request"}
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
@@ -137,12 +122,7 @@ class PlotRequestStrategy(CommandStrategy):
     """Strategy for plot generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {
-            "Plot.Request",
-            "PLOT_REQUEST",
-            "Plot.Requested",
-            "Command.Genesis.Session.Plot.Request"
-        }
+        return {"Plot.Request", "PLOT_REQUEST", "Plot.Requested", "Command.Genesis.Session.Plot.Request"}
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
@@ -161,12 +141,7 @@ class DetailsRequestStrategy(CommandStrategy):
     """Strategy for details generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {
-            "Details.Request",
-            "DETAILS_REQUEST",
-            "Details.Requested",
-            "Command.Genesis.Session.Details.Request"
-        }
+        return {"Details.Request", "DETAILS_REQUEST", "Details.Requested", "Command.Genesis.Session.Details.Request"}
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(

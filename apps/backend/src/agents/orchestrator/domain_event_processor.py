@@ -112,7 +112,7 @@ class CommandMapper:
 
     @staticmethod
     def map_command(
-        cmd_type: str, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict
+        cmd_type: str, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]
     ) -> Any:  # 返回来自command_registry的CommandMapping
         """使用命令注册表将命令映射到领域请求和能力任务。
 
@@ -139,7 +139,7 @@ class PayloadEnricher:
     """有效负载丰富器，用上下文信息丰富有效负载。"""
 
     @staticmethod
-    def enrich_domain_payload(evt: dict[str, Any], aggregate_id: str, payload: dict) -> dict[str, Any]:
+    def enrich_domain_payload(evt: dict[str, Any], aggregate_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """用会话上下文丰富有效负载，并传播user_id/timestamp用于SSE路由。
 
         Args:
@@ -156,10 +156,12 @@ class PayloadEnricher:
         }
 
         # 传播上下文信息（user_id/timestamp）用于下游SSE路由
-        if evt.get("user_id"):
-            enriched_payload["user_id"] = evt.get("user_id")
-        if evt.get("created_at"):
-            enriched_payload["timestamp"] = evt.get("created_at")
+        user_id = evt.get("user_id")
+        if user_id:
+            enriched_payload["user_id"] = user_id
+        created_at = evt.get("created_at")
+        if created_at:
+            enriched_payload["timestamp"] = created_at
 
         return enriched_payload
 

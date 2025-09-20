@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.orchestrator.event_handlers import CapabilityEventHandlers, EventAction
+from src.agents.orchestrator.types import ProcessingResult, ScopeInfo
 
 
 class EventDataExtractor:
@@ -27,7 +28,7 @@ class EventDataExtractor:
         return message.get("data") or message
 
     @staticmethod
-    def extract_session_and_scope(data: dict[str, Any], context: dict[str, Any]) -> tuple[str, dict[str, str]]:
+    def extract_session_and_scope(data: dict[str, Any], context: dict[str, Any]) -> tuple[str, ScopeInfo]:
         """从数据和上下文中提取会话ID和作用域信息。
 
         Args:
@@ -45,11 +46,11 @@ class EventDataExtractor:
         scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else "GENESIS"
         scope_type = scope_prefix
 
-        scope_info = {
-            "topic": topic,
-            "scope_prefix": scope_prefix,
-            "scope_type": scope_type,
-        }
+        scope_info = ScopeInfo(
+            topic=topic,
+            scope_prefix=scope_prefix,
+            scope_type=scope_type,
+        )
 
         return session_id, scope_info
 
@@ -97,7 +98,7 @@ class EventHandlerMatcher:
         session_id: str,
         data: dict[str, Any],
         correlation_id: str | None,
-        scope_info: dict[str, str],
+        scope_info: ScopeInfo,
         causation_id: str | None,
     ) -> EventAction | None:
         """按顺序尝试不同的事件处理器，直到找到匹配的为止。
@@ -179,7 +180,7 @@ class CapabilityEventProcessor:
 
     async def handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    ) -> ProcessingResult | None:
         """处理能力事件，进行完整的编排流程。
 
         Args:
@@ -216,9 +217,9 @@ class CapabilityEventProcessor:
             return None
 
         # 返回操作信息供主编排器执行
-        return {
-            "action": action,
-            "msg_type": msg_type,
-            "session_id": session_id,
-            "correlation_id": correlation_id,
-        }
+        return ProcessingResult(
+            action=action,
+            msg_type=msg_type,
+            session_id=session_id,
+            correlation_id=correlation_id,
+        )
