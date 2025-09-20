@@ -230,15 +230,102 @@ class CustomEventHandler:
 
 ### 关键日志点
 
+#### 消息处理日志
+- `orchestrator_message_received`: 接收消息时的基本信息
+- `orchestrator_processing_domain_event`: 开始处理领域事件
+- `orchestrator_processing_capability_event`: 开始处理能力事件
 - `orchestrator_ignored_message`: 忽略未知格式的消息
-- `async_task_create_failed`: 异步任务创建失败
-- `async_task_already_exists`: 检测到重复的异步任务
+
+#### 领域事件处理日志
+- `orchestrator_domain_event_details`: 领域事件详细信息
+- `orchestrator_domain_event_ignored`: 忽略非命令类领域事件
+- `orchestrator_domain_event_missing_command_type`: 缺少命令类型
+- `orchestrator_processing_command`: 开始处理命令
+- `orchestrator_command_mapped`: 命令映射成功
+- `orchestrator_command_mapping_failed`: 命令映射失败
+- `orchestrator_domain_event_persisted`: 领域事件持久化成功
+- `orchestrator_domain_event_persist_failed`: 领域事件持久化失败
+- `orchestrator_domain_event_processed`: 领域事件处理完成
+
+#### 能力事件处理日志
+- `orchestrator_capability_event_details`: 能力事件详细信息
+- `orchestrator_trying_handler`: 尝试事件处理器
+- `orchestrator_handler_matched`: 匹配到处理器
+- `orchestrator_no_handler_matched`: 无匹配处理器
+- `orchestrator_executing_event_action`: 执行事件动作
+- `orchestrator_persisting_domain_event`: 持久化领域事件
+- `orchestrator_completing_async_task`: 完成异步任务
+- `orchestrator_returning_capability_message`: 返回能力消息
+
+#### 异步任务管理日志
+- `orchestrator_creating_async_task`: 创建异步任务
+- `orchestrator_async_task_skipped`: 跳过异步任务创建
+- `orchestrator_async_task_correlation_parsed`: 解析关联ID
+- `orchestrator_async_task_correlation_parse_failed`: 关联ID解析失败
+- `orchestrator_checking_existing_task`: 检查现有任务
+- `orchestrator_async_task_already_exists`: 检测到重复任务
+- `orchestrator_creating_new_async_task`: 创建新任务
+- `orchestrator_async_task_created_success`: 任务创建成功
+- `orchestrator_completing_async_task`: 完成异步任务
+- `orchestrator_async_task_complete_skipped`: 跳过任务完成
+- `orchestrator_async_task_complete_correlation_parsed`: 解析完成关联ID
+- `orchestrator_async_task_complete_correlation_parse_failed`: 完成关联ID解析失败
+- `orchestrator_searching_async_task_to_complete`: 查找待完成任务
+- `orchestrator_async_task_not_found_for_completion`: 未找到待完成任务
+- `orchestrator_async_task_found_for_completion`: 找到待完成任务
+- `orchestrator_async_task_completed_success`: 任务完成成功
+
+#### 领域事件持久化日志
+- `orchestrator_persisting_domain_event`: 持久化领域事件
+- `orchestrator_checking_existing_domain_event`: 检查现有领域事件
+- `orchestrator_domain_event_already_exists`: 检测到重复领域事件
+- `orchestrator_no_existing_domain_event_found`: 未找到现有领域事件
+- `orchestrator_existing_domain_event_check_failed`: 现有领域事件检查失败
+- `orchestrator_creating_new_domain_event`: 创建新领域事件
+- `orchestrator_domain_event_created`: 领域事件创建成功
+- `orchestrator_using_existing_domain_event`: 使用现有领域事件
+- `orchestrator_checking_outbox_entry`: 检查Outbox条目
+- `orchestrator_creating_outbox_entry`: 创建Outbox条目
+- `orchestrator_outbox_entry_created`: Outbox条目创建成功
+- `orchestrator_outbox_entry_already_exists`: Outbox条目已存在
+- `orchestrator_domain_event_persist_completed`: 领域事件持久化完成
+
+### 日志结构化信息
+
+每个日志事件都包含相关的上下文信息，便于追踪和调试：
+
+```mermaid
+graph TD
+    A[日志事件] --> B[基础信息]
+    A --> C[业务上下文]
+    A --> D[技术细节]
+    
+    B --> B1[事件类型]
+    B --> B2[时间戳]
+    B --> B3[会话ID]
+    
+    C --> C1[关联ID]
+    C --> C2[命令类型]
+    C --> C3[任务类型]
+    
+    D --> D1[数据键列表]
+    D --> D2[错误信息]
+    D --> D3[执行状态]
+```
 
 ### 性能考虑
 
 - 使用数据库连接池管理会话
 - 批量处理领域事件持久化
 - 异步任务状态更新采用乐观锁
+- 详细日志记录可能影响性能，生产环境可调整日志级别
+
+### 调试建议
+
+1. **追踪消息流向**: 使用 `orchestrator_message_received` 和相关处理日志
+2. **监控异步任务**: 关注任务创建和完成的日志序列
+3. **排查持久化问题**: 查看 `orchestrator_domain_event_persist_*` 系列日志
+4. **分析性能瓶颈**: 结合时间戳和执行状态日志
 
 ## 🔗 相关模块
 
