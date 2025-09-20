@@ -361,6 +361,7 @@ class EventBridgeSettings(BaseModel):
     prometheus_host: str = Field(default="0.0.0.0", description="Prometheus metrics server host")
 
 
+
 class Settings(BaseSettings):
     """应用主配置
 
@@ -397,7 +398,9 @@ class Settings(BaseSettings):
     # Nested configuration
     auth: AuthSettings = Field(default_factory=AuthSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings, description="Embedding provider configuration")
+    embedding: EmbeddingSettings = Field(
+        default_factory=EmbeddingSettings, description="Embedding provider configuration"
+    )
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM provider configuration")
     launcher: LauncherConfigModel = Field(default_factory=LauncherConfigModel, description="Launcher configuration")
 
@@ -440,7 +443,6 @@ class Settings(BaseSettings):
     # LiteLLM Proxy
     litellm_api_host: str = Field(default="")
     litellm_api_key: str = Field(default="")
-
 
     # Logging
     log_level: str = Field(default="INFO")

@@ -143,3 +143,17 @@ class PendingCommandResponse(BaseSchema):
     command_type: str | None
     status: str | None
     submitted_at: str | None
+
+
+# ===== Command events (history) =====
+
+class CommandEventItem(BaseSchema):
+    """单条命令相关领域事件（用于命令历史/时间线）。"""
+
+    event_id: UUID = Field(..., description="事件ID")
+    event_type: str = Field(..., description="事件类型（如 Genesis.Session.Command.Received）")
+    session_id: UUID = Field(..., description="会话ID（aggregate_id）")
+    correlation_id: UUID | None = Field(None, description="因果/关联ID，通常为命令ID")
+    timestamp: str = Field(..., description="事件时间（ISO）")
+    status: str | None = Field(None, description="可选：事件状态（如 processing/completed/failed）")
+    payload: dict[str, Any] | None = Field(None, description="可选：事件业务载荷")
