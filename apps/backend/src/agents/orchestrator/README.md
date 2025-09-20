@@ -2,6 +2,81 @@
 
 负责协调和管理领域事件与能力任务之间的流转，是整个事件驱动架构的核心协调组件。
 
+## 🚀 最新架构增强
+
+### Pydantic 类型系统升级 ✨
+
+最近的重构将原有的 TypedDict 类型系统升级为完整的 Pydantic 实现，实现了"ultrathink"级别的类型安全性：
+
+```mermaid
+graph TB
+    subgraph "类型系统演进"
+        A[TypedDict 基础类型] --> B[Pydantic 完整模型]
+        B --> C[运行时验证]
+        B --> D[自动类型转换]
+        B --> E[优秀错误信息]
+        B --> F[FastAPI 完美集成]
+    end
+    
+    subgraph "核心类型模型"
+        G[BaseEventData] --> H[GenerationData]
+        G --> I[QualityReviewData]
+        G --> J[ConsistencyCheckData]
+        
+        K[MessageContext] --> L[EventMetadata]
+        M[CapabilityEventMessage] --> N[智能类型转换]
+    end
+    
+    B --> G
+    B --> K
+    B --> M
+```
+
+#### 类型安全特性
+
+- **编译时检查**: Literal 类型确保消息类型的准确性
+- **运行时验证**: Pydantic 模型自动验证数据完整性
+- **智能转换**: `CapabilityEventMessage.to_typed_data()` 自动推断数据类型
+- **向后兼容**: 工厂函数支持从字典创建类型安全对象
+
+#### 新增数据模型
+
+```mermaid
+classDiagram
+    class BaseEventData {
+        +session_id: str | None
+        +aggregate_id: str | None
+        +correlation_id: str | None
+        +event_id: str | None
+        +type: str | None
+    }
+    
+    class GenerationData {
+        +content: ContentData | None
+    }
+    
+    class QualityReviewData {
+        +score: float | None
+        +quality_score: float | None
+        +attempts: int
+        +max_attempts: int
+        +threshold: float
+        +target_type: str | None
+        +entity: str | None
+    }
+    
+    class ConsistencyCheckData {
+        +ok: bool | None
+        +passed: bool | None
+        +score: float | None
+        +threshold: float
+    }
+    
+    BaseEventData <|-- GenerationData
+    BaseEventData <|-- QualityReviewData
+    BaseEventData <|-- ConsistencyCheckData
+```
+
 ## 🏗️ 架构概览
 
 ### 核心职责
@@ -99,7 +174,7 @@ graph TB
 
 ### 📊 领域事件处理器 (DomainEventProcessor)
 
-专门负责处理领域事件的模块，采用策略模式实现清晰的职责分离：
+专门负责处理领域事件的模块，采用策略模式实现清晰的职责分离，现已集成Pydantic类型系统：
 
 ```mermaid
 classDiagram
@@ -129,10 +204,17 @@ classDiagram
         +enrich_domain_payload()
     }
     
+    class TypeSystemIntegration {
+        +create_message_context_from_dict()
+        +create_generation_data_from_dict()
+        +create_processing_result_from_dict()
+    }
+    
     DomainEventProcessor --> CorrelationIdExtractor
     DomainEventProcessor --> EventValidator
     DomainEventProcessor --> CommandMapper
     DomainEventProcessor --> PayloadEnricher
+    DomainEventProcessor --> TypeSystemIntegration
 ```
 
 **核心功能**：
@@ -140,10 +222,11 @@ classDiagram
 - **事件验证**: 验证事件类型是否为Command.Received
 - **命令映射**: 将命令映射到领域事件和能力任务
 - **负载丰富**: 用会话上下文和用户信息丰富有效负载
+- **类型安全**: 使用Pydantic工厂函数确保数据类型安全
 
 ### 🔧 能力事件处理器 (CapabilityEventProcessor)
 
-专门负责处理能力事件的模块，采用提取器-匹配器模式：
+专门负责处理能力事件的模块，采用提取器-匹配器模式，现已升级为Pydantic类型安全实现：
 
 ```mermaid
 classDiagram
@@ -164,8 +247,21 @@ classDiagram
         +find_matching_handler()
     }
     
+    class TypeSafeDataHandler {
+        +create_capability_event_message_from_dict()
+        +create_message_context_from_dict()
+        +create_processing_result_from_dict()
+    }
+    
+    class SmartTypeConverter {
+        +to_typed_data()
+        +infer_data_type()
+    }
+    
     CapabilityEventProcessor --> EventDataExtractor
     CapabilityEventProcessor --> EventHandlerMatcher
+    CapabilityEventProcessor --> TypeSafeDataHandler
+    EventDataExtractor --> SmartTypeConverter
 ```
 
 **核心功能**：
@@ -173,6 +269,27 @@ classDiagram
 - **会话和作用域识别**: 从主题和数据中推断作用域类型
 - **处理器匹配**: 按顺序尝试不同的处理器直到找到匹配项
 - **关联ID管理**: 提取和管理correlation_id和causation_id
+- **智能类型转换**: `CapabilityEventMessage.to_typed_data()` 自动推断数据类型
+- **类型安全**: 使用Pydantic模型确保运行时数据验证
+
+#### 类型推断机制 ✨
+
+```mermaid
+graph TD
+    A[原始消息数据] --> B[create_capability_event_message_from_dict]
+    B --> C[CapabilityEventMessage]
+    C --> D[to_typed_data()]
+    
+    D --> E{数据特征分析}
+    E -->|包含score/quality_score| F[QualityReviewData]
+    E -->|包含ok/passed| G[ConsistencyCheckData]
+    E -->|其他情况| H[GenerationData]
+    
+    F --> I[类型验证]
+    G --> I
+    H --> I
+    I --> J[返回具体类型对象]
+```
 
 ### 🎯 任务管理器 (TaskManager)
 
@@ -1270,3 +1387,221 @@ orchestrator:
     - "genesis.plot.events"
     - "genesis.quality.events"
 ```
+
+## 🔧 类型系统升级指南
+
+### 从 TypedDict 到 Pydantic 的迁移
+
+#### 迁移前 (TypedDict)
+```python
+class EventMetadata(TypedDict, total=False):
+    """事件元数据结构"""
+    correlation_id: str
+    event_id: str
+    type: str
+
+# 使用时缺乏运行时验证
+metadata: EventMetadata = {"correlation_id": "test-id"}  # 可能缺少必要字段
+```
+
+#### 迁移后 (Pydantic)
+```python
+class EventMetadata(BaseModel):
+    """事件元数据 - 自动验证和转换"""
+    
+    correlation_id: str | None = None
+    event_id: str | None = None
+    type: str | None = None
+
+    model_config = ConfigDict(extra="allow")  # 允许额外字段以保持向后兼容
+
+# 自动验证和类型转换
+metadata = EventMetadata(correlation_id="test-id")  # ✅ 安全
+metadata = EventMetadata()  # ✅ 所有字段可选
+```
+
+### 新增类型安全特性
+
+#### 1. 字符串字面量类型
+```python
+MessageType = Literal[
+    "Character.Design.Generated",
+    "Character.Generated",
+    "Theme.Generated",
+    # ... 更多类型
+]
+
+# 编译时和运行时都确保类型安全
+def process_message(msg_type: MessageType) -> None:
+    pass
+
+process_message("Character.Generated")  # ✅ 正确
+process_message("Invalid.Message")    # ❌ 编译错误
+```
+
+#### 2. 智能类型推断
+```python
+class CapabilityEventMessage(BaseModel):
+    def to_typed_data(self) -> GenerationData | QualityReviewData | ConsistencyCheckData:
+        """智能转换为具体类型"""
+        if not self.data or not self.data.processed_data:
+            return GenerationData()
+
+        data_dict = self.data.processed_data
+        # 根据数据内容判断类型
+        if "score" in data_dict or "quality_score" in data_dict:
+            return QualityReviewData(**data_dict)
+        elif "ok" in data_dict or "passed" in data_dict:
+            return ConsistencyCheckData(**data_dict)
+        else:
+            return GenerationData(**data_dict)
+```
+
+#### 3. 数据验证和转换
+```python
+class QualityReviewData(BaseEventData):
+    """质量审查数据 - 评分和阈值系统"""
+    
+    score: float | None = None
+    quality_score: float | None = None
+    attempts: int = Field(default=0, ge=0)  # 大于等于0
+    max_attempts: int = Field(default=3, ge=1)  # 大于等于1
+    threshold: float = Field(default=7.5, ge=0.0, le=10.0)  # 0-10之间
+
+    @field_validator("score", "quality_score", mode="before")
+    @classmethod
+    def convert_score(cls, v: Any) -> Any:
+        """确保分数是有效的浮点数"""
+        if v is not None:
+            return float(v)
+        return v
+```
+
+### 工厂函数设计模式
+
+#### 类型安全创建
+```python
+# 推荐方式：类型安全
+data = create_quality_review_data(
+    score=8.5,
+    attempts=1,
+    max_attempts=3,
+    threshold=7.5
+)
+
+# 向后兼容：从字典创建
+dict_data = {"score": 8.5, "attempts": 1}
+data = create_quality_review_data_from_dict(dict_data)
+```
+
+### 迁移指南
+
+#### 1. 现有代码迁移
+```python
+# 迁移前
+def process_event(data: dict[str, Any]) -> None:
+    correlation_id = data.get("correlation_id")
+    session_id = data.get("session_id")
+
+# 迁移后
+def process_event(data: GenerationData) -> None:
+    correlation_id = data.correlation_id  # 类型安全访问
+    session_id = data.session_id
+```
+
+#### 2. 新功能开发
+```python
+# 使用新的类型系统
+def handle_generation_result(data: GenerationData) -> None:
+    if data.content and data.content.text:
+        process_content(data.content.text)
+    
+    # 类型安全的数据访问
+    if data.correlation_id:
+        track_request(data.correlation_id)
+```
+
+### 测试策略
+
+#### 类型验证测试
+```python
+def test_quality_review_data_validation():
+    """测试质量审查数据的验证"""
+    # 有效数据
+    valid_data = QualityReviewData(score=8.5, attempts=1)
+    assert valid_data.score == 8.5
+    
+    # 自动类型转换
+    converted_data = QualityReviewData(score="8.5")  # 字符串转换为浮点数
+    assert converted_data.score == 8.5
+    
+    # 边界值验证
+    with pytest.raises(ValidationError):
+        QualityReviewData(attempts=-1)  # 负数应该失败
+```
+
+#### 向后兼容性测试
+```python
+def test_backward_compatibility():
+    """测试向后兼容性"""
+    old_format = {"correlation_id": "test-id", "score": 8.5}
+    new_format = create_quality_review_data_from_dict(old_format)
+    
+    assert new_format.correlation_id == "test-id"
+    assert new_format.score == 8.5
+```
+
+### 性能考虑
+
+#### Pydantic vs TypedDict 性能对比
+```mermaid
+graph LR
+    subgraph "TypedDict"
+        A[零开销] --> B[无运行时验证]
+        B --> C[潜在运行时错误]
+    end
+    
+    subgraph "Pydantic"
+        D[运行时验证] --> E[类型安全]
+        E --> F[优秀错误信息]
+        F --> G[轻微性能开销]
+    end
+    
+    G --> H[可接受的权衡]
+    H --> I[更好的开发体验]
+```
+
+### 最佳实践
+
+#### 1. 类型注解
+```python
+# 推荐：明确的类型注解
+def process_capability_event(
+    message: CapabilityEventMessage,
+    context: MessageContext
+) -> ProcessingResult:
+    # 实现逻辑
+    pass
+```
+
+#### 2. 错误处理
+```python
+try:
+    data = QualityReviewData(**input_data)
+except ValidationError as e:
+    # Pydantic 提供详细的错误信息
+    logger.error(f"数据验证失败: {e.json()}")
+    raise
+```
+
+#### 3. 配置管理
+```python
+class MyModel(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",  # 严格模式
+        str_strip_whitespace=True,  # 自动去除空格
+        validate_assignment=True  # 赋值时也验证
+    )
+```
+
+这个类型系统升级为编排器带来了更强的类型安全性、更好的错误处理和更优秀的开发体验，同时保持了向后兼容性。
