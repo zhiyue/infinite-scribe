@@ -558,9 +558,86 @@ classDiagram
     StageLockStrategy --|> CommandStrategy
 ```
 
+#### 🔄 策略模式重构优势
+
+**重构前 (问题)**:
+- 硬编码映射：命令类型与处理逻辑耦合
+- 扩展困难：新增命令类型需要修改核心代码
+- 测试复杂：无法独立测试特定命令处理逻辑
+- 违反开闭原则：对扩展开放，对修改也开放
+
+**重构后 (解决方案)**:
+```mermaid
+graph TD
+    A[策略模式架构] --> B[抽象策略接口]
+    A --> C[具体策略实现]
+    A --> D[策略注册表]
+    
+    B --> E[CommandStrategy抽象类]
+    C --> F[各种RequestStrategy]
+    D --> G[CommandStrategyRegistry]
+    
+    F --> F1[CharacterRequestStrategy]
+    F --> F2[ThemeRequestStrategy]
+    F --> F3[SeedRequestStrategy]
+    F --> F4[WorldRequestStrategy]
+    F --> F5[PlotRequestStrategy]
+    
+    G --> H[动态注册策略]
+    G --> I[命令类型匹配]
+    G --> J[策略执行调用]
+```
+
+#### 🎯 策略实现特点
+
+1. **灵活的别名支持**: 每个策略支持多种命令类型别名
+2. **动态话题构建**: 根据作用域类型动态构建消息话题
+3. **统一接口**: 所有策略遵循相同的处理接口
+4. **易于测试**: 可以独立测试每个策略的逻辑
+5. **配置驱动**: 支持运行时动态添加新的策略
+
 ### CapabilityEventHandlers
 
 ⚠️ **已重构**: 能力事件处理器采用命令模式架构，提升可维护性和扩展性。
+
+#### 🏗️ 最新重构：动态处理器分派机制
+
+最近的重构实现了动态处理器分派机制，进一步提升可维护性和扩展性：
+
+```mermaid
+graph TD
+    subgraph "重构前：静态方法调用"
+        A[CapabilityEventHandlers] --> B[handle_generation_completed]
+        A --> C[handle_quality_review_completed]
+        A --> D[handle_consistency_check_completed]
+        B --> E[硬编码逻辑]
+        C --> F[硬编码逻辑]
+        D --> G[硬编码逻辑]
+    end
+    
+    subgraph "重构后：动态分派"
+        H[EventCommandFactory] --> I[命令模式]
+        I --> J[GenerationCompletedCommand]
+        I --> K[QualityReviewCommand]
+        I --> L[ConsistencyCheckCommand]
+        
+        J --> M[建造者模式构建Action]
+        K --> N[配置驱动决策]
+        L --> O[状态机处理]
+        
+        M --> P[EventAction]
+        N --> P
+        O --> P
+    end
+```
+
+#### 🔄 动态分派优势
+
+1. **运行时灵活性**: 支持运行时动态添加新的处理器
+2. **配置驱动**: 通过配置文件控制处理器行为
+3. **类型安全**: 强类型接口，编译时检查
+4. **可测试性**: 每个命令可独立测试
+5. **可扩展性**: 符合开闭原则，对扩展开放对修改关闭
 
 #### 🔄 重构前后架构对比
 
@@ -1770,3 +1847,231 @@ class MyModel(BaseModel):
 ```
 
 这个类型系统升级为编排器带来了更强的类型安全性、更好的错误处理和更优秀的开发体验，同时保持了向后兼容性。
+
+## 🚀 最新架构改进
+
+### 动态处理器分派机制 ✨
+
+最近的重构实现了完整的动态处理器分派机制，将编排器从简单的事件转换器升级为智能的工作流编排引擎。
+
+#### 🏗️ 分派架构设计
+
+```mermaid
+graph TB
+    subgraph "输入层"
+        A[领域事件] --> B[DomainEventProcessor]
+        C[能力事件] --> D[CapabilityEventProcessor]
+    end
+    
+    subgraph "策略层"
+        B --> E[CommandStrategyRegistry]
+        D --> F[EventCommandFactory]
+    end
+    
+    subgraph "执行层"
+        E --> G[具体CommandStrategy]
+        F --> H[具体EventCommand]
+    end
+    
+    subgraph "管理层"
+        G --> I[TaskManager]
+        G --> J[OutboxManager]
+        H --> I
+        H --> J
+    end
+    
+    subgraph "输出层"
+        I --> K[异步任务跟踪]
+        J --> L[EventOutbox队列]
+        K --> M[任务状态更新]
+        L --> N[Kafka消息发布]
+    end
+```
+
+#### 🔄 分派机制优势
+
+| 维度 | 重构前 | 重构后 | 改进 |
+|-----|--------|--------|-----|
+| **处理器发现** | 静态方法映射 | 动态工厂模式 | 支持运行时扩展 |
+| **配置管理** | 硬编码常量 | 配置文件驱动 | 业务逻辑与代码分离 |
+| **错误处理** | 分散在各处 | 统一异常处理 | 提升系统稳定性 |
+| **测试覆盖** | 集成测试为主 | 单元测试支持 | 提高测试效率 |
+| **代码复用** | 重复逻辑多 | 建造者模式 | DRY原则实现 |
+
+#### 🎯 智能工作流编排
+
+新的分派机制支持复杂的工作流编排逻辑：
+
+```mermaid
+stateDiagram-v2
+    [*] --> 事件接收: 接收消息
+    事件接收 --> 类型判断: 解析消息类型
+    类型判断 --> 领域事件处理: Command.Received
+    类型判断 --> 能力事件处理: Capability事件
+    
+    领域事件处理 --> 策略匹配: 查找对应策略
+    策略匹配 --> 命令执行: 执行策略逻辑
+    命令执行 --> 任务创建: 创建异步任务
+    任务创建 --> 事件持久化: 保存领域事件
+    事件持久化 --> 消息入队: 发送到能力总线
+    
+    能力事件处理 --> 命令匹配: 工厂模式匹配
+    命令匹配 --> 工作流执行: 执行工作流逻辑
+    工作流执行 --> 决策分支: 根据结果决策
+    决策分支 --> 任务完成: 更新任务状态
+    决策分支 --> 重新生成: 质量不达标重试
+    决策分支 --> 流程结束: 成功或失败
+    
+    消息入队 --> [*]
+    任务完成 --> [*]
+    重新生成 --> 消息入队
+    流程结束 --> [*]
+```
+
+#### 🛠️ 实现细节
+
+##### 1. 策略注册与发现
+
+```python
+# 动态策略注册
+class CommandStrategyRegistry:
+    def __init__(self):
+        self._strategies: dict[str, CommandStrategy] = {}
+        self._register_default_strategies()
+    
+    def register(self, strategy: CommandStrategy) -> None:
+        """注册新的命令策略"""
+        for alias in strategy.get_aliases():
+            self._strategies[alias] = strategy
+    
+    def process_command(self, command_type: str, **kwargs) -> CommandMapping:
+        """处理命令，支持动态策略发现"""
+        strategy = self._strategies.get(command_type)
+        if not strategy:
+            raise ValueError(f"Unknown command type: {command_type}")
+        return strategy.process(**kwargs)
+```
+
+##### 2. 工厂模式分派
+
+```python
+# 命令工厂模式
+class EventCommandFactory:
+    def __init__(self, config: EventHandlerConfig | None = None):
+        self.config = config or EventHandlerConfig.for_genesis_workflow()
+        self._commands: list[EventCommand] = [
+            GenerationCompletedCommand(self.config),
+            QualityReviewCommand(self.config),
+            ConsistencyCheckCommand(self.config),
+        ]
+    
+    def create_command(self, msg_type: str) -> EventCommand | None:
+        """根据消息类型创建对应的命令"""
+        for command in self._commands:
+            if command.can_handle(msg_type):
+                return command
+        return None
+```
+
+##### 3. 配置驱动决策
+
+```python
+# 配置驱动的工作流决策
+class QualityReviewCommand(EventCommand):
+    def execute(self, **kwargs) -> EventAction | None:
+        data = kwargs.get('data')
+        if not isinstance(data, QualityReviewData):
+            return None
+        
+        score = data.score or data.quality_score or 0.0
+        attempts = data.attempts
+        
+        # 配置驱动的决策逻辑
+        if score >= self.config.QUALITY_THRESHOLD:
+            # 质量通过 → 确认
+            return self._create_confirmation_action(**kwargs)
+        elif attempts + 1 >= self.config.MAX_ATTEMPTS:
+            # 超过重试限制 → 失败
+            return self._create_failure_action(**kwargs)
+        else:
+            # 质量不达标 → 重新生成
+            return self._create_regeneration_action(**kwargs)
+```
+
+#### 📊 性能优化
+
+##### 缓存机制
+
+```mermaid
+graph LR
+    A[策略缓存] --> B[策略查找优化]
+    C[命令缓存] --> D[命令创建优化]
+    E[配置缓存] --> F[配置读取优化]
+    
+    B --> G[减少HashMap查找]
+    D --> H[避免重复实例化]
+    F --> I[提升配置访问速度]
+    
+    G --> J[提升整体性能]
+    H --> J
+    I --> J
+```
+
+##### 异步处理优化
+
+```python
+# 异步处理优化
+class AsyncProcessorMixin:
+    async def process_with_context(self, message: dict, context: dict) -> None:
+        """带上下文的异步处理"""
+        correlation_id = self._extract_correlation_id(context)
+        
+        # 异步并发处理
+        tasks = [
+            self._validate_message(message),
+            self._enrich_context(context),
+            self._prepare_processing(correlation_id)
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果
+        for result in results:
+            if isinstance(result, Exception):
+                self.logger.error("处理步骤失败", error=str(result))
+```
+
+#### 🧪 测试策略升级
+
+新的架构支持更全面的测试策略：
+
+```mermaid
+graph TD
+    subgraph "单元测试"
+        A[策略测试] --> A1[CommandStrategy测试]
+        B[命令测试] --> B1[EventCommand测试]
+        C[配置测试] --> C1[EventHandlerConfig测试]
+    end
+    
+    subgraph "集成测试"
+        D[注册表测试] --> D1[策略注册和查找]
+        E[工厂测试] --> E1[命令创建和匹配]
+        F[编排测试] --> F1[完整工作流测试]
+    end
+    
+    subgraph "性能测试"
+        G[吞吐量测试] --> G1[大量消息处理]
+        H[延迟测试] --> H1[端到端响应时间]
+        I[内存测试] --> I1[长期运行稳定性]
+    end
+```
+
+#### 🔮 未来扩展方向
+
+1. **插件化架构**: 支持第三方插件扩展
+2. **A/B测试**: 支持多版本策略并行运行
+3. **机器学习**: 基于历史数据优化决策
+4. **可视化监控**: 实时工作流可视化
+5. **配置热更新**: 支持运行时配置更新
+
+这次动态处理器分派机制的重构，将编排器提升到了一个新的架构高度，实现了真正的企业级工作流编排引擎。
