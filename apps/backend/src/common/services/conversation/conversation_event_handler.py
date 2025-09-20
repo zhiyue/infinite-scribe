@@ -296,6 +296,7 @@ class ConversationEventHandler:
         db: AsyncSession,
         session: ConversationSession,
         existing_command: CommandInbox,
+        user_id: int | None = None,
     ) -> CommandInbox:
         """Ensure DomainEvent + EventOutbox exist for an existing command."""
         event_type = build_event_type(session.scope_type, "Command.Received")
@@ -318,10 +319,12 @@ class ConversationEventHandler:
                 payload={
                     "command_type": existing_command.command_type,
                     "payload": existing_command.payload or {},
+                    "session_id": str(session.id),
+                    **({"user_id": str(user_id)} if user_id is not None else {}),
                 },
                 correlation_id=existing_command.id,
                 causation_id=None,
-                event_metadata={"source": "api-gateway"},
+                event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
             )
             db.add(dom_evt)
             await db.flush()

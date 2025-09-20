@@ -659,6 +659,12 @@ class OrchestratorAgent(BaseAgent):
                 }
                 # Merge domain event payload directly instead of nesting under "payload" key
                 outbox_payload.update(dom_evt.payload or {})
+                # Add created_at for downstream timestamp fallback
+                try:
+                    if getattr(dom_evt, "created_at", None):
+                        outbox_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
 
                 out = EventOutbox(
                     id=dom_evt.event_id,

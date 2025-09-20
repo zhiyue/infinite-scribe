@@ -303,15 +303,17 @@ class DomainEventBridgeService:
         Args:
             envelope: Event envelope to publish
         """
-        await self.publisher.publish(envelope)
+        stream_id = await self.publisher.publish(envelope)
         self.metrics_collector.record_event_published()
         self.circuit_breaker.record_success()
 
-        logger.debug(
-            "Successfully published event",
+        # Observability: concise INFO log for processed events
+        logger.info(
+            "event_processed",
             event_type=envelope.get("event_type"),
             event_id=envelope.get("event_id"),
-            user_id=envelope.get("payload", {}).get("user_id"),
+            user_id=(envelope.get("payload", {}) or {}).get("user_id"),
+            stream_id=stream_id,
             service="eventbridge",
         )
 
@@ -424,7 +426,10 @@ class DomainEventBridgeService:
 
             # Merge selected Kafka headers into envelope for downstream validation
             try:
-                headers = dict((k, (v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else v)) for k, v in (message.headers or []))
+                headers = {
+                    k: (v.decode("utf-8") if isinstance(v, bytes | bytearray) else v)
+                    for k, v in (message.headers or [])
+                }
             except Exception:  # pragma: no cover - defensive
                 headers = {}
 
@@ -437,9 +442,13 @@ class DomainEventBridgeService:
                 payload = {}
                 envelope["payload"] = payload
 
+            # Fill session_id from aggregate_id if missing
             if "session_id" not in payload and envelope.get("aggregate_id"):
                 payload["session_id"] = envelope.get("aggregate_id")
-
+            # Migrate top-level user_id to payload if present
+            if "user_id" not in payload and envelope.get("user_id"):
+                payload["user_id"] = envelope.get("user_id")
+            # Fill timestamp from created_at if missing
             if "timestamp" not in payload and envelope.get("created_at"):
                 payload["timestamp"] = envelope.get("created_at")
 

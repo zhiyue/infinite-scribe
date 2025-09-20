@@ -82,7 +82,8 @@ class ConversationCommandService:
             existing_cmd = await self._check_existing_command(db, session_id, command_type, idempotency_key)
             if existing_cmd:
                 # Ensure events exist for existing command (non-atomic is OK here)
-                await self.event_handler.ensure_command_events(db, session, existing_cmd)
+                # Enrich with user_id for SSE routing convention
+                await self.event_handler.ensure_command_events(db, session, existing_cmd, user_id=user_id)
                 command = existing_cmd
             else:
                 # 3. Use atomic method to create command AND round with full transaction safety
