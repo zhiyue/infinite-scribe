@@ -17,8 +17,11 @@ from src.agents.orchestrator.types import (
     QualityReviewData,
     ScopeInfo,
     create_capability_event_message_from_dict,
+    create_consistency_check_data_from_dict,
+    create_generation_data_from_dict,
     create_message_context_from_dict,
     create_processing_result,
+    create_quality_review_data_from_dict,
 )
 
 
@@ -37,7 +40,18 @@ class EventDataExtractor:
         """
         # 使用 Pydantic 进行类型安全的数据提取和转换
         event_msg = create_capability_event_message_from_dict(message)
-        return event_msg.to_typed_data()
+        typed_data = event_msg.to_typed_data()
+        if typed_data.model_dump(exclude_none=True):
+            return typed_data
+
+        # Fallback: 如果消息没有标准 data 字段，直接根据内容猜测类型
+        payload = message.get("data") if isinstance(message.get("data"), dict) else message
+
+        if "score" in payload or "quality_score" in payload:
+            return create_quality_review_data_from_dict(payload)
+        if "ok" in payload or "passed" in payload:
+            return create_consistency_check_data_from_dict(payload)
+        return create_generation_data_from_dict(payload)
 
     @staticmethod
     def extract_session_and_scope(
@@ -69,7 +83,9 @@ class EventDataExtractor:
         return session_id, scope_info
 
     @staticmethod
-    def extract_correlation_id(context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData) -> str | None:
+    def extract_correlation_id(
+        context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData
+    ) -> str | None:
         """提取关联ID，优先从context['meta']获取，否则从data中获取。
 
         Args:
@@ -85,7 +101,9 @@ class EventDataExtractor:
         return data.correlation_id
 
     @staticmethod
-    def extract_causation_id(context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData) -> str | None:
+    def extract_causation_id(
+        context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData
+    ) -> str | None:
         """提取因果关系ID（能力事件的event_id用作下游领域事件的causation_id）。
 
         Args:
@@ -136,9 +154,12 @@ class EventHandlerMatcher:
         """
         scope_type = scope_info.scope_type
         scope_prefix = scope_info.scope_prefix
+        handlers_tried = 0
+        total_handlers = 3
 
         # 根据数据类型选择合适的处理器 - 类型安全的方式
         if isinstance(data, GenerationData):
+            handlers_tried += 1
             self.log.debug("orchestrator_trying_generation_handler", msg_type=msg_type, session_id=session_id)
             action = CapabilityEventHandlers.handle_generation_completed(
                 msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
@@ -155,6 +176,7 @@ class EventHandlerMatcher:
                 return action
 
         elif isinstance(data, QualityReviewData):
+            handlers_tried += 1
             self.log.debug("orchestrator_trying_quality_handler", msg_type=msg_type, session_id=session_id)
             action = CapabilityEventHandlers.handle_quality_review_result(
                 msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
@@ -171,6 +193,7 @@ class EventHandlerMatcher:
                 return action
 
         elif isinstance(data, ConsistencyCheckData):
+            handlers_tried += 1
             self.log.debug("orchestrator_trying_consistency_handler", msg_type=msg_type, session_id=session_id)
             action = CapabilityEventHandlers.handle_consistency_check_result(
                 msg_type, session_id, data, correlation_id, scope_type, causation_id
@@ -192,6 +215,7 @@ class EventHandlerMatcher:
             msg_type=msg_type,
             session_id=session_id,
             data_type=type(data).__name__,
+            handlers_tried=handlers_tried or total_handlers,
         )
         return None
 

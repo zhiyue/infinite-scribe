@@ -7,7 +7,7 @@ extracted from the main orchestrator to improve readability and maintainability.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, NamedTuple
+from typing import Any
 
 from src.agents.orchestrator.message_factory import MessageFactory
 from src.agents.orchestrator.types import (
@@ -15,246 +15,14 @@ from src.agents.orchestrator.types import (
     GenerationData,
     QualityReviewData,
 )
-
-
-class EventAction(NamedTuple):
-    """Represents an action to be taken after handling an event."""
-
-    domain_event: dict[str, Any] | None = None  # 保持dict用于参数解包
-    task_completion: dict[str, Any] | None = None  # 保持dict用于参数解包
-    capability_message: dict[str, Any] | None = None  # 保持dict用于参数解包
-
-
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
-
-
-@dataclass
-class WorkflowThresholds:
-    """工作流阈值配置"""
-
-    quality_threshold: float
-    max_attempts: int
-    consistency_threshold: float = 1.0
-
-
-@dataclass
-class WorkflowRouting:
-    """工作流路由规则配置"""
-
-    event_target_mapping: dict[str, str]
-    target_confirmation_actions: dict[str, str]
-    target_failure_actions: dict[str, str]
-    target_regeneration_actions: dict[str, str]
-    task_prefix_mapping: dict[str, str]
-
-
-@dataclass
-class WorkflowConfig:
-    """单个工作流完整配置"""
-
-    name: str
-    thresholds: WorkflowThresholds
-    routing: WorkflowRouting
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class EventHandlerConfig:
-    """工作流编排器配置管理器 - 真正的配置驱动"""
-
-    def __init__(self, config_source: str | Path | WorkflowConfig | None = None):
-        """初始化配置管理器
-
-        Args:
-            config_source: 配置来源，可以是:
-                - 文件路径 (str/Path)
-                - 配置对象 (WorkflowConfig)
-                - None (使用默认配置)
-        """
-        if isinstance(config_source, (str, Path)):
-            self._config = self._load_from_file(Path(config_source))
-        elif isinstance(config_source, WorkflowConfig):
-            self._config = config_source
-        else:
-            self._config = self._get_default_config()
-
-    @property
-    def QUALITY_THRESHOLD(self) -> float:
-        return self._config.thresholds.quality_threshold
-
-    @property
-    def MAX_ATTEMPTS(self) -> int:
-        return self._config.thresholds.max_attempts
-
-    @property
-    def EVENT_TARGET_MAPPING(self) -> dict[str, str]:
-        return self._config.routing.event_target_mapping
-
-    @property
-    def TARGET_CONFIRMATION_ACTIONS(self) -> dict[str, str]:
-        return self._config.routing.target_confirmation_actions
-
-    @property
-    def TARGET_FAILURE_ACTIONS(self) -> dict[str, str]:
-        return self._config.routing.target_failure_actions
-
-    @property
-    def TARGET_REGENERATION_ACTIONS(self) -> dict[str, str]:
-        return self._config.routing.target_regeneration_actions
-
-    @property
-    def TASK_PREFIX_MAPPING(self) -> dict[str, str]:
-        return self._config.routing.task_prefix_mapping
-
-    def _load_from_file(self, file_path: Path) -> WorkflowConfig:
-        """从配置文件加载工作流配置"""
-        if not file_path.exists():
-            raise FileNotFoundError(f"Workflow config file not found: {file_path}")
-
-        with open(file_path, encoding="utf-8") as f:
-            config_data = json.load(f)
-
-        return WorkflowConfig(
-            name=config_data["name"],
-            thresholds=WorkflowThresholds(**config_data["thresholds"]),
-            routing=WorkflowRouting(**config_data["routing"]),
-            metadata=config_data.get("metadata", {}),
-        )
-
-    def _get_default_config(self) -> WorkflowConfig:
-        """获取默认配置 - 从配置文件加载，真正的单一来源"""
-        # 尝试从配置文件加载
-        config_file = Path(__file__).parent / "workflows" / "genesis-workflow.json"
-
-        if config_file.exists():
-            return self._load_from_file(config_file)
-
-        # 仅在配置文件不存在时才使用硬编码兜底
-        # 这种情况应该只在开发环境或配置文件缺失时发生
-        import warnings
-
-        warnings.warn(
-            f"Workflow config file not found: {config_file}. "
-            "Using hardcoded fallback configuration. "
-            "This should not happen in production!",
-            UserWarning,
-        )
-
-        return WorkflowConfig(
-            name="fallback-hardcoded-config",
-            thresholds=WorkflowThresholds(quality_threshold=7.5, max_attempts=3),
-            routing=WorkflowRouting(
-                event_target_mapping={
-                    "Character.Design.Generated": "character",
-                    "Character.Generated": "character",
-                    "Outliner.Theme.Generated": "theme",
-                    "Theme.Generated": "theme",
-                },
-                target_confirmation_actions={
-                    "character": "Character.Confirmed",
-                    "theme": "Theme.Confirmed",
-                },
-                target_failure_actions={
-                    "character": "Character.Failed",
-                    "theme": "Theme.Failed",
-                },
-                target_regeneration_actions={
-                    "character": "Character.RegenerationRequested",
-                    "theme": "Theme.RegenerationRequested",
-                },
-                task_prefix_mapping={
-                    "quality_review": "Review.Quality.Evaluation",
-                    "consistency_check": "Review.Consistency.Check",
-                },
-            ),
-        )
-
-    @classmethod
-    def from_file(cls, config_file: str | Path) -> EventHandlerConfig:
-        """从配置文件创建配置管理器"""
-        return cls(config_file)
-
-    @classmethod
-    def from_config(cls, config: WorkflowConfig) -> EventHandlerConfig:
-        """从配置对象创建配置管理器"""
-        return cls(config)
-
-    @classmethod
-    def for_testing(cls, **overrides) -> EventHandlerConfig:
-        """创建测试用配置"""
-        default_config = cls()._get_default_config()
-
-        # 应用覆盖
-        if "quality_threshold" in overrides:
-            default_config.thresholds.quality_threshold = overrides["quality_threshold"]
-        if "max_attempts" in overrides:
-            default_config.thresholds.max_attempts = overrides["max_attempts"]
-
-        return cls.from_config(default_config)
-
-
-class EventActionBuilder:
-    """Builder for constructing EventAction objects."""
-
-    def __init__(self):
-        self._domain_event = None
-        self._task_completion = None
-        self._capability_message = None
-
-    def with_domain_event(
-        self,
-        scope_type: str,
-        session_id: str,
-        event_action: str,
-        payload: dict,
-        correlation_id: str | None = None,
-        causation_id: str | None = None,
-    ) -> EventActionBuilder:
-        """Add domain event to the action."""
-        self._domain_event = {
-            "scope_type": scope_type,
-            "session_id": session_id,
-            "event_action": event_action,
-            "payload": payload,
-            "correlation_id": correlation_id,
-            "causation_id": causation_id,
-        }
-        return self
-
-    def with_task_completion(
-        self,
-        correlation_id: str | None,
-        expect_task_prefix: str,
-        result_data: dict,
-    ) -> EventActionBuilder:
-        """Add task completion to the action."""
-        self._task_completion = {
-            "correlation_id": correlation_id,
-            "expect_task_prefix": expect_task_prefix,
-            "result_data": result_data,
-        }
-        return self
-
-    def with_capability_message(self, message: dict) -> EventActionBuilder:
-        """Add capability message to the action."""
-        self._capability_message = message
-        return self
-
-    def build(self) -> EventAction:
-        """Build the final EventAction."""
-        return EventAction(
-            domain_event=self._domain_event,
-            task_completion=self._task_completion,
-            capability_message=self._capability_message,
-        )
+from src.agents.orchestrator.workflows import EventAction, EventActionBuilder, EventHandlerConfig
 
 
 class EventCommand(ABC):
     """Abstract base class for event command handlers."""
 
-    def __init__(self, config: EventHandlerConfig = None):
-        self.config = config or EventHandlerConfig()
+    def __init__(self, config: EventHandlerConfig | None = None):
+        self.config = config or EventHandlerConfig.for_genesis_workflow()
 
     @abstractmethod
     def can_handle(self, msg_type: str) -> bool:
@@ -482,8 +250,8 @@ class ConsistencyCheckCommand(EventCommand):
 class EventCommandFactory:
     """Factory for creating event command handlers."""
 
-    def __init__(self, config: EventHandlerConfig = None):
-        self.config = config or EventHandlerConfig()
+    def __init__(self, config: EventHandlerConfig | None = None):
+        self.config = config or EventHandlerConfig.for_genesis_workflow()
         self._commands = [
             GenerationCompletedCommand(self.config),
             QualityReviewCommand(self.config),
@@ -522,15 +290,19 @@ class EventCommandFactory:
         return None
 
 
-class CapabilityEventHandlers:
-    """Handlers for different types of capability events (refactored with command pattern)."""
+class WorkflowOrchestrator:
+    """Core workflow orchestrator responsible for routing events to commands."""
 
-    def __init__(self, config: EventHandlerConfig = None):
-        """Initialize with event command factory."""
-        self.factory = EventCommandFactory(config)
+    def __init__(
+        self,
+        config: EventHandlerConfig | None = None,
+        factory: EventCommandFactory | None = None,
+    ) -> None:
+        self.config = config or EventHandlerConfig.for_genesis_workflow()
+        self.factory = factory or EventCommandFactory(self.config)
 
-    @staticmethod
-    def handle_generation_completed(
+    def orchestrate_generation(
+        self,
         msg_type: str,
         session_id: str,
         data: GenerationData,
@@ -539,9 +311,7 @@ class CapabilityEventHandlers:
         scope_prefix: str,
         causation_id: str | None = None,
     ) -> EventAction | None:
-        """Handle generation completion events (legacy method - use factory for new code)."""
-        factory = EventCommandFactory()
-        return factory.handle_event(
+        return self.orchestrate(
             msg_type=msg_type,
             session_id=session_id,
             data=data,
@@ -551,8 +321,8 @@ class CapabilityEventHandlers:
             causation_id=causation_id,
         )
 
-    @staticmethod
-    def handle_quality_review_result(
+    def orchestrate_quality_review(
+        self,
         msg_type: str,
         session_id: str,
         data: QualityReviewData,
@@ -561,9 +331,7 @@ class CapabilityEventHandlers:
         scope_prefix: str,
         causation_id: str | None = None,
     ) -> EventAction | None:
-        """Handle quality review result events (legacy method - use factory for new code)."""
-        factory = EventCommandFactory()
-        return factory.handle_event(
+        return self.orchestrate(
             msg_type=msg_type,
             session_id=session_id,
             data=data,
@@ -573,8 +341,103 @@ class CapabilityEventHandlers:
             causation_id=causation_id,
         )
 
-    @staticmethod
-    def handle_consistency_check_result(
+    def orchestrate_consistency_check(
+        self,
+        msg_type: str,
+        session_id: str,
+        data: ConsistencyCheckData,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str = "",
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return self.orchestrate(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    def orchestrate(
+        self,
+        *,
+        msg_type: str,
+        session_id: str,
+        data: Any,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str = "",
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return self.factory.handle_event(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+
+class CapabilityEventHandlers:
+    """Backward-compatible facade exposing workflow orchestration entry points."""
+
+    _default_orchestrator: WorkflowOrchestrator | None = None
+
+    def __init__(
+        self, config: EventHandlerConfig | None = None, orchestrator: WorkflowOrchestrator | None = None
+    ) -> None:
+        self.orchestrator = orchestrator or WorkflowOrchestrator(config=config)
+
+    # ------------------------------------------------------------------
+    # Instance-based API
+    # ------------------------------------------------------------------
+    def handle_generation_event(
+        self,
+        msg_type: str,
+        session_id: str,
+        data: GenerationData,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str,
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return self.orchestrator.orchestrate_generation(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    def handle_quality_review_event(
+        self,
+        msg_type: str,
+        session_id: str,
+        data: QualityReviewData,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str,
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return self.orchestrator.orchestrate_quality_review(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    def handle_consistency_check_event(
+        self,
         msg_type: str,
         session_id: str,
         data: ConsistencyCheckData,
@@ -582,15 +445,13 @@ class CapabilityEventHandlers:
         scope_type: str,
         causation_id: str | None = None,
     ) -> EventAction | None:
-        """Handle consistency check result events (legacy method - use factory for new code)."""
-        factory = EventCommandFactory()
-        return factory.handle_event(
+        return self.orchestrator.orchestrate_consistency_check(
             msg_type=msg_type,
             session_id=session_id,
             data=data,
             correlation_id=correlation_id,
             scope_type=scope_type,
-            scope_prefix="",  # Default value for consistency check
+            scope_prefix="",
             causation_id=causation_id,
         )
 
@@ -604,13 +465,83 @@ class CapabilityEventHandlers:
         scope_prefix: str = "",
         causation_id: str | None = None,
     ) -> EventAction | None:
-        """Handle any event using the command pattern (recommended method)."""
-        return self.factory.handle_event(
+        return self.orchestrator.orchestrate(
             msg_type=msg_type,
             session_id=session_id,
             data=data,
             correlation_id=correlation_id,
             scope_type=scope_type,
             scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    # ------------------------------------------------------------------
+    # Class-level helpers to preserve historical static API
+    # ------------------------------------------------------------------
+    @classmethod
+    def _default(cls) -> WorkflowOrchestrator:
+        if cls._default_orchestrator is None:
+            cls._default_orchestrator = WorkflowOrchestrator()
+        return cls._default_orchestrator
+
+    @classmethod
+    def handle_generation_completed(
+        cls,
+        msg_type: str,
+        session_id: str,
+        data: GenerationData,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str,
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return cls._default().orchestrate_generation(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    @classmethod
+    def handle_quality_review_result(
+        cls,
+        msg_type: str,
+        session_id: str,
+        data: QualityReviewData,
+        correlation_id: str | None,
+        scope_type: str,
+        scope_prefix: str,
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return cls._default().orchestrate_quality_review(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            causation_id=causation_id,
+        )
+
+    @classmethod
+    def handle_consistency_check_result(
+        cls,
+        msg_type: str,
+        session_id: str,
+        data: ConsistencyCheckData,
+        correlation_id: str | None,
+        scope_type: str,
+        causation_id: str | None = None,
+    ) -> EventAction | None:
+        return cls._default().orchestrate_consistency_check(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_type=scope_type,
+            scope_prefix="",
             causation_id=causation_id,
         )
