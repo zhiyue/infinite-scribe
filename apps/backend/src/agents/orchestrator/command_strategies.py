@@ -256,12 +256,22 @@ class CommandStrategyRegistry:
         # Try configuration mapping first
         event_type = get_event_by_command(cmd_type)
         if event_type:
-            # Configuration hit: set requested_action from config, but capability_message from strategy
+            # Configuration hit: set requested_action from config, then choose appropriate strategy
             strategy = self._strategies.get(cmd_type)
+            if not strategy:
+                # Fallback: choose strategy by event_type prefix (e.g., "Character.Requested" -> CharacterRequestStrategy)
+                prefix = event_type.split(".", 1)[0].lower()
+                strategy = {
+                    "character": CharacterRequestStrategy(),
+                    "theme": ThemeRequestStrategy(),
+                    "seed": SeedRequestStrategy(),
+                    "world": WorldRequestStrategy(),
+                    "plot": PlotRequestStrategy(),
+                    "details": DetailsRequestStrategy(),
+                }.get(prefix)
             if strategy:
                 result = strategy.process(scope_type, scope_prefix, aggregate_id, payload)
                 if result:
-                    # Override requested_action with configuration value
                     return CommandMapping(requested_action=event_type, capability_message=result.capability_message)
 
         # Pure strategy fallback (existing behavior)

@@ -1,6 +1,24 @@
 /**
  * Genesis命令工具函数
  * 处理创世阶段的命令类型映射和payload构造
+ *
+ * ## Payload字段说明
+ *
+ * ### 标准化字段 (符合LLD文档要求)
+ * - `user_input`: 用户输入内容，统一字段名
+ * - `session_id`: 会话ID
+ * - `stage`: 当前创世阶段
+ * - `user_id`: 用户ID，通常由后端从认证上下文推导
+ *
+ * ### 兼容性字段 (向后兼容)
+ * - `content`: UI组件期望的字段，与user_input内容相同
+ *
+ * ### 字段冗余处理
+ * 当前同时保留user_input和content字段以保持向后兼容性，
+ * 建议逐步迁移UI组件使用标准的user_input字段，
+ * 然后移除content字段的冗余。
+ *
+ * @see .tasks/novel-genesis-stage/lld/command-types.md
  */
 
 import { GenesisStage, GenesisCommandType } from '@/types/enums'
@@ -43,7 +61,10 @@ export function buildGenesisCommandPayload(
     session_id: sessionId,
     user_input: userInput,
     stage: stage,
-    context: context || {}
+    context: context || {},
+    // Note: user_id will be filled by backend from authentication context
+    // If needed for specific use cases, uncomment and provide:
+    // user_id: context?.user_id,
   }
 
   switch (commandType) {
@@ -51,6 +72,8 @@ export function buildGenesisCommandPayload(
       return {
         ...basePayload,
         preferences: context?.preferences || {},
+        // user_id: 通常由后端从认证上下文推导，如需显式提供可取消注释
+        // user_id: context?.user_id,
         context: {
           previous_attempts: context?.previous_attempts || 0,
           iteration_number: context?.iteration_number || 1,

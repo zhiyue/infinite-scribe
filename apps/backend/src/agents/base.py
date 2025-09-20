@@ -249,6 +249,23 @@ class BaseAgent(ABC):
                 # Create Kafka consumer
                 await self._create_consumer()  # 使用薄封装方法
 
+                # Subscribe to configured topics so the consumer actually receives messages
+                # Note: create_consumer() does not subscribe; we must explicitly subscribe here.
+                try:
+                    # Some unit tests use a FakeConsumer without .subscribe(); guard for compatibility
+                    if hasattr(self.kafka_client.consumer, "subscribe"):
+                        self.kafka_client.subscribe_consumer()
+                        self.log.info("consumer_subscribed", topics=self.consume_topics)
+                    else:
+                        self.log.debug(
+                            "consumer_subscribe_skipped",
+                            reason="consumer_has_no_subscribe_method",
+                            topics=self.consume_topics,
+                        )
+                except Exception as e:
+                    self.log.error("consumer_subscribe_failed", error=str(e), exc_info=True)
+                    raise
+
                 # If need to send messages, create producer
                 if self.produce_topics:
                     await self._create_producer()  # 使用薄封装方法

@@ -352,7 +352,10 @@ export function GenesisConversation({
     setIsTyping(true)
 
     // 提交对话命令到后端，包含幂等和关联头
-    // 保持向后兼容：确保payload包含content字段供UI使用
+    // Note: 保持向后兼容性 - 同时包含标准化字段和UI期望字段
+    // - user_input: 符合LLD文档要求的标准字段
+    // - content: UI组件期望的兼容字段，避免breaking changes
+    // TODO: 逐步迁移UI组件使用payload.user_input，移除content字段冗余
     const finalPayload = {
       ...commandPayload,
       content: messageContent, // 保持UI期望的content字段

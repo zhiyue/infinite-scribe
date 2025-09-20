@@ -56,7 +56,8 @@ class AgentLauncher:
                 return instance
             # 尝试从 agent 模块导入
             try:
-                module = importlib.import_module(f"..agents.{module_key}", package=__name__)
+                # Use absolute import to avoid incorrect relative resolution like 'src.agents.agents.*'
+                module = importlib.import_module(f"src.agents.{module_key}")
 
                 # 生成候选类名，兼容 snake_case 和单词形式
                 def snake_to_pascal(name: str) -> str:
