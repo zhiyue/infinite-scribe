@@ -198,6 +198,23 @@ sequenceDiagram
     CTX->>CTX: removeMessageListener(listener)
 ```
 
+### 动态事件注册机制
+
+```mermaid
+graph TD
+    A[业务组件使用Hook] --> B[调用useSSEEvents]
+    B --> C[遍历事件类型数组]
+    C --> D[为每个事件调用subscribe]
+    D --> E{事件已注册?}
+    E -->|否| F[动态添加EventSource监听器]
+    E -->|是| G[使用现有监听器]
+    F --> H[注册成功]
+    G --> H
+    
+    H --> I[事件接收和分发]
+    I --> J[调用业务处理器]
+```
+
 ### 稳定引用优化
 
 ```mermaid
@@ -253,6 +270,39 @@ useGenesisEvents(sessionId, (eventType, data) => {
     console.log('阶段已完成:', data)
   }
 })
+```
+
+### 动态事件订阅优化
+
+```typescript
+// 高效的事件订阅示例
+function Component() {
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  
+  // 使用条件订阅避免不必要的监听
+  useGenesisEvents(
+    sessionId || '', 
+    (eventType, data) => {
+      // 处理 Genesis 事件
+    }
+  )
+  
+  // 订阅多个相关事件
+  useSSEEvents(
+    [
+      'task.progress-updated',
+      'task.status-changed',
+      'task.error-occurred'
+    ],
+    (eventType, data) => {
+      // 统一处理任务相关事件
+      console.log(`${eventType}:`, data)
+    },
+    [taskId] // 依赖项优化
+  )
+  
+  return <div>...</div>
+}
 ```
 
 ### 命令状态监控
