@@ -23,6 +23,7 @@ from src.agents.base import BaseAgent
 from src.agents.orchestrator.command_strategies import command_registry
 from src.agents.orchestrator.event_handlers import CapabilityEventHandlers
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
+from src.common.events.mapping import normalize_task_type
 from src.db.sql.session import create_sql_session
 from src.models.event import DomainEvent
 from src.models.workflow import AsyncTask, EventOutbox
@@ -98,7 +99,7 @@ class OrchestratorAgent(BaseAgent):
             await self._create_async_task(
                 correlation_id=correlation_id,
                 session_id=aggregate_id,
-                task_type=self._normalize_task_type(mapping.capability_message.get("type", "")),
+                task_type=normalize_task_type(mapping.capability_message.get("type", "")),
                 input_data=mapping.capability_message.get("input") or {},
             )
         except Exception:
@@ -156,7 +157,7 @@ class OrchestratorAgent(BaseAgent):
     async def _create_async_task(
         self, *, correlation_id: str | None, session_id: str, task_type: str, input_data: dict[str, Any]
     ) -> None:
-        """Create an AsyncTask row to track capability execution."""
+        """Create an AsyncTask row to track capability execution with idempotency protection."""
         from datetime import UTC, datetime
 
         if not task_type:
@@ -167,7 +168,27 @@ class OrchestratorAgent(BaseAgent):
                 trig_cmd_id = UUID(str(correlation_id))
             except Exception:
                 trig_cmd_id = None
+
         async with create_sql_session() as db:
+            # Check for existing RUNNING/PENDING task to prevent duplicates
+            if trig_cmd_id:
+                existing_stmt = select(AsyncTask).where(
+                    and_(
+                        AsyncTask.triggered_by_command_id == trig_cmd_id,
+                        AsyncTask.task_type == task_type,
+                        AsyncTask.status.in_([TaskStatus.RUNNING, TaskStatus.PENDING]),
+                    )
+                )
+                existing_task = await db.scalar(existing_stmt)
+                if existing_task:
+                    self.log.debug(
+                        "async_task_already_exists",
+                        correlation_id=correlation_id,
+                        task_type=task_type,
+                        existing_task_id=str(existing_task.id),
+                    )
+                    return
+
             task = AsyncTask(
                 task_type=task_type,
                 triggered_by_command_id=trig_cmd_id,
@@ -218,25 +239,8 @@ class OrchestratorAgent(BaseAgent):
 
         return None
 
-    def _normalize_task_type(self, event_type: str) -> str:
-        """Normalize capability event/task type to a base task_type for AsyncTask.
-
-        Examples:
-          - "Character.Design.GenerationRequested" -> "Character.Design.Generation"
-          - "Outliner.Theme.Generated" -> "Outliner.Theme.Generation"
-          - "Review.Quality.EvaluationRequested" -> "Review.Quality.Evaluation"
-          - "Review.Consistency.CheckRequested" -> "Review.Consistency.Check"
-        """
-        if not event_type:
-            return ""
-        parts = event_type.split(".")
-        if not parts:
-            return event_type
-        # Drop trailing state/action suffixes
-        suffixes = {"Requested", "Generated", "Started", "Completed", "Result", "Checked"}
-        if parts[-1] in suffixes and len(parts) >= 2:
-            return ".".join(parts[:-1])
-        return event_type
+    # Removed: Task type normalization moved to unified mapping
+    # Use src.common.events.mapping.normalize_task_type instead
 
     async def _persist_domain_event(
         self,

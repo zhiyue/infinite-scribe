@@ -140,7 +140,21 @@ class CommandStrategyRegistry:
     def process_command(
         self, cmd_type: str, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]
     ) -> CommandMapping | None:
-        """Process a command using the appropriate strategy."""
+        """Process a command using unified mapping configuration with strategy fallback."""
+        from src.common.events.mapping import get_event_by_command
+
+        # Try configuration mapping first
+        event_type = get_event_by_command(cmd_type)
+        if event_type:
+            # Configuration hit: set requested_action from config, but capability_message from strategy
+            strategy = self._strategies.get(cmd_type)
+            if strategy:
+                result = strategy.process(scope_type, scope_prefix, aggregate_id, payload)
+                if result:
+                    # Override requested_action with configuration value
+                    return CommandMapping(requested_action=event_type, capability_message=result.capability_message)
+
+        # Pure strategy fallback (existing behavior)
         strategy = self._strategies.get(cmd_type)
         if not strategy:
             return None

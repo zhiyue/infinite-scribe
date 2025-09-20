@@ -143,21 +143,10 @@ class EventSerializationUtils:
 
     @staticmethod
     def deserialize_payload(event_type: GenesisEventType, payload_data: dict[str, Any]) -> GenesisEventPayloadUnion:
-        """Deserialize payload data based on event type"""
+        """Deserialize payload data based on event type using unified mapping."""
+        from src.common.events.mapping import get_event_payload_class
 
-        payload_map = {
-            # Note: GENESIS_SESSION_STARTED removed - replaced by flow events
-            GenesisEventType.STAGE_ENTERED: StageEnteredPayload,
-            GenesisEventType.STAGE_COMPLETED: StageCompletedPayload,
-            GenesisEventType.CONCEPT_SELECTED: ConceptSelectedPayload,
-            GenesisEventType.INSPIRATION_GENERATED: InspirationGeneratedPayload,
-            GenesisEventType.FEEDBACK_PROVIDED: FeedbackProvidedPayload,
-            GenesisEventType.AI_GENERATION_STARTED: AIGenerationStartedPayload,
-            GenesisEventType.AI_GENERATION_COMPLETED: AIGenerationCompletedPayload,
-            GenesisEventType.NOVEL_CREATED_FROM_GENESIS: NovelCreatedFromGenesisPayload,
-        }
-
-        payload_class = payload_map.get(event_type, GenesisEventPayload)
+        payload_class = get_event_payload_class(event_type)
 
         try:
             return payload_class(**payload_data)
