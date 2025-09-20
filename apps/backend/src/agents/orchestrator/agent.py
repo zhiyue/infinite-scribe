@@ -31,9 +31,8 @@ from src.schemas.enums import OutboxStatus, TaskStatus
 
 
 class OrchestratorAgent(BaseAgent):
-    def __init__(self) -> None:
-        consume_topics, produce_topics = get_agent_topics("orchestrator")
-        super().__init__(name="orchestrator", consume_topics=consume_topics, produce_topics=produce_topics)
+    def __init__(self, name: str, consume_topics: list[str], produce_topics: list[str] | None = None) -> None:
+        super().__init__(name=name, consume_topics=consume_topics, produce_topics=produce_topics)
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
