@@ -9,14 +9,19 @@ from __future__ import annotations
 from typing import Any, NamedTuple
 
 from src.agents.orchestrator.message_factory import MessageFactory
+from src.agents.orchestrator.types import (
+    ConsistencyCheckData,
+    GenerationData,
+    QualityReviewData,
+)
 
 
 class EventAction(NamedTuple):
     """Represents an action to be taken after handling an event."""
 
-    domain_event: dict[str, Any] | None = None
-    task_completion: dict[str, Any] | None = None
-    capability_message: dict[str, Any] | None = None
+    domain_event: dict[str, Any] | None = None  # 保持dict用于参数解包
+    task_completion: dict[str, Any] | None = None  # 保持dict用于参数解包
+    capability_message: dict[str, Any] | None = None  # 保持dict用于参数解包
 
 
 class CapabilityEventHandlers:
@@ -26,7 +31,7 @@ class CapabilityEventHandlers:
     def handle_generation_completed(
         msg_type: str,
         session_id: str,
-        data: dict[str, Any],
+        data: GenerationData,
         correlation_id: str | None,
         scope_type: str,
         scope_prefix: str,
@@ -42,7 +47,7 @@ class CapabilityEventHandlers:
                 "scope_type": scope_type,
                 "session_id": session_id,
                 "event_action": "Character.Proposed",
-                "payload": {"session_id": session_id, "content": data},
+                "payload": {"session_id": session_id, "content": data.model_dump()},
                 "correlation_id": correlation_id,
                 "causation_id": causation_id,
             }
@@ -50,11 +55,11 @@ class CapabilityEventHandlers:
             task_completion = {
                 "correlation_id": correlation_id,
                 "expect_task_prefix": "Character.Design.Generation",
-                "result_data": data,
+                "result_data": data.model_dump(),
             }
 
             capability_message = MessageFactory.create_quality_review_message(
-                session_id=session_id, target_type="character", content=data, scope_prefix=scope_prefix
+                session_id=session_id, target_type="character", content=data.model_dump(), scope_prefix=scope_prefix
             )
 
             return EventAction(
@@ -66,7 +71,7 @@ class CapabilityEventHandlers:
                 "scope_type": scope_type,
                 "session_id": session_id,
                 "event_action": "Theme.Proposed",
-                "payload": {"session_id": session_id, "content": data},
+                "payload": {"session_id": session_id, "content": data.model_dump()},
                 "correlation_id": correlation_id,
                 "causation_id": causation_id,
             }
@@ -74,11 +79,11 @@ class CapabilityEventHandlers:
             task_completion = {
                 "correlation_id": correlation_id,
                 "expect_task_prefix": "Outliner.Theme.Generation",
-                "result_data": data,
+                "result_data": data.model_dump(),
             }
 
             capability_message = MessageFactory.create_quality_review_message(
-                session_id=session_id, target_type="theme", content=data, scope_prefix=scope_prefix
+                session_id=session_id, target_type="theme", content=data.model_dump(), scope_prefix=scope_prefix
             )
 
             return EventAction(
@@ -91,7 +96,7 @@ class CapabilityEventHandlers:
     def handle_quality_review_result(
         msg_type: str,
         session_id: str,
-        data: dict[str, Any],
+        data: QualityReviewData,
         correlation_id: str | None,
         scope_type: str,
         scope_prefix: str,
@@ -105,16 +110,16 @@ class CapabilityEventHandlers:
         if not (msg_type in {"Review.Quality.Evaluated", "Review.Quality.Result"} and session_id):
             return None
 
-        score = float(data.get("score") or data.get("quality_score") or 0.0)
-        attempts = int(data.get("attempts") or 0)
-        max_attempts = int(data.get("max_attempts") or 3)
-        threshold = float(data.get("threshold") or 7.5)
-        target_type = str(data.get("target_type") or data.get("entity") or "content").lower()
+        score = float(data.score or data.quality_score or 0.0)
+        attempts = int(data.attempts or 0)
+        max_attempts = int(data.max_attempts or 3)
+        threshold = float(data.threshold or 7.5)
+        target_type = str(data.target_type or data.entity or "content").lower()
 
         task_completion = {
             "correlation_id": correlation_id,
             "expect_task_prefix": "Review.Quality.Evaluation",
-            "result_data": data,
+            "result_data": data.model_dump(),
         }
 
         # Quality passed - confirm the content
@@ -166,7 +171,7 @@ class CapabilityEventHandlers:
     def handle_consistency_check_result(
         msg_type: str,
         session_id: str,
-        data: dict[str, Any],
+        data: ConsistencyCheckData,
         correlation_id: str | None,
         scope_type: str,
         causation_id: str | None = None,
@@ -180,10 +185,10 @@ class CapabilityEventHandlers:
             return None
 
         # Support three types of judgments: boolean ok/passed; or numeric score >= threshold
-        ok = bool(data.get("ok") or data.get("passed"))
+        ok = bool(data.ok or data.passed)
         if not ok:
-            score = data.get("score") or 0.0
-            thr = data.get("threshold") or 1.0
+            score = data.score or 0.0
+            thr = data.threshold or 1.0
             try:
                 ok = float(score) >= float(thr)
             except Exception:
@@ -192,7 +197,7 @@ class CapabilityEventHandlers:
         task_completion = {
             "correlation_id": correlation_id,
             "expect_task_prefix": "Review.Consistency.Check",
-            "result_data": data,
+            "result_data": data.model_dump(),
         }
 
         if ok:
@@ -200,7 +205,7 @@ class CapabilityEventHandlers:
                 "scope_type": scope_type,
                 "session_id": session_id,
                 "event_action": "Stage.Confirmed",
-                "payload": {"session_id": session_id, "result": data},
+                "payload": {"session_id": session_id, "result": data.model_dump()},
                 "correlation_id": correlation_id,
                 "causation_id": causation_id,
             }
@@ -209,7 +214,7 @@ class CapabilityEventHandlers:
                 "scope_type": scope_type,
                 "session_id": session_id,
                 "event_action": "Stage.Failed",
-                "payload": {"session_id": session_id, "result": data},
+                "payload": {"session_id": session_id, "result": data.model_dump()},
                 "correlation_id": correlation_id,
                 "causation_id": causation_id,
             }

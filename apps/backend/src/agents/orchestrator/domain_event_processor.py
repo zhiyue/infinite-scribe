@@ -69,7 +69,7 @@ class EventValidator:
             event_type: 事件类型字符串
 
         Returns:
-            如果是命令接收事件则返回True，否则返回False
+            如果是命令接收事件则返回True， 否则返回False
         """
         return event_type.endswith("Command.Received")
 
@@ -86,7 +86,7 @@ class EventValidator:
         # 首先尝试从根级别获取（向后兼容）
         cmd_type = evt.get("command_type")
         if cmd_type:
-            return cmd_type
+            return str(cmd_type)
 
         # 然后从payload中获取（当前实际结构）
         payload = evt.get("payload") or {}
@@ -169,7 +169,7 @@ class PayloadEnricher:
 class DomainEventProcessor:
     """主要的领域事件处理编排器，负责协调整个领域事件的处理流程。"""
 
-    def __init__(self, logger):
+    def __init__(self, logger: Any) -> None:
         """初始化领域事件处理器。
 
         Args:

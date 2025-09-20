@@ -9,26 +9,40 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.orchestrator.event_handlers import CapabilityEventHandlers, EventAction
-from src.agents.orchestrator.types import ProcessingResult, ScopeInfo
+from src.agents.orchestrator.types import (
+    ConsistencyCheckData,
+    GenerationData,
+    MessageContext,
+    ProcessingResult,
+    QualityReviewData,
+    ScopeInfo,
+    create_capability_event_message_from_dict,
+    create_message_context_from_dict,
+    create_processing_result,
+)
 
 
 class EventDataExtractor:
     """事件数据提取器，用于从能力事件中提取和规范化数据。"""
 
     @staticmethod
-    def extract_event_data(message: dict[str, Any]) -> dict[str, Any]:
+    def extract_event_data(message: dict[str, Any]) -> GenerationData | QualityReviewData | ConsistencyCheckData:
         """从消息中提取数据，优先使用'data'字段，如果没有则回退到消息本身。
 
         Args:
             message: 原始消息字典
 
         Returns:
-            提取出的事件数据字典
+            提取出的事件数据对象
         """
-        return message.get("data") or message
+        # 使用 Pydantic 进行类型安全的数据提取和转换
+        event_msg = create_capability_event_message_from_dict(message)
+        return event_msg.to_typed_data()
 
     @staticmethod
-    def extract_session_and_scope(data: dict[str, Any], context: dict[str, Any]) -> tuple[str, ScopeInfo]:
+    def extract_session_and_scope(
+        data: GenerationData | QualityReviewData | ConsistencyCheckData, context: MessageContext
+    ) -> tuple[str, ScopeInfo]:
         """从数据和上下文中提取会话ID和作用域信息。
 
         Args:
@@ -38,9 +52,9 @@ class EventDataExtractor:
         Returns:
             (会话ID, 作用域信息字典) 元组
         """
-        # 从数据中提取会话ID，可能的字段包括session_id或aggregate_id
-        session_id = str(data.get("session_id") or data.get("aggregate_id") or "")
-        topic = context.get("topic") or ""
+        # 从 Pydantic 模型中提取会话 ID
+        session_id = str(data.session_id or data.aggregate_id or "")
+        topic = context.topic or ""
 
         # 从主题前缀推断作用域 (例如: genesis.outline.events -> GENESIS)
         scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else "GENESIS"
@@ -55,7 +69,7 @@ class EventDataExtractor:
         return session_id, scope_info
 
     @staticmethod
-    def extract_correlation_id(context: dict[str, Any], data: dict[str, Any]) -> str | None:
+    def extract_correlation_id(context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData) -> str | None:
         """提取关联ID，优先从context['meta']获取，否则从data中获取。
 
         Args:
@@ -65,10 +79,13 @@ class EventDataExtractor:
         Returns:
             关联ID字符串或None
         """
-        return context.get("meta", {}).get("correlation_id") or data.get("correlation_id")
+        # 从 Pydantic 模型中安全提取 correlation_id
+        if context.meta and context.meta.correlation_id:
+            return context.meta.correlation_id
+        return data.correlation_id
 
     @staticmethod
-    def extract_causation_id(context: dict[str, Any], data: dict[str, Any]) -> str | None:
+    def extract_causation_id(context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData) -> str | None:
         """提取因果关系ID（能力事件的event_id用作下游领域事件的causation_id）。
 
         Args:
@@ -78,13 +95,16 @@ class EventDataExtractor:
         Returns:
             因果关系ID字符串或None
         """
-        return context.get("meta", {}).get("event_id") or data.get("event_id")
+        # 从 Pydantic 模型中安全提取 event_id
+        if context.meta and context.meta.event_id:
+            return context.meta.event_id
+        return data.event_id
 
 
 class EventHandlerMatcher:
     """事件处理器匹配器，将事件匹配到适当的处理器并执行它们。"""
 
-    def __init__(self, logger):
+    def __init__(self, logger: Any) -> None:
         """初始化事件处理器匹配器。
 
         Args:
@@ -96,7 +116,7 @@ class EventHandlerMatcher:
         self,
         msg_type: str,
         session_id: str,
-        data: dict[str, Any],
+        data: GenerationData | QualityReviewData | ConsistencyCheckData,
         correlation_id: str | None,
         scope_info: ScopeInfo,
         causation_id: str | None,
@@ -114,39 +134,50 @@ class EventHandlerMatcher:
         Returns:
             匹配的事件操作对象或None
         """
-        scope_type = scope_info["scope_type"]
-        scope_prefix = scope_info["scope_prefix"]
+        scope_type = scope_info.scope_type
+        scope_prefix = scope_info.scope_prefix
 
-        # 定义要按顺序尝试的处理器列表 - 按照业务优先级排序
-        handlers = [
-            # 1. 处理生成完成事件 - 最高优先级，直接影响用户体验
-            lambda: CapabilityEventHandlers.handle_generation_completed(
+        # 根据数据类型选择合适的处理器 - 类型安全的方式
+        if isinstance(data, GenerationData):
+            self.log.debug("orchestrator_trying_generation_handler", msg_type=msg_type, session_id=session_id)
+            action = CapabilityEventHandlers.handle_generation_completed(
                 msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
-            ),
-            # 2. 处理质量审查结果事件 - 内容质量保证
-            lambda: CapabilityEventHandlers.handle_quality_review_result(
-                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
-            ),
-            # 3. 处理一致性检查结果事件 - 数据一致性验证
-            lambda: CapabilityEventHandlers.handle_consistency_check_result(
-                msg_type, session_id, data, correlation_id, scope_type, causation_id
-            ),
-        ]
-
-        # 逐个尝试处理器
-        for i, handler in enumerate(handlers):
-            self.log.debug(
-                "orchestrator_trying_handler",
-                handler_index=i,
-                msg_type=msg_type,
-                session_id=session_id,
             )
-
-            action = handler()
             if action:
                 self.log.info(
-                    "orchestrator_handler_matched",
-                    handler_index=i,
+                    "orchestrator_generation_handler_matched",
+                    msg_type=msg_type,
+                    session_id=session_id,
+                    has_domain_event=bool(action.domain_event),
+                    has_task_completion=bool(action.task_completion),
+                    has_capability_message=bool(action.capability_message),
+                )
+                return action
+
+        elif isinstance(data, QualityReviewData):
+            self.log.debug("orchestrator_trying_quality_handler", msg_type=msg_type, session_id=session_id)
+            action = CapabilityEventHandlers.handle_quality_review_result(
+                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
+            )
+            if action:
+                self.log.info(
+                    "orchestrator_quality_handler_matched",
+                    msg_type=msg_type,
+                    session_id=session_id,
+                    has_domain_event=bool(action.domain_event),
+                    has_task_completion=bool(action.task_completion),
+                    has_capability_message=bool(action.capability_message),
+                )
+                return action
+
+        elif isinstance(data, ConsistencyCheckData):
+            self.log.debug("orchestrator_trying_consistency_handler", msg_type=msg_type, session_id=session_id)
+            action = CapabilityEventHandlers.handle_consistency_check_result(
+                msg_type, session_id, data, correlation_id, scope_type, causation_id
+            )
+            if action:
+                self.log.info(
+                    "orchestrator_consistency_handler_matched",
                     msg_type=msg_type,
                     session_id=session_id,
                     has_domain_event=bool(action.domain_event),
@@ -160,7 +191,7 @@ class EventHandlerMatcher:
             "orchestrator_no_handler_matched",
             msg_type=msg_type,
             session_id=session_id,
-            handlers_tried=len(handlers),
+            data_type=type(data).__name__,
         )
         return None
 
@@ -168,7 +199,7 @@ class EventHandlerMatcher:
 class CapabilityEventProcessor:
     """主要的能力事件处理编排器，负责协调整个能力事件的处理流程。"""
 
-    def __init__(self, logger):
+    def __init__(self, logger: Any) -> None:
         """初始化能力事件处理器。
 
         Args:
@@ -191,21 +222,22 @@ class CapabilityEventProcessor:
         Returns:
             包含操作信息的结果字典，如果无法处理则返回None
         """
-        # 提取事件数据和上下文信息
+        # 使用 Pydantic 进行类型安全的数据处理
         data = self.data_extractor.extract_event_data(message)
-        session_id, scope_info = self.data_extractor.extract_session_and_scope(data, context)
-        correlation_id = self.data_extractor.extract_correlation_id(context, data)
-        causation_id = self.data_extractor.extract_causation_id(context, data)
+        context_model = create_message_context_from_dict(context)
+        session_id, scope_info = self.data_extractor.extract_session_and_scope(data, context_model)
+        correlation_id = self.data_extractor.extract_correlation_id(context_model, data)
+        causation_id = self.data_extractor.extract_causation_id(context_model, data)
 
         self.log.info(
             "orchestrator_capability_event_details",
             msg_type=msg_type,
             session_id=session_id,
-            topic=scope_info["topic"],
-            scope_prefix=scope_info["scope_prefix"],
-            scope_type=scope_info["scope_type"],
+            topic=scope_info.topic,
+            scope_prefix=scope_info.scope_prefix,
+            scope_type=scope_info.scope_type,
             correlation_id=correlation_id,
-            data_keys=list(data.keys()) if data else [],
+            data_fields=list(data.model_fields_set) if hasattr(data, "model_fields_set") else [],
         )
 
         # 查找匹配的处理器
@@ -216,8 +248,8 @@ class CapabilityEventProcessor:
         if not action:
             return None
 
-        # 返回操作信息供主编排器执行
-        return ProcessingResult(
+        # 使用 Pydantic 返回类型安全的处理结果
+        return create_processing_result(
             action=action,
             msg_type=msg_type,
             session_id=session_id,

@@ -182,10 +182,10 @@ class OrchestratorAgent(BaseAgent):
             return None
 
         # 执行操作
-        action = processing_result["action"]
+        action = processing_result.action
         return await self._execute_event_action(action)
 
-    async def _execute_event_action(self, action) -> dict[str, Any] | None:
+    async def _execute_event_action(self, action: Any) -> dict[str, Any] | None:
         """使用管理器执行事件处理器指定的操作。
 
         Args:

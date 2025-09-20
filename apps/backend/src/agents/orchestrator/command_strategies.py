@@ -197,11 +197,11 @@ class StageLockStrategy(CommandStrategy):
 class CommandStrategyRegistry:
     """Registry for command strategies with auto-discovery."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._strategies: dict[str, CommandStrategy] = {}
         self._register_default_strategies()
 
-    def _register_default_strategies(self):
+    def _register_default_strategies(self) -> None:
         """Register all default strategies."""
         strategies = [
             CharacterRequestStrategy(),
@@ -217,7 +217,7 @@ class CommandStrategyRegistry:
         for strategy in strategies:
             self.register(strategy)
 
-    def register(self, strategy: CommandStrategy):
+    def register(self, strategy: CommandStrategy) -> None:
         """Register a strategy for its aliases."""
         for alias in strategy.get_aliases():
             self._strategies[alias] = strategy

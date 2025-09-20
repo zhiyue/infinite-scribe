@@ -317,7 +317,7 @@ class TaskCompleter:
 class TaskManager:
     """统一的任务管理接口，提供异步任务创建和完成的统一操作。"""
 
-    def __init__(self, logger):
+    def __init__(self, logger: Any) -> None:
         """初始化任务管理器。
 
         Args:

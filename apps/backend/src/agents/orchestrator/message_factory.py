@@ -27,6 +27,7 @@ class MessageFactory:
         Returns:
             Formatted quality review message
         """
+        # 运行时返回字典，类型提示为 CapabilityTaskMessage
         return {
             "type": "Review.Quality.EvaluationRequested",
             "session_id": session_id,
@@ -52,6 +53,7 @@ class MessageFactory:
             Formatted regeneration message or None if target_type not supported
         """
         if target_type == "character":
+            # 运行时返回字典，类型提示为 CapabilityTaskMessage
             return {
                 "type": "Character.Design.GenerationRequested",
                 "session_id": session_id,
@@ -61,6 +63,7 @@ class MessageFactory:
             }
 
         elif target_type == "theme":
+            # 运行时返回字典，类型提示为 CapabilityTaskMessage
             return {
                 "type": "Outliner.Theme.GenerationRequested",
                 "session_id": session_id,
