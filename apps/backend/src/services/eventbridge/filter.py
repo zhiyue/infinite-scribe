@@ -36,9 +36,12 @@ class EventFilter:
         r"^Genesis\.Session\..*\.Proposed$",
         r"^Genesis\.Session\..*\.Confirmed$",
         r"^Genesis\.Session\..*\.Updated$",
+        r"^Genesis\.Session\..*\.Revised$",
+        r"^Genesis\.Session\..*\.Created$",
         r"^Genesis\.Session\.StageCompleted$",
         r"^Genesis\.Session\.Finished$",
         r"^Genesis\.Session\.Failed$",
+        r"^Genesis\.Session\.BranchCreated$",
     ]
 
     # Required envelope fields
