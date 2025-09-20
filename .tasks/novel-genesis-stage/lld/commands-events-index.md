@@ -13,6 +13,7 @@
 - **[数据示例](data-examples.md)** - 完整的创世阶段数据流示例
 - **[序列化实现](serialization-implementation.md)** - Python 枚举和序列化器实现
 - **[一致性保证](consistency-guidelines.md)** - 命名一致性和数据流保证原则
+- **[异步任务职责](async-tasks-ownership.md)** - 基于实际代码的任务创建和更新责任分工
 
 ## 🎯 快速导航
 
@@ -25,6 +26,7 @@
 - **表结构设计**: [database-schemas.md](database-schemas.md)
 - **代码实现**: [serialization-implementation.md](serialization-implementation.md)
 - **数据格式**: [data-examples.md](data-examples.md)
+- **异步任务**: [async-tasks-ownership.md](async-tasks-ownership.md)
 
 ### 按问题域查找
 - **命名规范**: [command-types.md](command-types.md#命名格式) 和 [event-types.md](event-types.md#命名格式)
