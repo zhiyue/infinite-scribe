@@ -124,10 +124,10 @@ class WorldRequestStrategy(CommandStrategy):
         return CommandMapping(
             requested_action="World.Requested",
             capability_message={
-                "type": "Outliner.World.GenerationRequested",
+                "type": "Worldbuilder.World.GenerationRequested",
                 "session_id": aggregate_id,
                 "input": payload.get("payload", {}),
-                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_topic": self._build_topic("world", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
         )
@@ -148,10 +148,10 @@ class PlotRequestStrategy(CommandStrategy):
         return CommandMapping(
             requested_action="Plot.Requested",
             capability_message={
-                "type": "Outliner.Plot.GenerationRequested",
+                "type": "Plot.Structure.GenerationRequested",
                 "session_id": aggregate_id,
                 "input": payload.get("payload", {}),
-                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_topic": self._build_topic("plot", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
         )
@@ -172,10 +172,10 @@ class DetailsRequestStrategy(CommandStrategy):
         return CommandMapping(
             requested_action="Details.Requested",
             capability_message={
-                "type": "Outliner.Details.GenerationRequested",
+                "type": "Writer.Content.GenerationRequested",
                 "session_id": aggregate_id,
                 "input": payload.get("payload", {}),
-                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_topic": self._build_topic("writer", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
         )
