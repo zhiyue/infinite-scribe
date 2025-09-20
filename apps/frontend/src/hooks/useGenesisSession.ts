@@ -55,7 +55,12 @@ export function useGenesisSession({
     currentStage: flowCurrentStage,
   } = useGenesisFlow(novelId, {
     onFlowReady: (flow) => {
-      console.log('[useGenesisSession] Flow ready:', flow.id, 'current_stage_id:', flow.current_stage_id)
+      console.log(
+        '[useGenesisSession] Flow ready:',
+        flow.id,
+        'current_stage_id:',
+        flow.current_stage_id,
+      )
       onFlowReady?.(flow)
 
       // 使用真实的 stage_id（从API响应中获取）

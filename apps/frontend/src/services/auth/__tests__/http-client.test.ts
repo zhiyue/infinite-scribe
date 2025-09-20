@@ -37,14 +37,14 @@ describe('HTTP Clients', () => {
         delete: vi.fn(),
         defaults: {
           headers: {
-          common: {},
-          delete: vi.fn(),
-          get: vi.fn(),
-          head: vi.fn(),
-          post: vi.fn(),
-          put: vi.fn(),
-          patch: vi.fn()
-        },
+            common: {},
+            delete: vi.fn(),
+            get: vi.fn(),
+            head: vi.fn(),
+            post: vi.fn(),
+            put: vi.fn(),
+            patch: vi.fn(),
+          },
           baseURL: '',
           timeout: 10000,
         },

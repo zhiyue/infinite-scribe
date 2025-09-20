@@ -28,13 +28,12 @@ import {
   FileText,
   Hash,
   List,
-  Tag
+  Tag,
 } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 import { useGenesisFlow } from '@/hooks/useGenesisFlow'
 import { useStageConfig } from '@/hooks/useStageConfig'
 import { useState } from 'react'
-
 
 interface GenesisSettingsModalProps {
   open: boolean
@@ -43,69 +42,68 @@ interface GenesisSettingsModalProps {
   novelId: string
 }
 
-
 /**
  * 动态翻译英文术语到中文
  */
 function translateToChineseTerm(englishTerm: string): string {
   const translations: Record<string, string> = {
     // 阶段相关
-    'initial': '初始',
-    'prompt': '提示',
-    'world': '世界',
-    'worldview': '世界观',
-    'setting': '设定',
-    'character': '角色',
-    'characters': '角色',
-    'people': '人物',
-    'plot': '剧情',
-    'story': '故事',
-    'outline': '大纲',
-    'finished': '完成',
+    initial: '初始',
+    prompt: '提示',
+    world: '世界',
+    worldview: '世界观',
+    setting: '设定',
+    character: '角色',
+    characters: '角色',
+    people: '人物',
+    plot: '剧情',
+    story: '故事',
+    outline: '大纲',
+    finished: '完成',
 
     // 字段相关
-    'count': '数量',
-    'number': '数字',
-    'amount': '数量',
-    'level': '等级',
-    'type': '类型',
-    'style': '风格',
-    'theme': '主题',
-    'genre': '类型',
-    'preference': '偏好',
-    'preferences': '偏好',
-    'requirement': '要求',
-    'requirements': '要求',
-    'element': '元素',
-    'elements': '元素',
-    'system': '系统',
-    'structure': '结构',
-    'complexity': '复杂度',
-    'development': '发展',
-    'focus': '重点',
-    'relationship': '关系',
-    'personality': '个性',
-    'protagonist': '主角',
-    'depth': '深度',
-    'pacing': '节奏',
-    'conflict': '冲突',
-    'chapter': '章节',
-    'subplot': '副线',
-    'geography': '地理',
-    'time': '时间',
-    'period': '时期',
-    'technology': '科技',
-    'magic': '魔法',
-    'cultural': '文化',
-    'culture': '文化',
-    'target': '目标',
-    'word': '词',
-    'special': '特殊',
+    count: '数量',
+    number: '数字',
+    amount: '数量',
+    level: '等级',
+    type: '类型',
+    style: '风格',
+    theme: '主题',
+    genre: '类型',
+    preference: '偏好',
+    preferences: '偏好',
+    requirement: '要求',
+    requirements: '要求',
+    element: '元素',
+    elements: '元素',
+    system: '系统',
+    structure: '结构',
+    complexity: '复杂度',
+    development: '发展',
+    focus: '重点',
+    relationship: '关系',
+    personality: '个性',
+    protagonist: '主角',
+    depth: '深度',
+    pacing: '节奏',
+    conflict: '冲突',
+    chapter: '章节',
+    subplot: '副线',
+    geography: '地理',
+    time: '时间',
+    period: '时期',
+    technology: '科技',
+    magic: '魔法',
+    cultural: '文化',
+    culture: '文化',
+    target: '目标',
+    word: '词',
+    special: '特殊',
 
     // 组合词处理
-    'initial_prompt': '初始灵感',
-    'world_view': '世界观',
-    'plot_outline': '剧情大纲',
+    initial_prompt: '初始灵感',
+    world_view: '世界观',
+    plot_outline: '剧情大纲',
   }
 
   const term = englishTerm.toLowerCase()
@@ -117,7 +115,7 @@ function translateToChineseTerm(englishTerm: string): string {
 
   // 分词翻译
   const words = term.split('_')
-  const translatedWords = words.map(word => translations[word] || word)
+  const translatedWords = words.map((word) => translations[word] || word)
 
   return translatedWords.join('')
 }
@@ -133,7 +131,8 @@ function getStageInfo(stage: GenesisStage) {
   if (stageStr.includes('prompt') || stageStr.includes('initial')) icon = Sparkles
   else if (stageStr.includes('world') || stageStr.includes('setting')) icon = Globe
   else if (stageStr.includes('character') || stageStr.includes('people')) icon = Users
-  else if (stageStr.includes('plot') || stageStr.includes('story') || stageStr.includes('outline')) icon = BookOpen
+  else if (stageStr.includes('plot') || stageStr.includes('story') || stageStr.includes('outline'))
+    icon = BookOpen
 
   // 智能翻译标题
   const title = translateToChineseTerm(stageStr)
@@ -141,12 +140,9 @@ function getStageInfo(stage: GenesisStage) {
   return {
     title,
     icon,
-    description: `${title}配置详情`
+    description: `${title}配置详情`,
   }
 }
-
-
-
 
 /**
  * 创世设定详情模态窗口主组件
@@ -208,7 +204,7 @@ function formatFieldName(fieldName: string): string {
   // 否则使用标准格式化（首字母大写，去下划线）
   return fieldName
     .split('_')
-    .map(word => translateToChineseTerm(word) || word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => translateToChineseTerm(word) || word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 }
 
@@ -220,7 +216,7 @@ function DataFieldRenderer({
   value,
   type = 'text',
   icon: Icon,
-  copyable = false
+  copyable = false,
 }: {
   label: string
   value: any
@@ -245,11 +241,7 @@ function DataFieldRenderer({
 
     switch (type) {
       case 'boolean':
-        return (
-          <Badge variant={value ? 'default' : 'secondary'}>
-            {value ? '✓' : '✗'}
-          </Badge>
-        )
+        return <Badge variant={value ? 'default' : 'secondary'}>{value ? '✓' : '✗'}</Badge>
       case 'array':
         if (!Array.isArray(value) || value.length === 0) {
           return <span className="text-muted-foreground italic">-</span>
@@ -293,9 +285,7 @@ function DataFieldRenderer({
         {Icon && <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground mb-1 sm:mb-2">{label}</p>
-          <div className="text-sm text-muted-foreground">
-            {renderValue()}
-          </div>
+          <div className="text-sm text-muted-foreground">{renderValue()}</div>
         </div>
       </div>
       {copyable && typeof value === 'string' && value && (
@@ -327,14 +317,10 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
   const currentStageId = flow?.current_stage_id || ''
 
   // 获取阶段配置数据
-  const {
-    schema,
-    currentConfig,
-    session,
-    isLoading,
-    loadError,
-    isReady
-  } = useStageConfig(stage, currentStageId)
+  const { schema, currentConfig, session, isLoading, loadError, isReady } = useStageConfig(
+    stage,
+    currentStageId,
+  )
 
   // 从schema中获取字段信息
   const getFieldInfo = (fieldName: string) => {
@@ -343,7 +329,7 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
     return {
       title: field?.title || fieldName,
       description: field?.description || '',
-      type: field?.type || 'string'
+      type: field?.type || 'string',
     }
   }
 
@@ -352,48 +338,102 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
     const name = fieldName.toLowerCase()
 
     // 基于语义关键词动态推断
-    if (name.includes('count') || name.includes('number') || name.includes('amount') ||
-        name.includes('quantity') || name.includes('size') || name.includes('length')) {
+    if (
+      name.includes('count') ||
+      name.includes('number') ||
+      name.includes('amount') ||
+      name.includes('quantity') ||
+      name.includes('size') ||
+      name.includes('length')
+    ) {
       return Hash
     }
 
-    if (name.includes('time') || name.includes('date') || name.includes('created') ||
-        name.includes('updated') || name.includes('period') || name.includes('duration')) {
+    if (
+      name.includes('time') ||
+      name.includes('date') ||
+      name.includes('created') ||
+      name.includes('updated') ||
+      name.includes('period') ||
+      name.includes('duration')
+    ) {
       return Clock
     }
 
-    if (name.includes('setting') || name.includes('world') || name.includes('geography') ||
-        name.includes('location') || name.includes('place') || name.includes('environment')) {
+    if (
+      name.includes('setting') ||
+      name.includes('world') ||
+      name.includes('geography') ||
+      name.includes('location') ||
+      name.includes('place') ||
+      name.includes('environment')
+    ) {
       return Globe
     }
 
-    if (name.includes('character') || name.includes('people') || name.includes('person') ||
-        name.includes('protagonist') || name.includes('relationship') || name.includes('personality')) {
+    if (
+      name.includes('character') ||
+      name.includes('people') ||
+      name.includes('person') ||
+      name.includes('protagonist') ||
+      name.includes('relationship') ||
+      name.includes('personality')
+    ) {
       return Users
     }
 
-    if (name.includes('magic') || name.includes('spell') || name.includes('power') ||
-        name.includes('ability') || name.includes('supernatural') || name.includes('fantasy')) {
+    if (
+      name.includes('magic') ||
+      name.includes('spell') ||
+      name.includes('power') ||
+      name.includes('ability') ||
+      name.includes('supernatural') ||
+      name.includes('fantasy')
+    ) {
       return Sparkles
     }
 
-    if (name.includes('story') || name.includes('plot') || name.includes('narrative') ||
-        name.includes('structure') || name.includes('outline') || name.includes('chapter')) {
+    if (
+      name.includes('story') ||
+      name.includes('plot') ||
+      name.includes('narrative') ||
+      name.includes('structure') ||
+      name.includes('outline') ||
+      name.includes('chapter')
+    ) {
       return BookOpen
     }
 
-    if (name.includes('list') || name.includes('items') || name.includes('elements') ||
-        name.includes('preferences') || name.includes('requirements') || name.includes('types')) {
+    if (
+      name.includes('list') ||
+      name.includes('items') ||
+      name.includes('elements') ||
+      name.includes('preferences') ||
+      name.includes('requirements') ||
+      name.includes('types')
+    ) {
       return List
     }
 
-    if (name.includes('style') || name.includes('config') || name.includes('setting') ||
-        name.includes('option') || name.includes('preference') || name.includes('level')) {
+    if (
+      name.includes('style') ||
+      name.includes('config') ||
+      name.includes('setting') ||
+      name.includes('option') ||
+      name.includes('preference') ||
+      name.includes('level')
+    ) {
       return Settings
     }
 
-    if (name.includes('genre') || name.includes('category') || name.includes('type') ||
-        name.includes('kind') || name.includes('class') || name.includes('tag')) {
+    if (
+      name.includes('genre') ||
+      name.includes('category') ||
+      name.includes('type') ||
+      name.includes('kind') ||
+      name.includes('class') ||
+      name.includes('tag')
+    ) {
       return Tag
     }
 
@@ -412,28 +452,31 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
     if (!schema?.properties || !currentConfig) return []
 
     const configs = Object.keys(currentConfig)
-      .filter(key => currentConfig[key] !== undefined)
-      .map(key => {
+      .filter((key) => currentConfig[key] !== undefined)
+      .map((key) => {
         const fieldInfo = getFieldInfo(key)
         const value = currentConfig[key]
-        const fieldType = Array.isArray(value) ? 'array'
-          : typeof value === 'object' && value !== null ? 'object'
-          : typeof value === 'boolean' ? 'boolean'
-          : typeof value === 'number' ? 'number'
-          : 'string'
+        const fieldType = Array.isArray(value)
+          ? 'array'
+          : typeof value === 'object' && value !== null
+            ? 'object'
+            : typeof value === 'boolean'
+              ? 'boolean'
+              : typeof value === 'number'
+                ? 'number'
+                : 'string'
 
         return {
           key,
           icon: getFieldIcon(key, fieldType, value),
           label: fieldInfo.title || formatFieldName(key),
-          priority: calculateFieldPriority(key, fieldInfo, value)
+          priority: calculateFieldPriority(key, fieldInfo, value),
         }
       })
       .sort((a, b) => a.priority - b.priority)
 
     return configs
   }
-
 
   // 动态计算字段优先级（基于语义和 schema 信息）
   const calculateFieldPriority = (fieldName: string, fieldInfo: any, value: any): number => {
@@ -448,19 +491,29 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
 
     // 重要配置字段
     if (name.includes('count') || name.includes('level') || name.includes('preference')) return 30
-    if (name.includes('structure') || name.includes('system') || name.includes('complexity')) return 40
+    if (name.includes('structure') || name.includes('system') || name.includes('complexity'))
+      return 40
 
     // 一般配置字段
-    if (name.includes('setting') || name.includes('geography') || name.includes('culture')) return 50
-    if (name.includes('character') || name.includes('relationship') || name.includes('personality')) return 60
+    if (name.includes('setting') || name.includes('geography') || name.includes('culture'))
+      return 50
+    if (name.includes('character') || name.includes('relationship') || name.includes('personality'))
+      return 60
     if (name.includes('story') || name.includes('plot') || name.includes('narrative')) return 70
 
     // 详细配置字段
-    if (name.includes('requirements') || name.includes('elements') || name.includes('preferences')) return 80
+    if (name.includes('requirements') || name.includes('elements') || name.includes('preferences'))
+      return 80
 
     // 系统字段 - 最低优先级
     if (name.includes('id') || name.includes('uuid')) return 900
-    if (name.includes('created') || name.includes('updated') || name.includes('time') || name.includes('date')) return 950
+    if (
+      name.includes('created') ||
+      name.includes('updated') ||
+      name.includes('time') ||
+      name.includes('date')
+    )
+      return 950
 
     // 基于数据类型推断优先级
     if (typeof value === 'string' && value.length > 0) return 100
@@ -499,9 +552,7 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
     return (
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          当前阶段暂无配置数据，请先进行阶段配置设置。
-        </AlertDescription>
+        <AlertDescription>当前阶段暂无配置数据，请先进行阶段配置设置。</AlertDescription>
       </Alert>
     )
   }
@@ -511,7 +562,6 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
 
   return (
     <div className="space-y-6">
-
       <Card>
         <CardContent className="space-y-4 pt-6">
           {!hasData ? (
@@ -525,11 +575,15 @@ function StageConfigDisplay({ stage, novelId }: { stage: GenesisStage; novelId: 
                 const value = currentConfig[key]
                 if (value === undefined) return null
 
-                const type = Array.isArray(value) ? 'array'
-                  : typeof value === 'object' && value !== null ? 'object'
-                  : typeof value === 'boolean' ? 'boolean'
-                  : typeof value === 'number' ? 'number'
-                  : 'text'
+                const type = Array.isArray(value)
+                  ? 'array'
+                  : typeof value === 'object' && value !== null
+                    ? 'object'
+                    : typeof value === 'boolean'
+                      ? 'boolean'
+                      : typeof value === 'number'
+                        ? 'number'
+                        : 'text'
 
                 return (
                   <DataFieldRenderer

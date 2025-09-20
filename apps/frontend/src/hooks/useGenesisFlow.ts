@@ -29,12 +29,13 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
     onFlowCompleted,
     onError,
     onStageConfigIncomplete,
-    onStageValidationError
+    onStageValidationError,
   } = options
 
   // 统一的错误处理函数
   const handleError = (error: unknown, context: string) => {
-    const appError = error instanceof AppError ? error : new AppError('UNKNOWN_ERROR', String(error))
+    const appError =
+      error instanceof AppError ? error : new AppError('UNKNOWN_ERROR', String(error))
 
     console.error(`[useGenesisFlow] ${context} error:`, appError)
 
@@ -162,8 +163,10 @@ export function useGenesisFlow(novelId: string, options: UseGenesisFlowOptions =
     completeFlowError: completeFlow.error as AppError | null,
 
     // 错误检查辅助函数
-    hasStageConfigError: switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_CONFIG_INCOMPLETE',
-    hasValidationError: switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_VALIDATION_ERROR',
+    hasStageConfigError:
+      switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_CONFIG_INCOMPLETE',
+    hasValidationError:
+      switchStage.error instanceof AppError && switchStage.error.code === 'STAGE_VALIDATION_ERROR',
 
     // Mutation 对象（用于高级用法）
     createOrGetFlowMutation: createOrGetFlow,

@@ -36,28 +36,12 @@ interface EventLog {
  * SSE调试面板组件
  */
 export function SSEDebugPanel() {
-  const {
-    connect,
-    disconnect,
-    reconnect,
-    error,
-    connectionState,
-  } = useSSE()
+  const { connect, disconnect, reconnect, error, connectionState } = useSSE()
 
-  const {
-    isConnected,
-    isConnecting,
-    isReconnecting,
-    hasError,
-    status
-  } = useSSEStatus()
+  const { isConnected, isConnecting, isReconnecting, hasError, status } = useSSEStatus()
 
-  const {
-    connectionDuration,
-    totalEventsReceived,
-    averageLatency,
-    reconnectAttempts,
-  } = useSSEInfo()
+  const { connectionDuration, totalEventsReceived, averageLatency, reconnectAttempts } =
+    useSSEInfo()
 
   const [eventLogs, setEventLogs] = useState<EventLog[]>([])
   const [maxLogs, setMaxLogs] = useState(50)
@@ -75,33 +59,43 @@ export function SSEDebugPanel() {
         latency: message.data?.timestamp ? timestamp - message.data.timestamp : undefined,
       }
 
-      setEventLogs(prev => {
+      setEventLogs((prev) => {
         const updated = [newLog, ...prev].slice(0, maxLogs)
         return updated
       })
     },
-    []
+    [],
   )
 
   // 获取状态颜色
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'connected': return 'bg-green-500'
-      case 'connecting': return 'bg-yellow-500'
-      case 'reconnecting': return 'bg-orange-500'
-      case 'disconnected': return 'bg-gray-500'
-      default: return 'bg-red-500'
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+        return 'bg-yellow-500'
+      case 'reconnecting':
+        return 'bg-orange-500'
+      case 'disconnected':
+        return 'bg-gray-500'
+      default:
+        return 'bg-red-500'
     }
   }
 
   // 获取状态图标
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'connected': return <CheckCircle className="h-4 w-4" />
-      case 'connecting': return <RefreshCw className="h-4 w-4 animate-spin" />
-      case 'reconnecting': return <RotateCcw className="h-4 w-4 animate-spin" />
-      case 'disconnected': return <WifiOff className="h-4 w-4" />
-      default: return <AlertCircle className="h-4 w-4" />
+      case 'connected':
+        return <CheckCircle className="h-4 w-4" />
+      case 'connecting':
+        return <RefreshCw className="h-4 w-4 animate-spin" />
+      case 'reconnecting':
+        return <RotateCcw className="h-4 w-4 animate-spin" />
+      case 'disconnected':
+        return <WifiOff className="h-4 w-4" />
+      default:
+        return <AlertCircle className="h-4 w-4" />
     }
   }
 
@@ -112,7 +106,7 @@ export function SSEDebugPanel() {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      fractionalSecondDigits: 3
+      fractionalSecondDigits: 3,
     })
   }
 
@@ -146,9 +140,7 @@ export function SSEDebugPanel() {
             <Activity className="h-5 w-5" />
             SSE连接状态
           </CardTitle>
-          <CardDescription>
-            实时监控Server-Sent Events连接状态
-          </CardDescription>
+          <CardDescription>实时监控Server-Sent Events连接状态</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 状态指示器 */}
@@ -229,9 +221,7 @@ export function SSEDebugPanel() {
                 <Zap className="h-5 w-5" />
                 事件日志
               </CardTitle>
-              <CardDescription>
-                实时接收的SSE事件（最新{maxLogs}条）
-              </CardDescription>
+              <CardDescription>实时接收的SSE事件（最新{maxLogs}条）</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={clearLogs}>
@@ -244,16 +234,11 @@ export function SSEDebugPanel() {
         <CardContent>
           <ScrollArea className="h-[400px] w-full">
             {eventLogs.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                暂无事件接收
-              </div>
+              <div className="text-center text-muted-foreground py-8">暂无事件接收</div>
             ) : (
               <div className="space-y-2">
                 {eventLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-md"
-                  >
+                  <div key={log.id} className="p-3 bg-slate-50 border border-slate-200 rounded-md">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{log.type}</Badge>

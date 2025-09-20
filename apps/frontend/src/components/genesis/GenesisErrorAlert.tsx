@@ -6,7 +6,12 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Settings, CheckCircle } from 'lucide-react'
-import { AppError, getUserFriendlyMessage, getErrorActionSuggestion, isUserActionRequired } from '@/utils/errorHandler'
+import {
+  AppError,
+  getUserFriendlyMessage,
+  getErrorActionSuggestion,
+  isUserActionRequired,
+} from '@/utils/errorHandler'
 
 interface GenesisErrorAlertProps {
   error: AppError
@@ -70,9 +75,7 @@ export function GenesisErrorAlert({
           <p>{userMessage}</p>
 
           {/* 操作建议 */}
-          {actionSuggestion && (
-            <p className="text-sm text-muted-foreground">{actionSuggestion}</p>
-          )}
+          {actionSuggestion && <p className="text-sm text-muted-foreground">{actionSuggestion}</p>}
 
           {/* 缺失字段信息 */}
           {error.genesisError?.missing_fields && error.genesisError.missing_fields.length > 0 && (
@@ -88,12 +91,14 @@ export function GenesisErrorAlert({
 
           {/* 操作按钮 */}
           <div className="flex gap-2 pt-2">
-            {needsUserAction && error.genesisError?.action_required === 'complete_current_stage_config' && onConfigureStage && (
-              <Button size="sm" variant="default" onClick={onConfigureStage}>
-                <Settings className="h-3 w-3 mr-1" />
-                完成配置
-              </Button>
-            )}
+            {needsUserAction &&
+              error.genesisError?.action_required === 'complete_current_stage_config' &&
+              onConfigureStage && (
+                <Button size="sm" variant="default" onClick={onConfigureStage}>
+                  <Settings className="h-3 w-3 mr-1" />
+                  完成配置
+                </Button>
+              )}
 
             {onRetry && (
               <Button size="sm" variant="outline" onClick={onRetry}>
@@ -151,7 +156,12 @@ export function GenesisSuccessAlert({
         <div className="flex justify-between items-start">
           <p>{message}</p>
           {onDismiss && (
-            <Button size="sm" variant="ghost" onClick={onDismiss} className="text-green-600 hover:text-green-700">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onDismiss}
+              className="text-green-600 hover:text-green-700"
+            >
               关闭
             </Button>
           )}

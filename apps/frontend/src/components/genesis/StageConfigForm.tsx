@@ -342,7 +342,8 @@ const StageConfigFormComponent = (
       // 同时将错误保存到组件状态中，用于字段级显示
       const errorMap: Record<string, string> = {}
       transformed.forEach((error) => {
-        const fieldPath = error.property?.replace(/^\./, '') || error.instancePath?.replace(/^\//, '')
+        const fieldPath =
+          error.property?.replace(/^\./, '') || error.instancePath?.replace(/^\//, '')
         if (fieldPath) {
           errorMap[fieldPath] = error.message
         }

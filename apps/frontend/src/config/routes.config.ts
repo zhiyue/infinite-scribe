@@ -20,7 +20,7 @@ export const ROUTES = {
   // 主要功能路由
   dashboard: '/dashboard',
   profile: '/profile',
-  
+
   // 小说相关路由
   novels: {
     list: '/novels',
@@ -37,7 +37,7 @@ export const ROUTES = {
   // 其他路由
   help: '/help',
   root: '/',
-  
+
   // 测试路由（仅开发环境）
   test: {
     msw: '/test-msw',
@@ -170,25 +170,23 @@ export function isProtectedRoute(path: string): boolean {
 /**
  * 获取面包屑导航数据
  */
-export function getBreadcrumbs(pathname: string): Array<{ label: string; path: string }> {
+export function getBreadcrumbs(pathname: string): { label: string; path: string }[] {
   const segments = pathname.split('/').filter(Boolean)
-  const breadcrumbs: Array<{ label: string; path: string }> = [
-    { label: '首页', path: '/' },
-  ]
+  const breadcrumbs: { label: string; path: string }[] = [{ label: '首页', path: '/' }]
 
   if (segments[0] === 'novels') {
     breadcrumbs.push({ label: '我的小说', path: '/novels' })
-    
+
     if (segments[1]) {
       // 这里应该从API获取小说标题
       breadcrumbs.push({ label: '小说详情', path: `/novels/${segments[1]}` })
-      
+
       if (segments[2]) {
-        const subRoute = NAV_ITEMS.novel.find(item => item.path === segments[2])
+        const subRoute = NAV_ITEMS.novel.find((item) => item.path === segments[2])
         if (subRoute) {
-          breadcrumbs.push({ 
-            label: subRoute.name, 
-            path: `/novels/${segments[1]}/${segments[2]}` 
+          breadcrumbs.push({
+            label: subRoute.name,
+            path: `/novels/${segments[1]}/${segments[2]}`,
           })
         }
       }

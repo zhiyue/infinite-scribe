@@ -39,7 +39,7 @@ export function useSSEStatus() {
     isRetrying: context.isReconnecting,
     isError: !!context.error,
     error: context.error,
-    isHealthy: context.isHealthy
+    isHealthy: context.isHealthy,
   }
 }
 
@@ -54,7 +54,7 @@ export function useSSEControl() {
     disconnect,
     reconnect,
     pause,
-    resume
+    resume,
   }
 }
 
@@ -65,14 +65,14 @@ export function useSSEControl() {
 export function useSSEEvents<T = any>(
   events: string[],
   handler: (event: string, data: T) => void,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const { subscribe } = useSSEContext()
   const stableHandler = useStableHandler(handler)
 
   useEffect(() => {
     // 为每个事件类型单独订阅，确保动态注册
-    const unsubscribeFunctions = events.map(eventType => {
+    const unsubscribeFunctions = events.map((eventType) => {
       return subscribe(eventType, (message, rawEvent) => {
         stableHandler(eventType, message.data as T)
       })
@@ -80,7 +80,7 @@ export function useSSEEvents<T = any>(
 
     // 返回清理函数
     return () => {
-      unsubscribeFunctions.forEach(unsub => unsub())
+      unsubscribeFunctions.forEach((unsub) => unsub())
     }
   }, [subscribe, JSON.stringify(events), stableHandler, ...deps])
 }
@@ -93,7 +93,7 @@ export function useSSEConditionalEvent<T = any>(
   event: string,
   handler: (data: T) => void,
   condition: (data: T) => boolean,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const { subscribe } = useSSEContext()
   const stableHandler = useStableHandler(handler)
@@ -114,10 +114,7 @@ export function useSSEConditionalEvent<T = any>(
 /**
  * 订阅Genesis相关事件
  */
-export function useGenesisEvents(
-  sessionId: string,
-  handler: (event: string, data: any) => void
-) {
+export function useGenesisEvents(sessionId: string, handler: (event: string, data: any) => void) {
   const { subscribe } = useSSEContext()
   const stableHandler = useStableHandler(handler)
   const processedEventsRef = useRef(new Set<string>())
@@ -131,14 +128,14 @@ export function useGenesisEvents(
       SSE_EVENT_NAMES.GENESIS_STEP_COMPLETED,
       SSE_EVENT_NAMES.GENESIS_STEP_FAILED,
       SSE_EVENT_NAMES.GENESIS_SESSION_COMPLETED,
-      SSE_EVENT_NAMES.GENESIS_SESSION_FAILED
+      SSE_EVENT_NAMES.GENESIS_SESSION_FAILED,
     ]
 
     // 合并所有Genesis相关事件
     const allGenesisEvents = [...new Set([...genesisEvents, ...legacyEvents])]
 
     // 为每个事件类型单独订阅，确保动态注册
-    const unsubscribeFunctions = allGenesisEvents.map(eventType => {
+    const unsubscribeFunctions = allGenesisEvents.map((eventType) => {
       return subscribe(eventType, (message, rawEvent) => {
         const data = message.data as any
 
@@ -164,7 +161,7 @@ export function useGenesisEvents(
 
     // 返回清理函数
     return () => {
-      unsubscribeFunctions.forEach(unsub => unsub())
+      unsubscribeFunctions.forEach((unsub) => unsub())
       // 清理事件缓存
       processedEventsRef.current.clear()
     }
@@ -176,28 +173,25 @@ export function useGenesisEvents(
  */
 export function useCommandEvents(
   commandId: string | null,
-  handler: (status: string, data: any) => void
+  handler: (status: string, data: any) => void,
 ) {
   useSSEConditionalEvent(
     SSE_EVENT_NAMES.COMMAND,
     (data: any) => handler(data.status, data),
     (data: any) => data.command_id === commandId,
-    [commandId]
+    [commandId],
   )
 }
 
 /**
  * 订阅小说相关事件
  */
-export function useNovelEvents(
-  novelId: string,
-  handler: (event: string, data: any) => void
-) {
+export function useNovelEvents(novelId: string, handler: (event: string, data: any) => void) {
   const events = [
     SSE_EVENT_NAMES.NOVEL_CREATED,
     SSE_EVENT_NAMES.NOVEL_STATUS_CHANGED,
     SSE_EVENT_NAMES.CHAPTER_DRAFT_CREATED,
-    SSE_EVENT_NAMES.CHAPTER_STATUS_CHANGED
+    SSE_EVENT_NAMES.CHAPTER_STATUS_CHANGED,
   ]
 
   useSSEEvents(
@@ -207,7 +201,7 @@ export function useNovelEvents(
         handler(eventType, data)
       }
     },
-    [novelId]
+    [novelId],
   )
 }
 
@@ -221,7 +215,7 @@ export function useSSEInfo() {
     ...context.getConnectionInfo(),
     averageLatency: context.averageLatency,
     isHealthy: context.isHealthy,
-    lastError: context.error
+    lastError: context.error,
   }
 }
 
@@ -237,9 +231,9 @@ export function useSSEDebug() {
       const listener = (message: SSEMessage) => {
         console.log('[SSE Debug]', {
           status,
-          message
+          message,
         })
-        setEvents(prev => [...prev.slice(-99), message])
+        setEvents((prev) => [...prev.slice(-99), message])
       }
 
       addMessageListener(listener)
@@ -250,6 +244,6 @@ export function useSSEDebug() {
   return {
     status,
     events,
-    eventCount: events.length
+    eventCount: events.length,
   }
 }

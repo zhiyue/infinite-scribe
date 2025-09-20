@@ -53,7 +53,7 @@ export function buildGenesisCommandPayload(
   userInput: string,
   sessionId: string,
   stage: GenesisStage,
-  context?: Record<string, any>
+  context?: Record<string, any>,
 ): Record<string, any> {
   const basePayload = {
     session_id: sessionId,
@@ -75,8 +75,8 @@ export function buildGenesisCommandPayload(
         context: {
           previous_attempts: context?.previous_attempts || 0,
           iteration_number: context?.iteration_number || 1,
-          ...context
-        }
+          ...context,
+        },
       }
 
     case GenesisCommandType.WORLD_REQUEST:
@@ -88,8 +88,8 @@ export function buildGenesisCommandPayload(
         requirements: context?.requirements || {},
         context: {
           iteration_number: context?.iteration_number || 1,
-          ...context
-        }
+          ...context,
+        },
       }
 
     case GenesisCommandType.THEME_REQUEST:
@@ -98,8 +98,8 @@ export function buildGenesisCommandPayload(
         theme_preferences: context?.theme_preferences || {},
         context: {
           iteration_number: context?.iteration_number || 1,
-          ...context
-        }
+          ...context,
+        },
       }
 
     case GenesisCommandType.CONCEPT_CONFIRM:
@@ -111,21 +111,21 @@ export function buildGenesisCommandPayload(
       return {
         ...basePayload,
         user_feedback: userInput,
-        modifications: context?.modifications || {}
+        modifications: context?.modifications || {},
       }
 
     case GenesisCommandType.SESSION_START:
       return {
         user_id: context?.user_id,
         initial_input: userInput,
-        preferences: context?.preferences || {}
+        preferences: context?.preferences || {},
       }
 
     case GenesisCommandType.STAGE_COMPLETE:
       return {
         session_id: sessionId,
         current_stage: stage,
-        completion_notes: userInput || ''
+        completion_notes: userInput || '',
       }
 
     default:
@@ -187,7 +187,7 @@ export function isConfirmCommand(commandType: GenesisCommandType): boolean {
     GenesisCommandType.WORLD_CONFIRM,
     GenesisCommandType.CHARACTER_CONFIRM,
     GenesisCommandType.PLOT_CONFIRM,
-    GenesisCommandType.DETAILS_CONFIRM
+    GenesisCommandType.DETAILS_CONFIRM,
   ].includes(commandType)
 }
 
@@ -201,7 +201,7 @@ export function isRequestCommand(commandType: GenesisCommandType): boolean {
     GenesisCommandType.WORLD_REQUEST,
     GenesisCommandType.CHARACTER_REQUEST,
     GenesisCommandType.PLOT_REQUEST,
-    GenesisCommandType.DETAILS_REQUEST
+    GenesisCommandType.DETAILS_REQUEST,
   ].includes(commandType)
 }
 
@@ -231,7 +231,7 @@ export function getCommandTypeDisplayName(commandType: GenesisCommandType): stri
     [GenesisCommandType.DETAILS_CONFIRM]: '确认细节',
     [GenesisCommandType.SESSION_FINISH]: '完成会话',
     [GenesisCommandType.SESSION_FAIL]: '会话失败',
-    [GenesisCommandType.BRANCH_CREATE]: '创建分支'
+    [GenesisCommandType.BRANCH_CREATE]: '创建分支',
   }
 
   return displayNames[commandType] || commandType

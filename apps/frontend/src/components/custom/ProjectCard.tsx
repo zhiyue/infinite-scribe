@@ -8,7 +8,6 @@ interface ProjectCardProps {
   project: Project
 }
 
-
 export function ProjectCard({ project }: ProjectCardProps) {
   const getStatusVariant = (status: string) => {
     switch (status) {

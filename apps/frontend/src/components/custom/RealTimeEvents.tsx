@@ -85,7 +85,7 @@ function ConnectionStatus() {
  * 事件历史显示组件
  */
 function EventHistory() {
-  const [events, setEvents] = useState<Array<{ event: string; data: any; id: string }>>([])
+  const [events, setEvents] = useState<{ event: string; data: any; id: string }[]>([])
   const maxItems = 50
 
   // 使用新的 useSSEEvents hook 订阅多个事件
@@ -99,18 +99,18 @@ function EventHistory() {
       'genesis.progress',
     ],
     (eventType, data) => {
-      setEvents(prev => {
+      setEvents((prev) => {
         const newEvent = {
           event: eventType,
           data,
           id: Date.now().toString(),
-          type: eventType,  // 为了兼容旧代码
+          type: eventType, // 为了兼容旧代码
         }
         const newEvents = [...prev, newEvent]
         return newEvents.slice(-maxItems)
       })
     },
-    []
+    [],
   )
 
   const clearHistory = () => setEvents([])
@@ -281,8 +281,8 @@ function AgentActivityMonitor() {
       }
       setActivities((prev) => [event, ...prev.slice(0, 4)]) // 保留最近5条
     },
-    (data: any) => data.agent_type !== undefined,  // 条件过滤
-    []
+    (data: any) => data.agent_type !== undefined, // 条件过滤
+    [],
   )
 
   return (

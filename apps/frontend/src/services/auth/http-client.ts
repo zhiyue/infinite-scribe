@@ -337,7 +337,7 @@ export class FetchHttpClient implements IHttpClient {
 
     // Convert axios headers to fetch headers format
     const headers: Record<string, string> = {
-      ...this.defaultHeaders
+      ...this.defaultHeaders,
     }
 
     if (config?.headers) {
@@ -583,13 +583,18 @@ export class MockHttpClient implements IHttpClient {
  */
 export function createHttpClient(
   type: 'axios' | 'fetch' | 'mock' = 'axios',
-  config?: AxiosRequestConfig | { baseURL?: string; timeout?: number; headers?: Record<string, string> } | { delay?: number },
+  config?:
+    | AxiosRequestConfig
+    | { baseURL?: string; timeout?: number; headers?: Record<string, string> }
+    | { delay?: number },
 ): IHttpClient {
   switch (type) {
     case 'axios':
       return new AxiosHttpClient(config as AxiosRequestConfig)
     case 'fetch':
-      return new FetchHttpClient(config as { baseURL?: string; timeout?: number; headers?: Record<string, string> })
+      return new FetchHttpClient(
+        config as { baseURL?: string; timeout?: number; headers?: Record<string, string> },
+      )
     case 'mock':
       return new MockHttpClient(config as { delay?: number })
     default:
@@ -606,11 +611,13 @@ export function createAutoHttpClient(config?: AxiosRequestConfig): IHttpClient {
     return new AxiosHttpClient(config)
   } catch {
     // 降级到 fetch - 转换配置格式
-    const fetchConfig = config ? {
-      baseURL: config.baseURL,
-      timeout: config.timeout,
-      headers: config.headers as Record<string, string>
-    } : undefined
+    const fetchConfig = config
+      ? {
+          baseURL: config.baseURL,
+          timeout: config.timeout,
+          headers: config.headers as Record<string, string>,
+        }
+      : undefined
     return new FetchHttpClient(fetchConfig)
   }
 }

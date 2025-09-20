@@ -18,7 +18,7 @@ export enum EventScope {
   USER = 'user',
   SESSION = 'session',
   NOVEL = 'novel',
-  GLOBAL = 'global'
+  GLOBAL = 'global',
 }
 
 /**
@@ -27,7 +27,7 @@ export enum EventScope {
 export enum ErrorLevel {
   WARNING = 'warning',
   ERROR = 'error',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 /**
@@ -376,7 +376,7 @@ export function createSSEMessage({
   id,
   retry,
   scope = EventScope.USER,
-  version = '1.0'
+  version = '1.0',
 }: {
   event: string
   data: Record<string, any>
@@ -391,6 +391,6 @@ export function createSSEMessage({
     id,
     retry,
     scope,
-    version
+    version,
   }
 }

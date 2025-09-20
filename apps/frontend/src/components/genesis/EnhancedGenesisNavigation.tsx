@@ -363,4 +363,3 @@ export function EnhancedGenesisNavigation({
     </div>
   )
 }
-

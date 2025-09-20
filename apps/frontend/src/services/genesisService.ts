@@ -112,7 +112,7 @@ function handleHttpError(error: any): never {
     // 创建一个假的 Response 对象来兼容 parseApiError
     const fakeResponse = {
       status: error.response.status,
-      statusText: error.response.statusText
+      statusText: error.response.statusText,
     } as Response
     const httpError = parseApiError(fakeResponse, error.response.data)
     throw httpError

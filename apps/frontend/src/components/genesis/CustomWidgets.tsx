@@ -258,13 +258,14 @@ export function ArrayFieldTemplate({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground select-none">
-                  <Badge variant="outline" className="border-border/60 bg-background/90 px-1.5 py-0 text-[11px] font-medium">
+                  <Badge
+                    variant="outline"
+                    className="border-border/60 bg-background/90 px-1.5 py-0 text-[11px] font-medium"
+                  >
                     #{index + 1}
                   </Badge>
                   {finalTitle && (
-                    <span className="text-sm font-medium text-foreground/80">
-                      {finalTitle}
-                    </span>
+                    <span className="text-sm font-medium text-foreground/80">{finalTitle}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -309,9 +310,7 @@ export function ArrayFieldTemplate({
                   )}
                 </div>
               </div>
-              <div className="mt-3">
-                {item.children}
-              </div>
+              <div className="mt-3">{item.children}</div>
             </div>
           )
         })}
@@ -375,11 +374,8 @@ export function FieldTemplate({
   const contextError = fieldErrors[fieldName]
 
   // 使用上下文错误或 RJSF 原生错误
-  const errorList = contextError
-    ? [contextError]
-    : (Array.isArray(errors) ? errors : [])
+  const errorList = contextError ? [contextError] : Array.isArray(errors) ? errors : []
   const hasErrors = errorList.length > 0
-
 
   return (
     <div className="space-y-2">
@@ -415,7 +411,9 @@ export function FieldTemplate({
             </Alert>
           )}
 
-          {help && <div className="text-xs text-muted-foreground cursor-default select-none">{help}</div>}
+          {help && (
+            <div className="text-xs text-muted-foreground cursor-default select-none">{help}</div>
+          )}
         </div>
       </div>
     </div>

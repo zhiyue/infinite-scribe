@@ -6,10 +6,7 @@
 import { useState, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GenesisStage } from '@/types/enums'
-import {
-  genesisService,
-  type ActiveSessionResponse
-} from '@/services/genesisService'
+import { genesisService, type ActiveSessionResponse } from '@/services/genesisService'
 
 interface UseStageConfigOptions {
   /** 配置保存成功回调 */
@@ -20,14 +17,13 @@ interface UseStageConfigOptions {
   onLoadError?: (error: Error) => void
 }
 
-
 /**
  * 阶段配置管理Hook
  */
 export function useStageConfig(
   stage: GenesisStage,
   stageId: string,
-  options: UseStageConfigOptions = {}
+  options: UseStageConfigOptions = {},
 ) {
   const queryClient = useQueryClient()
   const { onSaveSuccess, onSaveError, onLoadError: _onLoadError } = options
@@ -82,8 +78,7 @@ export function useStageConfig(
 
   // 保存配置到后端
   const saveConfig = useMutation({
-    mutationFn: (config: Record<string, any>) =>
-      genesisService.updateStageConfig(stageId, config),
+    mutationFn: (config: Record<string, any>) => genesisService.updateStageConfig(stageId, config),
     onSuccess: (updatedStage, config) => {
       console.log('[useStageConfig] Config saved successfully:', updatedStage)
 
@@ -91,19 +86,22 @@ export function useStageConfig(
       setLocalConfig(config)
 
       // 更新相关缓存
-      queryClient.setQueryData(activeSessionQueryKey, (oldData: ActiveSessionResponse | undefined) => {
-        if (oldData) {
-          return {
-            ...oldData,
-            stage: {
-              ...oldData.stage,
-              config,
-              updated_at: updatedStage.updated_at,
+      queryClient.setQueryData(
+        activeSessionQueryKey,
+        (oldData: ActiveSessionResponse | undefined) => {
+          if (oldData) {
+            return {
+              ...oldData,
+              stage: {
+                ...oldData.stage,
+                config,
+                updated_at: updatedStage.updated_at,
+              },
             }
           }
-        }
-        return oldData
-      })
+          return oldData
+        },
+      )
 
       // 可选：刷新活跃会话数据
       queryClient.invalidateQueries({ queryKey: activeSessionQueryKey })
@@ -141,11 +139,14 @@ export function useStageConfig(
   }, [queryClient, schemaQueryKey, templateQueryKey, activeSessionQueryKey])
 
   // 计算当前使用的配置
-  const currentConfig = localConfig || (activeSession as ActiveSessionResponse)?.stage?.config || template || {}
+  const currentConfig =
+    localConfig || (activeSession as ActiveSessionResponse)?.stage?.config || template || {}
 
   // 检查是否有未保存的更改
-  const hasUnsavedChanges = localConfig !== null &&
-    JSON.stringify(localConfig) !== JSON.stringify((activeSession as ActiveSessionResponse)?.stage?.config || {})
+  const hasUnsavedChanges =
+    localConfig !== null &&
+    JSON.stringify(localConfig) !==
+      JSON.stringify((activeSession as ActiveSessionResponse)?.stage?.config || {})
 
   // 计算加载状态
   const isLoading = isLoadingSchema || isLoadingTemplate || isLoadingSession
@@ -198,7 +199,7 @@ export function useStageConfig(
 export function useStageConfigForm(
   stage: GenesisStage,
   stageId: string,
-  options: UseStageConfigOptions = {}
+  options: UseStageConfigOptions = {},
 ) {
   const stageConfig = useStageConfig(stage, stageId, options)
 
@@ -213,7 +214,7 @@ export function useStageConfigForm(
         return false
       }
     },
-    [stageConfig.saveConfigAsync]
+    [stageConfig.saveConfigAsync],
   )
 
   // 表单数据变化处理
@@ -221,7 +222,7 @@ export function useStageConfigForm(
     (formData: Record<string, any>) => {
       stageConfig.updateLocalConfig(formData)
     },
-    [stageConfig.updateLocalConfig]
+    [stageConfig.updateLocalConfig],
   )
 
   return {

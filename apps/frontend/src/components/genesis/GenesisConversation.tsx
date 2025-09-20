@@ -229,7 +229,7 @@ export function GenesisConversation({
       }
 
       console.log('[GenesisConversation] Adding Genesis command status:', commandStatus)
-      setGenesisCommandStatuses(prev => [...prev, commandStatus])
+      setGenesisCommandStatuses((prev) => [...prev, commandStatus])
       return
     }
 

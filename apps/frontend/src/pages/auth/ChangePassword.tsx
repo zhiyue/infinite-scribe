@@ -100,7 +100,7 @@ const ChangePasswordPage: React.FC = () => {
     // Extract only the fields needed for the API call
     const apiData: ChangePasswordRequest = {
       current_password: data.current_password,
-      new_password: data.new_password
+      new_password: data.new_password,
     }
 
     changePasswordMutation.mutate(apiData, {

@@ -25,7 +25,7 @@ class SSETokenService {
     console.log('[SSE Token] 检查当前SSE token状态', {
       hasToken: !!this.currentToken,
       tokenExpiry: this.tokenExpiry?.toISOString(),
-      willExpireSoon: this.willExpireSoon()
+      willExpireSoon: this.willExpireSoon(),
     })
 
     // 如果没有token或即将过期，获取新的
@@ -50,7 +50,7 @@ class SSETokenService {
       console.log('[SSE Token] 认证状态检查:', {
         hasAccessToken: !!currentToken,
         tokenLength: currentToken ? currentToken.length : 0,
-        tokenPrefix: currentToken ? currentToken.substring(0, 20) + '...' : 'none'
+        tokenPrefix: currentToken ? currentToken.substring(0, 20) + '...' : 'none',
       })
 
       const response = await apiService.post<SSETokenResponse>('/api/v1/auth/sse-token')
@@ -61,14 +61,13 @@ class SSETokenService {
       console.log('[SSE Token] ✅ SSE token获取成功', {
         tokenLength: this.currentToken.length,
         expiresAt: this.tokenExpiry.toISOString(),
-        tokenType: response.token_type
+        tokenType: response.token_type,
       })
-
     } catch (error) {
       console.error('[SSE Token] ❌ 获取SSE token失败:', {
         error: error,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorType: error instanceof Error ? error.constructor.name : typeof error
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
       })
 
       // 检查是否是认证错误
@@ -106,7 +105,7 @@ class SSETokenService {
     if (willExpire) {
       console.log('[SSE Token] ⏰ Token即将过期', {
         expiresAt: this.tokenExpiry.toISOString(),
-        timeUntilExpiry: this.tokenExpiry.getTime() - now.getTime()
+        timeUntilExpiry: this.tokenExpiry.getTime() - now.getTime(),
       })
     }
 
@@ -143,7 +142,7 @@ class SSETokenService {
       hasToken: !!this.currentToken,
       tokenExpiry: this.tokenExpiry?.toISOString(),
       willExpireSoon: this.willExpireSoon(),
-      timeUntilExpiry: this.tokenExpiry ? this.tokenExpiry.getTime() - Date.now() : null
+      timeUntilExpiry: this.tokenExpiry ? this.tokenExpiry.getTime() - Date.now() : null,
     }
   }
 }

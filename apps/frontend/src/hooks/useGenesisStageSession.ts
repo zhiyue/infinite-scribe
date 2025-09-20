@@ -120,10 +120,10 @@ export function useGenesisStageSession(
   })
 
   // 获取主要会话
-  const primarySession = stageSessions.find(s => s.is_primary && s.status === 'ACTIVE')
+  const primarySession = stageSessions.find((s) => s.is_primary && s.status === 'ACTIVE')
 
   // 获取所有活跃会话
-  const activeSessions = stageSessions.filter(s => s.status === 'ACTIVE')
+  const activeSessions = stageSessions.filter((s) => s.status === 'ACTIVE')
 
   return {
     // 状态

@@ -102,12 +102,14 @@ function getStageDisplayInfo(stage: GenesisStage) {
     },
   }
 
-  return stageInfoMap[stage] || {
-    title: '未知阶段配置',
-    description: '',
-    badge: '未知',
-    badgeVariant: 'outline' as const,
-  }
+  return (
+    stageInfoMap[stage] || {
+      title: '未知阶段配置',
+      description: '',
+      badge: '未知',
+      badgeVariant: 'outline' as const,
+    }
+  )
 }
 
 /**
@@ -192,9 +194,7 @@ export function StageConfigModal({
                   <DialogTitle className="text-xl">{stageInfo.title}</DialogTitle>
                   <Badge variant={stageInfo.badgeVariant}>{stageInfo.badge}</Badge>
                 </div>
-                <DialogDescription className="text-base">
-                  {stageInfo.description}
-                </DialogDescription>
+                <DialogDescription className="text-base">{stageInfo.description}</DialogDescription>
               </div>
             </div>
 

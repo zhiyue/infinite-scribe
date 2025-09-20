@@ -3,12 +3,24 @@
  * 使用模态框展示错误信息，提供更好的用户体验
  */
 
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Settings, AlertTriangle, RefreshCw, X } from 'lucide-react'
-import { AppError, getUserFriendlyMessage, getErrorActionSuggestion, isUserActionRequired } from '@/utils/errorHandler'
+import {
+  AppError,
+  getUserFriendlyMessage,
+  getErrorActionSuggestion,
+  isUserActionRequired,
+} from '@/utils/errorHandler'
 
 interface GenesisErrorDialogProps {
   open: boolean
@@ -79,17 +91,13 @@ export function GenesisErrorDialog({
             {getIcon()}
             <DialogTitle className="text-lg">{getTitle()}</DialogTitle>
           </div>
-          <DialogDescription className="sr-only">
-            错误详情和处理选项
-          </DialogDescription>
+          <DialogDescription className="sr-only">错误详情和处理选项</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* 主要错误消息 */}
           <Alert variant={error.code === 'STAGE_CONFIG_INCOMPLETE' ? 'default' : 'destructive'}>
-            <AlertDescription className="text-sm">
-              {userMessage}
-            </AlertDescription>
+            <AlertDescription className="text-sm">{userMessage}</AlertDescription>
           </Alert>
 
           {/* 操作建议 */}
@@ -120,9 +128,7 @@ export function GenesisErrorDialog({
               <div className="mt-2 p-2 bg-muted rounded text-xs font-mono">
                 <div>错误代码: {error.code}</div>
                 <div>状态码: {error.statusCode}</div>
-                {error.genesisError && (
-                  <div>类型: {error.genesisError.type}</div>
-                )}
+                {error.genesisError && <div>类型: {error.genesisError.type}</div>}
               </div>
             </details>
           )}
@@ -130,12 +136,14 @@ export function GenesisErrorDialog({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {/* 主要操作按钮 */}
-          {needsUserAction && error.genesisError?.action_required === 'complete_current_stage_config' && onConfigureStage && (
-            <Button onClick={handleConfigureStage} className="w-full sm:w-auto">
-              <Settings className="h-4 w-4 mr-2" />
-              完成配置
-            </Button>
-          )}
+          {needsUserAction &&
+            error.genesisError?.action_required === 'complete_current_stage_config' &&
+            onConfigureStage && (
+              <Button onClick={handleConfigureStage} className="w-full sm:w-auto">
+                <Settings className="h-4 w-4 mr-2" />
+                完成配置
+              </Button>
+            )}
 
           {/* 重试按钮 */}
           {onRetry && (

@@ -8,13 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import {
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Hash,
-  Bot,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, Hash, Bot } from 'lucide-react'
 import { useState } from 'react'
 import { getGenesisStatusConfig } from '@/config/genesis-status.config'
 
@@ -34,7 +28,6 @@ interface GenesisStatusCardProps {
   className?: string
   showAsSystemMessage?: boolean
 }
-
 
 // 格式化时间戳
 function formatTimestamp(timestamp: string): string {
@@ -58,7 +51,11 @@ function shortenId(id: string, length = 8): string {
   return id.length > length ? `${id.substring(0, length)}...` : id
 }
 
-export function GenesisStatusCard({ commandStatus, className, showAsSystemMessage = false }: GenesisStatusCardProps) {
+export function GenesisStatusCard({
+  commandStatus,
+  className,
+  showAsSystemMessage = false,
+}: GenesisStatusCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   if (!commandStatus) {
@@ -97,7 +94,9 @@ export function GenesisStatusCard({ commandStatus, className, showAsSystemMessag
 
   // 卡片模式 - 独立的状态卡片
   return (
-    <Card className={cn('transition-all duration-200 hover:shadow-md', config.cardClass, className)}>
+    <Card
+      className={cn('transition-all duration-200 hover:shadow-md', config.cardClass, className)}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -118,11 +117,7 @@ export function GenesisStatusCard({ commandStatus, className, showAsSystemMessag
             onClick={() => setIsExpanded(!isExpanded)}
             className="h-8 w-8 p-0"
           >
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
       </CardHeader>
@@ -137,7 +132,9 @@ export function GenesisStatusCard({ commandStatus, className, showAsSystemMessag
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">时间:</span>
-                  <span className="text-muted-foreground">{formatTimestamp(commandStatus.timestamp)}</span>
+                  <span className="text-muted-foreground">
+                    {formatTimestamp(commandStatus.timestamp)}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Hash className="h-4 w-4 text-muted-foreground" />

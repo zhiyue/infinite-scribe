@@ -40,7 +40,7 @@ export function getSSEState(): PersistedSSEState {
   return {
     lastEventId: null,
     lastEventTime: null,
-    connectionId: null
+    connectionId: null,
   }
 }
 

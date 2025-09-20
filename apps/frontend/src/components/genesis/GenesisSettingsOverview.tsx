@@ -8,15 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import {
-  BookOpen,
-  Globe,
-  Sparkles,
-  Users,
-  Eye,
-  EyeOff,
-  Settings,
-} from 'lucide-react'
+import { BookOpen, Globe, Sparkles, Users, Eye, EyeOff, Settings } from 'lucide-react'
 import { GenesisStage } from '@/types/enums'
 import { GenesisSettingsModal } from './GenesisSettingsModal'
 import { StageConfigModal } from './StageConfigModal'

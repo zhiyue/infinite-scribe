@@ -138,7 +138,7 @@ function createCompatibleAuthService(): CompatibleAuthService {
       return {
         success: true as const,
         data: [] as string[],
-        message: 'Permissions not implemented yet'
+        message: 'Permissions not implemented yet',
       }
     },
 
@@ -147,7 +147,7 @@ function createCompatibleAuthService(): CompatibleAuthService {
       return {
         success: true as const,
         data: [] as any[],
-        message: 'Sessions not implemented yet'
+        message: 'Sessions not implemented yet',
       }
     },
 

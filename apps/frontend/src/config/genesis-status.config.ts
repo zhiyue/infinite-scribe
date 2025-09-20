@@ -3,15 +3,7 @@
  * 统一管理Genesis相关事件的显示配置
  */
 
-import {
-  Activity,
-  CheckCircle,
-  XCircle,
-  Send,
-  Bot,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react'
+import { Activity, CheckCircle, XCircle, Send, Bot, Sparkles, type LucideIcon } from 'lucide-react'
 
 // 徽章变体类型
 export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
@@ -144,6 +136,8 @@ export const GENESIS_STATUS_CATEGORIES = {
  * @param category 状态类别
  * @returns 事件类型数组
  */
-export function getEventTypesByCategory(category: keyof typeof GENESIS_STATUS_CATEGORIES): string[] {
+export function getEventTypesByCategory(
+  category: keyof typeof GENESIS_STATUS_CATEGORIES,
+): string[] {
   return GENESIS_STATUS_CATEGORIES[category] || []
 }

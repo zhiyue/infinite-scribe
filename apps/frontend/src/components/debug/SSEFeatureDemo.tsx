@@ -26,10 +26,14 @@ export default function SSEFeatureDemo() {
   const { connect, disconnect, pause, resume, lastEventId } = useSSE()
   const connectionInfo = useSSEInfo()
 
-  const [events, setEvents] = useState<Array<{id: string, eventId: string | null, type: string, data: any}>>([])
-  const [allEvents, setAllEvents] = useState<Array<{time: string, eventId: string | null, type: string, data: any}>>([])
-  const [genesisEvents, setGenesisEvents] = useState<Array<{event: string, data: any}>>([])
-  const [novelEvents, setNovelEvents] = useState<Array<{event: string, data: any}>>([])
+  const [events, setEvents] = useState<
+    { id: string; eventId: string | null; type: string; data: any }[]
+  >([])
+  const [allEvents, setAllEvents] = useState<
+    { time: string; eventId: string | null; type: string; data: any }[]
+  >([])
+  const [genesisEvents, setGenesisEvents] = useState<{ event: string; data: any }[]>([])
+  const [novelEvents, setNovelEvents] = useState<{ event: string; data: any }[]>([])
   const [commandStatus, setCommandStatus] = useState<string>('')
   const [isLeader, setIsLeader] = useState(true)
 
@@ -39,31 +43,39 @@ export default function SSEFeatureDemo() {
   })
 
   // 2. 多事件订阅 - 同时订阅多个事件类型
-  useSSEEvents(
-    ['task.progress-updated', 'task.status-changed'],
-    (event, data) => {
-      setEvents(prev => [...prev, {
-        id: `${event}-${Date.now()}`,
-        eventId: lastEventId,
-        type: event,
-        data
-      }].slice(-10))
-    }
-  )
+  useSSEEvents(['task.progress-updated', 'task.status-changed'], (event, data) => {
+    setEvents((prev) =>
+      [
+        ...prev,
+        {
+          id: `${event}-${Date.now()}`,
+          eventId: lastEventId,
+          type: event,
+          data,
+        },
+      ].slice(-10),
+    )
+  })
 
   // 监听所有事件用于调试
   useSSEEvents(
-    ['system.notification-sent', 'task.progress-updated', 'task.status-changed', 'novel.created', 'message'],
+    [
+      'system.notification-sent',
+      'task.progress-updated',
+      'task.status-changed',
+      'novel.created',
+      'message',
+    ],
     (event, data) => {
       const eventInfo = {
         time: new Date().toLocaleTimeString(),
         eventId: lastEventId,
         type: event,
-        data
-      };
-      setAllEvents(prev => [...prev, eventInfo].slice(-20));
-      console.log('[SSE 事件]', eventInfo);
-    }
+        data,
+      }
+      setAllEvents((prev) => [...prev, eventInfo].slice(-20))
+      console.log('[SSE 事件]', eventInfo)
+    },
   )
 
   // 3. 条件订阅 - 只处理满足条件的事件
@@ -72,32 +84,23 @@ export default function SSEFeatureDemo() {
     (data) => {
       console.log('⚠️ Critical notification:', data)
     },
-    (data: any) => data.level === 'critical',  // 只处理critical级别的通知
+    (data: any) => data.level === 'critical', // 只处理critical级别的通知
   )
 
   // 4. 领域特定hooks - Genesis事件
-  useGenesisEvents(
-    'test-session-123',
-    (event, data) => {
-      setGenesisEvents(prev => [...prev, { event, data }].slice(-5))
-    }
-  )
+  useGenesisEvents('test-session-123', (event, data) => {
+    setGenesisEvents((prev) => [...prev, { event, data }].slice(-5))
+  })
 
   // 5. 领域特定hooks - Novel事件
-  useNovelEvents(
-    'test-novel-456',
-    (event, data) => {
-      setNovelEvents(prev => [...prev, { event, data }].slice(-5))
-    }
-  )
+  useNovelEvents('test-novel-456', (event, data) => {
+    setNovelEvents((prev) => [...prev, { event, data }].slice(-5))
+  })
 
   // 6. 领域特定hooks - Command事件
-  useCommandEvents(
-    'test-command-789',
-    (status, data) => {
-      setCommandStatus(status)
-    }
-  )
+  useCommandEvents('test-command-789', (status, data) => {
+    setCommandStatus(status)
+  })
 
   // 检测是否为Leader（通过开发工具）
   useEffect(() => {
@@ -125,32 +128,56 @@ export default function SSEFeatureDemo() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Badge variant={isConnected ? "success" : "destructive"}>
-                {isConnected ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+              <Badge variant={isConnected ? 'success' : 'destructive'}>
+                {isConnected ? (
+                  <Wifi className="h-3 w-3 mr-1" />
+                ) : (
+                  <WifiOff className="h-3 w-3 mr-1" />
+                )}
                 {status}
               </Badge>
-              <Badge variant={isHealthy ? "success" : "warning"}>
+              <Badge variant={isHealthy ? 'success' : 'warning'}>
                 健康: {isHealthy ? '正常' : '异常'}
               </Badge>
-              <Badge variant={isLeader ? "default" : "secondary"}>
+              <Badge variant={isLeader ? 'default' : 'secondary'}>
                 <Users className="h-3 w-3 mr-1" />
                 {isLeader ? 'Leader (持有连接)' : 'Follower (接收广播)'}
               </Badge>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => connect()}>连接</Button>
-              <Button size="sm" variant="outline" onClick={() => disconnect()}>断开</Button>
-              <Button size="sm" variant="outline" onClick={() => pause()}>暂停</Button>
-              <Button size="sm" variant="outline" onClick={() => resume()}>恢复</Button>
+              <Button size="sm" onClick={() => connect()}>
+                连接
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => disconnect()}>
+                断开
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => pause()}>
+                暂停
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => resume()}>
+                恢复
+              </Button>
             </div>
           </div>
 
           <div className="text-sm text-muted-foreground">
-            <p>✅ <strong>Leader/Follower模式</strong>：多标签页中只有一个Leader建立真实SSE连接，其他标签页通过BroadcastChannel接收事件</p>
-            <p className="mt-1">当前标签页: {isLeader ? '作为Leader，持有真实的EventSource连接' : '作为Follower，通过广播接收事件'}</p>
-            <p className="mt-1">连接信息: 已连接 {connectionInfo.connectionDuration ? `${Math.floor(connectionInfo.connectionDuration / 1000)}秒` : '0秒'} |
-              重连 {connectionInfo.reconnectAttempts}次 |
-              收到 {connectionInfo.totalEvents}个事件</p>
+            <p>
+              ✅ <strong>Leader/Follower模式</strong>
+              ：多标签页中只有一个Leader建立真实SSE连接，其他标签页通过BroadcastChannel接收事件
+            </p>
+            <p className="mt-1">
+              当前标签页:{' '}
+              {isLeader
+                ? '作为Leader，持有真实的EventSource连接'
+                : '作为Follower，通过广播接收事件'}
+            </p>
+            <p className="mt-1">
+              连接信息: 已连接{' '}
+              {connectionInfo.connectionDuration
+                ? `${Math.floor(connectionInfo.connectionDuration / 1000)}秒`
+                : '0秒'}{' '}
+              | 重连 {connectionInfo.reconnectAttempts}次 | 收到 {connectionInfo.totalEvents}个事件
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -173,7 +200,9 @@ export default function SSEFeatureDemo() {
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground">{event.time}</span>
-                        <Badge variant="outline" className="text-[11px]">{event.type}</Badge>
+                        <Badge variant="outline" className="text-[11px]">
+                          {event.type}
+                        </Badge>
                       </div>
                       {event.eventId && (
                         <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
@@ -204,10 +233,12 @@ export default function SSEFeatureDemo() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">✅ 支持订阅特定事件类型，自动管理监听器的注册和清理</p>
+            <p className="text-sm text-muted-foreground">
+              ✅ 支持订阅特定事件类型，自动管理监听器的注册和清理
+            </p>
             <ScrollArea className="h-32 w-full rounded border p-2">
               {events.length > 0 ? (
-                events.map(event => (
+                events.map((event) => (
                   <div key={event.id} className="text-xs font-mono mb-2">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant="outline">{event.type}</Badge>
@@ -217,7 +248,9 @@ export default function SSEFeatureDemo() {
                         </Badge>
                       )}
                     </div>
-                    <span className="text-muted-foreground text-[11px]">{JSON.stringify(event.data)}</span>
+                    <span className="text-muted-foreground text-[11px]">
+                      {JSON.stringify(event.data)}
+                    </span>
                   </div>
                 ))
               ) : (
@@ -237,9 +270,7 @@ export default function SSEFeatureDemo() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            ✅ 支持条件过滤，只处理满足特定条件的事件
-          </p>
+          <p className="text-sm text-muted-foreground">✅ 支持条件过滤，只处理满足特定条件的事件</p>
           <p className="text-xs text-muted-foreground mt-2">
             示例：只处理 level === 'critical' 的系统通知
           </p>
@@ -261,7 +292,9 @@ export default function SSEFeatureDemo() {
               {genesisEvents.length > 0 ? (
                 genesisEvents.map((e, i) => (
                   <div key={i} className="text-xs font-mono">
-                    <Badge variant="outline" className="mr-1">{e.event}</Badge>
+                    <Badge variant="outline" className="mr-1">
+                      {e.event}
+                    </Badge>
                     <span className="text-muted-foreground">{JSON.stringify(e.data)}</span>
                   </div>
                 ))
@@ -277,7 +310,9 @@ export default function SSEFeatureDemo() {
               {novelEvents.length > 0 ? (
                 novelEvents.map((e, i) => (
                   <div key={i} className="text-xs font-mono">
-                    <Badge variant="outline" className="mr-1">{e.event}</Badge>
+                    <Badge variant="outline" className="mr-1">
+                      {e.event}
+                    </Badge>
                     <span className="text-muted-foreground">{JSON.stringify(e.data)}</span>
                   </div>
                 ))
@@ -290,7 +325,8 @@ export default function SSEFeatureDemo() {
           <div>
             <h4 className="text-sm font-medium mb-2">Command事件 (command_id过滤)</h4>
             <div className="text-sm">
-              状态: <Badge variant={commandStatus ? "default" : "secondary"}>
+              状态:{' '}
+              <Badge variant={commandStatus ? 'default' : 'secondary'}>
                 {commandStatus || '等待命令...'}
               </Badge>
             </div>

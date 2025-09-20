@@ -15,16 +15,16 @@ import { RefreshCw, Save, Trash2, Info, Check, AlertCircle } from 'lucide-react'
 export default function SSEPersistenceDemo() {
   const { isConnected, lastEventId, connect, disconnect } = useSSE()
   const [persistedState, setPersistedState] = useState(getSSEState())
-  const [events, setEvents] = useState<Array<{time: string, id: string}>>([])
+  const [events, setEvents] = useState<{ time: string; id: string }[]>([])
   const [simulatedRefresh, setSimulatedRefresh] = useState(false)
 
   // 监听事件
   useSSEEvent('message', (data) => {
     const event = {
       time: new Date().toLocaleTimeString(),
-      id: lastEventId || 'unknown'
+      id: lastEventId || 'unknown',
     }
-    setEvents(prev => [...prev, event].slice(-5))
+    setEvents((prev) => [...prev, event].slice(-5))
   })
 
   // 定期更新持久化状态显示
@@ -85,14 +85,12 @@ export default function SSEPersistenceDemo() {
 
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">最后事件时间:</span>
-              <span className="text-sm text-muted-foreground">
-                {getTimeSinceLastEvent()}
-              </span>
+              <span className="text-sm text-muted-foreground">{getTimeSinceLastEvent()}</span>
             </div>
 
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">连接ID:</span>
-              <Badge variant={persistedState.connectionId ? "default" : "secondary"}>
+              <Badge variant={persistedState.connectionId ? 'default' : 'secondary'}>
                 {persistedState.connectionId || '未连接'}
               </Badge>
             </div>
@@ -132,16 +130,14 @@ export default function SSEPersistenceDemo() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">当前连接状态:</span>
-              <Badge variant={isConnected ? "success" : "destructive"}>
+              <Badge variant={isConnected ? 'success' : 'destructive'}>
                 {isConnected ? '已连接' : '未连接'}
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">当前Event ID:</span>
-              <code className="text-xs bg-muted px-2 py-1 rounded">
-                {lastEventId || '无'}
-              </code>
+              <code className="text-xs bg-muted px-2 py-1 rounded">{lastEventId || '无'}</code>
             </div>
 
             {simulatedRefresh && (
@@ -157,10 +153,7 @@ export default function SSEPersistenceDemo() {
                 模拟页面刷新
               </Button>
 
-              <Button
-                variant="outline"
-                onClick={() => window.location.reload()}
-              >
+              <Button variant="outline" onClick={() => window.location.reload()}>
                 真实刷新页面
               </Button>
             </div>
@@ -175,9 +168,7 @@ export default function SSEPersistenceDemo() {
             <AlertCircle className="h-5 w-5" />
             事件流（续播验证）
           </CardTitle>
-          <CardDescription>
-            如果续播成功，刷新后应该继续从上次的Event ID开始接收
-          </CardDescription>
+          <CardDescription>如果续播成功，刷新后应该继续从上次的Event ID开始接收</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -191,9 +182,7 @@ export default function SSEPersistenceDemo() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                等待事件...
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-4">等待事件...</p>
             )}
           </div>
         </CardContent>

@@ -65,7 +65,13 @@ export class AppError extends Error implements ApiError {
   // Genesis 特定错误信息
   genesisError?: GenesisErrorDetail
 
-  constructor(code: string, message?: string, statusCode?: number, details?: unknown, genesisError?: GenesisErrorDetail) {
+  constructor(
+    code: string,
+    message?: string,
+    statusCode?: number,
+    details?: unknown,
+    genesisError?: GenesisErrorDetail,
+  ) {
     super(message || errorMessages[code as ErrorCode] || '未知错误')
     this.name = 'AppError'
     this.code = code
@@ -98,7 +104,7 @@ export class AppError extends Error implements ApiError {
       detail: this.detail,
       statusCode: this.statusCode,
       genesisError: this.genesisError,
-      details: this.details
+      details: this.details,
     }
   }
 }
@@ -141,7 +147,7 @@ export function parseApiError(response: Response, data?: unknown): AppError {
         if (detail.message && typeof detail.message === 'string') {
           const match = detail.message.match(MISSING_FIELDS_REGEX)
           if (match) {
-            missing_fields = match[1].split(', ').map(field => field.trim())
+            missing_fields = match[1].split(', ').map((field) => field.trim())
           }
         }
 
@@ -150,22 +156,23 @@ export function parseApiError(response: Response, data?: unknown): AppError {
           message: detail.message || '',
           user_message: detail.user_message,
           action_required: detail.action_required,
-          missing_fields: detail.missing_fields || missing_fields
+          missing_fields: detail.missing_fields || missing_fields,
         }
 
         // 根据错误类型映射到适当的错误码
-        const errorCode = detail.type === 'stage_config_incomplete'
-          ? ErrorCode.STAGE_CONFIG_INCOMPLETE
-          : detail.type === 'stage_validation_error'
-          ? ErrorCode.STAGE_VALIDATION_ERROR
-          : defaultErrorCode
+        const errorCode =
+          detail.type === 'stage_config_incomplete'
+            ? ErrorCode.STAGE_CONFIG_INCOMPLETE
+            : detail.type === 'stage_validation_error'
+              ? ErrorCode.STAGE_VALIDATION_ERROR
+              : defaultErrorCode
 
         return new AppError(
           errorCode,
           genesisError.user_message, // 使用用户友好的消息
           response.status,
           detail,
-          genesisError
+          genesisError,
         )
       }
 
@@ -231,7 +238,7 @@ export function handleError(error: unknown): AppError {
       // 创建一个假的 Response 对象来兼容 parseApiError
       const fakeResponse = {
         status: axiosError.response.status,
-        statusText: axiosError.response.statusText || 'Unknown'
+        statusText: axiosError.response.statusText || 'Unknown',
       } as Response
 
       return parseApiError(fakeResponse, axiosError.response.data)
@@ -302,5 +309,5 @@ export function getErrorActionSuggestion(error: AppError): string | null {
 
 // 检查是否是需要用户操作的错误
 export function isUserActionRequired(error: AppError): boolean {
-  return !!(error.genesisError?.action_required)
+  return !!error.genesisError?.action_required
 }

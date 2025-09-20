@@ -28,7 +28,7 @@ export const SSE_CONNECTION_CONFIG = {
   /** 预检查参数值 */
   PREFLIGHT_VALUE: '1',
   /** Token查询参数名 */
-  TOKEN_PARAM: 'sse_token'
+  TOKEN_PARAM: 'sse_token',
 } as const
 
 // ==================== 状态值 ====================
@@ -37,20 +37,21 @@ export const SSE_STATUS = {
   CONNECTING: 'connecting',
   OPEN: 'open',
   RETRYING: 'retrying',
-  CLOSED: 'closed'
+  CLOSED: 'closed',
 } as const
 
-export type SSEStatusType = typeof SSE_STATUS[keyof typeof SSE_STATUS]
+export type SSEStatusType = (typeof SSE_STATUS)[keyof typeof SSE_STATUS]
 
 // ==================== 跨标签页消息类型 ====================
 export const CROSS_TAB_MESSAGE_TYPE = {
   WHO_IS_LEADER: 'who-is-leader',
   I_AM_LEADER: 'i-am-leader',
   SSE_EVENT: 'sse-event',
-  CONNECTION_STATUS: 'connection-status'
+  CONNECTION_STATUS: 'connection-status',
 } as const
 
-export type CrossTabMessageType = typeof CROSS_TAB_MESSAGE_TYPE[keyof typeof CROSS_TAB_MESSAGE_TYPE]
+export type CrossTabMessageType =
+  (typeof CROSS_TAB_MESSAGE_TYPE)[keyof typeof CROSS_TAB_MESSAGE_TYPE]
 
 // ==================== 事件名称 ====================
 export const SSE_EVENT_NAMES = {
@@ -79,7 +80,7 @@ export const SSE_EVENT_NAMES = {
   CHAPTER_STATUS_CHANGED: 'chapter.status-changed',
 
   // 系统通知
-  SYSTEM_NOTIFICATION: 'system.notification-sent'
+  SYSTEM_NOTIFICATION: 'system.notification-sent',
 } as const
 
 // ==================== 日志消息模板 ====================
@@ -99,7 +100,7 @@ export const SSE_LOG_MESSAGES = {
     ALREADY_CONNECTED: '连接已存在',
     RETRY: (delay: number) => `将在 ${delay}ms 后重连`,
     SKIP_FOLLOWER: 'Follower不建立真实连接',
-    CLEANUP: '清理资源'
+    CLEANUP: '清理资源',
   },
 
   // 认证相关
@@ -108,14 +109,14 @@ export const SSE_LOG_MESSAGES = {
     TOKEN_OBTAINED: '获取SSE token成功',
     TOKEN_FAILED: '获取SSE token失败:',
     TOKEN_EXPIRED: 'Token即将过期，需要刷新',
-    TOKEN_VALID: '返回有效的SSE token'
+    TOKEN_VALID: '返回有效的SSE token',
   },
 
   // 状态相关
   STATUS: {
     CHANGED: (status: string) => `状态变化: ${status}`,
     PAUSED: '连接已暂停',
-    RESUMED: '连接已恢复'
+    RESUMED: '连接已恢复',
   },
 
   // 事件相关
@@ -124,7 +125,7 @@ export const SSE_LOG_MESSAGES = {
     DISPATCHED: (event: string, count: number) => `分发事件 ${event} 给 ${count} 个监听器`,
     SUBSCRIBE: (event: string) => `订阅事件: ${event}`,
     UNSUBSCRIBE: (event: string) => `取消订阅: ${event}`,
-    HANDLER_ERROR: (event: string, error: any) => `事件处理器错误 (${event}): ${error}`
+    HANDLER_ERROR: (event: string, error: any) => `事件处理器错误 (${event}): ${error}`,
   },
 
   // 跨标签页相关
@@ -134,14 +135,14 @@ export const SSE_LOG_MESSAGES = {
     BECOME_LEADER: '成为Leader',
     BECOME_FOLLOWER: '成为Follower',
     BROADCAST_EVENT: (event: string) => `广播事件: ${event}`,
-    RECEIVE_EVENT: (event: string) => `接收转发事件: ${event}`
+    RECEIVE_EVENT: (event: string) => `接收转发事件: ${event}`,
   },
 
   // 页面可见性
   VISIBILITY: {
     HIDDEN: '页面隐藏',
     VISIBLE: '页面可见',
-    DELAY_ADJUSTED: '调整重连延迟'
+    DELAY_ADJUSTED: '调整重连延迟',
   },
 
   // 错误相关
@@ -150,7 +151,7 @@ export const SSE_LOG_MESSAGES = {
     PARSE_JSON: '解析JSON失败:',
     HANDLER: '事件处理器错误:',
     INIT_SERVICE: '初始化SSE服务失败:',
-    CONTEXT_NOT_FOUND: 'useSSE must be used within SSEProvider'
+    CONTEXT_NOT_FOUND: 'useSSE must be used within SSEProvider',
   },
 
   // 调试相关
@@ -158,8 +159,8 @@ export const SSE_LOG_MESSAGES = {
     SERVICE_CREATED: '创建SSE服务实例',
     SERVICE_DESTROYED: '销毁SSE服务实例',
     MOUNTED_TO_WINDOW: '服务已挂载到window对象',
-    STRICT_MODE_DETECTED: '检测到StrictMode，避免重复初始化'
-  }
+    STRICT_MODE_DETECTED: '检测到StrictMode，避免重复初始化',
+  },
 } as const
 
 // ==================== 错误消息 ====================
@@ -169,7 +170,7 @@ export const SSE_ERROR_MESSAGES = {
   INVALID_URL: 'SSE URL无效',
   NOT_AUTHENTICATED: '用户未认证',
   CONTEXT_REQUIRED: 'SSE hooks必须在SSEProvider内使用',
-  BROWSER_NOT_SUPPORTED: '浏览器不支持SSE'
+  BROWSER_NOT_SUPPORTED: '浏览器不支持SSE',
 } as const
 
 // ==================== 开发环境配置 ====================
@@ -181,11 +182,11 @@ export const SSE_DEV_CONFIG = {
   /** 是否启用调试日志 */
   ENABLE_DEBUG_LOGS: true,
   /** 是否启用性能监控 */
-  ENABLE_PERFORMANCE_MONITORING: false
+  ENABLE_PERFORMANCE_MONITORING: false,
 } as const
 
 // ==================== 导出类型 ====================
-export type SSEConfig = {
+export interface SSEConfig {
   minRetry: number
   maxRetry: number
   crossTabKey: string
@@ -200,5 +201,5 @@ export const DEFAULT_SSE_CONFIG: SSEConfig = {
   crossTabKey: SSE_CONNECTION_CONFIG.CROSS_TAB_KEY,
   autoConnect: SSE_CONNECTION_CONFIG.AUTO_CONNECT,
   withCredentials: SSE_CONNECTION_CONFIG.WITH_CREDENTIALS,
-  endpoint: SSE_CONNECTION_CONFIG.ENDPOINT_PATH
+  endpoint: SSE_CONNECTION_CONFIG.ENDPOINT_PATH,
 }
