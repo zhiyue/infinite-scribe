@@ -176,7 +176,7 @@ class TestTaskCreator:
         self.mock_logger.warning.assert_called_once_with(
             "orchestrator_async_task_correlation_parse_failed",
             correlation_id=correlation_id,
-            error="badly formed hexadecimal UUID string",
+            error="Invalid UUID format",
         )
 
     def test_parse_correlation_id_valid(self):
@@ -288,7 +288,7 @@ class TestTaskCompleter:
         self.mock_logger.warning.assert_called_once_with(
             "orchestrator_async_task_complete_correlation_parse_failed",
             correlation_id=correlation_id,
-            error="badly formed hexadecimal UUID string",
+            error="Invalid UUID format",
         )
 
     @pytest.mark.asyncio

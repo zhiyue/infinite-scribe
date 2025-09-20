@@ -14,7 +14,7 @@ class CommandMapping(NamedTuple):
     """Represents a command mapping result."""
 
     requested_action: str
-    capability_message: dict[str, Any]
+    capability_message: dict[str, Any] | None
 
 
 class CommandStrategy(ABC):
@@ -234,7 +234,13 @@ class CommandStrategyRegistry:
             # Configuration hit: set requested_action from config, then choose appropriate strategy
             strategy = self._strategies.get(cmd_type)
             if not strategy:
+                # Check if this is a confirmation/update/revision event that should not trigger capability tasks
+                if self._is_state_change_event(event_type):
+                    # Return mapping without capability message for state-only changes
+                    return CommandMapping(requested_action=event_type, capability_message=None)
+                
                 # Fallback: choose strategy by event_type prefix (e.g., "Character.Requested" -> CharacterRequestStrategy)
+                # Only for generation requests, not confirmations
                 prefix = event_type.split(".", 1)[0].lower()
                 strategy = {
                     "character": CharacterRequestStrategy(),
@@ -255,6 +261,18 @@ class CommandStrategyRegistry:
             return None
 
         return strategy.process(scope_type, scope_prefix, aggregate_id, payload)
+    
+    def _is_state_change_event(self, event_type: str) -> bool:
+        """Check if the event type represents a state change that doesn't require capability tasks.
+        
+        Args:
+            event_type: The event type to check
+            
+        Returns:
+            True if this is a state-only change (confirm, update, revise, etc.)
+        """
+        state_change_suffixes = {".Confirmed", ".Updated", ".Revised", ".Completed", ".Created"}
+        return any(event_type.endswith(suffix) for suffix in state_change_suffixes)
 
 
 # Global registry instance

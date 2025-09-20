@@ -13,6 +13,7 @@ from sqlalchemy import and_, select
 
 from src.agents.message import encode_message
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
+from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.db.sql.session import create_sql_session
 from src.models.event import DomainEvent
 from src.models.workflow import EventOutbox
@@ -35,16 +36,22 @@ class DomainEventIdempotencyChecker:
             如果存在则返回DomainEvent对象，否则返回None
         """
         try:
+            # 安全地转换correlation_id为UUID
+            safe_correlation_id = safe_uuid_conversion(correlation_id)
+            if safe_correlation_id is None:
+                # 如果correlation_id无法转换为UUID，视为没有现有事件
+                return None
+
             return await db_session.scalar(
                 select(DomainEvent).where(
                     and_(
-                        DomainEvent.correlation_id == UUID(str(correlation_id)),
+                        DomainEvent.correlation_id == safe_correlation_id,
                         DomainEvent.event_type == evt_type,
                     )
                 )
             )
         except Exception:
-            # 如果correlation_id是无效的UUID或其他错误，视为没有现有事件
+            # 如果发生任何其他错误，视为没有现有事件
             return None
 
 
@@ -123,13 +130,17 @@ class DomainEventCreator:
             correlation_id=correlation_id,
         )
 
+        # 安全地转换correlation_id和causation_id为UUID
+        safe_correlation_id = safe_uuid_conversion(correlation_id)
+        safe_causation_id = safe_uuid_conversion(causation_id)
+
         domain_event = DomainEvent(
             event_type=evt_type,
             aggregate_type=aggregate_type,
             aggregate_id=str(session_id),
             payload=payload,
-            correlation_id=UUID(str(correlation_id)) if correlation_id else None,
-            causation_id=UUID(str(causation_id)) if causation_id else None,
+            correlation_id=safe_correlation_id,
+            causation_id=safe_causation_id,
             event_metadata={"source": "orchestrator"},
         )
         db_session.add(domain_event)

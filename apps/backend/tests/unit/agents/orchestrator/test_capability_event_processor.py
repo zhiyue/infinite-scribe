@@ -169,14 +169,13 @@ class TestEventHandlerMatcher:
             task_completion={"correlation_id": correlation_id, "expect_task_prefix": "Character.Design"},
         )
 
+        # Mock the handler function to return our test action
+        mock_handler = MagicMock(return_value=mock_action)
+        
         with patch(
-            "src.agents.orchestrator.capability_event_processor.CapabilityEventHandlers"
-        ) as mock_handlers:
-            # Mock first handler to return the action
-            mock_handlers.handle_generation_completed.return_value = mock_action
-            mock_handlers.handle_quality_review_result.return_value = None
-            mock_handlers.handle_consistency_check_result.return_value = None
-
+            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
+            {GenerationData: mock_handler}
+        ):
             # Act
             result = self.matcher.find_matching_handler(
                 msg_type, session_id, data, correlation_id, scope_info, causation_id
@@ -184,8 +183,14 @@ class TestEventHandlerMatcher:
 
             # Assert
             assert result == mock_action
-            mock_handlers.handle_generation_completed.assert_called_once_with(
-                msg_type, session_id, data, correlation_id, "GENESIS", "GENESIS", causation_id
+            mock_handler.assert_called_once_with(
+                msg_type=msg_type, 
+                session_id=session_id, 
+                data=data, 
+                correlation_id=correlation_id, 
+                scope_type="GENESIS", 
+                scope_prefix="GENESIS", 
+                causation_id=causation_id
             )
 
     def test_find_matching_handler_second_handler_matches(self):
@@ -206,14 +211,13 @@ class TestEventHandlerMatcher:
             domain_event={"scope_type": "GENESIS", "event_action": "Character.QualityReviewed"}
         )
 
+        # Mock the handler function to return our test action
+        mock_handler = MagicMock(return_value=mock_action)
+        
         with patch(
-            "src.agents.orchestrator.capability_event_processor.CapabilityEventHandlers"
-        ) as mock_handlers:
-            # Mock second handler to return the action
-            mock_handlers.handle_generation_completed.return_value = None
-            mock_handlers.handle_quality_review_result.return_value = mock_action
-            mock_handlers.handle_consistency_check_result.return_value = None
-
+            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
+            {QualityReviewData: mock_handler}
+        ):
             # Act
             result = self.matcher.find_matching_handler(
                 msg_type, session_id, data, correlation_id, scope_info, causation_id
@@ -221,8 +225,14 @@ class TestEventHandlerMatcher:
 
             # Assert
             assert result == mock_action
-            mock_handlers.handle_quality_review_result.assert_called_once_with(
-                msg_type, session_id, data, correlation_id, "GENESIS", "GENESIS", causation_id
+            mock_handler.assert_called_once_with(
+                msg_type=msg_type, 
+                session_id=session_id, 
+                data=data, 
+                correlation_id=correlation_id, 
+                scope_type="GENESIS", 
+                scope_prefix="GENESIS", 
+                causation_id=causation_id
             )
 
     def test_find_matching_handler_no_match(self):
@@ -235,14 +245,11 @@ class TestEventHandlerMatcher:
         scope_info = ScopeInfo(topic="genesis.character.events", scope_prefix="GENESIS", scope_type="GENESIS")
         causation_id = str(uuid4())
 
+        # Mock HANDLER_REGISTRY to have no matching handler for the data type
         with patch(
-            "src.agents.orchestrator.capability_event_processor.CapabilityEventHandlers"
-        ) as mock_handlers:
-            # Mock all handlers to return None
-            mock_handlers.handle_generation_completed.return_value = None
-            mock_handlers.handle_quality_review_result.return_value = None
-            mock_handlers.handle_consistency_check_result.return_value = None
-
+            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
+            {QualityReviewData: MagicMock()}  # Only has QualityReviewData, not GenerationData
+        ):
             # Act
             result = self.matcher.find_matching_handler(
                 msg_type, session_id, data, correlation_id, scope_info, causation_id
@@ -250,12 +257,11 @@ class TestEventHandlerMatcher:
 
             # Assert
             assert result is None
-            self.mock_logger.debug.assert_called_with(
+            self.mock_logger.warning.assert_called_with(
                 "orchestrator_no_handler_matched",
                 msg_type=msg_type,
                 session_id=session_id,
                 data_type="GenerationData",
-                handlers_tried=1,
             )
 
 

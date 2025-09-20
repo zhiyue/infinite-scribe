@@ -128,6 +128,7 @@ def test_capability_event_handlers_static_methods_use_singleton_orchestrator():
         data=consistency_data,
         correlation_id="corr-1",
         scope_type="GENESIS",
+        scope_prefix="GENESIS",
         causation_id="cause-1",
     )
 

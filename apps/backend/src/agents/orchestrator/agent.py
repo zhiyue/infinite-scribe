@@ -16,31 +16,42 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.base import BaseAgent
+from src.agents.orchestrator.interfaces import (
+    CapabilityEventProcessor,
+    DefaultOrchestratorComponentFactory,
+    DomainEventProcessor,
+    OrchestratorComponentFactory,
+    OutboxManager,
+    TaskManager,
+)
 
 
 class OrchestratorAgent(BaseAgent):
     """编排器代理，负责协调领域事件和能力事件的处理流程。"""
 
-    def __init__(self, name: str, consume_topics: list[str], produce_topics: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        consume_topics: list[str],
+        produce_topics: list[str] | None = None,
+        component_factory: OrchestratorComponentFactory | None = None
+    ) -> None:
         """初始化编排器代理。
 
         Args:
             name: 代理名称
             consume_topics: 消费的主题列表
             produce_topics: 生产的主题列表（可选）
+            component_factory: 组件工厂（可选，默认使用DefaultOrchestratorComponentFactory）
         """
         super().__init__(name=name, consume_topics=consume_topics, produce_topics=produce_topics)
 
-        # 初始化处理器和管理器
-        from src.agents.orchestrator.capability_event_processor import CapabilityEventProcessor
-        from src.agents.orchestrator.domain_event_processor import DomainEventProcessor
-        from src.agents.orchestrator.outbox_manager import OutboxManager
-        from src.agents.orchestrator.task_manager import TaskManager
-
-        self.domain_processor = DomainEventProcessor(self.log)
-        self.capability_processor = CapabilityEventProcessor(self.log)
-        self.task_manager = TaskManager(self.log)
-        self.outbox_manager = OutboxManager(self.log, self.name)
+        # 使用依赖注入，遵循依赖反转原则(DIP)
+        factory = component_factory or DefaultOrchestratorComponentFactory()
+        self.domain_processor: DomainEventProcessor = factory.create_domain_processor(self.log)
+        self.capability_processor: CapabilityEventProcessor = factory.create_capability_processor(self.log)
+        self.task_manager: TaskManager = factory.create_task_manager(self.log)
+        self.outbox_manager: OutboxManager = factory.create_outbox_manager(self.log, self.name)
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
@@ -140,25 +151,33 @@ class OrchestratorAgent(BaseAgent):
             )
             raise
 
-        # 2) 创建异步任务并将能力任务入队 - 实现异步处理和任务跟踪
-        try:
-            await self.task_manager.create_async_task(
-                correlation_id=correlation_id,
-                session_id=aggregate_id,
-                task_type=normalize_task_type(mapping.capability_message.get("type", "")),
-                input_data=mapping.capability_message.get("input") or {},
-            )
-            await self.outbox_manager.enqueue_capability_task(
-                capability_message=mapping.capability_message,
-                correlation_id=correlation_id,
-            )
+        # 2) 创建异步任务并将能力任务入队 - 仅当需要能力任务时执行
+        if mapping.capability_message:
+            try:
+                await self.task_manager.create_async_task(
+                    correlation_id=correlation_id,
+                    session_id=aggregate_id,
+                    task_type=normalize_task_type(mapping.capability_message.get("type", "")),
+                    input_data=mapping.capability_message.get("input") or {},
+                )
+                await self.outbox_manager.enqueue_capability_task(
+                    capability_message=mapping.capability_message,
+                    correlation_id=correlation_id,
+                )
+                self.log.info(
+                    "orchestrator_capability_task_enqueued",
+                    topic=mapping.capability_message.get("_topic"),
+                    correlation_id=correlation_id,
+                )
+            except Exception as e:
+                self.log.warning("async_task_create_failed", correlation_id=correlation_id, error=str(e), exc_info=True)
+        else:
             self.log.info(
-                "orchestrator_capability_task_enqueued",
-                topic=mapping.capability_message.get("_topic"),
+                "orchestrator_state_only_command_processed",
+                requested_action=mapping.requested_action,
                 correlation_id=correlation_id,
+                message="命令仅触发状态变更，无需能力任务"
             )
-        except Exception as e:
-            self.log.warning("async_task_create_failed", correlation_id=correlation_id, error=str(e), exc_info=True)
 
         return None
 

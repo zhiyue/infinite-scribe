@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.agents.orchestrator.event_handlers import CapabilityEventHandlers, EventAction
+from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
 from src.agents.orchestrator.types import (
     ConsistencyCheckData,
     GenerationData,
@@ -23,6 +23,7 @@ from src.agents.orchestrator.types import (
     create_processing_result,
     create_quality_review_data_from_dict,
 )
+from src.agents.orchestrator.workflows import EventAction
 
 
 class EventDataExtractor:
@@ -139,7 +140,7 @@ class EventHandlerMatcher:
         scope_info: ScopeInfo,
         causation_id: str | None,
     ) -> EventAction | None:
-        """按顺序尝试不同的事件处理器，直到找到匹配的为止。
+        """通过注册表动态分派事件处理器。
 
         Args:
             msg_type: 消息类型
@@ -152,57 +153,37 @@ class EventHandlerMatcher:
         Returns:
             匹配的事件操作对象或None
         """
-        scope_type = scope_info.scope_type
-        scope_prefix = scope_info.scope_prefix
-        handlers_tried = 0
-        total_handlers = 3
+        # 获取数据对象的确切类型
+        data_type = type(data)
 
-        # 根据数据类型选择合适的处理器 - 类型安全的方式
-        if isinstance(data, GenerationData):
-            handlers_tried += 1
-            self.log.debug("orchestrator_trying_generation_handler", msg_type=msg_type, session_id=session_id)
-            action = CapabilityEventHandlers.handle_generation_completed(
-                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
+        # 从注册表中查找对应的处理器函数
+        handler = HANDLER_REGISTRY.get(data_type)
+
+        if handler:
+            self.log.info(
+                "orchestrator_handler_found",
+                data_type=data_type.__name__,
+                handler_name=getattr(handler, "__name__", "unknown"),
+                session_id=session_id,
             )
+
+            # 动态调用找到的处理器
+            action = handler(
+                msg_type=msg_type,
+                session_id=session_id,
+                data=data,
+                correlation_id=correlation_id,
+                scope_type=scope_info.scope_type,
+                scope_prefix=scope_info.scope_prefix,
+                causation_id=causation_id,
+            )
+
             if action:
                 self.log.info(
-                    "orchestrator_generation_handler_matched",
+                    "orchestrator_handler_matched",
                     msg_type=msg_type,
                     session_id=session_id,
-                    has_domain_event=bool(action.domain_event),
-                    has_task_completion=bool(action.task_completion),
-                    has_capability_message=bool(action.capability_message),
-                )
-                return action
-
-        elif isinstance(data, QualityReviewData):
-            handlers_tried += 1
-            self.log.debug("orchestrator_trying_quality_handler", msg_type=msg_type, session_id=session_id)
-            action = CapabilityEventHandlers.handle_quality_review_result(
-                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
-            )
-            if action:
-                self.log.info(
-                    "orchestrator_quality_handler_matched",
-                    msg_type=msg_type,
-                    session_id=session_id,
-                    has_domain_event=bool(action.domain_event),
-                    has_task_completion=bool(action.task_completion),
-                    has_capability_message=bool(action.capability_message),
-                )
-                return action
-
-        elif isinstance(data, ConsistencyCheckData):
-            handlers_tried += 1
-            self.log.debug("orchestrator_trying_consistency_handler", msg_type=msg_type, session_id=session_id)
-            action = CapabilityEventHandlers.handle_consistency_check_result(
-                msg_type, session_id, data, correlation_id, scope_type, causation_id
-            )
-            if action:
-                self.log.info(
-                    "orchestrator_consistency_handler_matched",
-                    msg_type=msg_type,
-                    session_id=session_id,
+                    data_type=data_type.__name__,
                     has_domain_event=bool(action.domain_event),
                     has_task_completion=bool(action.task_completion),
                     has_capability_message=bool(action.capability_message),
@@ -210,12 +191,11 @@ class EventHandlerMatcher:
                 return action
 
         # 没有找到匹配的处理器
-        self.log.debug(
+        self.log.warning(
             "orchestrator_no_handler_matched",
             msg_type=msg_type,
             session_id=session_id,
-            data_type=type(data).__name__,
-            handlers_tried=handlers_tried or total_handlers,
+            data_type=data_type.__name__,
         )
         return None
 

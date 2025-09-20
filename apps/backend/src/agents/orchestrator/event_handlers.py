@@ -7,6 +7,7 @@ extracted from the main orchestrator to improve readability and maintainability.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from src.agents.orchestrator.message_factory import MessageFactory
@@ -443,6 +444,7 @@ class CapabilityEventHandlers:
         data: ConsistencyCheckData,
         correlation_id: str | None,
         scope_type: str,
+        scope_prefix: str,
         causation_id: str | None = None,
     ) -> EventAction | None:
         return self.orchestrator.orchestrate_consistency_check(
@@ -451,7 +453,7 @@ class CapabilityEventHandlers:
             data=data,
             correlation_id=correlation_id,
             scope_type=scope_type,
-            scope_prefix="",
+            scope_prefix=scope_prefix,
             causation_id=causation_id,
         )
 
@@ -534,6 +536,7 @@ class CapabilityEventHandlers:
         data: ConsistencyCheckData,
         correlation_id: str | None,
         scope_type: str,
+        scope_prefix: str,
         causation_id: str | None = None,
     ) -> EventAction | None:
         return cls._default().orchestrate_consistency_check(
@@ -542,6 +545,21 @@ class CapabilityEventHandlers:
             data=data,
             correlation_id=correlation_id,
             scope_type=scope_type,
-            scope_prefix="",
+            scope_prefix=scope_prefix,
             causation_id=causation_id,
         )
+
+
+# ==============================================================================
+# Dynamic Handler Dispatch Registry
+# ==============================================================================
+
+# Type alias for handler functions
+HandlerFunction = Callable[..., EventAction | None]
+
+# Core registry: maps data types to their corresponding handler functions
+HANDLER_REGISTRY: dict[type, HandlerFunction] = {
+    GenerationData: CapabilityEventHandlers.handle_generation_completed,
+    QualityReviewData: CapabilityEventHandlers.handle_quality_review_result,
+    ConsistencyCheckData: CapabilityEventHandlers.handle_consistency_check_result,
+}

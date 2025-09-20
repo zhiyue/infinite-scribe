@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 
 from src.common.utils.datetime_utils import utc_now
+from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.db.sql.session import create_sql_session
 from src.models.workflow import AsyncTask
 from src.schemas.enums import TaskStatus
@@ -117,21 +118,20 @@ class TaskCreator:
         if not correlation_id:
             return None
 
-        try:
-            trig_cmd_id = UUID(str(correlation_id))
+        trig_cmd_id = safe_uuid_conversion(correlation_id)
+        if trig_cmd_id:
             self.log.debug(
                 "orchestrator_async_task_correlation_parsed",
                 correlation_id=correlation_id,
                 trig_cmd_id=str(trig_cmd_id),
             )
-            return trig_cmd_id
-        except Exception as e:
+        else:
             self.log.warning(
                 "orchestrator_async_task_correlation_parse_failed",
                 correlation_id=correlation_id,
-                error=str(e),
+                error="Invalid UUID format",
             )
-            return None
+        return trig_cmd_id
 
     async def _create_new_task(
         self, trig_cmd_id: UUID | None, session_id: str, task_type: str, input_data: dict, db_session
@@ -226,21 +226,20 @@ class TaskCompleter:
         Returns:
             解析后的UUID或None
         """
-        try:
-            trig_cmd_id = UUID(str(correlation_id))
+        trig_cmd_id = safe_uuid_conversion(correlation_id)
+        if trig_cmd_id:
             self.log.debug(
                 "orchestrator_async_task_complete_correlation_parsed",
                 correlation_id=correlation_id,
                 trig_cmd_id=str(trig_cmd_id),
             )
-            return trig_cmd_id
-        except Exception as e:
+        else:
             self.log.warning(
                 "orchestrator_async_task_complete_correlation_parse_failed",
                 correlation_id=correlation_id,
-                error=str(e),
+                error="Invalid UUID format",
             )
-            return None
+        return trig_cmd_id
 
     async def _find_task_to_complete(self, trig_cmd_id: UUID, expect_task_prefix: str, db_session) -> AsyncTask | None:
         """查找具有匹配前缀的最新RUNNING/PENDING任务。
