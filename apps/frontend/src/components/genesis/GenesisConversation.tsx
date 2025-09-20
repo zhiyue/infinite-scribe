@@ -17,6 +17,7 @@ import {
   usePollCommandStatus,
   useRounds,
   useSubmitCommand,
+  useCommandEvents,
 } from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
 import type { RoundResponse } from '@/types/api'
@@ -109,7 +110,6 @@ export function GenesisConversation({
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null)
-  const [genesisCommandStatuses, setGenesisCommandStatuses] = useState<GenesisCommandStatus[]>([])
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -188,10 +188,6 @@ export function GenesisConversation({
     })
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
 
-  // 扁平化系统事件：最近若干条
-  const recentFlatStatuses = useMemo(() => {
-    return genesisCommandStatuses.slice(-5)
-  }, [genesisCommandStatuses])
 
   // SSE连接状态日志
   useEffect(() => {
