@@ -1,12 +1,11 @@
 import asyncio
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from src.agents.orchestrator.agent import OrchestratorAgent
 from src.models.workflow import EventOutbox
-from src.models.event import DomainEvent
 
 
 class EventCapture:
@@ -38,7 +37,7 @@ def test_command_to_character_requested_and_task(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_create_async_task", capture_create)
-    
+
     async def capture_enqueue(**kwargs):
         # kwargs: capability_message, correlation_id
         cm = kwargs.get("capability_message") or {}
@@ -124,7 +123,7 @@ def test_capability_generated_triggers_review(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
-    
+
     async def capture_enqueue(**kwargs):
         cm = kwargs.get("capability_message") or {}
         capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
@@ -199,9 +198,11 @@ def test_quality_review_decision_paths(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+
     async def capture_enqueue_q(**kwargs):
         cm = kwargs.get("capability_message") or {}
         capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
+
     monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue_q)
 
     test_session_id = "test-session-1"
@@ -403,9 +404,7 @@ async def test_persist_domain_event_no_double_payload_nesting():
 
     def capture_outbox_add(obj):
         nonlocal captured_outbox
-        if isinstance(obj, EventOutbox):
-            captured_outbox = obj
-        elif hasattr(obj, '__class__') and obj.__class__.__name__ == 'EventOutbox':
+        if isinstance(obj, EventOutbox) or hasattr(obj, "__class__") and obj.__class__.__name__ == "EventOutbox":
             captured_outbox = obj
         else:
             # Mock domain event creation
@@ -418,8 +417,10 @@ async def test_persist_domain_event_no_double_payload_nesting():
         class MockContextManager:
             async def __aenter__(self):
                 return mock_db_session
+
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
+
         return MockContextManager()
 
     # Patch dependencies
@@ -441,7 +442,7 @@ async def test_persist_domain_event_no_double_payload_nesting():
             session_id="test-session-123",
             event_action="Character.Requested",
             payload={"session_id": "test-session-123", "input": {"name": "Hero"}},
-            correlation_id="test-correlation-123"
+            correlation_id="test-correlation-123",
         )
 
     # Verify that an EventOutbox was created
@@ -454,8 +455,9 @@ async def test_persist_domain_event_no_double_payload_nesting():
     # Check that we don't have {"payload": {"payload": {...}}} structure
     if "payload" in outbox_payload:
         nested_payload = outbox_payload["payload"]
-        assert "payload" not in nested_payload or not isinstance(nested_payload.get("payload"), dict), \
-            f"Double payload nesting detected: {outbox_payload}"
+        assert "payload" not in nested_payload or not isinstance(
+            nested_payload.get("payload"), dict
+        ), f"Double payload nesting detected: {outbox_payload}"
 
     # Verify the expected flattened structure
     expected_keys = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "session_id", "input"}
