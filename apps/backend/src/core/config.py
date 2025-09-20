@@ -361,7 +361,6 @@ class EventBridgeSettings(BaseModel):
     prometheus_host: str = Field(default="0.0.0.0", description="Prometheus metrics server host")
 
 
-
 class Settings(BaseSettings):
     """应用主配置
 

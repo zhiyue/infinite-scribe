@@ -54,7 +54,9 @@ class ProcessManager:
                 # If ProcessLookupError occurs, process is already dead
 
     @staticmethod
-    def build_uvicorn_command(host: str, port: int, reload: bool = False, timeout_graceful_shutdown: int | None = None) -> list[str]:
+    def build_uvicorn_command(
+        host: str, port: int, reload: bool = False, timeout_graceful_shutdown: int | None = None
+    ) -> list[str]:
         """Build uvicorn command arguments"""
         args = [sys.executable, "-m", "uvicorn", "src.api.main:app", "--host", host, "--port", str(port)]
         if reload:

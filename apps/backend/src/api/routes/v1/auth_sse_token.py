@@ -83,11 +83,14 @@ def verify_sse_token(sse_token: str) -> str:
     Raises:
         HTTPException: 401 if token is invalid or expired
     """
-    logger.debug("🔍 开始验证SSE token", extra={
-        "has_token": bool(sse_token),
-        "token_length": len(sse_token) if sse_token else 0,
-        "token_prefix": sse_token[:20] + "..." if sse_token and len(sse_token) > 20 else sse_token
-    })
+    logger.debug(
+        "🔍 开始验证SSE token",
+        extra={
+            "has_token": bool(sse_token),
+            "token_length": len(sse_token) if sse_token else 0,
+            "token_prefix": sse_token[:20] + "..." if sse_token and len(sse_token) > 20 else sse_token,
+        },
+    )
 
     # Input validation
     if not sse_token or not sse_token.strip():

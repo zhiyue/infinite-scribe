@@ -72,6 +72,7 @@ class EventValidator:
             如果是命令接收事件则返回True， 否则返回False
         """
         from src.common.events.config import is_command_received_event
+
         return is_command_received_event(event_type)
 
     @staticmethod

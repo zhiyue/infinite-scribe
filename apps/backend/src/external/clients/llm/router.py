@@ -25,4 +25,3 @@ class ProviderRouter:
             if re.match(pattern, model):
                 return provider
         return self.default_provider
-

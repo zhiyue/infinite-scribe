@@ -61,4 +61,3 @@ class OutboxEgress:
             db.add(out)
             await db.flush()
             return str(out.id)
-

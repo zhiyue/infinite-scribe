@@ -148,7 +148,6 @@ class ConversationCommandService:
                 user_id=user_id,
             )
 
-
     async def get_pending_command(
         self,
         db: AsyncSession,

@@ -2,7 +2,6 @@
 创世流程更新相关的 Pydantic 模型
 """
 
-
 from pydantic import Field, model_validator
 
 from src.schemas.base import BaseSchema

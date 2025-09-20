@@ -155,7 +155,12 @@ async def list_stage_sessions(
 @router.get(
     "/stages/{stage_id}/active-session",
     response_model=ApiResponse[StageWithActiveSessionResponse],
-    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
 )
 async def get_stage_with_active_session(
     stage_id: UUID,

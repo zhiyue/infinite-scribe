@@ -80,9 +80,7 @@ class ConversationSessionUpdateDeleteHandler:
                 return access_result
 
             # Check if there are no values to update using validator
-            needs_update, error_response = ConversationSessionValidator.validate_session_update_params(
-                status
-            )
+            needs_update, error_response = ConversationSessionValidator.validate_session_update_params(status)
             if error_response:
                 return error_response
 

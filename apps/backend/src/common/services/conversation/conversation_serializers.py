@@ -90,7 +90,7 @@ class ConversationSerializer:
             "command_type": cmd.command_type,
             "idempotency_key": cmd.idempotency_key,
             "payload": cmd.payload or {},
-            "status": cmd.status.value if hasattr(cmd.status, 'value') else str(cmd.status),
+            "status": cmd.status.value if hasattr(cmd.status, "value") else str(cmd.status),
             "error_message": cmd.error_message,
             "retry_count": cmd.retry_count,
             "created_at": getattr(cmd.created_at, "isoformat", lambda: str(cmd.created_at))()

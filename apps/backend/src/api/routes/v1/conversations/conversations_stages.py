@@ -67,7 +67,7 @@ async def set_stage(
         try:
             expected_version = int(if_match.strip('"'))
         except Exception:
-            raise HTTPException(status_code=400, detail="Invalid If-Match header")
+            raise HTTPException(status_code=400, detail="Invalid If-Match header") from None
 
     # Update session stage with access control
     result = await conversation_service.update_session(

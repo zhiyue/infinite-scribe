@@ -103,6 +103,7 @@ class BaseEventData(BaseModel):
 
 class ContentData(BaseModel):
     """内容数据 - 用于替代泛型字典"""
+
     text: str | None = None
     title: str | None = None
     description: str | None = None
@@ -162,6 +163,7 @@ class ConsistencyCheckData(BaseEventData):
 
 class TaskInput(BaseModel):
     """任务输入数据 - 用于替代泛型字典"""
+
     prompt: str | None = None
     context: str | None = None
     parameters: dict[str, Any] | None = None
@@ -178,14 +180,12 @@ class CapabilityTaskMessage(BaseModel):
     topic: str = Field(alias="_topic")
     key: str = Field(alias="_key")
 
-    model_config = ConfigDict(
-        extra="allow",
-        populate_by_name=True
-    )
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
 class EventPayloadData(BaseModel):
     """事件负载数据 - 用于替代泛型字典"""
+
     entity_id: str | None = None
     entity_type: str | None = None
     action_data: dict[str, Any] | None = None
@@ -209,6 +209,7 @@ class DomainEventPayload(BaseModel):
 
 class TaskResultData(BaseModel):
     """任务结果数据 - 用于替代泛型字典"""
+
     status: str | None = None
     output: Any | None = None
     error_message: str | None = None
@@ -235,14 +236,12 @@ class ProcessingResult(BaseModel):
     session_id: str
     correlation_id: str | None = None
 
-    model_config = ConfigDict(
-        extra="allow",
-        arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
 
 class DomainEventMetadata(BaseModel):
     """领域事件元数据 - 用于替代泛型字典"""
+
     source: str | None = None
     version: str | None = None
     trace_id: str | None = None
@@ -267,6 +266,7 @@ class DomainEvent(BaseModel):
 
 class CapabilityEventData(BaseModel):
     """能力事件数据 - 用于替代泛型字典"""
+
     raw_data: Any | None = None
     processed_data: dict[str, Any] | None = None
 

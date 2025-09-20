@@ -392,10 +392,7 @@ def get_commands_by_action_prefix(action_prefix: str) -> list[str]:
     Returns:
         List of commands that map to actions with this prefix
     """
-    return [
-        cmd for cmd, action in COMMAND_EVENT_MAPPING.items()
-        if action.startswith(action_prefix)
-    ]
+    return [cmd for cmd, action in COMMAND_EVENT_MAPPING.items() if action.startswith(action_prefix)]
 
 
 def build_topic_name(base_topic: str, scope_type: str, scope_prefix: str) -> str:
@@ -409,10 +406,7 @@ def build_topic_name(base_topic: str, scope_type: str, scope_prefix: str) -> str
     Returns:
         Built topic name
     """
-    return (
-        f"genesis.{base_topic}.tasks" if scope_type == "GENESIS"
-        else f"{scope_prefix.lower()}.{base_topic}.tasks"
-    )
+    return f"genesis.{base_topic}.tasks" if scope_type == "GENESIS" else f"{scope_prefix.lower()}.{base_topic}.tasks"
 
 
 # ==================== Exports ====================

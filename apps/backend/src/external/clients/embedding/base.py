@@ -73,4 +73,3 @@ class EmbeddingProvider(ABC):
     def model_name(self) -> str:
         """Name of the embedding model being used."""
         pass
-

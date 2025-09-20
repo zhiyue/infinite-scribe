@@ -257,8 +257,8 @@ async def switch_flow_stage(
                     "type": "stage_config_incomplete",
                     "message": error_msg,
                     "user_message": "当前阶段配置不完整，请先完成必填字段的配置后再切换到下一阶段",
-                    "action_required": "complete_current_stage_config"
-                }
+                    "action_required": "complete_current_stage_config",
+                },
             ) from e
         else:
             # Other validation errors
@@ -268,8 +268,8 @@ async def switch_flow_stage(
                     "type": "stage_validation_error",
                     "message": error_msg,
                     "user_message": "阶段切换失败，请检查当前阶段状态",
-                    "action_required": "check_stage_status"
-                }
+                    "action_required": "check_stage_status",
+                },
             ) from e
     except HTTPException:
         raise
@@ -453,15 +453,12 @@ async def update_stage_config_endpoint(
             normalized_config = validated_config.model_dump()
         except (ValidationError, ValueError) as exc:
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid configuration for stage {stage_record.stage.value}: {exc!s}"
+                status_code=400, detail=f"Invalid configuration for stage {stage_record.stage.value}: {exc!s}"
             ) from exc
 
         # Update the stage configuration
         updated_stage = await stage_service.update_stage_config(
-            db=flow_service.db_session,
-            stage_id=stage_id,
-            config=normalized_config
+            db=flow_service.db_session, stage_id=stage_id, config=normalized_config
         )
 
         if not updated_stage:
@@ -471,15 +468,11 @@ async def update_stage_config_endpoint(
         result_data = {
             "stage_id": str(updated_stage.id),
             "stage": updated_stage.stage.value,
-            "config": updated_stage.config
+            "config": updated_stage.config,
         }
 
         set_common_headers(response, correlation_id=corr_id)
-        return ApiResponse(
-            code=0,
-            msg="Stage configuration updated successfully",
-            data=result_data
-        )
+        return ApiResponse(code=0, msg="Stage configuration updated successfully", data=result_data)
 
     except HTTPException:
         raise

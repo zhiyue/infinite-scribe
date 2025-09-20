@@ -13,7 +13,9 @@ class InitialPromptConfig(BaseModel):
     genre: str = Field(..., title="小说类型", description="选择小说的基本类型，如玄幻、都市、武侠等")
     style: str = Field(..., title="写作风格", description="选择叙述视角和写作风格，如第一人称、第三人称等")
     target_word_count: int = Field(..., title="目标字数", description="预期完成的小说总字数", ge=10000, le=1000000)
-    special_requirements: list[str] = Field(default_factory=list, title="特殊要求", description="对创作的特殊要求或限制条件")
+    special_requirements: list[str] = Field(
+        default_factory=list, title="特殊要求", description="对创作的特殊要求或限制条件"
+    )
 
     class Config:
         json_schema_extra = {
@@ -24,7 +26,7 @@ class InitialPromptConfig(BaseModel):
                 "style": "第三人称",
                 "target_word_count": 100000,
                 "special_requirements": ["融入中国传统文化元素", "避免过于血腥的情节", "加入轻松幽默的元素"],
-            }
+            },
         }
 
 
@@ -47,7 +49,7 @@ class WorldviewConfig(BaseModel):
                 "tech_magic_level": "高魔法",
                 "social_structure": "封建制",
                 "power_system": "修真等级",
-            }
+            },
         }
 
 
@@ -55,7 +57,9 @@ class CharactersConfig(BaseModel):
     """角色阶段配置"""
 
     protagonist_count: int = Field(..., title="主角数量", description="故事的主角人数，建议1-3人", ge=1, le=5)
-    relationship_complexity: str = Field(..., title="角色关系复杂度", description="角色间关系的复杂程度，如简单、中等、复杂")
+    relationship_complexity: str = Field(
+        ..., title="角色关系复杂度", description="角色间关系的复杂程度，如简单、中等、复杂"
+    )
     personality_preferences: list[str] = Field(..., title="性格偏好", description="希望角色具备的性格特征")
     include_villains: bool = Field(True, title="包含反派", description="是否在故事中设置反派角色")
 
@@ -68,14 +72,16 @@ class CharactersConfig(BaseModel):
                 "relationship_complexity": "中等",
                 "personality_preferences": ["坚韧", "聪明", "善良"],
                 "include_villains": True,
-            }
+            },
         }
 
 
 class PlotOutlineConfig(BaseModel):
     """情节大纲阶段配置"""
 
-    chapter_count_preference: int = Field(..., title="章节数量", description="预期的章节总数，建议20-50章", ge=5, le=100)
+    chapter_count_preference: int = Field(
+        ..., title="章节数量", description="预期的章节总数，建议20-50章", ge=5, le=100
+    )
     plot_complexity: str = Field(..., title="情节复杂度", description="故事情节的复杂程度，如简单、中等、复杂")
     conflict_types: list[str] = Field(..., title="冲突类型", description="故事中包含的主要冲突类型")
     pacing_preference: str = Field("中等", title="节奏偏好", description="故事发展的节奏快慢，如缓慢、中等、快速")
@@ -89,7 +95,7 @@ class PlotOutlineConfig(BaseModel):
                 "plot_complexity": "中等",
                 "conflict_types": ["内心冲突", "人际冲突", "社会冲突"],
                 "pacing_preference": "中等",
-            }
+            },
         }
 
 
@@ -243,7 +249,7 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
             "is_complete": True,
             "missing_fields": [],
             "missing_fields_chinese": [],
-            "message": "FINISHED stage does not require configuration"
+            "message": "FINISHED stage does not require configuration",
         }
 
     if not config:
@@ -299,5 +305,5 @@ def check_stage_config_completeness(stage: GenesisStage, config: dict[str, Any] 
         "is_complete": is_complete,
         "missing_fields": missing_fields,
         "missing_fields_chinese": missing_fields_chinese,
-        "message": message
+        "message": message,
     }

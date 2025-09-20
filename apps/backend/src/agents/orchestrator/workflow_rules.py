@@ -109,7 +109,7 @@ class ConfigBasedWorkflowRules(IWorkflowRules):
             return WorkflowDecision(
                 result=ReviewResult.APPROVED,
                 action=action,
-                reason=f"Score {request.score} >= threshold {request.threshold}"
+                reason=f"Score {request.score} >= threshold {request.threshold}",
             )
 
         # Max attempts reached - mark as failed
@@ -118,7 +118,7 @@ class ConfigBasedWorkflowRules(IWorkflowRules):
             return WorkflowDecision(
                 result=ReviewResult.REJECTED_FAILED,
                 action=action,
-                reason=f"Max attempts ({request.max_attempts}) reached"
+                reason=f"Max attempts ({request.max_attempts}) reached",
             )
 
         # Quality not met, but attempts remaining - trigger regeneration
@@ -126,7 +126,7 @@ class ConfigBasedWorkflowRules(IWorkflowRules):
         return WorkflowDecision(
             result=ReviewResult.REJECTED_RETRY,
             action=action,
-            reason=f"Score {request.score} < threshold {request.threshold}, attempts: {request.attempts + 1}"
+            reason=f"Score {request.score} < threshold {request.threshold}, attempts: {request.attempts + 1}",
         )
 
     def get_confirmation_action(self, target_type: str) -> str:
@@ -187,18 +187,14 @@ class StaticWorkflowRules(IWorkflowRules):
         if request.score >= threshold:
             action = self.get_confirmation_action(request.target_type)
             return WorkflowDecision(
-                result=ReviewResult.APPROVED,
-                action=action,
-                reason=f"Score {request.score} >= threshold {threshold}"
+                result=ReviewResult.APPROVED, action=action, reason=f"Score {request.score} >= threshold {threshold}"
             )
 
         # Max attempts reached - mark as failed
         if request.attempts + 1 >= max_attempts:
             action = self.get_failure_action(request.target_type)
             return WorkflowDecision(
-                result=ReviewResult.REJECTED_FAILED,
-                action=action,
-                reason=f"Max attempts ({max_attempts}) reached"
+                result=ReviewResult.REJECTED_FAILED, action=action, reason=f"Max attempts ({max_attempts}) reached"
             )
 
         # Quality not met, but attempts remaining - trigger regeneration
@@ -206,7 +202,7 @@ class StaticWorkflowRules(IWorkflowRules):
         return WorkflowDecision(
             result=ReviewResult.REJECTED_RETRY,
             action=action,
-            reason=f"Score {request.score} < threshold {threshold}, attempts: {request.attempts + 1}"
+            reason=f"Score {request.score} < threshold {threshold}, attempts: {request.attempts + 1}",
         )
 
     def get_confirmation_action(self, target_type: str) -> str:

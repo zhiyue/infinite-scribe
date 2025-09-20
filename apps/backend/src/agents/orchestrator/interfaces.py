@@ -31,9 +31,7 @@ class DomainEventProcessor(Protocol):
 class CapabilityEventProcessor(Protocol):
     """能力事件处理器协议"""
 
-    async def handle_capability_event(
-        self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
-    ) -> Any:
+    async def handle_capability_event(self, msg_type: str, message: dict[str, Any], context: dict[str, Any]) -> Any:
         """处理能力事件
 
         Args:
@@ -141,6 +139,7 @@ class DefaultOrchestratorComponentFactory(OrchestratorComponentFactory):
     def create_domain_processor(self, logger: Any) -> DomainEventProcessor:
         """创建领域事件处理器"""
         from src.agents.orchestrator.domain_event_processor import DomainEventProcessor as DomainEventProcessorImpl
+
         return DomainEventProcessorImpl(logger)
 
     def create_capability_processor(self, logger: Any) -> CapabilityEventProcessor:
@@ -148,14 +147,17 @@ class DefaultOrchestratorComponentFactory(OrchestratorComponentFactory):
         from src.agents.orchestrator.capability_event_processor import (
             CapabilityEventProcessor as CapabilityEventProcessorImpl,
         )
+
         return CapabilityEventProcessorImpl(logger)
 
     def create_task_manager(self, logger: Any) -> TaskManager:
         """创建任务管理器"""
         from src.agents.orchestrator.task_manager import TaskManager as TaskManagerImpl
+
         return TaskManagerImpl(logger)
 
     def create_outbox_manager(self, logger: Any, agent_name: str) -> OutboxManager:
         """创建Outbox管理器"""
         from src.agents.orchestrator.outbox_manager import OutboxManager as OutboxManagerImpl
+
         return OutboxManagerImpl(logger, agent_name)

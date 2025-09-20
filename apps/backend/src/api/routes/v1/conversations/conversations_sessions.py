@@ -65,7 +65,7 @@ async def create_session(
 
     except Exception as e:
         logger.exception(f"Unexpected error in create_session endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create session")
+        raise HTTPException(status_code=500, detail="Failed to create session") from e
 
     s = result["session"]
     # s may be ORM or dict
@@ -150,7 +150,7 @@ async def list_sessions(
 
     except Exception as e:
         logger.exception(f"Unexpected error in list_sessions endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list sessions")
+        raise HTTPException(status_code=500, detail="Failed to list sessions") from e
 
     sessions_data = result["sessions"]
     # Convert sessions to response format

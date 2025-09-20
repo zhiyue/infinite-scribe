@@ -179,39 +179,39 @@ class EventHandlerConfig:
     # Convenience accessors used by event commands
     # ---------------------------------------------------------------------
     @property
-    def QUALITY_THRESHOLD(self) -> float:
+    def QUALITY_THRESHOLD(self) -> float:  # noqa: N802
         return self._config.thresholds.quality_threshold
 
     @property
-    def MAX_ATTEMPTS(self) -> int:
+    def MAX_ATTEMPTS(self) -> int:  # noqa: N802
         return self._config.thresholds.max_attempts
 
     @property
-    def CONSISTENCY_THRESHOLD(self) -> float:
+    def CONSISTENCY_THRESHOLD(self) -> float:  # noqa: N802
         return self._config.thresholds.consistency_threshold
 
     @property
-    def EVENT_TARGET_MAPPING(self) -> dict[str, str]:
+    def EVENT_TARGET_MAPPING(self) -> dict[str, str]:  # noqa: N802
         return self._config.routing.event_target_mapping
 
     @property
-    def TARGET_CONFIRMATION_ACTIONS(self) -> dict[str, str]:
+    def TARGET_CONFIRMATION_ACTIONS(self) -> dict[str, str]:  # noqa: N802
         return self._config.routing.target_confirmation_actions
 
     @property
-    def TARGET_FAILURE_ACTIONS(self) -> dict[str, str]:
+    def TARGET_FAILURE_ACTIONS(self) -> dict[str, str]:  # noqa: N802
         return self._config.routing.target_failure_actions
 
     @property
-    def TARGET_REGENERATION_ACTIONS(self) -> dict[str, str]:
+    def TARGET_REGENERATION_ACTIONS(self) -> dict[str, str]:  # noqa: N802
         return self._config.routing.target_regeneration_actions
 
     @property
-    def TASK_PREFIX_MAPPING(self) -> dict[str, str]:
+    def TASK_PREFIX_MAPPING(self) -> dict[str, str]:  # noqa: N802
         return self._config.routing.task_prefix_mapping
 
     @property
-    def METADATA(self) -> dict[str, Any]:
+    def METADATA(self) -> dict[str, Any]:  # noqa: N802
         return self._config.metadata
 
     def to_dict(self) -> dict[str, Any]:

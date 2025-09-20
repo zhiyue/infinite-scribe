@@ -82,9 +82,7 @@ class BindingValidationService:
         # 验证会话属于指定小说
         self._validate_scope_type(session)
         if session.scope_id != str(novel_id):
-            raise ValueError(
-                f"Session scope_id '{session.scope_id}' does not match novel_id '{novel_id}'"
-            )
+            raise ValueError(f"Session scope_id '{session.scope_id}' does not match novel_id '{novel_id}'")
 
         return session
 

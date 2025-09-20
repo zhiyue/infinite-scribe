@@ -53,7 +53,9 @@ class ContentAnalyzerAgent(BaseAgent):
         # 其他 Writer 能力事件暂不处理
         return None
 
-    async def _analyze_chapter(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def _analyze_chapter(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         chapter_id = message.get("chapter_id")
         content = message.get("content") or ""
 
@@ -75,7 +77,9 @@ class ContentAnalyzerAgent(BaseAgent):
         )
         return None
 
-    async def _analyze_scene(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def _analyze_scene(
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         scene_id = message.get("scene_id")
         content = message.get("content") or ""
 

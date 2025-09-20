@@ -37,25 +37,30 @@ __all__ = [
     # External clients
     "EmbeddingProvider",
     "get_embedding_service",
-
     # User domain
-    "AuthService", "auth_service",
+    "AuthService",
+    "auth_service",
     "PasswordService",
-    "SessionService", "session_service",
+    "SessionService",
+    "session_service",
     "UserService",
-    "UserEmailService", "UserEmailTasks", "user_email_service", "user_email_tasks",
-
+    "UserEmailService",
+    "UserEmailTasks",
+    "user_email_service",
+    "user_email_tasks",
     # Conversation domain
     "ConversationCacheManager",
-    "ConversationService", "conversation_service",
-
+    "ConversationService",
+    "conversation_service",
     # Content domain
-    "NovelService", "novel_service",
-
+    "NovelService",
+    "novel_service",
     # Workflow domain
-    "TaskService", "task_service",
-
+    "TaskService",
+    "task_service",
     # System-level services
-    "AuditService", "audit_service",
-    "RateLimitService", "rate_limit_service",
+    "AuditService",
+    "audit_service",
+    "RateLimitService",
+    "rate_limit_service",
 ]

@@ -8,6 +8,7 @@ Placement rationale:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -215,10 +216,10 @@ class OutboxRelayService:
             from src.agents.agent_config import AGENT_TOPICS
 
             for cfg in (AGENT_TOPICS or {}).values():
-                for t in (cfg.get("consume") or []):
+                for t in cfg.get("consume") or []:
                     if isinstance(t, str) and t:
                         common_topics.append(t)
-                for t in (cfg.get("produce") or []):
+                for t in cfg.get("produce") or []:
                     if isinstance(t, str) and t:
                         common_topics.append(t)
         except Exception:
@@ -279,10 +280,8 @@ class OutboxRelayService:
                         max_retries=max_retries,
                     )
                     # Try to trigger topic creation by fetching metadata
-                    try:
+                    with contextlib.suppress(Exception):
                         await producer.client.fetch_all_metadata()
-                    except Exception:
-                        pass  # Ignore metadata fetch errors
                     await asyncio.sleep(retry_delay)
                 else:
                     log.error(

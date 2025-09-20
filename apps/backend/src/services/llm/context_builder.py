@@ -35,7 +35,7 @@ class PreContextBuilder:
 
         # Characters: accept names/ids from prompt if present
         pre_chars: list[dict[str, Any]] = []
-        for char in (user_prompt.get("characters") or []):
+        for char in user_prompt.get("characters") or []:
             name = char.get("name")
             cid = char.get("id") or char.get("character_id")
             try:
@@ -63,4 +63,3 @@ class PreContextBuilder:
             "if insufficient, you may ask for clarification.\n"
             f"Context JSON: {blob}"
         )
-

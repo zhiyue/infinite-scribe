@@ -139,13 +139,13 @@ class DomainEventCreator:
             self.log.warning(
                 "orchestrator_invalid_correlation_id_format",
                 correlation_id=correlation_id,
-                message="将使用None替代非法UUID格式的correlation_id"
+                message="将使用None替代非法UUID格式的correlation_id",
             )
         if causation_id and safe_causation_id is None:
             self.log.warning(
                 "orchestrator_invalid_causation_id_format",
                 causation_id=causation_id,
-                message="将使用None替代非法UUID格式的causation_id"
+                message="将使用None替代非法UUID格式的causation_id",
             )
 
         domain_event = DomainEvent(

@@ -65,6 +65,7 @@ class GenerationCompletedCommand(EventCommand):
     def can_handle(self, msg_type: str) -> bool:
         """Check if this is a generation completion event."""
         from src.common.events.mapping import is_generation_completed_event
+
         return is_generation_completed_event(msg_type)
 
     def execute(
@@ -125,6 +126,7 @@ class QualityReviewCommand(EventCommand):
     def can_handle(self, msg_type: str) -> bool:
         """Check if this is a quality review result event."""
         from src.common.events.mapping import is_quality_review_event
+
         return is_quality_review_event(msg_type)
 
     def execute(
@@ -160,19 +162,15 @@ class QualityReviewCommand(EventCommand):
             except (ValueError, TypeError):
                 return default
 
-        score = safe_float(getattr(data, 'score', None) or getattr(data, 'quality_score', None))
-        attempts = safe_int(getattr(data, 'attempts', None))
-        max_attempts = safe_int(getattr(data, 'max_attempts', None), WORKFLOW_DEFAULTS.MAX_ATTEMPTS)
-        threshold = safe_float(getattr(data, 'threshold', None), WORKFLOW_DEFAULTS.QUALITY_THRESHOLD)
-        target_type = str(getattr(data, 'target_type', None) or getattr(data, 'entity', None) or "content").lower()
+        score = safe_float(getattr(data, "score", None) or getattr(data, "quality_score", None))
+        attempts = safe_int(getattr(data, "attempts", None))
+        max_attempts = safe_int(getattr(data, "max_attempts", None), WORKFLOW_DEFAULTS.MAX_ATTEMPTS)
+        threshold = safe_float(getattr(data, "threshold", None), WORKFLOW_DEFAULTS.QUALITY_THRESHOLD)
+        target_type = str(getattr(data, "target_type", None) or getattr(data, "entity", None) or "content").lower()
 
         # Create quality review request
         request = QualityReviewRequest(
-            score=score,
-            attempts=attempts,
-            max_attempts=max_attempts,
-            threshold=threshold,
-            target_type=target_type
+            score=score, attempts=attempts, max_attempts=max_attempts, threshold=threshold, target_type=target_type
         )
 
         # Use business rules to make decision
@@ -423,7 +421,7 @@ class CapabilityEventHandlers:
         self,
         workflow_rules: IWorkflowRules | None = None,
         config: EventHandlerConfig | None = None,
-        orchestrator: WorkflowOrchestrator | None = None
+        orchestrator: WorkflowOrchestrator | None = None,
     ) -> None:
         if orchestrator:
             self.orchestrator = orchestrator

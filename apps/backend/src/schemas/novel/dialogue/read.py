@@ -147,6 +147,7 @@ class PendingCommandResponse(BaseSchema):
 
 # ===== Command events (history) =====
 
+
 class CommandEventItem(BaseSchema):
     """单条命令相关领域事件（用于命令历史/时间线）。"""
 

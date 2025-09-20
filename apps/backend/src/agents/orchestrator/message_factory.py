@@ -69,7 +69,7 @@ class MessageFactory:
             "session_id": session_id,
             "input": {
                 "prompt_adjust": "structured" if target_type == "character" else "detailed",
-                "attempt": attempts + 1
+                "attempt": attempts + 1,
             },
             "_topic": f"{scope_prefix.lower()}.{strategy_config['base_topic']}.tasks",
             "_key": session_id,

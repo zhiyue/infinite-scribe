@@ -135,11 +135,7 @@ class SqlAlchemyConversationRoundRepository(ConversationRoundRepository):
         order: str = "asc",
     ) -> list[ConversationRound]:
         """List conversation rounds for a session (simplified interface)."""
-        return await self.list_by_session(
-            session_id=session_id,
-            limit=limit,
-            order=order
-        )
+        return await self.list_by_session(session_id=session_id, limit=limit, order=order)
 
     async def count_by_session(self, session_id: UUID) -> int:
         """Count the total number of rounds in a session."""

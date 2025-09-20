@@ -323,7 +323,7 @@ class UserEmailTasks:
 
 
 # Create instances for backward compatibility
-from src.external.clients.email import email_client
+from src.external.clients.email import email_client  # noqa: E402
 
 user_email_service = UserEmailService(email_client)
 user_email_tasks = UserEmailTasks(user_email_service)

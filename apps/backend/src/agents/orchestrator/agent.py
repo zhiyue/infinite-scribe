@@ -34,7 +34,7 @@ class OrchestratorAgent(BaseAgent):
         name: str,
         consume_topics: list[str],
         produce_topics: list[str] | None = None,
-        component_factory: OrchestratorComponentFactory | None = None
+        component_factory: OrchestratorComponentFactory | None = None,
     ) -> None:
         """初始化编排器代理。
 
@@ -176,7 +176,7 @@ class OrchestratorAgent(BaseAgent):
                 "orchestrator_state_only_command_processed",
                 requested_action=mapping.requested_action,
                 correlation_id=correlation_id,
-                message="命令仅触发状态变更，无需能力任务"
+                message="命令仅触发状态变更，无需能力任务",
             )
 
         return None

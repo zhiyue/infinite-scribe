@@ -14,6 +14,7 @@ from .engine import get_engine
 # 创建异步会话工厂（延迟初始化）
 async_session_maker = None
 
+
 def get_session_maker():
     """获取会话工厂，延迟初始化以确保在异步上下文中创建"""
     global async_session_maker

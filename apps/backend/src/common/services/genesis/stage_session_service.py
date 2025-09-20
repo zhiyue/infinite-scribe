@@ -71,9 +71,7 @@ class GenesisStageSessionService:
         )
 
         await db.commit()
-        logger.info(
-            f"Created and bound conversation session {conversation_session.id} to stage {stage_id}"
-        )
+        logger.info(f"Created and bound conversation session {conversation_session.id} to stage {stage_id}")
 
         return conversation_session.id, stage_session
 
@@ -130,9 +128,7 @@ class GenesisStageSessionService:
 
         return stage_session
 
-    async def get_association(
-        self, db: AsyncSession, association_id: UUID
-    ) -> GenesisStageSession | None:
+    async def get_association(self, db: AsyncSession, association_id: UUID) -> GenesisStageSession | None:
         """Get a stage-session association by ID."""
         repo = self._get_repository(db)
         return await repo.find_by_id(association_id)
@@ -168,9 +164,7 @@ class GenesisStageSessionService:
         repo = self._get_repository(db)
         return await repo.list_by_session_id(session_id, status=status, limit=limit, offset=offset)
 
-    async def get_primary_session(
-        self, db: AsyncSession, stage_id: UUID
-    ) -> GenesisStageSession | None:
+    async def get_primary_session(self, db: AsyncSession, stage_id: UUID) -> GenesisStageSession | None:
         """Get the primary session for a stage."""
         repo = self._get_repository(db)
         return await repo.find_primary_session_for_stage(stage_id)
@@ -204,9 +198,7 @@ class GenesisStageSessionService:
 
         return updated_association
 
-    async def archive_session(
-        self, db: AsyncSession, association_id: UUID
-    ) -> GenesisStageSession | None:
+    async def archive_session(self, db: AsyncSession, association_id: UUID) -> GenesisStageSession | None:
         """
         Archive a stage-session association.
 
@@ -233,9 +225,7 @@ class GenesisStageSessionService:
 
         return updated_association
 
-    async def close_session(
-        self, db: AsyncSession, association_id: UUID
-    ) -> GenesisStageSession | None:
+    async def close_session(self, db: AsyncSession, association_id: UUID) -> GenesisStageSession | None:
         """
         Close a stage-session association.
 
@@ -377,6 +367,7 @@ class GenesisStageSessionService:
 
                 # Convert association to response format
                 from src.schemas.genesis import StageSessionResponse
+
                 association_info = StageSessionResponse(
                     id=primary_association.id,
                     stage_id=primary_association.stage_id,
