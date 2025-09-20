@@ -184,6 +184,8 @@ export interface CommandStatusResponse {
   submitted_at: string
   /** 关联ID */
   correlation_id: string
+  /** 错误消息 (仅在状态为失败时存在) */
+  error_message?: string
 }
 
 /**

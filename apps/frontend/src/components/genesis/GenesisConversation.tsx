@@ -14,8 +14,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
 import { usePendingCommand, usePollCommandStatus, useRounds, useSubmitCommand } from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
-import type { PaginatedResponse, RoundResponse } from '@/types/api'
+import type { RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
+import { getCommandTypeByStage, buildGenesisCommandPayload } from '@/utils/genesisCommands'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
@@ -204,11 +205,10 @@ export function GenesisConversation({
 
   // 监听Genesis进度事件，检测AI回复完成
   useGenesisEvents(
-    { sessionId, novelId },
-    (event) => {
-      console.log('[GenesisConversation] Genesis SSE event received:', event)
-      const eventData = (event as any) ?? {}
-      const payload = eventData.payload ?? eventData
+    sessionId,
+    (eventType, eventData) => {
+      console.log('[GenesisConversation] Genesis SSE event received:', { eventType, eventData })
+      const payload = eventData?.payload ?? eventData
       const rawStatus =
         typeof payload?.status === 'string'
           ? payload.status
@@ -251,8 +251,7 @@ export function GenesisConversation({
         refetchPendingCommand() // 更新pending command状态，清除失败的命令
         return
       }
-    },
-    { enabled: !!sessionId },
+    }
   )
 
   // 提交对话命令
@@ -316,6 +315,33 @@ export function GenesisConversation({
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
     console.log('[GenesisConversation] Submitting command with optimistic ID:', optimisticId)
 
+    // 获取当前阶段对应的命令类型
+    const commandType = getCommandTypeByStage(stage)
+
+    // 构造符合文档要求的payload
+    const commandPayload = buildGenesisCommandPayload(
+      commandType,
+      messageContent,
+      sessionId,
+      stage,
+      {
+        iteration_number: rounds.length + 1, // 基于当前轮次数量计算迭代次数
+        user_preferences: {}, // 可以从用户配置中获取
+        previous_attempts: 0, // 可以根据需要统计
+      }
+    )
+
+    // 生成LLD要求的请求头
+    const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+    const correlationId = `corr-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+
+    console.log('[GenesisConversation] Command details:', {
+      commandType,
+      stage,
+      payload: commandPayload,
+      headers: { idempotencyKey, correlationId }
+    })
+
     // 清空输入框并立即显示用户消息
     setInput('')
     setOptimisticMessage({
@@ -325,12 +351,19 @@ export function GenesisConversation({
     })
     setIsTyping(true)
 
-    // 提交对话命令到后端
+    // 提交对话命令到后端，包含幂等和关联头
+    // 保持向后兼容：确保payload包含content字段供UI使用
+    const finalPayload = {
+      ...commandPayload,
+      content: messageContent, // 保持UI期望的content字段
+    }
+
     submitCommand.mutate({
-      type: 'user_message',
-      payload: {
-        stage,
-        content: messageContent,
+      type: commandType,
+      payload: finalPayload,
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+        'X-Correlation-Id': correlationId,
       },
     })
   }

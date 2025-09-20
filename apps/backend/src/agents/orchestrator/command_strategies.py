@@ -41,7 +41,12 @@ class CharacterRequestStrategy(CommandStrategy):
     """Strategy for character generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {"Character.Request", "CHARACTER_REQUEST", "Character.Requested"}
+        return {
+            "Character.Request",
+            "CHARACTER_REQUEST",
+            "Character.Requested",
+            "Command.Genesis.Session.Character.Request"
+        }
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
@@ -60,13 +65,114 @@ class ThemeRequestStrategy(CommandStrategy):
     """Strategy for theme generation requests."""
 
     def get_aliases(self) -> set[str]:
-        return {"Theme.Request", "THEME_REQUEST", "Theme.Requested"}
+        return {
+            "Theme.Request",
+            "THEME_REQUEST",
+            "Theme.Requested",
+            "Command.Genesis.Session.Theme.Request"
+        }
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         return CommandMapping(
             requested_action="Theme.Requested",
             capability_message={
                 "type": "Outliner.Theme.GenerationRequested",
+                "session_id": aggregate_id,
+                "input": payload.get("payload", {}),
+                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_key": aggregate_id,
+            },
+        )
+
+
+class SeedRequestStrategy(CommandStrategy):
+    """Strategy for initial seed/concept generation requests."""
+
+    def get_aliases(self) -> set[str]:
+        return {
+            "Seed.Request",
+            "SEED_REQUEST",
+            "Seed.Requested",
+            "Command.Genesis.Session.Seed.Request"
+        }
+
+    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+        return CommandMapping(
+            requested_action="Seed.Requested",
+            capability_message={
+                "type": "Outliner.Concept.GenerationRequested",
+                "session_id": aggregate_id,
+                "input": payload.get("payload", {}),
+                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_key": aggregate_id,
+            },
+        )
+
+
+class WorldRequestStrategy(CommandStrategy):
+    """Strategy for world/worldview generation requests."""
+
+    def get_aliases(self) -> set[str]:
+        return {
+            "World.Request",
+            "WORLD_REQUEST",
+            "World.Requested",
+            "Command.Genesis.Session.World.Request"
+        }
+
+    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+        return CommandMapping(
+            requested_action="World.Requested",
+            capability_message={
+                "type": "Outliner.World.GenerationRequested",
+                "session_id": aggregate_id,
+                "input": payload.get("payload", {}),
+                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_key": aggregate_id,
+            },
+        )
+
+
+class PlotRequestStrategy(CommandStrategy):
+    """Strategy for plot generation requests."""
+
+    def get_aliases(self) -> set[str]:
+        return {
+            "Plot.Request",
+            "PLOT_REQUEST",
+            "Plot.Requested",
+            "Command.Genesis.Session.Plot.Request"
+        }
+
+    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+        return CommandMapping(
+            requested_action="Plot.Requested",
+            capability_message={
+                "type": "Outliner.Plot.GenerationRequested",
+                "session_id": aggregate_id,
+                "input": payload.get("payload", {}),
+                "_topic": self._build_topic("outline", scope_type, scope_prefix),
+                "_key": aggregate_id,
+            },
+        )
+
+
+class DetailsRequestStrategy(CommandStrategy):
+    """Strategy for details generation requests."""
+
+    def get_aliases(self) -> set[str]:
+        return {
+            "Details.Request",
+            "DETAILS_REQUEST",
+            "Details.Requested",
+            "Command.Genesis.Session.Details.Request"
+        }
+
+    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+        return CommandMapping(
+            requested_action="Details.Requested",
+            capability_message={
+                "type": "Outliner.Details.GenerationRequested",
                 "session_id": aggregate_id,
                 "input": payload.get("payload", {}),
                 "_topic": self._build_topic("outline", scope_type, scope_prefix),
@@ -125,6 +231,10 @@ class CommandStrategyRegistry:
         strategies = [
             CharacterRequestStrategy(),
             ThemeRequestStrategy(),
+            SeedRequestStrategy(),
+            WorldRequestStrategy(),
+            PlotRequestStrategy(),
+            DetailsRequestStrategy(),
             StageValidationStrategy(),
             StageLockStrategy(),
         ]

@@ -123,3 +123,45 @@ export enum OperationType {
   UPDATE = 'UPDATE',
   DELETE = 'DELETE',
 }
+
+/**
+ * Genesis命令类型枚举
+ * 遵循点式命名约定：Command.<Domain>.<AggregateRoot>.<OptionalSubAggregate>.<ActionInImperative>
+ */
+export enum GenesisCommandType {
+  // Stage 0 - 创意种子
+  SESSION_START = 'Command.Genesis.Session.Start',
+  SEED_REQUEST = 'Command.Genesis.Session.Seed.Request',
+  CONCEPT_CONFIRM = 'Command.Genesis.Session.Concept.Confirm',
+  STAGE_COMPLETE = 'Command.Genesis.Session.Stage.Complete',
+
+  // Stage 1 - 立意主题
+  THEME_REQUEST = 'Command.Genesis.Session.Theme.Request',
+  THEME_REVISE = 'Command.Genesis.Session.Theme.Revise',
+  THEME_CONFIRM = 'Command.Genesis.Session.Theme.Confirm',
+
+  // Stage 2 - 世界观
+  WORLD_REQUEST = 'Command.Genesis.Session.World.Request',
+  WORLD_UPDATE = 'Command.Genesis.Session.World.Update',
+  WORLD_CONFIRM = 'Command.Genesis.Session.World.Confirm',
+
+  // Stage 3 - 人物
+  CHARACTER_REQUEST = 'Command.Genesis.Session.Character.Request',
+  CHARACTER_UPDATE = 'Command.Genesis.Session.Character.Update',
+  CHARACTER_CONFIRM = 'Command.Genesis.Session.Character.Confirm',
+  CHARACTER_NETWORK_CREATE = 'Command.Genesis.Session.CharacterNetwork.Create',
+
+  // Stage 4 - 情节
+  PLOT_REQUEST = 'Command.Genesis.Session.Plot.Request',
+  PLOT_UPDATE = 'Command.Genesis.Session.Plot.Update',
+  PLOT_CONFIRM = 'Command.Genesis.Session.Plot.Confirm',
+
+  // Stage 5 - 细节
+  DETAILS_REQUEST = 'Command.Genesis.Session.Details.Request',
+  DETAILS_CONFIRM = 'Command.Genesis.Session.Details.Confirm',
+
+  // 通用命令
+  SESSION_FINISH = 'Command.Genesis.Session.Finish',
+  SESSION_FAIL = 'Command.Genesis.Session.Fail',
+  BRANCH_CREATE = 'Command.Genesis.Session.Branch.Create',
+}
