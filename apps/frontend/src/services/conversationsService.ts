@@ -9,6 +9,7 @@ import type {
   CommandRequest,
   CommandStatusResponse,
   PendingCommandResponse,
+  CommandEventItem,
   ContentResponse,
   ContentSearchItem,
   ContentSearchRequest,
@@ -247,6 +248,25 @@ export class ConversationsService {
     const response = await authenticatedApiService.get<ApiResponse<CommandStatusResponse>>(
       `${this.basePath}/sessions/${sessionId}/commands/${commandId}`,
     )
+    return handleApiResponse(response)
+  }
+
+  /**
+   * 获取命令事件时间线
+   * GET /api/v1/conversations/sessions/{session_id}/commands/{cmd_id}/events
+   */
+  async getCommandEvents(
+    sessionId: string,
+    commandId: string,
+    limit = 20,
+    params?: { before?: string; after?: string },
+  ): Promise<CommandEventItem[]> {
+    const sp = new URLSearchParams()
+    sp.set('limit', String(limit))
+    if (params?.before) sp.set('before', params.before)
+    if (params?.after) sp.set('after', params.after)
+    const url = `${this.basePath}/sessions/${sessionId}/commands/${commandId}/events?${sp.toString()}`
+    const response = await authenticatedApiService.get<ApiResponse<CommandEventItem[]>>(url)
     return handleApiResponse(response)
   }
 

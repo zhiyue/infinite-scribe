@@ -31,6 +31,10 @@ import type {
 } from '@/types/api'
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import type { CommandEventItem } from '@/types/api'
+import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
+import { useSSEEvents as useSSEEventsGeneric } from '@/hooks/sse'
 
 // ===== Query Keys =====
 const conversationKeys = {
@@ -63,6 +67,103 @@ export function useListSessions(
     enabled: !!params.scope_type && !!params.scope_id,
     ...options,
   })
+}
+
+/**
+ * 获取命令相关事件时间线（合并 API 与 SSE，去重）
+ */
+export function useCommandEvents(
+  sessionId: string,
+  commandId: string,
+  options?: { limit?: number; enabled?: boolean },
+) {
+  const [mergedEvents, setMergedEvents] = useState<CommandEventItem[]>([])
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const pageSize = options?.limit ?? 20
+
+  // 初始从 API 获取（最新 N 条，后端已做游标逻辑）
+  const query = useQuery({
+    queryKey: [...conversationKeys.command(sessionId, commandId), 'events', pageSize],
+    queryFn: () => conversationsService.getCommandEvents(sessionId, commandId, pageSize),
+    enabled: !!sessionId && !!commandId && options?.enabled !== false,
+    onSuccess: (data) => {
+      setMergedEvents((prev) => mergeUniqueEvents([...prev], data))
+      // 如果返回少于请求条数，则认为没有更多历史
+      setHasMore(data.length >= pageSize)
+    },
+  })
+
+  // 加载更早的历史（before 最早一条时间戳）
+  async function loadMore() {
+    if (isLoadingMore || !hasMore) return
+    const oldestTs = mergedEvents[0]?.timestamp
+    if (!oldestTs) return
+    setIsLoadingMore(true)
+    try {
+      const older = await conversationsService.getCommandEvents(sessionId, commandId, pageSize, {
+        before: oldestTs,
+      })
+      setMergedEvents((prev) => mergeUniqueEvents([...prev], older))
+      if (older.length < pageSize) setHasMore(false)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
+  // 订阅 SSE Genesis 事件并根据 correlation_id 合并
+  const genesisEvents = useMemo(() => getSupportedGenesisEventTypes(), [])
+  useSSEEventsGeneric(
+    genesisEvents,
+    (eventType, data: any) => {
+      if (!isGenesisEvent(eventType)) return
+      if (!data) return
+      if (String(data.session_id) !== String(sessionId)) return
+      // 优先匹配 correlation_id；部分事件也可能带 causation_id / command_id
+      const corr = data.correlation_id || data.causation_id || data.command_id
+      if (String(corr || '') !== String(commandId)) return
+
+      const ev: CommandEventItem = {
+        event_id: String(data.event_id || `${eventType}-${data.timestamp || Date.now()}`),
+        event_type: String(data.event_type || eventType),
+        session_id: String(data.session_id || sessionId),
+        correlation_id: data.correlation_id || null,
+        timestamp: String(data.timestamp || new Date().toISOString()),
+        status:
+          typeof data.status === 'string'
+            ? data.status
+            : typeof data.payload?.status === 'string'
+              ? data.payload.status
+              : undefined,
+        payload: data.payload ?? data,
+      }
+      setMergedEvents((prev) => mergeUniqueEvents([...prev], [ev]))
+    },
+    [sessionId, commandId],
+  )
+
+  return {
+    data: mergedEvents,
+    isLoading: query.isLoading && mergedEvents.length === 0,
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    refetch: query.refetch,
+  }
+}
+
+// 工具：按 event_id 去重并按时间排序，限制长度
+function mergeUniqueEvents(
+  base: CommandEventItem[],
+  incoming: CommandEventItem[] | CommandEventItem,
+  max = 100,
+): CommandEventItem[] {
+  const list = Array.isArray(incoming) ? incoming : [incoming]
+  const map = new Map<string, CommandEventItem>()
+  for (const ev of base) map.set(ev.event_id, ev)
+  for (const ev of list) map.set(ev.event_id, ev)
+  const merged = Array.from(map.values()).sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  return merged.slice(-max)
 }
 
 /**

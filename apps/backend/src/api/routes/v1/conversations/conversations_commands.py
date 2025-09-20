@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.services.conversation.conversation_service import conversation_service
@@ -13,21 +13,20 @@ from src.common.utils.api_utils import COMMON_ERROR_RESPONSES, get_or_create_cor
 from src.common.utils.datetime_utils import format_iso_datetime, utc_now
 from src.database import get_db
 from src.middleware.auth import require_auth
+from src.models.event import DomainEvent
 from src.models.user import User
 from src.models.workflow import CommandInbox
-from src.models.event import DomainEvent
 from src.schemas.base import ApiResponse
 from src.schemas.novel.dialogue import (
+    CommandEventItem,
     CommandRequest,
     CommandStatusResponse,
     PendingCommandResponse,
-    CommandEventItem,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
 
 
 @router.post(
@@ -147,6 +146,8 @@ async def get_command_events(
     cmd_id: UUID,
     response: Response,
     limit: int = 20,
+    after: str | None = None,
+    before: str | None = None,
     x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -165,23 +166,46 @@ async def get_command_events(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Verify command belongs to the session
-    cmd = await db.scalar(select(CommandInbox).where(and_(CommandInbox.id == cmd_id, CommandInbox.session_id == session_id)))
+    cmd = await db.scalar(
+        select(CommandInbox).where(and_(CommandInbox.id == cmd_id, CommandInbox.session_id == session_id))
+    )
     if not cmd:
         raise HTTPException(status_code=404, detail="Command not found")
 
-    # Fetch related events
-    stmt = (
-        select(DomainEvent)
-        .where(
-            and_(
-                DomainEvent.aggregate_id == str(session_id),
-                (DomainEvent.correlation_id == cmd_id) | (DomainEvent.causation_id == cmd_id),
-            )
-        )
-        .order_by(DomainEvent.created_at.asc())
-        .limit(max(1, min(100, int(limit))))
-    )
+    # Parse cursors
+    from datetime import datetime
+
+    after_dt = None
+    before_dt = None
+    try:
+        if after:
+            after_dt = datetime.fromisoformat(after)
+    except Exception:
+        after_dt = None
+    try:
+        if before:
+            before_dt = datetime.fromisoformat(before)
+    except Exception:
+        before_dt = None
+
+    # Build query with optional cursors
+    filters = [
+        DomainEvent.aggregate_id == str(session_id),
+        (DomainEvent.correlation_id == cmd_id) | (DomainEvent.causation_id == cmd_id),
+    ]
+    if after_dt is not None:
+        filters.append(DomainEvent.created_at > after_dt)
+    if before_dt is not None:
+        filters.append(DomainEvent.created_at < before_dt)
+
+    # For initial fetch (no cursors), get latest N quickly using DESC, then normalize to ASC
+    initial_fetch = after_dt is None and before_dt is None
+    stmt = select(DomainEvent).where(and_(*filters))
+    stmt = stmt.order_by(DomainEvent.created_at.desc() if initial_fetch else DomainEvent.created_at.asc())
+    stmt = stmt.limit(max(1, min(100, int(limit))))
     rows = (await db.execute(stmt)).scalars().all()
+    if initial_fetch:
+        rows = list(reversed(rows))
 
     items: list[CommandEventItem] = []
     for ev in rows:

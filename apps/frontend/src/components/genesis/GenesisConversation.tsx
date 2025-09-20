@@ -11,8 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { isGenesisEvent } from '@/config/genesis-status.config'
-import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
+import { useSSEStatus } from '@/hooks/sse'
 import {
   usePendingCommand,
   usePollCommandStatus,
@@ -217,91 +216,51 @@ export function GenesisConversation({
     }
   }, [hasPendingUserMessage, isWaitingForResponse, isTyping, roundsLoading, rounds])
 
-  // 监听Genesis进度事件，检测AI回复完成和命令状态
-  useGenesisEvents(sessionId, (eventType, eventData) => {
-    console.log('[GenesisConversation] Genesis SSE event received:', { eventType, eventData })
+  // 使用 useCommandEvents（API+SSE）统一时间线并驱动思考状态
+  const commandTimeline = useCommandEvents(sessionId, currentCommandId || '', {
+    limit: 20,
+    enabled: !!currentCommandId,
+  })
 
-    // 处理Genesis命令状态事件 - 只处理有状态配置的事件类型
-    if (isGenesisEvent(eventType) && eventData.event_id) {
-      const commandStatus: GenesisCommandStatus = {
-        event_id: eventData.event_id || '',
-        event_type: eventData.event_type || eventType,
-        session_id: eventData.session_id || '',
-        correlation_id: eventData.correlation_id || '',
-        timestamp: eventData.timestamp || new Date().toISOString(),
-        status: eventData.status,
-        _scope: eventData._scope,
-        _version: eventData._version,
-      }
+  // 扁平化系统事件：最近若干条
+  const recentFlatStatuses = useMemo(() => {
+    const asStatus = (e: any): GenesisCommandStatus => ({
+      event_id: e.event_id,
+      event_type: e.event_type,
+      session_id: e.session_id,
+      correlation_id: e.correlation_id || '',
+      timestamp: e.timestamp,
+      status: e.status,
+      _scope: 'user',
+      _version: '1.0',
+    })
+    return (commandTimeline.data || []).slice(-5).map(asStatus)
+  }, [commandTimeline.data])
 
-      console.log('[GenesisConversation] Adding Genesis command status:', commandStatus)
-      setGenesisCommandStatuses((prev) => [...prev, commandStatus])
-      // 持久化最近的思考状态，便于刷新后恢复
-      try {
-        // 动态导入，避免循环依赖
-        const { appendThinkingStatus } = require('@/utils/genesisThinkingStorage') as typeof import('@/utils/genesisThinkingStorage')
-        appendThinkingStatus(sessionId, commandStatus)
-      } catch {}
-      return
-    }
-
-    const payload = eventData?.payload ?? eventData
-    const rawStatus =
-      typeof payload?.status === 'string'
-        ? payload.status
-        : typeof eventData?.status === 'string'
-          ? eventData.status
-          : ''
-    const status = rawStatus.toLowerCase()
-
-    if (!status) {
-      return
-    }
-
-    if (['processing', 'generating', 'running', 'queued'].includes(status)) {
-      console.log('[GenesisConversation] SSE - AI response started')
+  // 根据最新时间线事件推导思考状态
+  useEffect(() => {
+    const last = commandTimeline.data && commandTimeline.data[commandTimeline.data.length - 1]
+    const st = (last?.status || '').toLowerCase()
+    if (!st) return
+    if (['processing', 'generating', 'running', 'queued'].includes(st)) {
       setIsTyping(true)
       setIsWaitingForResponse(true)
       setShouldPollCommand(false)
-      refetchPendingCommand() // 更新pending command状态
-      return
-    }
-
-    if (['completed', 'finished'].includes(status)) {
-      console.log('[GenesisConversation] SSE - AI response completed, allowing next message')
+      refetchPendingCommand()
+    } else if (['completed', 'finished'].includes(st)) {
       setIsWaitingForResponse(false)
       setIsTyping(false)
       setShouldPollCommand(false)
-      refetchPendingCommand() // 更新pending command状态，清除已完成的命令
-      void queryClient.invalidateQueries({
-        queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
-      })
-      return
-    }
-
-    if (['failed', 'error', 'cancelled'].includes(status)) {
-      console.error('[GenesisConversation] SSE - AI response failed:', payload)
+      refetchPendingCommand()
+      void queryClient.invalidateQueries({ queryKey: ['conversations', 'sessions', sessionId, 'rounds'] })
+    } else if (['failed', 'error', 'cancelled'].includes(st)) {
       setIsWaitingForResponse(false)
       setIsTyping(false)
       setShouldPollCommand(false)
-      setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
-      refetchPendingCommand() // 更新pending command状态，清除失败的命令
-      return
+      setOptimisticMessage(null)
+      refetchPendingCommand()
     }
-  })
-
-  // 初始恢复：页面刷新后，从本地存储恢复最近的思考状态
-  useEffect(() => {
-    try {
-      const { getThinkingStatuses } = require('@/utils/genesisThinkingStorage') as typeof import('@/utils/genesisThinkingStorage')
-      const restored = getThinkingStatuses(sessionId)
-      if (restored.length > 0) {
-        setGenesisCommandStatuses(restored)
-      }
-    } catch {}
-    // 仅在会话切换时恢复一次
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
+  }, [commandTimeline.data])
 
   // 提交对话命令
   const submitCommand = useSubmitCommand(sessionId, {
@@ -695,6 +654,25 @@ export function GenesisConversation({
                   thinkingText="AI 正在思考..."
                   compactListCount={5}
                 />
+              )}
+              {/* 加载更多历史系统事件 */}
+              {commandTimeline.data && commandTimeline.data.length > 0 && commandTimeline.hasMore && (
+                <div className="flex justify-center mt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => commandTimeline.loadMore()}
+                    disabled={commandTimeline.isLoadingMore}
+                  >
+                    {commandTimeline.isLoadingMore ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" /> 加载中...
+                      </>
+                    ) : (
+                      <>加载更多</>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </ScrollArea>

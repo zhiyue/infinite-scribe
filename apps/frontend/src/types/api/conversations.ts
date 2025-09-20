@@ -202,6 +202,26 @@ export interface PendingCommandResponse {
   submitted_at: string | null
 }
 
+/**
+ * 命令事件项 - GET /api/v1/conversations/sessions/{session_id}/commands/{cmd_id}/events
+ */
+export interface CommandEventItem {
+  /** 事件ID */
+  event_id: string
+  /** 事件类型 */
+  event_type: string
+  /** 会话ID（aggregate_id） */
+  session_id: string
+  /** 关联ID（通常为命令ID） */
+  correlation_id?: string | null
+  /** 时间戳（ISO） */
+  timestamp: string
+  /** 状态（可选） */
+  status?: string | null
+  /** 业务载荷（可选） */
+  payload?: Record<string, any> | null
+}
+
 // ===== Stage 相关类型 =====
 
 /**
