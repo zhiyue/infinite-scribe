@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
 import { GenesisStatusCard, type GenesisCommandStatus } from './GenesisStatusCard'
+import { getGenesisStatusConfig } from '@/config/genesis-status.config'
 import { isGenesisEvent } from '@/config/genesis-status.config'
 import {
   usePendingCommand,
@@ -110,6 +111,7 @@ export function GenesisConversation({
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null)
   const [genesisCommandStatuses, setGenesisCommandStatuses] = useState<GenesisCommandStatus[]>([])
+  const [showStatusDetails, setShowStatusDetails] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -187,6 +189,12 @@ export function GenesisConversation({
       lastRound: rounds[rounds.length - 1],
     })
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
+
+  // 最近一条Genesis状态，用于顶部的紧凑提示条
+  const latestGenesisStatus = useMemo(() => {
+    if (!genesisCommandStatuses.length) return null
+    return genesisCommandStatuses[genesisCommandStatuses.length - 1]
+  }, [genesisCommandStatuses])
 
   // SSE连接状态日志
   useEffect(() => {
@@ -631,14 +639,51 @@ export function GenesisConversation({
               {/* 对话消息 */}
               {rounds.map(renderMessage).filter(Boolean)}
 
-              {/* Genesis命令状态消息 */}
-              {genesisCommandStatuses.map((commandStatus, index) => (
-                <GenesisStatusCard
-                  key={`${commandStatus.event_id}-${index}`}
-                  commandStatus={commandStatus}
-                  showAsSystemMessage={true}
-                />
-              ))}
+              {/* 顶部紧凑状态条（默认显示最新一条，节省空间） */}
+              {latestGenesisStatus && (
+                <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 my-1">
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const cfg = getGenesisStatusConfig(latestGenesisStatus.event_type)
+                      const Icon = cfg.icon
+                      return (
+                        <>
+                          <Icon className="h-3.5 w-3.5" />
+                          <span className="text-xs font-medium">{cfg.label}</span>
+                          <span className="text-xs text-muted-foreground hidden sm:inline">
+                            {cfg.description}
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(isTyping || isWaitingForResponse) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>AI 正在思考</span>
+                      </div>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                      onClick={() => setShowStatusDetails(v => !v)}>
+                      {showStatusDetails ? '隐藏详情' : '查看详情'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Genesis命令状态消息（默认折叠，仅在需要时展开） */}
+              {showStatusDetails && (
+                <div className="space-y-2">
+                  {genesisCommandStatuses.slice(-10).map((commandStatus, index) => (
+                    <GenesisStatusCard
+                      key={`${commandStatus.event_id}-${index}`}
+                      commandStatus={commandStatus}
+                      showAsSystemMessage={true}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
               {optimisticMessage &&
@@ -668,7 +713,7 @@ export function GenesisConversation({
                   </div>
                 )}
 
-              {/* 输入中提示 - 移除停止生成按钮 */}
+              {/* 输入中提示（ChatGPT风格，紧凑气泡） */}
               {(isTyping || hasPendingUserMessage) && (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8">
@@ -676,14 +721,12 @@ export function GenesisConversation({
                       <Bot className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="py-2 px-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                        <span className="text-sm text-muted-foreground">AI正在思考...</span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="rounded-lg border bg-muted/40 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                      <span className="text-xs text-muted-foreground">AI 正在思考...</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
