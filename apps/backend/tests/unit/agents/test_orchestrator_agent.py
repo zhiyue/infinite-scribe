@@ -29,21 +29,34 @@ def test_command_to_character_requested_and_task(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
-        capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
+    async def capture_persist(**kwargs):
+        # kwargs: scope_type, session_id, event_action, payload, correlation_id, causation_id
+        capture.persisted_events.append(
+            (
+                kwargs.get("scope_type"),
+                kwargs.get("session_id"),
+                kwargs.get("event_action"),
+                kwargs.get("payload"),
+                kwargs.get("correlation_id"),
+            )
+        )
 
-    async def capture_create(correlation_id, session_id, task_type, input_data):
-        capture.created_tasks.append((correlation_id, session_id, task_type, input_data))
+    async def capture_create(**kwargs):
+        # kwargs: correlation_id, session_id, task_type, input_data
+        capture.created_tasks.append(
+            (kwargs.get("correlation_id"), kwargs.get("session_id"), kwargs.get("task_type"), kwargs.get("input_data"))
+        )
 
-    monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
-    monkeypatch.setattr(agent, "_create_async_task", capture_create)
+    # Mock the new component methods
+    monkeypatch.setattr(agent.outbox_manager, "persist_domain_event", capture_persist)
+    monkeypatch.setattr(agent.task_manager, "create_async_task", capture_create)
 
     async def capture_enqueue(**kwargs):
         # kwargs: capability_message, correlation_id
         cm = kwargs.get("capability_message") or {}
         capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
 
-    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue)
+    monkeypatch.setattr(agent.outbox_manager, "enqueue_capability_task", capture_enqueue)
 
     # Test data with clear intent
     test_session_id = "test-session-1"
