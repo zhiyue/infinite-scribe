@@ -6,12 +6,11 @@ from typing import Any
 from uuid import UUID
 
 
-def safe_uuid_conversion(value: str | None, logger: Any = None) -> UUID | None:
+def safe_uuid_conversion(value: str | None) -> UUID | None:
     """安全地将字符串转换为UUID，处理非法格式的情况。
 
     Args:
         value: 可能包含非UUID格式的字符串
-        logger: 可选的日志记录器实例
 
     Returns:
         有效的UUID对象或None
@@ -29,14 +28,7 @@ def safe_uuid_conversion(value: str | None, logger: Any = None) -> UUID | None:
 
     try:
         return UUID(str(value))
-    except (ValueError, TypeError) as e:
-        if logger:
-            logger.warning(
-                "invalid_uuid_format",
-                value=value,
-                error=str(e),
-                message="将使用None替代非法UUID格式的值",
-            )
+    except (ValueError, TypeError):
         return None
 
 

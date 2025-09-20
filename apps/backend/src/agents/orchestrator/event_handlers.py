@@ -17,13 +17,26 @@ from src.agents.orchestrator.types import (
     QualityReviewData,
 )
 from src.agents.orchestrator.workflows import EventAction, EventActionBuilder, EventHandlerConfig
+from src.agents.orchestrator.workflow_rules import (
+    IWorkflowRules,
+    ConfigBasedWorkflowRules,
+    QualityReviewRequest,
+    ReviewResult,
+)
 
 
 class EventCommand(ABC):
     """Abstract base class for event command handlers."""
 
-    def __init__(self, config: EventHandlerConfig | None = None):
-        self.config = config or EventHandlerConfig.for_genesis_workflow()
+    def __init__(self, workflow_rules: IWorkflowRules | None = None, config: EventHandlerConfig | None = None):
+        # Support both new rules interface and legacy config for migration
+        if workflow_rules:
+            self.workflow_rules = workflow_rules
+        else:
+            # Backward compatibility: create rules from config
+            config = config or EventHandlerConfig.for_genesis_workflow()
+            self.workflow_rules = ConfigBasedWorkflowRules(config)
+            self.config = config  # Keep for legacy code that still needs it
 
     @abstractmethod
     def can_handle(self, msg_type: str) -> bool:
@@ -50,12 +63,8 @@ class GenerationCompletedCommand(EventCommand):
 
     def can_handle(self, msg_type: str) -> bool:
         """Check if this is a generation completion event."""
-        return msg_type in {
-            "Character.Design.Generated",
-            "Character.Generated",
-            "Outliner.Theme.Generated",
-            "Theme.Generated",
-        }
+        from src.common.events.mapping import is_generation_completed_event
+        return is_generation_completed_event(msg_type)
 
     def execute(
         self,
@@ -71,7 +80,7 @@ class GenerationCompletedCommand(EventCommand):
         if not (self.can_handle(msg_type) and session_id):
             return None
 
-        target_type = self.config.EVENT_TARGET_MAPPING.get(msg_type)
+        target_type = self.workflow_rules.get_target_for_event(msg_type)
         if not target_type:
             return None
 
@@ -114,7 +123,8 @@ class QualityReviewCommand(EventCommand):
 
     def can_handle(self, msg_type: str) -> bool:
         """Check if this is a quality review result event."""
-        return msg_type in {"Review.Quality.Evaluated", "Review.Quality.Result"}
+        from src.common.events.mapping import is_quality_review_event
+        return is_quality_review_event(msg_type)
 
     def execute(
         self,
@@ -130,65 +140,56 @@ class QualityReviewCommand(EventCommand):
         if not (self.can_handle(msg_type) and session_id):
             return None
 
+        # Extract data fields
         score = float(data.score or data.quality_score or 0.0)
         attempts = int(data.attempts or 0)
-        max_attempts = int(data.max_attempts or self.config.MAX_ATTEMPTS)
-        threshold = float(data.threshold or self.config.QUALITY_THRESHOLD)
+        max_attempts = int(data.max_attempts or 3)  # Default fallback
+        threshold = float(data.threshold or 7.5)    # Default fallback
         target_type = str(data.target_type or data.entity or "content").lower()
+
+        # Create quality review request
+        request = QualityReviewRequest(
+            score=score,
+            attempts=attempts,
+            max_attempts=max_attempts,
+            threshold=threshold,
+            target_type=target_type
+        )
+
+        # Use business rules to make decision
+        decision = self.workflow_rules.evaluate_quality_review(request)
 
         builder = EventActionBuilder()
 
-        # Add task completion (common for all paths) - use config
-        task_prefix = self.config.TASK_PREFIX_MAPPING.get("quality_review", "Review.Quality.Evaluation")
+        # Add task completion (common for all paths)
+        task_prefix = self.workflow_rules.get_task_prefix("quality_review")
         builder.with_task_completion(
             correlation_id=correlation_id,
             expect_task_prefix=task_prefix,
             result_data=data.model_dump(),
         )
 
-        # Quality passed - confirm the content
-        if score >= threshold:
-            action = self.config.TARGET_CONFIRMATION_ACTIONS.get(target_type, "Stage.Confirmed")
-            builder.with_domain_event(
-                scope_type=scope_type,
-                session_id=session_id,
-                event_action=action,
-                payload={"session_id": session_id, "score": score},
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-            )
-            return builder.build()
+        # Add domain event based on decision
+        payload_base = {"session_id": session_id, "score": score}
+        if decision.result in [ReviewResult.REJECTED_RETRY, ReviewResult.REJECTED_FAILED]:
+            payload_base["attempts"] = attempts + 1
 
-        # Max attempts reached - mark as failed
-        if attempts + 1 >= max_attempts:
-            action = self.config.TARGET_FAILURE_ACTIONS.get(target_type, "Stage.Failed")
-            builder.with_domain_event(
-                scope_type=scope_type,
-                session_id=session_id,
-                event_action=action,
-                payload={"session_id": session_id, "score": score, "attempts": attempts + 1},
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-            )
-            return builder.build()
-
-        # Quality not met, but attempts remaining - trigger regeneration
-        regen_action = self.config.TARGET_REGENERATION_ACTIONS.get(target_type, "Stage.RegenerationRequested")
         builder.with_domain_event(
             scope_type=scope_type,
             session_id=session_id,
-            event_action=regen_action,
-            payload={"session_id": session_id, "score": score, "attempts": attempts + 1},
+            event_action=decision.action,
+            payload=payload_base,
             correlation_id=correlation_id,
             causation_id=causation_id,
         )
 
-        # Add regeneration capability message
-        capability_message = MessageFactory.create_regeneration_message(
-            target_type=target_type, session_id=session_id, attempts=attempts, scope_prefix=scope_prefix
-        )
-        if capability_message:
-            builder.with_capability_message(capability_message)
+        # Add regeneration capability message if needed
+        if decision.result == ReviewResult.REJECTED_RETRY:
+            capability_message = MessageFactory.create_regeneration_message(
+                target_type=target_type, session_id=session_id, attempts=attempts, scope_prefix=scope_prefix
+            )
+            if capability_message:
+                builder.with_capability_message(capability_message)
 
         return builder.build()
 
@@ -214,20 +215,13 @@ class ConsistencyCheckCommand(EventCommand):
         if not (self.can_handle(msg_type) and session_id):
             return None
 
-        # Support three types of judgments: boolean ok/passed; or numeric score >= threshold
-        ok = bool(data.ok or data.passed)
-        if not ok:
-            score = data.score or 0.0
-            threshold = data.threshold or 1.0
-            try:
-                ok = float(score) >= float(threshold)
-            except Exception:
-                ok = False
+        # Use business rules to determine consistency result
+        ok = self.workflow_rules.should_confirm_consistency(data.model_dump())
 
         builder = EventActionBuilder()
 
-        # Add task completion - use config
-        task_prefix = self.config.TASK_PREFIX_MAPPING.get("consistency_check", "Review.Consistency.Check")
+        # Add task completion - use business rules
+        task_prefix = self.workflow_rules.get_task_prefix("consistency_check")
         builder.with_task_completion(
             correlation_id=correlation_id,
             expect_task_prefix=task_prefix,
@@ -251,12 +245,19 @@ class ConsistencyCheckCommand(EventCommand):
 class EventCommandFactory:
     """Factory for creating event command handlers."""
 
-    def __init__(self, config: EventHandlerConfig | None = None):
-        self.config = config or EventHandlerConfig.for_genesis_workflow()
+    def __init__(self, workflow_rules: IWorkflowRules | None = None, config: EventHandlerConfig | None = None):
+        # Support both new rules interface and legacy config for migration
+        if workflow_rules:
+            self.workflow_rules = workflow_rules
+        else:
+            # Backward compatibility: create rules from config
+            config = config or EventHandlerConfig.for_genesis_workflow()
+            self.workflow_rules = ConfigBasedWorkflowRules(config)
+
         self._commands = [
-            GenerationCompletedCommand(self.config),
-            QualityReviewCommand(self.config),
-            ConsistencyCheckCommand(self.config),
+            GenerationCompletedCommand(workflow_rules=self.workflow_rules),
+            QualityReviewCommand(workflow_rules=self.workflow_rules),
+            ConsistencyCheckCommand(workflow_rules=self.workflow_rules),
         ]
 
     def get_command(self, msg_type: str) -> EventCommand | None:
@@ -296,11 +297,21 @@ class WorkflowOrchestrator:
 
     def __init__(
         self,
+        workflow_rules: IWorkflowRules | None = None,
         config: EventHandlerConfig | None = None,
         factory: EventCommandFactory | None = None,
     ) -> None:
-        self.config = config or EventHandlerConfig.for_genesis_workflow()
-        self.factory = factory or EventCommandFactory(self.config)
+        # Support both new rules interface and legacy config for migration
+        if workflow_rules:
+            self.workflow_rules = workflow_rules
+        elif config:
+            self.workflow_rules = ConfigBasedWorkflowRules(config)
+        else:
+            # Default backward compatibility
+            config = EventHandlerConfig.for_genesis_workflow()
+            self.workflow_rules = ConfigBasedWorkflowRules(config)
+
+        self.factory = factory or EventCommandFactory(workflow_rules=self.workflow_rules)
 
     def orchestrate_generation(
         self,
@@ -390,9 +401,18 @@ class CapabilityEventHandlers:
     _default_orchestrator: WorkflowOrchestrator | None = None
 
     def __init__(
-        self, config: EventHandlerConfig | None = None, orchestrator: WorkflowOrchestrator | None = None
+        self,
+        workflow_rules: IWorkflowRules | None = None,
+        config: EventHandlerConfig | None = None,
+        orchestrator: WorkflowOrchestrator | None = None
     ) -> None:
-        self.orchestrator = orchestrator or WorkflowOrchestrator(config=config)
+        if orchestrator:
+            self.orchestrator = orchestrator
+        elif workflow_rules:
+            self.orchestrator = WorkflowOrchestrator(workflow_rules=workflow_rules)
+        else:
+            # Backward compatibility
+            self.orchestrator = WorkflowOrchestrator(config=config)
 
     # ------------------------------------------------------------------
     # Instance-based API

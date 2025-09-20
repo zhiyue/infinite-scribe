@@ -1,13 +1,26 @@
 """Command Processing Strategies
 
-Uses Strategy pattern for better separation of concerns and testability.
-Each command type has its own strategy class with specific logic.
+Uses Strategy pattern with data-driven configuration for better maintainability.
+Strategies are now configured through centralized mapping in events/config.py.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, NamedTuple
+
+from src.common.events.config import (
+    DEFAULT_VALUES,
+    STRATEGY_CONFIG,
+    get_strategy_config,
+    get_strategy_keys,
+    is_state_change_event,
+)
+from src.common.events.mapping import (
+    build_topic_name,
+    get_command_aliases_for_action,
+    extract_strategy_key_from_event_type,
+)
 
 
 class CommandMapping(NamedTuple):
@@ -32,166 +45,42 @@ class CommandStrategy(ABC):
 
     def _build_topic(self, base_topic: str, scope_type: str, scope_prefix: str) -> str:
         """Helper to build topic name based on scope."""
-        return (
-            f"genesis.{base_topic}.tasks" if scope_type == "GENESIS" else f"{scope_prefix.lower()}.{base_topic}.tasks"
-        )
+        return build_topic_name(base_topic, scope_type, scope_prefix)
 
 
-class CharacterRequestStrategy(CommandStrategy):
-    """Strategy for character generation requests."""
+class GenericRequestStrategy(CommandStrategy):
+    """Generic data-driven strategy for request processing."""
+
+    def __init__(self, strategy_key: str) -> None:
+        """Initialize with strategy configuration key.
+
+        Args:
+            strategy_key: Key from STRATEGY_CONFIG (e.g., "character", "theme")
+        """
+        self.strategy_key = strategy_key
+        self.config = get_strategy_config(strategy_key)
+        if not self.config:
+            raise ValueError(f"Unknown strategy key: {strategy_key}")
 
     def get_aliases(self) -> set[str]:
-        return {
-            "Character.Request",
-            "CHARACTER_REQUEST",
-            "Character.Requested",
-            "Command.Genesis.Session.Character.Request",
-        }
+        """Get command aliases for this strategy's requested action."""
+        requested_action = self.config["requested_action"]
+        return get_command_aliases_for_action(requested_action)
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+        """Process command using configuration data."""
         return CommandMapping(
-            requested_action="Character.Requested",
+            requested_action=self.config["requested_action"],
             capability_message={
-                "type": "Character.Design.GenerationRequested",
+                "type": self.config["capability_type"],
                 "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("character", scope_type, scope_prefix),
+                "input": payload,
+                "_topic": self._build_topic(self.config["base_topic"], scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
         )
 
 
-class ThemeRequestStrategy(CommandStrategy):
-    """Strategy for theme generation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Theme.Request", "THEME_REQUEST", "Theme.Requested", "Command.Genesis.Session.Theme.Request"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Theme.Requested",
-            capability_message={
-                "type": "Outliner.Theme.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("outline", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class SeedRequestStrategy(CommandStrategy):
-    """Strategy for initial seed/concept generation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Seed.Request", "SEED_REQUEST", "Seed.Requested", "Command.Genesis.Session.Seed.Request"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Seed.Requested",
-            capability_message={
-                "type": "Outliner.Concept.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("outline", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class WorldRequestStrategy(CommandStrategy):
-    """Strategy for world/worldview generation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"World.Request", "WORLD_REQUEST", "World.Requested", "Command.Genesis.Session.World.Request"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="World.Requested",
-            capability_message={
-                "type": "Worldbuilder.World.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("world", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class PlotRequestStrategy(CommandStrategy):
-    """Strategy for plot generation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Plot.Request", "PLOT_REQUEST", "Plot.Requested", "Command.Genesis.Session.Plot.Request"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Plot.Requested",
-            capability_message={
-                "type": "Plot.Structure.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("plot", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class DetailsRequestStrategy(CommandStrategy):
-    """Strategy for details generation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Details.Request", "DETAILS_REQUEST", "Details.Requested", "Command.Genesis.Session.Details.Request"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Details.Requested",
-            capability_message={
-                "type": "Writer.Content.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("writer", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class StageValidationStrategy(CommandStrategy):
-    """Strategy for stage validation requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Stage.Validate", "STAGE_VALIDATE", "ValidateStage"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Stage.ValidationRequested",
-            capability_message={
-                "type": "Review.Consistency.CheckRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("review", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
-
-
-class StageLockStrategy(CommandStrategy):
-    """Strategy for stage lock requests."""
-
-    def get_aliases(self) -> set[str]:
-        return {"Stage.Lock", "STAGE_LOCK", "LockStage"}
-
-    def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
-        return CommandMapping(
-            requested_action="Stage.LockRequested",
-            capability_message={
-                "type": "Review.Consistency.CheckRequested",
-                "session_id": aggregate_id,
-                "input": payload,  # payload is already the extracted command data
-                "_topic": self._build_topic("review", scope_type, scope_prefix),
-                "_key": aggregate_id,
-            },
-        )
 
 
 class CommandStrategyRegistry:
@@ -202,19 +91,10 @@ class CommandStrategyRegistry:
         self._register_default_strategies()
 
     def _register_default_strategies(self) -> None:
-        """Register all default strategies."""
-        strategies = [
-            CharacterRequestStrategy(),
-            ThemeRequestStrategy(),
-            SeedRequestStrategy(),
-            WorldRequestStrategy(),
-            PlotRequestStrategy(),
-            DetailsRequestStrategy(),
-            StageValidationStrategy(),
-            StageLockStrategy(),
-        ]
-
-        for strategy in strategies:
+        """Register all default strategies using configuration data."""
+        # Create generic strategies for all configured strategy keys
+        for strategy_key in get_strategy_keys():
+            strategy = GenericRequestStrategy(strategy_key)
             self.register(strategy)
 
     def register(self, strategy: CommandStrategy) -> None:
@@ -235,21 +115,15 @@ class CommandStrategyRegistry:
             strategy = self._strategies.get(cmd_type)
             if not strategy:
                 # Check if this is a confirmation/update/revision event that should not trigger capability tasks
-                if self._is_state_change_event(event_type):
+                if is_state_change_event(event_type):
                     # Return mapping without capability message for state-only changes
                     return CommandMapping(requested_action=event_type, capability_message=None)
-                
-                # Fallback: choose strategy by event_type prefix (e.g., "Character.Requested" -> CharacterRequestStrategy)
-                # Only for generation requests, not confirmations
-                prefix = event_type.split(".", 1)[0].lower()
-                strategy = {
-                    "character": CharacterRequestStrategy(),
-                    "theme": ThemeRequestStrategy(),
-                    "seed": SeedRequestStrategy(),
-                    "world": WorldRequestStrategy(),
-                    "plot": PlotRequestStrategy(),
-                    "details": DetailsRequestStrategy(),
-                }.get(prefix)
+
+                # Fallback: choose strategy by event_type prefix using configuration
+                strategy_key = extract_strategy_key_from_event_type(event_type)
+                if strategy_key and strategy_key in get_strategy_keys():
+                    strategy = GenericRequestStrategy(strategy_key)
+
             if strategy:
                 result = strategy.process(scope_type, scope_prefix, aggregate_id, payload)
                 if result:
@@ -262,17 +136,6 @@ class CommandStrategyRegistry:
 
         return strategy.process(scope_type, scope_prefix, aggregate_id, payload)
     
-    def _is_state_change_event(self, event_type: str) -> bool:
-        """Check if the event type represents a state change that doesn't require capability tasks.
-        
-        Args:
-            event_type: The event type to check
-            
-        Returns:
-            True if this is a state-only change (confirm, update, revise, etc.)
-        """
-        state_change_suffixes = {".Confirmed", ".Updated", ".Revised", ".Completed", ".Created"}
-        return any(event_type.endswith(suffix) for suffix in state_change_suffixes)
 
 
 # Global registry instance

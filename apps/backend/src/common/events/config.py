@@ -76,9 +76,140 @@ def build_event_type(scope_type: str | ScopeType, action: str) -> str:
     return f"{prefix}.{action_str}"
 
 
+# ==================== Strategy Configuration ====================
+
+# Strategy configuration for orchestrator command mapping
+STRATEGY_CONFIG: Final[dict[str, dict[str, str]]] = {
+    "character": {
+        "base_topic": "character",
+        "capability_type": "Character.Design.GenerationRequested",
+        "requested_action": "Character.Requested",
+    },
+    "theme": {
+        "base_topic": "outline",
+        "capability_type": "Outliner.Theme.GenerationRequested",
+        "requested_action": "Theme.Requested",
+    },
+    "seed": {
+        "base_topic": "outline",
+        "capability_type": "Outliner.Concept.GenerationRequested",
+        "requested_action": "Seed.Requested",
+    },
+    "world": {
+        "base_topic": "world",
+        "capability_type": "Worldbuilder.World.GenerationRequested",
+        "requested_action": "World.Requested",
+    },
+    "plot": {
+        "base_topic": "plot",
+        "capability_type": "Plot.Structure.GenerationRequested",
+        "requested_action": "Plot.Requested",
+    },
+    "details": {
+        "base_topic": "writer",
+        "capability_type": "Writer.Content.GenerationRequested",
+        "requested_action": "Details.Requested",
+    },
+    "stage_validation": {
+        "base_topic": "review",
+        "capability_type": "Review.Consistency.CheckRequested",
+        "requested_action": "Stage.ValidationRequested",
+    },
+    "stage_lock": {
+        "base_topic": "review",
+        "capability_type": "Review.Consistency.CheckRequested",
+        "requested_action": "Stage.LockRequested",
+    },
+}
+
+# Event pattern constants
+EVENT_PATTERNS: Final[dict[str, str | list[str]]] = {
+    "command_received_suffix": ".Command.Received",
+    "generation_completed_patterns": [
+        "Character.Design.Generated",
+        "Character.Generated",
+        "Outliner.Theme.Generated",
+        "Theme.Generated",
+    ],
+    "quality_review_patterns": [
+        "Review.Quality.Evaluated",
+        "Review.Quality.Result",
+    ],
+    "state_change_suffixes": [
+        ".Confirmed",
+        ".Updated",
+        ".Revised",
+        ".Completed",
+        ".Created",
+    ],
+}
+
+# Default values
+DEFAULT_VALUES: Final[dict[str, str]] = {
+    "scope_prefix": "Genesis",
+    "scope_type": "GENESIS",
+    "domain_topic": DEFAULT_DOMAIN_TOPIC,
+}
+
+
+def get_strategy_config(strategy_key: str) -> dict[str, str] | None:
+    """Get strategy configuration by key.
+
+    Args:
+        strategy_key: Strategy key (e.g., "character", "theme")
+
+    Returns:
+        Strategy configuration dict or None if not found
+    """
+    return STRATEGY_CONFIG.get(strategy_key)
+
+
+def get_strategy_keys() -> list[str]:
+    """Get all available strategy keys.
+
+    Returns:
+        List of strategy configuration keys
+    """
+    return list(STRATEGY_CONFIG.keys())
+
+
+def is_command_received_event(event_type: str) -> bool:
+    """Check if event type is a command received event.
+
+    Args:
+        event_type: Event type string
+
+    Returns:
+        True if it's a command received event
+    """
+    return event_type.endswith(EVENT_PATTERNS["command_received_suffix"])
+
+
+def is_state_change_event(event_type: str) -> bool:
+    """Check if event type represents a state change that doesn't require capability tasks.
+
+    Args:
+        event_type: Event type string
+
+    Returns:
+        True if it's a state-only change event
+    """
+    suffixes = EVENT_PATTERNS["state_change_suffixes"]
+    if isinstance(suffixes, list):
+        return any(event_type.endswith(suffix) for suffix in suffixes)
+    return False
+
+
 __all__ = [
     "get_domain_prefix",
     "get_aggregate_type",
     "get_domain_topic",
     "build_event_type",
+    "get_strategy_config",
+    "get_strategy_keys",
+    "is_command_received_event",
+    "is_state_change_event",
+    "STRATEGY_CONFIG",
+    "EVENT_PATTERNS",
+    "DEFAULT_VALUES",
 ]

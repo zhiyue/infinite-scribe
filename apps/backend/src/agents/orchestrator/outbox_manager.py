@@ -134,6 +134,20 @@ class DomainEventCreator:
         safe_correlation_id = safe_uuid_conversion(correlation_id)
         safe_causation_id = safe_uuid_conversion(causation_id)
 
+        # 记录UUID转换失败的情况
+        if correlation_id and safe_correlation_id is None:
+            self.log.warning(
+                "orchestrator_invalid_correlation_id_format",
+                correlation_id=correlation_id,
+                message="将使用None替代非法UUID格式的correlation_id"
+            )
+        if causation_id and safe_causation_id is None:
+            self.log.warning(
+                "orchestrator_invalid_causation_id_format",
+                causation_id=causation_id,
+                message="将使用None替代非法UUID格式的causation_id"
+            )
+
         domain_event = DomainEvent(
             event_type=evt_type,
             aggregate_type=aggregate_type,

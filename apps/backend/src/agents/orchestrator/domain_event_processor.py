@@ -71,7 +71,8 @@ class EventValidator:
         Returns:
             如果是命令接收事件则返回True， 否则返回False
         """
-        return event_type.endswith("Command.Received")
+        from src.common.events.config import is_command_received_event
+        return is_command_received_event(event_type)
 
     @staticmethod
     def extract_command_type(evt: dict[str, Any]) -> str | None:
@@ -102,7 +103,9 @@ class EventValidator:
         Returns:
             (作用域前缀, 作用域类型) 元组
         """
-        scope_prefix = event_type.split(".", 1)[0] if "." in event_type else "Genesis"
+        from src.common.events.config import DEFAULT_VALUES
+
+        scope_prefix = event_type.split(".", 1)[0] if "." in event_type else DEFAULT_VALUES["scope_prefix"]
         scope_type = scope_prefix.upper()  # 例如: GENESIS
         return scope_prefix, scope_type
 

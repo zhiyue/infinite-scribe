@@ -305,6 +305,116 @@ def get_mapping_statistics() -> dict[str, int]:
     }
 
 
+# ==================== Helper Functions for Orchestrator ====================
+
+
+def get_command_aliases_for_action(requested_action: str) -> set[str]:
+    """Get all command aliases that map to a specific requested action.
+
+    Args:
+        requested_action: The target action (e.g., "Character.Requested")
+
+    Returns:
+        Set of command aliases that map to this action
+    """
+    return {cmd for cmd, action in COMMAND_EVENT_MAPPING.items() if action == requested_action}
+
+
+def extract_strategy_key_from_event_type(event_type: str) -> str | None:
+    """Extract strategy key from event type.
+
+    Args:
+        event_type: Event type like "Character.Requested"
+
+    Returns:
+        Strategy key like "character" or None if not found
+    """
+    if "." in event_type:
+        prefix = event_type.split(".", 1)[0].lower()
+        # Map common event prefixes to strategy keys
+        prefix_mapping = {
+            "character": "character",
+            "theme": "theme",
+            "seed": "seed",
+            "world": "world",
+            "plot": "plot",
+            "details": "details",
+        }
+        return prefix_mapping.get(prefix)
+    return None
+
+
+def is_generation_completed_event(msg_type: str) -> bool:
+    """Check if message type is a generation completion event.
+
+    Args:
+        msg_type: Message type string
+
+    Returns:
+        True if it's a generation completion event
+    """
+    from src.common.events.config import EVENT_PATTERNS
+
+    patterns = EVENT_PATTERNS.get("generation_completed_patterns", [])
+    return isinstance(patterns, list) and msg_type in patterns
+
+
+def is_quality_review_event(msg_type: str) -> bool:
+    """Check if message type is a quality review event.
+
+    Args:
+        msg_type: Message type string
+
+    Returns:
+        True if it's a quality review event
+    """
+    from src.common.events.config import EVENT_PATTERNS
+
+    patterns = EVENT_PATTERNS.get("quality_review_patterns", [])
+    return isinstance(patterns, list) and msg_type in patterns
+
+
+def get_all_command_aliases() -> set[str]:
+    """Get all available command aliases.
+
+    Returns:
+        Set of all command aliases across all mappings
+    """
+    return set(COMMAND_EVENT_MAPPING.keys())
+
+
+def get_commands_by_action_prefix(action_prefix: str) -> list[str]:
+    """Get all commands that map to actions starting with a prefix.
+
+    Args:
+        action_prefix: Action prefix to filter by (e.g., "Character")
+
+    Returns:
+        List of commands that map to actions with this prefix
+    """
+    return [
+        cmd for cmd, action in COMMAND_EVENT_MAPPING.items()
+        if action.startswith(action_prefix)
+    ]
+
+
+def build_topic_name(base_topic: str, scope_type: str, scope_prefix: str) -> str:
+    """Build topic name based on scope and base topic.
+
+    Args:
+        base_topic: Base topic name (e.g., "character", "outline")
+        scope_type: Scope type (e.g., "GENESIS")
+        scope_prefix: Scope prefix (e.g., "Genesis")
+
+    Returns:
+        Built topic name
+    """
+    return (
+        f"genesis.{base_topic}.tasks" if scope_type == "GENESIS"
+        else f"{scope_prefix.lower()}.{base_topic}.tasks"
+    )
+
+
 # ==================== Exports ====================
 
 __all__ = [
@@ -319,6 +429,14 @@ __all__ = [
     "get_all_task_type_mappings",
     "get_all_event_payload_mappings",
     "get_mapping_statistics",
+    # Helper functions for orchestrator
+    "get_command_aliases_for_action",
+    "extract_strategy_key_from_event_type",
+    "is_generation_completed_event",
+    "is_quality_review_event",
+    "get_all_command_aliases",
+    "get_commands_by_action_prefix",
+    "build_topic_name",
     # Constants (for advanced usage)
     "TASK_TYPE_SUFFIX_MAPPING",
     "EVENT_PAYLOAD_MAPPING",

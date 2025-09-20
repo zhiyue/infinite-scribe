@@ -72,7 +72,9 @@ class EventDataExtractor:
         topic = context.topic or ""
 
         # 从主题前缀推断作用域 (例如: genesis.outline.events -> GENESIS)
-        scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else "GENESIS"
+        from src.common.events.config import DEFAULT_VALUES
+
+        scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else DEFAULT_VALUES["scope_type"]
         scope_type = scope_prefix
 
         scope_info = ScopeInfo(
