@@ -60,7 +60,7 @@ orchestrator/
 
 ### OrchestratorAgent
 
-主编排代理类，继承自 `BaseAgent`，负责处理两种类型的事件：
+主编排代理类，继承自 `BaseAgent`，负责处理两种类型的事件，并增强关联ID追踪能力：
 
 ```mermaid
 sequenceDiagram
@@ -71,12 +71,14 @@ sequenceDiagram
     
     K->>O: 领域事件 (Command.Received)
     O->>O: _handle_domain_event
+    O->>O: 提取correlation_id ✨
     O->>DB: 持久化领域事实 (*Requested)
     O->>DB: 创建异步任务
     O->>K: 发送能力任务
     
     K->>O: 能力事件结果
     O->>O: _handle_capability_event
+    O->>O: 提取correlation_id ✨
     O->>G: CapabilityEventHandlers
     G->>DB: 更新异步任务状态
     G->>DB: 持久化领域事实
@@ -102,6 +104,55 @@ graph TD
     I --> L[数据库记录]
     J --> M[完成状态更新]
 ```
+
+### 🔗 关联ID (Correlation ID) 追踪 ✨
+
+为了实现端到端的请求追踪和调试能力，编排器增强了关联ID的提取和处理逻辑：
+
+```mermaid
+flowchart TD
+    A[接收消息] --> B{消息类型判断}
+    
+    B -->|领域事件| C[解析context.meta]
+    B -->|能力事件| D[解析context.headers]
+    
+    C --> E[检查meta.correlation_id]
+    D --> F[解析headers格式]
+    
+    F --> F1[dict格式]
+    F --> F2[list格式]
+    
+    F1 --> G[提取correlation_id]
+    F1 --> G1[提取correlation-id]
+    
+    F2 --> H[遍历headers]
+    H --> I[匹配correlation-id/correlation_id]
+    I --> J[解码bytes到string]
+    
+    E --> K[提取metadata.correlation_id]
+    G --> K
+    G1 --> K
+    J --> K
+    
+    K --> L[回退到事件本体]
+    L --> M[最终correlation_id]
+```
+
+#### 关联ID提取优先级
+
+1. **Context.meta.correlation_id** - 消息处理器元数据中的关联ID
+2. **Context.headers.correlation_id** - 消息头中的关联ID（字典格式）
+3. **Context.headers.correlation-id** - 消息头中的关联ID（连字符格式）
+4. **Headers列表遍历** - 支持元组列表格式的headers解析
+5. **Event.metadata.correlation_id** - 事件元数据中的关联ID
+6. **Event.correlation_id** - 事件本体中的关联ID
+
+#### 实现特性
+
+- **多格式支持**: 支持 dict 和 list[tuple] 两种 headers 格式
+- **编码处理**: 自动解码 bytes 类型的 header 值为 UTF-8 字符串
+- **容错机制**: 解析失败时回退到下一优先级，不影响主流程
+- **灵活匹配**: 支持 `correlation_id` 和 `correlation-id` 两种命名格式
 
 ### CommandStrategyRegistry
 
@@ -275,7 +326,7 @@ class CustomEventHandler:
 - `orchestrator_ignored_message`: 忽略未知格式的消息
 
 #### 领域事件处理日志
-- `orchestrator_domain_event_details`: 领域事件详细信息
+- `orchestrator_domain_event_details`: 领域事件详细信息 ✨ (包含correlation_id)
 - `orchestrator_domain_event_ignored`: 忽略非命令类领域事件
 - `orchestrator_domain_event_missing_command_type`: 缺少命令类型
 - `orchestrator_processing_command`: 开始处理命令
@@ -342,7 +393,7 @@ graph TD
     B --> B2[时间戳]
     B --> B3[会话ID]
     
-    C --> C1[关联ID]
+    C --> C1[关联ID ✨]
     C --> C2[命令类型]
     C --> C3[任务类型]
     
@@ -350,6 +401,15 @@ graph TD
     D --> D2[错误信息]
     D --> D3[执行状态]
 ```
+
+**关联ID追踪增强** ✨
+
+通过增强的correlation_id提取机制，所有关键日志事件现在都包含统一的关联标识，支持：
+
+- **端到端追踪**: 从用户请求到最终响应的完整链路追踪
+- **问题定位**: 快速定位特定请求在分布式系统中的执行路径
+- **性能分析**: 分析请求在各个组件间的处理时间
+- **错误关联**: 将相关的错误和警告消息关联到同一请求
 
 ### 性能考虑
 
