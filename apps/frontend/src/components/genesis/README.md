@@ -86,6 +86,42 @@ sequenceDiagram
 - **兜底机制**: SSE 连接失败时自动切换到轮询
 - **状态恢复**: 页面刷新后自动恢复对话状态
 
+**核心架构**:
+```mermaid
+graph TD
+    subgraph "状态管理"
+        A[React State]
+        B[TanStack Query]
+        C[SSE Context]
+    end
+    
+    subgraph "数据流"
+        D[用户输入]
+        E[乐观消息]
+        F[命令提交]
+        G[SSE 事件]
+        H[数据同步]
+    end
+    
+    subgraph "UI 组件"
+        I[消息列表]
+        J[输入区域]
+        K[状态指示器]
+        L[操作按钮]
+    end
+    
+    A --> D
+    D --> E
+    E --> F
+    F --> B
+    G --> C
+    C --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+```
+
 ### GenesisNavigation - 阶段导航组件
 
 **阶段配置**:
@@ -117,6 +153,36 @@ graph TD
     F --> I[提供解决建议]
     G --> J[提供重试选项]
     H --> K[配置验证]
+```
+
+### SSE 事件驱动架构
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant GC as GenesisConversation
+    participant SSE as SSE连接
+    participant API as 后端API
+    participant Q as TanStack Query
+    
+    Note over U,GC: 初始状态
+    U->>GC: 输入消息
+    GC->>GC: 创建乐观消息
+    GC->>API: 提交命令
+    
+    Note over API,SSE: 后端处理
+    API->>SSE: processing事件
+    SSE->>GC: 接收处理状态
+    GC->>GC: 显示思考中
+    
+    Note over API,SSE: AI处理完成
+    API->>SSE: completed事件
+    SSE->>GC: 接收完成状态
+    GC->>GC: 更新UI状态
+    GC->>Q: 刷新对话数据
+    Q-->>GC: 返回最新消息
+    GC->>GC: 清除乐观消息
+    GC->>U: 显示完整对话
 ```
 
 ## 🔧 技术实现
@@ -188,6 +254,25 @@ GET /api/v1/conversations/sessions/{session_id}/rounds
 - error: 系统错误
 ```
 
+### 命令提交流程
+
+```mermaid
+graph TD
+    A[用户输入] --> B[构造命令类型]
+    B --> C[生成payload]
+    C --> D[添加请求头]
+    D --> E[显示乐观消息]
+    E --> F[提交到API]
+    F --> G[等待SSE事件]
+    G --> H{事件类型}
+    H -->|processing| I[显示思考状态]
+    H -->|completed| J[刷新数据]
+    H -->|failed| K[显示错误]
+    J --> L[清除乐观消息]
+    I --> G
+    K --> M[恢复输入状态]
+```
+
 ## 🚀 使用示例
 
 ### 基本使用
@@ -215,6 +300,31 @@ const customPrompts = {
 }
 ```
 
+### 关键Hook使用
+
+```typescript
+// SSE 事件监听
+const { isConnected, status: connectionState } = useSSEStatus()
+
+// 命令状态管理
+const { data: pendingCommand } = usePendingCommand(sessionId)
+
+// 对话轮次数据
+const { data: roundsData } = useRounds(sessionId, {
+  order: 'asc'
+})
+
+// 命令提交
+const submitCommand = useSubmitCommand(sessionId, {
+  onSuccess: (data) => {
+    console.log('命令提交成功:', data)
+  },
+  onError: (error) => {
+    console.error('命令提交失败:', error)
+  }
+})
+```
+
 ## 🛠️ 开发指南
 
 ### 组件开发规范
@@ -234,6 +344,50 @@ const customPrompts = {
 - 启用详细的控制台日志
 - 测试 SSE 连接稳定性
 - 验证错误处理逻辑
+
+### 状态恢复机制
+
+```mermaid
+graph TD
+    A[页面刷新] --> B[检测待回复消息]
+    B --> C{是否有未回复的用户消息}
+    C -->|有| D[恢复思考状态]
+    C -->|无| E[正常加载状态]
+    D --> F[等待SSE事件]
+    F --> G{接收completed事件}
+    G -->|是| H[清除思考状态]
+    G -->|否| F
+    H --> I[显示完整对话]
+```
+
+### 乐观消息管理
+
+```typescript
+// 乐观消息生命周期
+interface OptimisticMessage {
+  id: string // 唯一标识符
+  content: string
+  initialRoundsLength: number // 发送时的rounds数量
+}
+
+// 1. 创建乐观消息
+setOptimisticMessage({
+  id: `optimistic-${Date.now()}`,
+  content: userInput,
+  initialRoundsLength: rounds.length
+})
+
+// 2. 检测真实消息到达
+if (rounds.length > optimisticMessage.initialRoundsLength) {
+  const matchingRound = rounds.find(round => 
+    round.role === 'user' && 
+    round.input?.payload?.user_input === optimisticMessage.content
+  )
+  if (matchingRound) {
+    setOptimisticMessage(null) // 清除乐观消息
+  }
+}
+```
 
 ## 🔮 未来规划
 

@@ -1,22 +1,86 @@
-# 创世命令工具 (Genesis Commands Utils)
+# 前端工具函数库 (Frontend Utils)
+
+提供 InfiniteScribe 前端应用的核心工具函数，包括创世命令处理、状态管理、错误处理等通用功能。
+
+## 📁 目录结构
+
+```
+utils/
+├── genesisCommands.ts    # 创世命令工具函数
+├── errorHandler.ts       # 错误处理工具
+├── sseStorage.ts         # SSE 存储工具
+├── validation.ts        # 数据验证工具
+├── formatters.ts        # 格式化工具
+└── index.ts            # 统一导出文件
+```
+
+## 🎯 核心模块
+
+### 1. 创世命令工具 (genesisCommands.ts)
 
 提供 Genesis 创世系统的命令类型映射和 payload 构造功能，确保前端与后端 API 的无缝集成。
 
-## 🎯 核心功能
+#### 核心功能
 
-### 命令类型映射
+**命令类型映射**:
 - **阶段自适应**: 根据当前创世阶段自动选择合适的命令类型
 - **类型安全**: TypeScript 编译时类型检查
 - **语义化**: 清晰的命令类型命名和分类
 
-### Payload 构造
+**Payload 构造**:
 - **标准化**: 构造符合后端 API 规范的 payload
 - **灵活性**: 支持各种上下文信息的传入
 - **兼容性**: 保持与现有系统的向后兼容
 
+#### 标准化字段说明
+
+模块实现了完全标准化的 payload 字段，符合 LLD 文档要求：
+
+```typescript
+// 标准化字段结构
+interface StandardPayload {
+  user_input: string      // 用户输入内容，统一标准字段名
+  session_id: string      // 会话ID
+  stage: GenesisStage     // 当前创世阶段
+  user_id?: string        // 用户ID，通常由后端推导
+  context: Record<string, any>  // 上下文信息
+  preferences?: Record<string, any>  // 用户偏好设置
+}
+```
+
+#### 命令处理架构
+
+```mermaid
+graph TD
+    subgraph "输入层"
+        A[用户输入]
+        B[当前阶段]
+        C[上下文信息]
+    end
+    
+    subgraph "处理层"
+        D[命令类型映射]
+        E[Payload构造]
+        F[字段标准化]
+    end
+    
+    subgraph "输出层"
+        G[标准CommandRequest]
+        H[API就绪Payload]
+    end
+    
+    A --> D
+    B --> D
+    D --> E
+    C --> E
+    E --> F
+    F --> G
+    G --> H
+```
+
 ## 📊 核心函数
 
-### 阶段命令映射
+#### 阶段命令映射
 
 ```mermaid
 graph TD
@@ -38,7 +102,7 @@ graph TD
     M --> C
 ```
 
-### Payload 构造流程
+#### Payload 构造流程
 
 ```mermaid
 flowchart TD
@@ -60,7 +124,7 @@ flowchart TD
     I --> J
 ```
 
-### 命令分类工具
+#### 命令分类工具
 
 ```mermaid
 pie
@@ -71,44 +135,11 @@ pie
     "会话管理命令" : 15
 ```
 
-## 🛠️ 详细功能说明
+#### 详细功能说明
 
-### getCommandTypeByStage
+**getCommandTypeByStage** - 根据创世阶段获取对应的用户消息命令类型
 
-根据创世阶段获取对应的用户消息命令类型：
-
-```typescript
-function getCommandTypeByStage(stage: GenesisStage): GenesisCommandType {
-  switch (stage) {
-    case GenesisStage.INITIAL_PROMPT:
-      return GenesisCommandType.SEED_REQUEST
-    case GenesisStage.WORLDVIEW:
-      return GenesisCommandType.WORLD_REQUEST
-    case GenesisStage.CHARACTERS:
-      return GenesisCommandType.CHARACTER_REQUEST
-    case GenesisStage.PLOT_OUTLINE:
-      return GenesisCommandType.PLOT_REQUEST
-    case GenesisStage.FINISHED:
-      return GenesisCommandType.DETAILS_REQUEST
-    default:
-      return GenesisCommandType.SEED_REQUEST
-  }
-}
-```
-
-### buildGenesisCommandPayload
-
-构造符合后端 API 要求的 payload 结构：
-
-```typescript
-function buildGenesisCommandPayload(
-  commandType: GenesisCommandType,
-  userInput: string,
-  sessionId: string,
-  stage: GenesisStage,
-  context?: Record<string, any>
-): Record<string, any>
-```
+**buildGenesisCommandPayload** - 构造符合后端 API 要求的 payload 结构
 
 **支持的命令类型**:
 - **种子请求** (`SEED_REQUEST`): 创意种子生成
@@ -120,123 +151,159 @@ function buildGenesisCommandPayload(
 - **确认命令**: 各种内容的用户确认
 - **会话管理**: 会话开始、完成等
 
-### 命令分类工具
+**命令分类工具**:
+- `isConfirmCommand()` - 检测确认类命令
+- `isRequestCommand()` - 检测请求类命令
+- `getConfirmCommandTypeByStage()` - 获取阶段确认命令
+- `getUpdateCommandTypeByStage()` - 获取阶段更新命令
+- `getCommandTypeDisplayName()` - 获取命令显示名称
 
-#### 确认命令检测
+### 2. 其他工具模块
 
-```typescript
-function isConfirmCommand(commandType: GenesisCommandType): boolean {
-  return [
-    GenesisCommandType.CONCEPT_CONFIRM,
-    GenesisCommandType.THEME_CONFIRM,
-    GenesisCommandType.WORLD_CONFIRM,
-    GenesisCommandType.CHARACTER_CONFIRM,
-    GenesisCommandType.PLOT_CONFIRM,
-    GenesisCommandType.DETAILS_CONFIRM
-  ].includes(commandType)
-}
-```
+#### 错误处理工具 (errorHandler.ts)
+- 统一错误处理格式
+- 用户友好的错误消息
+- 错误日志记录和分析
 
-#### 请求命令检测
+#### SSE 存储工具 (sseStorage.ts)
+- SSE 连接状态管理
+- 事件数据缓存
+- 连接恢复机制
 
-```typescript
-function isRequestCommand(commandType: GenesisCommandType): boolean {
-  return [
-    GenesisCommandType.SEED_REQUEST,
-    GenesisCommandType.THEME_REQUEST,
-    GenesisCommandType.WORLD_REQUEST,
-    GenesisCommandType.CHARACTER_REQUEST,
-    GenesisCommandType.PLOT_REQUEST,
-    GenesisCommandType.DETAILS_REQUEST
-  ].includes(commandType)
-}
-```
+## 🚀 使用示例
 
-### 阶段相关命令工具
-
-#### 确认命令获取
+### 创世命令工具使用
 
 ```typescript
-function getConfirmCommandTypeByStage(stage: GenesisStage): GenesisCommandType {
-  switch (stage) {
-    case GenesisStage.INITIAL_PROMPT:
-      return GenesisCommandType.CONCEPT_CONFIRM
-    case GenesisStage.WORLDVIEW:
-      return GenesisCommandType.WORLD_CONFIRM
-    case GenesisStage.CHARACTERS:
-      return GenesisCommandType.CHARACTER_CONFIRM
-    case GenesisStage.PLOT_OUTLINE:
-      return GenesisCommandType.PLOT_CONFIRM
-    case GenesisStage.FINISHED:
-      return GenesisCommandType.DETAILS_CONFIRM
-    default:
-      return GenesisCommandType.CONCEPT_CONFIRM
+import { 
+  getCommandTypeByStage, 
+  buildGenesisCommandPayload,
+  isConfirmCommand 
+} from '@/utils/genesisCommands'
+import { GenesisStage, GenesisCommandType } from '@/types/enums'
+
+// 获取当前阶段的命令类型
+const stage = GenesisStage.CHARACTERS
+const commandType = getCommandTypeByStage(stage)
+// 返回: GenesisCommandType.CHARACTER_REQUEST
+
+// 构造标准化 payload
+const payload = buildGenesisCommandPayload(
+  commandType,
+  '创建一个勇敢的骑士角色',
+  'session_123',
+  stage,
+  {
+    iteration_number: 2,
+    requirements: {
+      role: 'protagonist',
+      traits: ['brave', 'noble']
+    }
+  }
+)
+
+// payload 结果符合 LLD 标准格式:
+{
+  session_id: 'session_123',
+  user_input: '创建一个勇敢的骑士角色',  // 标准字段
+  stage: 'CHARACTERS',
+  context: {
+    iteration_number: 2,
+    requirements: {
+      role: 'protagonist',
+      traits: ['brave', 'noble']
+    }
   }
 }
 ```
 
-#### 更新命令获取
+### 在 React 组件中集成
 
 ```typescript
-function getUpdateCommandTypeByStage(stage: GenesisStage): GenesisCommandType {
-  switch (stage) {
-    case GenesisStage.INITIAL_PROMPT:
-      return GenesisCommandType.THEME_REVISE
-    case GenesisStage.WORLDVIEW:
-      return GenesisCommandType.WORLD_UPDATE
-    case GenesisStage.CHARACTERS:
-      return GenesisCommandType.CHARACTER_UPDATE
-    case GenesisStage.PLOT_OUTLINE:
-      return GenesisCommandType.PLOT_UPDATE
-    case GenesisStage.FINISHED:
-      return GenesisCommandType.DETAILS_REQUEST
-    default:
-      return GenesisCommandType.THEME_REVISE
+import { useState } from 'react'
+import { 
+  getCommandTypeByStage, 
+  buildGenesisCommandPayload,
+  isConfirmCommand 
+} from '@/utils/genesisCommands'
+
+function GenesisConversation({ stage, sessionId }: { 
+  stage: GenesisStage, 
+  sessionId: string 
+}) {
+  const [input, setInput] = useState('')
+  
+  const handleSendMessage = () => {
+    const commandType = getCommandTypeByStage(stage)
+    const payload = buildGenesisCommandPayload(
+      commandType,
+      input,  // 使用标准 user_input 字段
+      sessionId,
+      stage,
+      {
+        iteration_number: 3,
+        user_preferences: {}
+      }
+    )
+    
+    // 发送到后端
+    sendMessageToBackend({
+      type: commandType,
+      payload
+    })
+    
+    setInput('')
   }
+  
+  return (
+    <div>
+      <textarea 
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder={isConfirmCommand(getCommandTypeByStage(stage)) 
+          ? '输入确认意见...' 
+          : '输入你的想法...'}
+      />
+      <button onClick={handleSendMessage}>
+        发送
+      </button>
+    </div>
+  )
 }
 ```
 
-### 显示名称工具
+### 与状态管理集成
 
 ```typescript
-function getCommandTypeDisplayName(commandType: GenesisCommandType): string {
-  const displayNames: Record<GenesisCommandType, string> = {
-    [GenesisCommandType.SESSION_START]: '开始会话',
-    [GenesisCommandType.SEED_REQUEST]: '请求创意种子',
-    [GenesisCommandType.CONCEPT_CONFIRM]: '确认概念',
-    [GenesisCommandType.STAGE_COMPLETE]: '完成阶段',
-    [GenesisCommandType.THEME_REQUEST]: '请求主题',
-    [GenesisCommandType.THEME_REVISE]: '修订主题',
-    [GenesisCommandType.THEME_CONFIRM]: '确认主题',
-    [GenesisCommandType.WORLD_REQUEST]: '请求世界观',
-    [GenesisCommandType.WORLD_UPDATE]: '更新世界观',
-    [GenesisCommandType.WORLD_CONFIRM]: '确认世界观',
-    [GenesisCommandType.CHARACTER_REQUEST]: '请求角色',
-    [GenesisCommandType.CHARACTER_UPDATE]: '更新角色',
-    [GenesisCommandType.CHARACTER_CONFIRM]: '确认角色',
-    [GenesisCommandType.CHARACTER_NETWORK_CREATE]: '创建角色关系网',
-    [GenesisCommandType.PLOT_REQUEST]: '请求情节',
-    [GenesisCommandType.PLOT_UPDATE]: '更新情节',
-    [GenesisCommandType.PLOT_CONFIRM]: '确认情节',
-    [GenesisCommandType.DETAILS_REQUEST]: '请求细节',
-    [GenesisCommandType.DETAILS_CONFIRM]: '确认细节',
-    [GenesisCommandType.SESSION_FINISH]: '完成会话',
-    [GenesisCommandType.SESSION_FAIL]: '会话失败',
-    [GenesisCommandType.BRANCH_CREATE]: '创建分支'
-  }
+import { useMutation } from '@tanstack/react-query'
+import { buildGenesisCommandPayload } from '@/utils/genesisCommands'
 
-  return displayNames[commandType] || commandType
+// 在 TanStack Query 中使用
+const useSubmitCommand = () => {
+  return useMutation({
+    mutationFn: async ({ 
+      commandType, 
+      userInput, 
+      sessionId, 
+      stage 
+    }) => {
+      const payload = buildGenesisCommandPayload(
+        commandType,
+        userInput,
+        sessionId,
+        stage
+      )
+      
+      const response = await fetch('/api/commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: commandType, payload })
+      })
+      
+      return response.json()
+    }
+  })
 }
-```
-
-## 📁 目录结构
-
-```
-utils/
-├── genesisCommands.ts    # 创世命令工具函数
-├── errorHandler.ts       # 错误处理工具
-├── sseStorage.ts         # SSE 存储工具
-└── ...
 ```
 
 ## 🚀 使用示例
