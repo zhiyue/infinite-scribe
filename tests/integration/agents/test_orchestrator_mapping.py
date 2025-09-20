@@ -1,6 +1,7 @@
 """Integration tests for orchestrator event mapping."""
 
 import pytest
+from uuid import uuid4
 from unittest.mock import Mock
 
 from src.agents.orchestrator.command_strategies import CommandStrategyRegistry, CommandMapping
@@ -139,12 +140,13 @@ class TestEventSerializationIntegration:
     def test_event_serialization_uses_unified_mapping(self):
         """Test that EventSerializationUtils uses unified mapping."""
         from src.schemas.genesis_events import EventSerializationUtils
-        from src.schemas.enums import GenesisEventType
+        from src.schemas.enums import GenesisEventType, GenesisStage
 
-        # Test with a mapped event
+        # Test with a mapped event - use valid UUID and stage
+        test_session_id = str(uuid4())
         payload_data = {
-            "session_id": "test-session",
-            "stage": "INSPIRATION",
+            "session_id": test_session_id,
+            "stage": GenesisStage.CHARACTERS,
             "previous_stage": None,
             "context_data": {"test": "data"}
         }
@@ -163,9 +165,10 @@ class TestEventSerializationIntegration:
         from src.schemas.genesis_events import EventSerializationUtils, GenesisEventPayload
         from src.schemas.enums import GenesisEventType
 
-        # Test with an unmapped event
+        # Test with an unmapped event - use valid UUID
+        test_session_id = str(uuid4())
         payload_data = {
-            "session_id": "test-session",
+            "session_id": test_session_id,
             "user_id": None,
         }
 
