@@ -66,9 +66,11 @@ class OrchestratorAgent:
     async def _create_async_task(
         self, *, correlation_id: str | None, session_id: str, task_type: str, input_data: dict[str, Any]
     ):
-        """创建异步任务记录 (orchestrator/agent.py:171)"""
+        """创建异步任务记录 (orchestrator/agent.py:156) - 带幂等性保护"""
         from datetime import UTC, datetime
 
+        if not task_type:
+            return
         trig_cmd_id = None
         if correlation_id:
             try:
@@ -77,6 +79,25 @@ class OrchestratorAgent:
                 trig_cmd_id = None
 
         async with create_sql_session() as db:
+            # 幂等性检查：防止重复创建 RUNNING/PENDING 任务
+            if trig_cmd_id:
+                existing_stmt = select(AsyncTask).where(
+                    and_(
+                        AsyncTask.triggered_by_command_id == trig_cmd_id,
+                        AsyncTask.task_type == task_type,
+                        AsyncTask.status.in_([TaskStatus.RUNNING, TaskStatus.PENDING])
+                    )
+                )
+                existing_task = await db.scalar(existing_stmt)
+                if existing_task:
+                    self.log.debug(
+                        "async_task_already_exists",
+                        correlation_id=correlation_id,
+                        task_type=task_type,
+                        existing_task_id=str(existing_task.id)
+                    )
+                    return
+
             task = AsyncTask(
                 task_type=task_type,
                 triggered_by_command_id=trig_cmd_id,  # FK→command_inbox.id
@@ -91,39 +112,47 @@ class OrchestratorAgent:
 ### 任务类型标准化
 
 ```python
-# orchestrator/agent.py:221
+# orchestrator/agent.py:241
 def _normalize_task_type(self, event_type: str) -> str:
-    """规范化任务类型为基础类型前缀，便于匹配统计"""
-    # 去掉 Action 部分，保留 <Capability>.<Entity>
+    """规范化任务类型为基础动作类型，便于匹配统计"""
+    # 将动作后缀映射为基础动作类型，保持三段式结构
     # 例子:
-    # "Character.Design.GenerationRequested" -> "Character.Design"
-    # "Character.Design.Generated" -> "Character.Design"
-    # "Character.Relationship.AnalysisRequested" -> "Character.Relationship"
-    # "Outliner.Theme.Generated" -> "Outliner.Theme"
-    # "Review.Quality.EvaluationRequested" -> "Review.Quality"
+    # "Character.Design.GenerationRequested" -> "Character.Design.Generation"
+    # "Character.Design.Generated" -> "Character.Design.Generation"
+    # "Outliner.Theme.Generated" -> "Outliner.Theme.Generation"
+    # "Review.Quality.EvaluationRequested" -> "Review.Quality.Evaluation"
+    # "Review.Consistency.CheckRequested" -> "Review.Consistency.Check"
 
     if not event_type:
         return ""
     parts = event_type.split(".")
+    if not parts:
+        return event_type
 
-    # 能力事件格式: <Capability>.<Entity>.<Action>
-    # 去掉 Action 部分的各种后缀
-    action_suffixes = {
-        "GenerationRequested", "Generated", "Generation",
-        "AnalysisRequested", "Analysis", "Analyzed",
-        "EvaluationRequested", "Evaluated", "Evaluation",
-        "CheckRequested", "Checked", "Check",
-        "ValidationRequested", "Validated", "Validation",
-        "RevisionRequested", "Revised", "Revision",
-        "Requested", "Started", "Completed", "Result"
+    # 映射动作后缀到基础动作类型
+    suffix_to_base = {
+        "GenerationRequested": "Generation",
+        "Generated": "Generation",
+        "EvaluationRequested": "Evaluation",
+        "Evaluated": "Evaluation",
+        "CheckRequested": "Check",
+        "Checked": "Check",
+        "AnalysisRequested": "Analysis",
+        "Analyzed": "Analysis",
+        "ValidationRequested": "Validation",
+        "Validated": "Validation",
+        "RevisionRequested": "Revision",
+        "Revised": "Revision",
+        "Requested": "Request",
+        "Started": "Start",
+        "Completed": "Complete",
+        "Result": "Result"
     }
 
-    if len(parts) >= 3 and parts[-1] in action_suffixes:
-        # 返回 <Capability>.<Entity>
-        return ".".join(parts[:-1])
-    elif len(parts) >= 2 and parts[-1] in {"Requested", "Generated", "Started", "Completed", "Result", "Checked"}:
-        # 兼容简单后缀
-        return ".".join(parts[:-1])
+    last_part = parts[-1]
+    if last_part in suffix_to_base and len(parts) >= 2:
+        parts[-1] = suffix_to_base[last_part]
+        return ".".join(parts)
 
     return event_type
 ```
@@ -233,25 +262,32 @@ class OrchestratorAgent:
 # 例子: 一个角色生成命令可能触发多个任务
 correlation_id = "cmd-123"
 
-# 任务1: 角色基础设计
+# 任务1: 角色基础设计生成
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Character.Design",        # 标准化后的任务类型
+    task_type="Character.Design.Generation",     # 保留完整的任务类型
     input_data={"character_type": "protagonist"}
 )
 
 # 任务2: 角色关系分析
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Character.Relationship",  # 标准化后的任务类型
+    task_type="Character.Relationship.Analysis",  # 保留完整的任务类型
     input_data={"existing_characters": [...]}
 )
 
 # 任务3: 质量评估
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Review.Quality",          # 标准化后的任务类型
+    task_type="Review.Quality.Evaluation",       # 保留完整的任务类型
     input_data={"content_type": "character"}
+)
+
+# 任务4: 一致性检查
+await self._create_async_task(
+    correlation_id=correlation_id,
+    task_type="Review.Consistency.Check",        # 保留完整的任务类型
+    input_data={"target": "character_profile"}
 )
 
 # 所有任务都通过 triggered_by_command_id 关联到同一个命令
@@ -266,7 +302,7 @@ await self._create_async_task(
 -- 状态枚举定义: apps/backend/src/schemas/enums.py:59
 CREATE TABLE async_tasks (
     id UUID PRIMARY KEY,
-    task_type TEXT NOT NULL,                           -- 如 "Character.Design", "Outliner.Theme"
+    task_type TEXT NOT NULL,                           -- 如 "Character.Design.Generation", "Review.Quality.Evaluation"
     triggered_by_command_id UUID,                      -- 外键到 command_inbox.id (workflow.py:118)
     status task_status NOT NULL DEFAULT 'PENDING',     -- PENDING|RUNNING|COMPLETED|FAILED|CANCELLED
     progress NUMERIC(5,2) NOT NULL DEFAULT 0.00,       -- 进度 0.00-100.00
@@ -313,10 +349,10 @@ WHERE triggered_by_command_id = 'cmd-uuid-123'
 ORDER BY created_at;
 
 # 可能的结果：
-# - Character.Design
-# - Character.Relationship
-# - Review.Quality
-# - Outliner.Theme
+# - Character.Design.Generation
+# - Character.Relationship.Analysis
+# - Review.Quality.Evaluation
+# - Review.Consistency.Check
 ```
 
 ## 总结：基于实际代码的职责分工
@@ -388,3 +424,22 @@ ORDER BY created_at;
 - **状态一致性**: 统一的任务状态管理和追踪
 - **数据完整性**: 严格的约束规则确保数据质量
 - **可观测性**: 完整的统计视图支持监控和分析
+
+### 🔧 近期改进
+
+**2025年代码修复**:
+
+1. **任务类型标准化修复** (orchestrator/agent.py:241):
+   - ✅ 修复了 `_normalize_task_type` 实现，使其与 docstring 期望一致
+   - ✅ 使用直接映射方式将动作后缀转换为基础动作类型
+   - ✅ 确保三段式任务类型格式 (`Capability.Entity.Action`)
+
+2. **幂等性保护** (orchestrator/agent.py:156):
+   - ✅ 为 `_create_async_task` 添加幂等性检查
+   - ✅ 防止重复创建相同 correlation_id + task_type 的 RUNNING/PENDING 任务
+   - ✅ 避免重复消费或重放事件导致的数据不一致
+
+3. **任务创建流程确认**:
+   - ✅ 确认只在 `_handle_domain_event` 中创建任务（一次性创建）
+   - ✅ Capability Agents 只执行任务并返回结果，不创建新任务记录
+   - ✅ 所有后续能力消息通过 OrchestratorAgent 统一处理
