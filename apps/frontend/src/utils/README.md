@@ -8,10 +8,11 @@
 utils/
 ├── genesisCommands.ts    # 创世命令工具函数
 ├── errorHandler.ts       # 错误处理工具
+├── errorHandler.test.ts   # 错误处理测试
 ├── sseStorage.ts         # SSE 存储工具
-├── validation.ts        # 数据验证工具
-├── formatters.ts        # 格式化工具
-└── index.ts            # 统一导出文件
+├── api-response.ts       # API 响应处理工具
+├── passwordValidator.ts  # 密码验证工具
+└── README.md            # 工具函数文档
 ```
 
 ## 🎯 核心模块
