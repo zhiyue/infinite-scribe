@@ -6,33 +6,33 @@
 
 'use client'
 
+import {
+  CROSS_TAB_MESSAGE_TYPE,
+  SSE_CONNECTION_CONFIG,
+  SSE_DEV_CONFIG,
+  SSE_ERROR_MESSAGES,
+  SSE_LOG_MESSAGES,
+  SSE_STATUS,
+  type SSEStatusType,
+} from '@/config/sse.config'
+import { useAuthStore } from '@/hooks/useAuth'
+import { SSETokenService } from '@/services/sseTokenService'
+import type { SSEMessage } from '@/types/events'
+import {
+  clearSSEState,
+  getSSEState,
+  saveSSEState,
+  shouldResumeFromLastEvent,
+} from '@/utils/sseStorage'
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useCallback,
 } from 'react'
-import { SSETokenService } from '@/services/sseTokenService'
-import { useAuthStore } from '@/hooks/useAuth'
-import {
-  SSE_CONNECTION_CONFIG,
-  SSE_STATUS,
-  CROSS_TAB_MESSAGE_TYPE,
-  SSE_LOG_MESSAGES,
-  SSE_ERROR_MESSAGES,
-  SSE_DEV_CONFIG,
-  type SSEStatusType,
-} from '@/config/sse.config'
-import type { SSEMessage } from '@/types/events'
-import {
-  saveSSEState,
-  getSSEState,
-  clearSSEState,
-  shouldResumeFromLastEvent,
-} from '@/utils/sseStorage'
 
 type SSEStatus = SSEStatusType
 
@@ -109,11 +109,15 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
 }) => {
   const sourceRef = useRef<EventSource | null>(null)
   const subsRef = useRef<Map<string, Set<Listener>>>(new Map())
+  // 跟踪已注册到 EventSource 的监听器，便于在最后一个订阅者取消时移除
+  const eventHandlersRef = useRef<Map<string, (e: MessageEvent) => void>>(new Map())
   const messageListenersRef = useRef<Set<(message: SSEMessage) => void>>(new Set())
   const initializedRef = useRef(false)
   const retryDelayRef = useRef(minRetry)
   const pausedRef = useRef(false)
   const reconnectTimerRef = useRef<number | null>(null)
+  // 事件计数（用于稳定计算平均延迟与避免依赖导致的重建）
+  const eventsCountRef = useRef(0)
 
   // 状态（从localStorage恢复）
   const persistedState = getSSEState()
@@ -293,12 +297,16 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
   const updateEventStats = (eventId?: string | null, latency?: number) => {
     const now = Date.now()
     setLastEventTime(now)
-    setTotalEventsReceived((prev) => prev + 1)
+    // 使用 ref 维护精确计数，避免闭包拿到旧值
+    eventsCountRef.current += 1
+    const newTotal = eventsCountRef.current
+    setTotalEventsReceived(newTotal)
 
     if (latency !== undefined) {
-      setAverageLatency((prev) => {
-        const total = totalEventsReceived
-        return (prev * total + latency) / (total + 1)
+      setAverageLatency((prevAvg) => {
+        const prevCount = newTotal - 1
+        if (prevCount <= 0) return latency
+        return (prevAvg * prevCount + latency) / (prevCount + 1)
       })
     }
 
@@ -313,88 +321,87 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
   const processedEventsRef = useRef(new Set<string>())
 
   // 分发事件
-  const dispatch = useCallback(
-    (event: string, e: MessageEvent) => {
-      const payload = safeParseJSON(e.data)
-      // 正确获取lastEventId - MessageEvent的标准属性
-      const eventId = e.lastEventId || null
+  const dispatch = useCallback((event: string, e: MessageEvent) => {
+    const payload = safeParseJSON(e.data)
+    // 正确获取lastEventId - MessageEvent的标准属性
+    const eventId = e.lastEventId || null
 
-      // 事件去重：使用eventId + event类型作为唯一标识
-      const eventKey = `${eventId}-${event}`
-      if (eventId && processedEventsRef.current.has(eventKey)) {
-        console.log(`[SSE] 跳过重复事件: ${event}, ID: ${eventId}`)
-        return
+    // 事件去重：使用eventId + event类型作为唯一标识
+    const eventKey = `${eventId}-${event}`
+    if (eventId && processedEventsRef.current.has(eventKey)) {
+      console.log(`[SSE] 跳过重复事件: ${event}, ID: ${eventId}`)
+      return
+    }
+
+    if (eventId) {
+      processedEventsRef.current.add(eventKey)
+
+      // 限制缓存大小，避免内存泄漏
+      if (processedEventsRef.current.size > 1000) {
+        const eventsArray = Array.from(processedEventsRef.current)
+        processedEventsRef.current = new Set(eventsArray.slice(-500))
       }
+    }
 
-      if (eventId) {
-        processedEventsRef.current.add(eventKey)
+    const sseMessage: SSEMessage = {
+      event,
+      data: payload,
+      id: eventId,
+      scope: 'user' as any,
+      version: '1.0',
+    }
 
-        // 限制缓存大小，避免内存泄漏
-        if (processedEventsRef.current.size > 1000) {
-          const eventsArray = Array.from(processedEventsRef.current)
-          processedEventsRef.current = new Set(eventsArray.slice(-500))
-        }
-      }
+    // 更新lastEventId
+    if (eventId) {
+      setLastEventId(eventId)
+      saveSSEState({ lastEventId: eventId, lastEventTime: Date.now() })
+    }
 
-      const sseMessage: SSEMessage = {
-        event,
-        data: payload,
-        id: eventId,
-        scope: 'user' as any,
-        version: '1.0',
-      }
+    console.log(`[SSE] 收到事件: ${event}, ID: ${eventId}, 数据:`, payload)
 
-      // 更新lastEventId
-      if (eventId) {
-        setLastEventId(eventId)
-        saveSSEState({ lastEventId: eventId, lastEventTime: Date.now() })
-      }
+    // 分发给特定事件订阅者
+    const set = subsRef.current.get(event)
+    if (set && set.size > 0) {
+      console.log(SSE_LOG_MESSAGES.EVENT.DISPATCHED(event, set.size))
 
-      console.log(`[SSE] 收到事件: ${event}, ID: ${eventId}, 数据:`, payload)
-
-      // 分发给特定事件订阅者
-      const set = subsRef.current.get(event)
-      if (set && set.size > 0) {
-        console.log(SSE_LOG_MESSAGES.EVENT.DISPATCHED(event, set.size))
-
-        set.forEach((fn) => {
-          try {
-            fn(sseMessage, e)
-          } catch (error) {
-            console.error(SSE_LOG_MESSAGES.EVENT.HANDLER_ERROR(event, error))
-          }
-        })
-      }
-
-      // 通知所有消息监听器
-      messageListenersRef.current.forEach((listener) => {
+      set.forEach((fn) => {
         try {
-          listener(sseMessage)
+          fn(sseMessage, e)
         } catch (error) {
-          console.error(SSE_LOG_MESSAGES.ERROR.HANDLER, error)
+          console.error(SSE_LOG_MESSAGES.EVENT.HANDLER_ERROR(event, error))
         }
       })
+    }
 
-      updateEventStats(sseMessage.id)
-
-      // 跨标签页转发（仅leader且未被处理过）
-      if (bcRef.current && isLeaderRef.current) {
-        bcRef.current.postMessage({
-          t: CROSS_TAB_MESSAGE_TYPE.SSE_EVENT,
-          event,
-          data: e.data,
-          lastEventId: sseMessage.id,
-        })
-        console.log(SSE_LOG_MESSAGES.CROSS_TAB.BROADCAST_EVENT(event))
+    // 通知所有消息监听器
+    messageListenersRef.current.forEach((listener) => {
+      try {
+        listener(sseMessage)
+      } catch (error) {
+        console.error(SSE_LOG_MESSAGES.ERROR.HANDLER, error)
       }
-    },
-    [totalEventsReceived],
-  )
+    })
+
+    updateEventStats(sseMessage.id)
+
+    // 跨标签页转发（仅leader且未被处理过）
+    if (bcRef.current && isLeaderRef.current) {
+      bcRef.current.postMessage({
+        t: CROSS_TAB_MESSAGE_TYPE.SSE_EVENT,
+        event,
+        data: e.data,
+        lastEventId: sseMessage.id,
+      })
+      console.log(SSE_LOG_MESSAGES.CROSS_TAB.BROADCAST_EVENT(event))
+    }
+  }, [])
 
   // 附加所有事件监听器
   const attachAllListeners = useCallback(() => {
     const src = sourceRef.current
     if (!src) return
+    // 连接建立在新的 EventSource 上，重置注册表，避免跨连接复用旧 handler
+    eventHandlersRef.current = new Map()
 
     // 基础事件
     src.addEventListener('open', () => {
@@ -439,7 +446,11 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
     }
 
     // 默认 message 事件
-    src.addEventListener('message', handleSSEEvent('message'))
+    if (!eventHandlersRef.current.has('message')) {
+      const handler = handleSSEEvent('message')
+      eventHandlersRef.current.set('message', handler)
+      src.addEventListener('message', handler)
+    }
 
     // 为常见的事件类型预先添加监听器
     const commonEventTypes = [
@@ -461,13 +472,21 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
 
     // 添加常见事件监听器
     commonEventTypes.forEach((eventType) => {
-      src.addEventListener(eventType, handleSSEEvent(eventType) as any)
+      if (!eventHandlersRef.current.has(eventType)) {
+        const handler = handleSSEEvent(eventType)
+        eventHandlersRef.current.set(eventType, handler)
+        src.addEventListener(eventType, handler as any)
+      }
     })
 
     // 添加已订阅的其他事件
     for (const [evt] of subsRef.current) {
       if (evt !== 'message' && !commonEventTypes.includes(evt)) {
-        src.addEventListener(evt, handleSSEEvent(evt) as any)
+        if (!eventHandlersRef.current.has(evt)) {
+          const handler = handleSSEEvent(evt)
+          eventHandlersRef.current.set(evt, handler)
+          src.addEventListener(evt, handler as any)
+        }
       }
     }
   }, [dispatch, minRetry])
@@ -715,9 +734,13 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
           ]
 
           if (!commonEventTypes.includes(event)) {
-            const handler = (e: MessageEvent) => dispatch(event, e)
-            src.addEventListener(event, handler as any)
-            console.log(`[SSE] 动态添加事件监听器: ${event}`)
+            // 仅在未注册过的情况下添加，并持久化 handler 以便后续移除
+            if (!eventHandlersRef.current.has(event)) {
+              const handler = (e: MessageEvent) => dispatch(event, e)
+              eventHandlersRef.current.set(event, handler)
+              src.addEventListener(event, handler as any)
+              console.log(`[SSE] 动态添加事件监听器: ${event}`)
+            }
           }
         }
       }
@@ -732,6 +755,15 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
         s.delete(cb)
         if (s.size === 0) {
           subsRef.current.delete(event)
+          // 当最后一个订阅者移除时，从 EventSource 移除监听器，避免泄漏与重复
+          const src = sourceRef.current
+          const handler = eventHandlersRef.current.get(event)
+          if (src && handler && isLeaderRef.current) {
+            try {
+              src.removeEventListener(event, handler as any)
+            } catch {}
+          }
+          eventHandlersRef.current.delete(event)
         }
       }
     },
@@ -890,4 +922,4 @@ export function useSSEEvent<T = any>(event: string, handler: (data: T) => void) 
 }
 
 // 导出类型
-export type { SSEStatus, SSEContextShape }
+export type { SSEContextShape, SSEStatus }
