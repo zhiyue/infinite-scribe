@@ -389,7 +389,7 @@ export function GenesisConversation({
   // 自动滚动
   useEffect(() => {
     scrollToBottom()
-  }, [rounds, optimisticMessage, genesisCommandStatuses])
+  }, [rounds, optimisticMessage])
 
   // 检测实际round数据到达，清除临时消息
   useEffect(() => {
