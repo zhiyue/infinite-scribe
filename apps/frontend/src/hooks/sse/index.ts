@@ -7,6 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSSE as useSSEContext } from '@/contexts/sse/SSEProvider'
 import type { SSEMessage } from '@/types/events'
 import { SSE_EVENT_NAMES } from '@/config/sse.config'
+import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
 
 // 导出基础Context Hook
 export { useSSE, useSSEEvent } from '@/contexts/sse/SSEProvider'
@@ -115,17 +116,25 @@ export function useGenesisEvents(
   sessionId: string,
   handler: (event: string, data: any) => void
 ) {
-  const events = [
+  // 获取所有支持的Genesis事件类型
+  const genesisEvents = getSupportedGenesisEventTypes()
+
+  // 添加传统的genesis事件类型
+  const legacyEvents = [
     SSE_EVENT_NAMES.GENESIS_STEP_COMPLETED,
     SSE_EVENT_NAMES.GENESIS_STEP_FAILED,
     SSE_EVENT_NAMES.GENESIS_SESSION_COMPLETED,
     SSE_EVENT_NAMES.GENESIS_SESSION_FAILED
   ]
 
+  // 合并所有Genesis相关事件
+  const allGenesisEvents = [...new Set([...genesisEvents, ...legacyEvents])]
+
   useSSEEvents(
-    events,
+    allGenesisEvents,
     (eventType, data: any) => {
-      if (data.session_id === sessionId) {
+      // 检查是否是Genesis事件且属于指定session
+      if (isGenesisEvent(eventType) && data.session_id === sessionId) {
         handler(eventType, data)
       }
     },

@@ -54,7 +54,7 @@ class CharacterRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Character.Design.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("character", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -78,7 +78,7 @@ class ThemeRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Outliner.Theme.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("outline", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -102,7 +102,7 @@ class SeedRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Outliner.Concept.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("outline", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -126,7 +126,7 @@ class WorldRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Worldbuilder.World.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("world", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -150,7 +150,7 @@ class PlotRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Plot.Structure.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("plot", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -174,7 +174,7 @@ class DetailsRequestStrategy(CommandStrategy):
             capability_message={
                 "type": "Writer.Content.GenerationRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("writer", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -193,7 +193,7 @@ class StageValidationStrategy(CommandStrategy):
             capability_message={
                 "type": "Review.Consistency.CheckRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("review", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },
@@ -212,7 +212,7 @@ class StageLockStrategy(CommandStrategy):
             capability_message={
                 "type": "Review.Consistency.CheckRequested",
                 "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
+                "input": payload,  # payload is already the extracted command data
                 "_topic": self._build_topic("review", scope_type, scope_prefix),
                 "_key": aggregate_id,
             },

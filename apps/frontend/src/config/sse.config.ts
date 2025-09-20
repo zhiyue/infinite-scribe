@@ -59,7 +59,7 @@ export const SSE_EVENT_NAMES = {
   OPEN: 'open',
   ERROR: 'error',
 
-  // Genesis相关事件
+  // Genesis相关事件 - 传统事件，新事件请在 genesis-status.config.ts 中定义
   GENESIS_STEP_COMPLETED: 'genesis.step-completed',
   GENESIS_STEP_FAILED: 'genesis.step-failed',
   GENESIS_SESSION_COMPLETED: 'genesis.session-completed',

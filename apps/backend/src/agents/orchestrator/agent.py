@@ -125,13 +125,15 @@ class OrchestratorAgent(BaseAgent):
             )
             return None
 
-        cmd_type = (payload or {}).get("command_type")
+        # command_type is at root level of the message, not in payload
+        cmd_type = evt.get("command_type")
         if not cmd_type:
             self.log.warning(
                 "orchestrator_domain_event_missing_command_type",
                 event_type=event_type,
                 aggregate_id=aggregate_id,
                 payload_keys=list(payload.keys()) if payload else [],
+                evt_keys=list(evt.keys()),
             )
             return None
 
@@ -176,12 +178,13 @@ class OrchestratorAgent(BaseAgent):
         # 1) Project to domain facts (*Requested) via DB Outbox
         try:
             # Propagate context (user_id/timestamp) for SSE routing downstream
+            # payload is already the nested command data, user_id is at root level
             enriched_payload = {
                 "session_id": aggregate_id,
-                "input": (payload or {}).get("payload", {}),
+                "input": payload,  # payload is already the nested command data
             }
-            if (payload or {}).get("user_id"):
-                enriched_payload["user_id"] = (payload or {}).get("user_id")
+            if evt.get("user_id"):
+                enriched_payload["user_id"] = evt.get("user_id")
             if evt.get("created_at"):
                 enriched_payload["timestamp"] = evt.get("created_at")
 

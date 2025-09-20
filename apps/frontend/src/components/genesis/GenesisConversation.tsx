@@ -12,6 +12,8 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
+import { GenesisStatusCard, type GenesisCommandStatus } from './GenesisStatusCard'
+import { isGenesisEvent } from '@/config/genesis-status.config'
 import {
   usePendingCommand,
   usePollCommandStatus,
@@ -107,6 +109,7 @@ export function GenesisConversation({
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null)
+  const [genesisCommandStatuses, setGenesisCommandStatuses] = useState<GenesisCommandStatus[]>([])
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -208,9 +211,28 @@ export function GenesisConversation({
     }
   }, [hasPendingUserMessage, isWaitingForResponse, isTyping, roundsLoading, rounds])
 
-  // 监听Genesis进度事件，检测AI回复完成
+  // 监听Genesis进度事件，检测AI回复完成和命令状态
   useGenesisEvents(sessionId, (eventType, eventData) => {
     console.log('[GenesisConversation] Genesis SSE event received:', { eventType, eventData })
+
+    // 处理Genesis命令状态事件 - 只处理有状态配置的事件类型
+    if (isGenesisEvent(eventType) && eventData.event_id) {
+      const commandStatus: GenesisCommandStatus = {
+        event_id: eventData.event_id || '',
+        event_type: eventData.event_type || eventType,
+        session_id: eventData.session_id || '',
+        correlation_id: eventData.correlation_id || '',
+        timestamp: eventData.timestamp || new Date().toISOString(),
+        status: eventData.status,
+        _scope: eventData._scope,
+        _version: eventData._version,
+      }
+
+      console.log('[GenesisConversation] Adding Genesis command status:', commandStatus)
+      setGenesisCommandStatuses(prev => [...prev, commandStatus])
+      return
+    }
+
     const payload = eventData?.payload ?? eventData
     const rawStatus =
       typeof payload?.status === 'string'
@@ -387,7 +409,7 @@ export function GenesisConversation({
   // 自动滚动
   useEffect(() => {
     scrollToBottom()
-  }, [rounds, optimisticMessage])
+  }, [rounds, optimisticMessage, genesisCommandStatuses])
 
   // 检测实际round数据到达，清除临时消息
   useEffect(() => {
@@ -608,6 +630,15 @@ export function GenesisConversation({
 
               {/* 对话消息 */}
               {rounds.map(renderMessage).filter(Boolean)}
+
+              {/* Genesis命令状态消息 */}
+              {genesisCommandStatuses.map((commandStatus, index) => (
+                <GenesisStatusCard
+                  key={`${commandStatus.event_id}-${index}`}
+                  commandStatus={commandStatus}
+                  showAsSystemMessage={true}
+                />
+              ))}
 
               {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
               {optimisticMessage &&

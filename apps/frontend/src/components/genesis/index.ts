@@ -12,3 +12,7 @@ export { GenesisSettingsModal } from './GenesisSettingsModal'
 // 新的阶段配置组件
 export { StageConfigForm } from './StageConfigForm'
 export { StageConfigModal, StageConfigButton } from './StageConfigModal'
+
+// Genesis状态显示组件
+export { GenesisStatusCard } from './GenesisStatusCard'
+export type { GenesisCommandStatus } from './GenesisStatusCard'
