@@ -37,14 +37,18 @@ export const GENESIS_STATUS_CONFIGS: Record<string, GenesisStatusConfig> = {
 - `label`: 事件的显示标题
 - `description`: 事件的详细描述
 - `icon`: Lucide React图标组件
-- `badgeVariant`: 徽章样式变体 (`default` | `secondary` | `destructive` | `outline`)
+- `badgeVariant`: 徽章样式变体 (`default` | `secondary` | `destructive` |
+  `outline`)
 - `cardClass`: 卡片模式的CSS类名
 - `messageClass`: 消息模式的CSS类名
 
 ### 使用配置
 
 ```typescript
-import { getGenesisStatusConfig, isGenesisEvent } from '@/config/genesis-status.config'
+import {
+  getGenesisStatusConfig,
+  isGenesisEvent,
+} from '@/config/genesis-status.config'
 
 // 获取事件配置
 const config = getGenesisStatusConfig('Genesis.Session.Seed.Requested')
@@ -53,6 +57,41 @@ const config = getGenesisStatusConfig('Genesis.Session.Seed.Requested')
 const isGenesis = isGenesisEvent('Genesis.Session.Command.Received')
 ```
 
+## 动态事件注册机制
+
+### 工作原理
+
+系统采用**按需动态注册**的机制：
+
+1. **SSEProvider**只预注册常见的基础事件（ping、heartbeat等）
+2. **业务模块**通过`useSSEEvents`或`useGenesisEvents`订阅事件时，自动注册到EventSource
+3. **配置文件**管理事件的显示和处理逻辑，与SSE基础设施解耦
+
+### 事件注册流程
+
+```typescript
+// 1. 业务组件使用Genesis事件
+useGenesisEvents(sessionId, handler)
+
+// 2. useGenesisEvents调用useSSEEvents
+useSSEEvents(['Genesis.Session.Command.Received', ...], handler)
+
+// 3. useSSEEvents为每个事件类型调用subscribe
+events.map(eventType => subscribe(eventType, handler))
+
+// 4. subscribe检查事件是否已注册，如果没有则动态添加监听器
+if (!commonEventTypes.includes(event)) {
+  src.addEventListener(event, handleSSEEvent(event))
+}
+```
+
+### 优势
+
+- **解耦**: SSEProvider不需要知道业务事件类型
+- **按需加载**: 只有使用的事件类型才会注册监听器
+- **扩展性**: 新业务模块可以独立添加事件类型
+- **配置管理**: 事件显示逻辑在业务配置中统一管理
+
 ## 优势
 
 1. **配置驱动**: 新增事件类型无需修改组件代码
@@ -60,8 +99,8 @@ const isGenesis = isGenesisEvent('Genesis.Session.Command.Received')
 3. **类型安全**: 完整的TypeScript支持
 4. **易于扩展**: 提供了便利的函数来添加和管理配置
 5. **自动发现**: SSE hooks自动发现所有配置的事件类型
-6. **事件分类**: 支持按类别管理和获取事件类型
-7. **默认配置**: 为未知事件类型提供合理的默认显示方式
+6. **动态注册**: 事件类型按需注册到EventSource，解耦基础设施和业务逻辑
+7. **按业务模块**: 只有使用的业务模块才会注册相关事件监听器
 
 ## 扩展示例
 
@@ -110,6 +149,6 @@ addGenesisStatusConfig('Genesis.Custom.Event', {
 import { getSupportedGenesisEventTypes } from '@/config/genesis-status.config'
 
 const allEventTypes = getSupportedGenesisEventTypes()
-console.log(allEventTypes) 
+console.log(allEventTypes)
 // ['Genesis.Session.Command.Received', 'Genesis.Session.Seed.Requested', ...]
 ```

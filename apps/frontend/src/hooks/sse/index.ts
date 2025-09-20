@@ -60,29 +60,34 @@ export function useSSEControl() {
 
 /**
  * 订阅多个SSE事件类型
+ * 使用subscribe机制确保事件类型能被动态注册到EventSource
  */
 export function useSSEEvents<T = any>(
   events: string[],
   handler: (event: string, data: T) => void,
   deps: React.DependencyList = []
 ) {
-  const { addMessageListener, removeMessageListener } = useSSEContext()
+  const { subscribe } = useSSEContext()
   const stableHandler = useStableHandler(handler)
 
   useEffect(() => {
-    const listener = (message: SSEMessage) => {
-      if (events.includes(message.event)) {
-        stableHandler(message.event, message.data as T)
-      }
-    }
+    // 为每个事件类型单独订阅，确保动态注册
+    const unsubscribeFunctions = events.map(eventType => {
+      return subscribe(eventType, (message, rawEvent) => {
+        stableHandler(eventType, message.data as T)
+      })
+    })
 
-    addMessageListener(listener)
-    return () => removeMessageListener(listener)
-  }, [addMessageListener, removeMessageListener, JSON.stringify(events), stableHandler, ...deps])
+    // 返回清理函数
+    return () => {
+      unsubscribeFunctions.forEach(unsub => unsub())
+    }
+  }, [subscribe, JSON.stringify(events), stableHandler, ...deps])
 }
 
 /**
  * 订阅特定条件的SSE事件
+ * 使用subscribe机制确保事件类型能被动态注册到EventSource
  */
 export function useSSEConditionalEvent<T = any>(
   event: string,
@@ -90,23 +95,20 @@ export function useSSEConditionalEvent<T = any>(
   condition: (data: T) => boolean,
   deps: React.DependencyList = []
 ) {
-  const { addMessageListener, removeMessageListener } = useSSEContext()
+  const { subscribe } = useSSEContext()
   const stableHandler = useStableHandler(handler)
   const stableCondition = useStableHandler(condition)
 
   useEffect(() => {
-    const listener = (message: SSEMessage) => {
-      if (message.event === event) {
-        const data = message.data as T
-        if (stableCondition(data)) {
-          stableHandler(data)
-        }
+    const unsubscribe = subscribe(event, (message, rawEvent) => {
+      const data = message.data as T
+      if (stableCondition(data)) {
+        stableHandler(data)
       }
-    }
+    })
 
-    addMessageListener(listener)
-    return () => removeMessageListener(listener)
-  }, [addMessageListener, removeMessageListener, event, stableHandler, stableCondition, ...deps])
+    return unsubscribe
+  }, [subscribe, event, stableHandler, stableCondition, ...deps])
 }
 
 /**
@@ -116,30 +118,57 @@ export function useGenesisEvents(
   sessionId: string,
   handler: (event: string, data: any) => void
 ) {
-  // 获取所有支持的Genesis事件类型
-  const genesisEvents = getSupportedGenesisEventTypes()
+  const { subscribe } = useSSEContext()
+  const stableHandler = useStableHandler(handler)
+  const processedEventsRef = useRef(new Set<string>())
 
-  // 添加传统的genesis事件类型
-  const legacyEvents = [
-    SSE_EVENT_NAMES.GENESIS_STEP_COMPLETED,
-    SSE_EVENT_NAMES.GENESIS_STEP_FAILED,
-    SSE_EVENT_NAMES.GENESIS_SESSION_COMPLETED,
-    SSE_EVENT_NAMES.GENESIS_SESSION_FAILED
-  ]
+  useEffect(() => {
+    // 获取所有支持的Genesis事件类型
+    const genesisEvents = getSupportedGenesisEventTypes()
 
-  // 合并所有Genesis相关事件
-  const allGenesisEvents = [...new Set([...genesisEvents, ...legacyEvents])]
+    // 添加传统的genesis事件类型
+    const legacyEvents = [
+      SSE_EVENT_NAMES.GENESIS_STEP_COMPLETED,
+      SSE_EVENT_NAMES.GENESIS_STEP_FAILED,
+      SSE_EVENT_NAMES.GENESIS_SESSION_COMPLETED,
+      SSE_EVENT_NAMES.GENESIS_SESSION_FAILED
+    ]
 
-  useSSEEvents(
-    allGenesisEvents,
-    (eventType, data: any) => {
-      // 检查是否是Genesis事件且属于指定session
-      if (isGenesisEvent(eventType) && data.session_id === sessionId) {
-        handler(eventType, data)
-      }
-    },
-    [sessionId]
-  )
+    // 合并所有Genesis相关事件
+    const allGenesisEvents = [...new Set([...genesisEvents, ...legacyEvents])]
+
+    // 为每个事件类型单独订阅，确保动态注册
+    const unsubscribeFunctions = allGenesisEvents.map(eventType => {
+      return subscribe(eventType, (message, rawEvent) => {
+        const data = message.data as any
+
+        // 检查是否是Genesis事件且属于指定session
+        if (isGenesisEvent(eventType) && data.session_id === sessionId) {
+          // 防重复处理：使用event_id + session_id作为唯一标识
+          const eventKey = `${data.event_id || message.id}-${data.session_id}-${eventType}`
+
+          if (!processedEventsRef.current.has(eventKey)) {
+            processedEventsRef.current.add(eventKey)
+
+            // 限制已处理事件的缓存大小，避免内存泄漏
+            if (processedEventsRef.current.size > 1000) {
+              const eventsArray = Array.from(processedEventsRef.current)
+              processedEventsRef.current = new Set(eventsArray.slice(-500))
+            }
+
+            stableHandler(eventType, data)
+          }
+        }
+      })
+    })
+
+    // 返回清理函数
+    return () => {
+      unsubscribeFunctions.forEach(unsub => unsub())
+      // 清理事件缓存
+      processedEventsRef.current.clear()
+    }
+  }, [subscribe, sessionId, stableHandler])
 }
 
 /**

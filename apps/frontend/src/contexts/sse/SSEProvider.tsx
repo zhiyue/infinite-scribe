@@ -210,6 +210,24 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
       } else if (msg?.t === CROSS_TAB_MESSAGE_TYPE.SSE_EVENT) {
         // 作为 Follower，收到 Leader 的事件转发
         const { event, data, lastEventId: lid } = msg;
+
+        // 跨标签页事件去重检查
+        const eventKey = `${lid}-${event}`;
+        if (lid && processedEventsRef.current.has(eventKey)) {
+          console.log(`[SSE] 跳过重复的跨标签页事件: ${event}, ID: ${lid}`);
+          return;
+        }
+
+        if (lid) {
+          processedEventsRef.current.add(eventKey);
+
+          // 限制缓存大小
+          if (processedEventsRef.current.size > 1000) {
+            const eventsArray = Array.from(processedEventsRef.current);
+            processedEventsRef.current = new Set(eventsArray.slice(-500));
+          }
+        }
+
         console.log(SSE_LOG_MESSAGES.CROSS_TAB.RECEIVE_EVENT(event));
 
         const set = subsRef.current.get(event);
@@ -281,11 +299,31 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
     }
   };
 
+  // 事件去重缓存
+  const processedEventsRef = useRef(new Set<string>());
+
   // 分发事件
   const dispatch = useCallback((event: string, e: MessageEvent) => {
     const payload = safeParseJSON(e.data);
     // 正确获取lastEventId - MessageEvent的标准属性
     const eventId = e.lastEventId || null;
+
+    // 事件去重：使用eventId + event类型作为唯一标识
+    const eventKey = `${eventId}-${event}`;
+    if (eventId && processedEventsRef.current.has(eventKey)) {
+      console.log(`[SSE] 跳过重复事件: ${event}, ID: ${eventId}`);
+      return;
+    }
+
+    if (eventId) {
+      processedEventsRef.current.add(eventKey);
+
+      // 限制缓存大小，避免内存泄漏
+      if (processedEventsRef.current.size > 1000) {
+        const eventsArray = Array.from(processedEventsRef.current);
+        processedEventsRef.current = new Set(eventsArray.slice(-500));
+      }
+    }
 
     const sseMessage: SSEMessage = {
       event,
@@ -328,7 +366,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
 
     updateEventStats(sseMessage.id);
 
-    // 跨标签页转发
+    // 跨标签页转发（仅leader且未被处理过）
     if (bcRef.current && isLeaderRef.current) {
       bcRef.current.postMessage({
         t: CROSS_TAB_MESSAGE_TYPE.SSE_EVENT,
@@ -592,6 +630,9 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({
       } catch {}
 
       sourceRef.current = null;
+
+      // 清理事件去重缓存
+      processedEventsRef.current.clear();
 
       // Best-effort teardown via sendBeacon
       try {
