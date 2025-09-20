@@ -1,6 +1,8 @@
-# Outbox 服务 (Outbox Service)
+# Outbox Services Module
 
-实现 Outbox 模式的统一出口服务，提供代理到 Kafka 的可靠消息投递机制，确保数据一致性和消息可靠性。
+## 概述
+
+Outbox Services 模块实现了可靠的事件发布模式，确保系统事件的可靠传递和一致性，是 InfiniteScribe 事件驱动架构的核心组件。
 
 ## 🏗️ 架构概览
 
