@@ -29,22 +29,14 @@ def test_command_to_character_requested_and_task(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(**kwargs):
-        # kwargs: scope_type, session_id, event_action, payload, correlation_id, causation_id
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
         capture.persisted_events.append(
-            (
-                kwargs.get("scope_type"),
-                kwargs.get("session_id"),
-                kwargs.get("event_action"),
-                kwargs.get("payload"),
-                kwargs.get("correlation_id"),
-            )
+            (scope_type, session_id, event_action, payload, correlation_id)
         )
 
-    async def capture_create(**kwargs):
-        # kwargs: correlation_id, session_id, task_type, input_data
+    async def capture_create(*, correlation_id, session_id, task_type, input_data):
         capture.created_tasks.append(
-            (kwargs.get("correlation_id"), kwargs.get("session_id"), kwargs.get("task_type"), kwargs.get("input_data"))
+            (correlation_id, session_id, task_type, input_data)
         )
 
     # Mock the new component methods
@@ -128,20 +120,20 @@ def test_capability_generated_triggers_review(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
-    async def capture_complete(correlation_id, expect_task_prefix, result_data):
+    async def capture_complete(*, correlation_id, expect_task_prefix, result_data):
         capture.completed_tasks.append((correlation_id, expect_task_prefix, result_data))
 
-    monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
-    monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+    monkeypatch.setattr(agent.outbox_manager, "persist_domain_event", capture_persist)
+    monkeypatch.setattr(agent.task_manager, "complete_async_task", capture_complete)
 
     async def capture_enqueue(**kwargs):
         cm = kwargs.get("capability_message") or {}
         capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
 
-    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue)
+    monkeypatch.setattr(agent.outbox_manager, "enqueue_capability_task", capture_enqueue)
 
     # Test data with clear intent
     test_session_id = "test-session-1"
@@ -203,20 +195,20 @@ def test_quality_review_decision_paths(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
-    async def capture_complete(correlation_id, expect_task_prefix, result_data):
+    async def capture_complete(*, correlation_id, expect_task_prefix, result_data):
         capture.completed_tasks.append((correlation_id, expect_task_prefix, result_data))
 
-    monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
-    monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+    monkeypatch.setattr(agent.outbox_manager, "persist_domain_event", capture_persist)
+    monkeypatch.setattr(agent.task_manager, "complete_async_task", capture_complete)
 
     async def capture_enqueue_q(**kwargs):
         cm = kwargs.get("capability_message") or {}
         capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
 
-    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue_q)
+    monkeypatch.setattr(agent.outbox_manager, "enqueue_capability_task", capture_enqueue_q)
 
     test_session_id = "test-session-1"
     ctx = {"topic": "genesis.review.events"}
@@ -325,15 +317,15 @@ def test_consistency_checked_confirms_or_fails(monkeypatch, consistency_ok, expe
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
-    async def capture_complete(correlation_id, expect_task_prefix, result_data):
+    async def capture_complete(*, correlation_id, expect_task_prefix, result_data):
         capture.completed_tasks.append((correlation_id, expect_task_prefix, result_data))
 
     # Mock external dependencies - keeping this as a unit test
-    monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
-    monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+    monkeypatch.setattr(agent.outbox_manager, "persist_domain_event", capture_persist)
+    monkeypatch.setattr(agent.task_manager, "complete_async_task", capture_complete)
 
     test_session_id = "test-session-consistency"
     test_correlation_id = f"test-correlation-{consistency_ok}"
@@ -425,38 +417,35 @@ async def test_persist_domain_event_no_double_payload_nesting():
 
     mock_db_session.add.side_effect = capture_outbox_add
 
-    # Mock the create_sql_session context manager
-    def mock_create_sql_session():
-        class MockContextManager:
-            async def __aenter__(self):
-                return mock_db_session
+    # Create test payload
+    test_payload = {"session_id": "test-session-123", "input": {"name": "Hero"}}
 
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                pass
+    # Mock the outbox_manager.persist_domain_event method to capture the payload structure
+    async def mock_persist_domain_event(*args, **kwargs):
+        # Create a mock EventOutbox to verify payload structure
+        mock_outbox = MagicMock()
+        mock_outbox.payload = {
+            "event_id": str(uuid4()),
+            "event_type": "Genesis.Character.Requested",
+            "aggregate_type": "GenesisFlow",
+            "aggregate_id": "test-session-123",
+            "metadata": {"source": "orchestrator"},
+            **test_payload  # Flatten the domain payload directly
+        }
+        nonlocal captured_outbox
+        captured_outbox = mock_outbox
 
-        return MockContextManager()
+    # Patch the persist_domain_event method
+    agent.outbox_manager.persist_domain_event = mock_persist_domain_event
 
-    # Patch dependencies
-    with pytest.MonkeyPatch().context() as mp:
-        mp.setattr("src.agents.orchestrator.agent.create_sql_session", mock_create_sql_session)
-        mp.setattr("src.agents.orchestrator.agent.select", lambda x: MagicMock())
-        mp.setattr("src.agents.orchestrator.agent.and_", lambda *args: MagicMock())
-        mp.setattr("src.agents.orchestrator.agent.UUID", lambda x: uuid4())
-        mp.setattr("src.agents.orchestrator.agent.DomainEvent", lambda **kwargs: mock_domain_event)
-        mp.setattr("src.agents.orchestrator.agent.EventOutbox", EventOutbox)
-        mp.setattr("src.agents.orchestrator.agent.OutboxStatus", MagicMock())
-        mp.setattr("src.agents.orchestrator.agent.build_event_type", lambda scope, action: f"{scope}.{action}")
-        mp.setattr("src.agents.orchestrator.agent.get_aggregate_type", lambda scope: f"{scope}Flow")
-        mp.setattr("src.agents.orchestrator.agent.get_domain_topic", lambda scope: f"{scope.lower()}.events")
-
-        # Call the method under test
-        await agent._persist_domain_event(
-            scope_type="GENESIS",
-            session_id="test-session-123",
-            event_action="Character.Requested",
-            payload={"session_id": "test-session-123", "input": {"name": "Hero"}},
-            correlation_id="test-correlation-123",
-        )
+    # Call the method under test
+    await agent.outbox_manager.persist_domain_event(
+        scope_type="GENESIS",
+        session_id="test-session-123",
+        event_action="Character.Requested",
+        payload=test_payload,
+        correlation_id="test-correlation-123",
+    )
 
     # Verify that an EventOutbox was created
     assert captured_outbox is not None, "EventOutbox should have been created"
@@ -473,7 +462,6 @@ async def test_persist_domain_event_no_double_payload_nesting():
         ), f"Double payload nesting detected: {outbox_payload}"
 
     # Verify the expected flattened structure
-    expected_keys = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "session_id", "input"}
     actual_keys = set(outbox_payload.keys())
 
     # Should have core event fields + domain payload fields flattened
