@@ -158,7 +158,8 @@ class EventFilter:
         """Validate UUID format for UUID fields."""
         uuid_fields = ["event_id", "aggregate_id", "correlation_id"]
         payload = envelope["payload"]
-        payload_uuid_fields = ["user_id", "session_id"]
+        # user_id 在系统中为数字（或可序列化字符串），不强制 UUID 格式
+        payload_uuid_fields = ["session_id"]
 
         # Validate envelope UUID fields
         for field in uuid_fields:

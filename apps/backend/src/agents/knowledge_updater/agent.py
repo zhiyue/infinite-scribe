@@ -19,6 +19,7 @@ from src.agents.base import BaseAgent
 from src.common.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
 from src.db.vector.milvus import MilvusEmbeddingManager, MilvusSchemaManager
 from src.external.clients import get_embedding_service
+from src.services.outbox.egress import OutboxEgress
 
 
 class KnowledgeUpdateAgent(BaseAgent):
@@ -40,6 +41,7 @@ class KnowledgeUpdateAgent(BaseAgent):
         self._embed_provider = get_embedding_service()
         self._milvus_schema = MilvusSchemaManager()
         self._milvus = MilvusEmbeddingManager(self._milvus_schema)
+        self.egress = OutboxEgress()
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
@@ -58,14 +60,20 @@ class KnowledgeUpdateAgent(BaseAgent):
             self._update_sql_database(novel_id, chapter_id, analysis),
         )
 
-        return {
-            "type": "knowledge_updated",
-            "chapter_id": chapter_id,
-            "novel_id": novel_id,
-            "update_timestamp": datetime.now(UTC).isoformat(),
-            "_topic": "genesis.knowledge.events",
-            "_key": str(chapter_id) if chapter_id is not None else None,
-        }
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.knowledge.events",
+            key=(str(chapter_id) if chapter_id is not None else None),
+            result={
+                "type": "knowledge_updated",
+                "chapter_id": chapter_id,
+                "novel_id": novel_id,
+                "update_timestamp": datetime.now(UTC).isoformat(),
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
     async def _update_knowledge_graph(self, novel_id: str | None, chapter_id: Any, analysis: dict[str, Any]) -> None:
         # 需要 novel_id 的操作：若缺失则跳过图谱投影

@@ -16,6 +16,7 @@ class EventCapture:
         self.persisted_events: list[tuple[str, str, str, dict[str, Any], str]] = []
         self.created_tasks: list[tuple[str, str, str, dict[str, Any]]] = []
         self.completed_tasks: list[tuple[str, str, dict[str, Any]]] = []
+        self.enqueued_tasks: list[tuple[str | None, str | None, dict[str, Any], str | None]] = []
 
 
 def test_command_to_character_requested_and_task(monkeypatch):
@@ -26,7 +27,7 @@ def test_command_to_character_requested_and_task(monkeypatch):
     2. Async task created with expected parameters
     3. Output message contains proper topic and structure
     """
-    agent = OrchestratorAgent()
+    agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
     async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
@@ -37,6 +38,13 @@ def test_command_to_character_requested_and_task(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_create_async_task", capture_create)
+    
+    async def capture_enqueue(**kwargs):
+        # kwargs: capability_message, correlation_id
+        cm = kwargs.get("capability_message") or {}
+        capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
+
+    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue)
 
     # Test data with clear intent
     test_session_id = "test-session-1"
@@ -86,22 +94,15 @@ def test_command_to_character_requested_and_task(monkeypatch):
     ), f"Expected task_type to start with 'Character.Design.Generation', got '{task_type}'"
     assert isinstance(task_input_data, dict), f"Expected task_input_data to be dict, got {type(task_input_data)}"
 
-    # Verify output message structure
-    assert result is not None, "Expected non-None result from process_message"
-    assert isinstance(result, dict), f"Expected result to be dict, got {type(result)}"
-    assert (
-        result.get("_topic") == "genesis.character.tasks"
-    ), f"Expected topic 'genesis.character.tasks', got '{result.get('_topic')}'"
+    # Now tasks are enqueued via outbox; process_message should return None
+    assert result is None, "Expected None result when using outbox pattern"
 
-    # Verify result contains proper task structure
-    assert "type" in result, "Result missing 'type' field"
-    assert "session_id" in result, "Result missing 'session_id' field"
-    assert (
-        result["session_id"] == test_session_id
-    ), f"Expected result session_id '{test_session_id}', got '{result['session_id']}'"
-    # Verify task contains input data
-    assert "input" in result, "Result missing 'input' field"
-    assert isinstance(result["input"], dict), f"Expected result input to be dict, got {type(result['input'])}"
+    # Verify exactly one capability task was enqueued to outbox with correct routing
+    assert len(capture.enqueued_tasks) == 1, f"Expected 1 enqueued task, got {len(capture.enqueued_tasks)}"
+    enq_topic, enq_key, enq_msg, enq_corr = capture.enqueued_tasks[0]
+    assert enq_topic == "genesis.character.tasks", f"Expected topic 'genesis.character.tasks', got '{enq_topic}'"
+    assert enq_msg.get("type", "").endswith("GenerationRequested"), f"Unexpected message type: {enq_msg.get('type')}"
+    assert enq_msg.get("session_id") == test_session_id
 
 
 def test_capability_generated_triggers_review(monkeypatch):
@@ -112,7 +113,7 @@ def test_capability_generated_triggers_review(monkeypatch):
     2. Review evaluation task is created and emitted
     3. Original generation task is marked complete
     """
-    agent = OrchestratorAgent()
+    agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
     async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
@@ -123,6 +124,12 @@ def test_capability_generated_triggers_review(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+    
+    async def capture_enqueue(**kwargs):
+        cm = kwargs.get("capability_message") or {}
+        capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
+
+    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue)
 
     # Test data with clear intent
     test_session_id = "test-session-1"
@@ -164,25 +171,13 @@ def test_capability_generated_triggers_review(monkeypatch):
     ), f"Expected task prefix to start with 'Character.Design.Generation', got '{completed_task_prefix}'"
     assert isinstance(completed_result, dict), f"Expected completed result to be dict, got {type(completed_result)}"
 
-    # Verify review task was emitted with correct structure
-    assert result is not None, "Expected non-None result from process_message"
-    assert isinstance(result, dict), f"Expected result to be dict, got {type(result)}"
-    assert (
-        result.get("_topic") == "genesis.review.tasks"
-    ), f"Expected topic 'genesis.review.tasks', got '{result.get('_topic')}'"
-
-    # Verify evaluation request structure
-    assert "type" in result, "Result missing 'type' field"
-    assert result["type"].endswith(
-        "EvaluationRequested"
-    ), f"Expected type to end with 'EvaluationRequested', got '{result['type']}'"
-    assert "session_id" in result, "Result missing 'session_id' field"
-    assert (
-        result["session_id"] == test_session_id
-    ), f"Expected result session_id '{test_session_id}', got '{result['session_id']}'"
-    # Verify input data structure
-    assert "input" in result, "Result missing 'input' field"
-    assert isinstance(result["input"], dict), f"Expected result input to be dict, got {type(result['input'])}"
+    # Verify review task was enqueued via outbox
+    assert result is None
+    assert len(capture.enqueued_tasks) == 1
+    enq_topic, enq_key, enq_msg, _ = capture.enqueued_tasks[0]
+    assert enq_topic == "genesis.review.tasks"
+    assert enq_msg.get("type", "").endswith("EvaluationRequested")
+    assert enq_msg.get("session_id") == test_session_id
 
 
 def test_quality_review_decision_paths(monkeypatch):
@@ -193,7 +188,7 @@ def test_quality_review_decision_paths(monkeypatch):
     2. Medium score (5.0-6.9) with retries available -> Regeneration request
     3. Low score or max attempts reached -> Failure marking
     """
-    agent = OrchestratorAgent()
+    agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
     async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
@@ -204,6 +199,10 @@ def test_quality_review_decision_paths(monkeypatch):
 
     monkeypatch.setattr(agent, "_persist_domain_event", capture_persist)
     monkeypatch.setattr(agent, "_complete_async_task", capture_complete)
+    async def capture_enqueue_q(**kwargs):
+        cm = kwargs.get("capability_message") or {}
+        capture.enqueued_tasks.append((cm.get("_topic"), cm.get("_key"), cm, kwargs.get("correlation_id")))
+    monkeypatch.setattr(agent, "_enqueue_capability_task_outbox", capture_enqueue_q)
 
     test_session_id = "test-session-1"
     ctx = {"topic": "genesis.review.events"}
@@ -260,11 +259,12 @@ def test_quality_review_decision_paths(monkeypatch):
     assert regen_payload.get("score") == 6.0, f"Expected payload score 6.0, got {regen_payload.get('score')}"
 
     # Should return task message with correct topic
-    assert result_retry is not None, "Expected non-None result for retry scenario"
-    assert isinstance(result_retry, dict), f"Expected result to be dict, got {type(result_retry)}"
-    assert (
-        result_retry.get("_topic") == "genesis.outline.tasks"
-    ), f"Expected topic 'genesis.outline.tasks', got '{result_retry.get('_topic')}'"
+    # Should enqueue a regeneration task via outbox
+    assert result_retry is None
+    assert len(capture.enqueued_tasks) >= 1
+    last_topic, _, last_msg, _ = capture.enqueued_tasks[-1]
+    assert last_topic == "genesis.outline.tasks"
+    assert last_msg.get("type", "").endswith("GenerationRequested")
 
     # Test Case 3: Max attempts reached should fail
     capture.persisted_events.clear()
@@ -308,7 +308,7 @@ def test_consistency_checked_confirms_or_fails(monkeypatch, consistency_ok, expe
 
     Note: This is a unit test - all external dependencies are mocked.
     """
-    agent = OrchestratorAgent()
+    agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
     async def capture_persist(scope_type, session_id, event_action, payload, correlation_id):
@@ -382,7 +382,7 @@ async def test_persist_domain_event_no_double_payload_nesting():
     had structure like: {"payload": {"payload": {...}}}
     Instead, it should be a flattened structure.
     """
-    agent = OrchestratorAgent()
+    agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
 
     # Mock the database session and related components
     mock_db_session = AsyncMock()

@@ -9,18 +9,20 @@ from src.agents.writer.tools import get_writer_tool_specs
 from src.external.clients.errors import ServiceAuthenticationError
 from src.external.clients.llm import ChatMessage, LLMRequest
 from src.services.llm import LLMService, LLMServiceFactory
+from src.services.outbox.egress import OutboxEgress
 from src.services.llm.context_builder import PreContextBuilder
 
 
 class WriterAgent(BaseAgent):
     """Writer Agent - 负责生成文本内容"""
 
-    def __init__(self, llm_service: LLMService | None = None):
+    def __init__(self, llm_service: LLMService | None = None, egress: OutboxEgress | None = None):
         # 从集中配置读取主题映射（单一真相源）
         consume_topics, produce_topics = get_agent_topics("writer")
         super().__init__(name="writer", consume_topics=consume_topics, produce_topics=produce_topics)
         # 依赖注入 LLMService，缺省使用工厂构建的默认实例
         self.llm_service = llm_service or LLMServiceFactory().create_service()
+        self.egress = egress or OutboxEgress()
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
@@ -41,7 +43,7 @@ class WriterAgent(BaseAgent):
 
     async def _handle_write_chapter(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """处理章节写作请求（结构化 Prompt + 工具调用回路）。"""
         chapter_id = message.get("chapter_id")
         outline = message.get("outline")
@@ -62,19 +64,25 @@ class WriterAgent(BaseAgent):
         }
         content = await self._generate_with_tools(user_prompt)
 
-        return {
-            "type": "chapter_written",
-            "chapter_id": chapter_id,
-            "content": content,
-            "word_count": len(content),
-            # Writer 能力结果事件 -> 能力总线 events
-            "_topic": "genesis.writer.events",
-            "_key": str(chapter_id) if chapter_id is not None else None,
-        }
+        # Enqueue capability event via Outbox (Relay publishes to Kafka)
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.writer.events",
+            key=(str(chapter_id) if chapter_id is not None else None),
+            result={
+                "type": "chapter_written",
+                "chapter_id": chapter_id,
+                "content": content,
+                "word_count": len(content),
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
     async def _handle_write_scene(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """处理场景写作请求（结构化 Prompt + 工具调用回路）。"""
         scene_id = message.get("scene_id")
         scene_data = message.get("scene_data")
@@ -90,17 +98,23 @@ class WriterAgent(BaseAgent):
         }
         content = await self._generate_with_tools(user_prompt)
 
-        return {
-            "type": "scene_written",
-            "scene_id": scene_id,
-            "content": content,
-            "_topic": "genesis.writer.events",
-            "_key": str(scene_id) if scene_id is not None else None,
-        }
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.writer.events",
+            key=(str(scene_id) if scene_id is not None else None),
+            result={
+                "type": "scene_written",
+                "scene_id": scene_id,
+                "content": content,
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
     async def _handle_rewrite_content(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """处理内容重写请求（结构化 Prompt + 工具调用回路）。"""
         content_id = message.get("content_id")
         feedback = message.get("feedback", [])
@@ -116,13 +130,19 @@ class WriterAgent(BaseAgent):
         }
         rewritten_content = await self._generate_with_tools(user_prompt)
 
-        return {
-            "type": "content_rewritten",
-            "content_id": content_id,
-            "content": rewritten_content,
-            "_topic": "genesis.writer.events",
-            "_key": str(content_id) if content_id is not None else None,
-        }
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.writer.events",
+            key=(str(content_id) if content_id is not None else None),
+            result={
+                "type": "content_rewritten",
+                "content_id": content_id,
+                "content": rewritten_content,
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
     async def on_start(self):
         """启动时的初始化"""

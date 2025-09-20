@@ -5,7 +5,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from typing import Any, Literal, cast
 
-from aiokafka.errors import KafkaError
+from aiokafka.errors import KafkaError, UnknownTopicOrPartitionError
 
 from src.agents.agent_metrics import AgentMetrics
 from src.agents.error_handler import ErrorHandler
@@ -227,7 +227,21 @@ class MessageProcessor:
                 # Encode envelope
                 encoded = encode_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
 
-                await producer.send_and_wait(topic, encoded, key=key_bytes)
+                # Try send with simple topic auto-creation retry like OutboxRelay
+                max_retries = 3
+                for attempt in range(max_retries + 1):
+                    try:
+                        await producer.send_and_wait(topic, encoded, key=key_bytes)
+                        break
+                    except UnknownTopicOrPartitionError:
+                        if attempt < max_retries:
+                            # Trigger metadata refresh to auto-create topics when enabled
+                            with suppress(Exception):
+                                await producer.client.fetch_all_metadata()
+                            await asyncio.sleep(1.0)
+                            continue
+                        else:
+                            raise
                 self.log.debug(
                     "result_sent",
                     topic=topic,

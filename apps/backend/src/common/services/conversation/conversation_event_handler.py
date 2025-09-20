@@ -47,7 +47,7 @@ class ConversationEventHandler:
         session: ConversationSession,
         existing_round: ConversationRound,
         corr_uuid: UUID | None,
-    ) -> None:
+    ) -> ConversationRound:
         """Ensure domain event and outbox exist for existing round."""
         event_type = build_event_type(session.scope_type, "Round.Created")
 
@@ -73,6 +73,9 @@ class ConversationEventHandler:
 
         # Ensure outbox entry
         await self._ensure_outbox_entry(db, session, dom_evt, corr_uuid)
+
+        # 返回传入的 existing_round 以便调用方链式使用（兼容单元测试预期）
+        return existing_round
 
     async def create_round_support_events(
         self,
@@ -180,22 +183,32 @@ class ConversationEventHandler:
         corr_uuid: UUID | None,
     ) -> None:
         """Create outbox entry for domain event."""
+        # 扁平化 payload：与 Orchestrator 保持一致，避免 payload.payload 的双重嵌套
+        flat_payload = {
+            "event_id": str(dom_evt.event_id),
+            "event_type": dom_evt.event_type,
+            "aggregate_type": dom_evt.aggregate_type,
+            "aggregate_id": dom_evt.aggregate_id,
+            "metadata": dom_evt.event_metadata or {},
+        }
+        # 合并领域事件的业务载荷（如有）到顶层
+        if dom_evt.payload:
+            try:
+                flat_payload.update(dom_evt.payload)
+            except Exception:
+                # 防御性：即便 payload 不是 dict，也不阻断 outbox 写入
+                flat_payload["payload"] = dom_evt.payload  # 回退保留原始
+        # 附加 created_at 以便下游填充 timestamp
+        if getattr(dom_evt, "created_at", None):
+            with contextlib.suppress(Exception):
+                flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+
         out = EventOutbox(
             id=dom_evt.event_id,
             topic=get_domain_topic(session.scope_type),
             key=str(session.id),
             partition_key=str(session.id),
-            payload={
-                "event_id": str(dom_evt.event_id),
-                "event_type": dom_evt.event_type,
-                "aggregate_type": dom_evt.aggregate_type,
-                "aggregate_id": dom_evt.aggregate_id,
-                "payload": dom_evt.payload or {},
-                "metadata": dom_evt.event_metadata or {},
-                "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
-                if getattr(dom_evt, "created_at", None)
-                else None,
-            },
+            payload=flat_payload,
             headers={
                 "event_type": dom_evt.event_type,
                 "version": 1,
@@ -245,22 +258,28 @@ class ConversationEventHandler:
             db.add(dom_evt)
             await db.flush()
 
+            flat_payload = {
+                "event_id": str(dom_evt.event_id),
+                "event_type": dom_evt.event_type,
+                "aggregate_type": dom_evt.aggregate_type,
+                "aggregate_id": dom_evt.aggregate_id,
+                "metadata": dom_evt.event_metadata or {},
+            }
+            if dom_evt.payload:
+                try:
+                    flat_payload.update(dom_evt.payload)
+                except Exception:
+                    flat_payload["payload"] = dom_evt.payload
+            if getattr(dom_evt, "created_at", None):
+                with contextlib.suppress(Exception):
+                    flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+
             out = EventOutbox(
                 id=dom_evt.event_id,
                 topic=get_domain_topic(session.scope_type),
                 key=str(session.id),
                 partition_key=str(session.id),
-                payload={
-                    "event_id": str(dom_evt.event_id),
-                    "event_type": dom_evt.event_type,
-                    "aggregate_type": dom_evt.aggregate_type,
-                    "aggregate_id": dom_evt.aggregate_id,
-                    "payload": dom_evt.payload or {},
-                    "metadata": dom_evt.event_metadata or {},
-                    "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
-                    if getattr(dom_evt, "created_at", None)
-                    else None,
-                },
+                payload=flat_payload,
                 headers={
                     "event_type": dom_evt.event_type,
                     "version": 1,
@@ -334,22 +353,28 @@ class ConversationEventHandler:
         except ArgumentError:
             existing_out = None
         if not existing_out:
+            flat_payload = {
+                "event_id": str(dom_evt.event_id),
+                "event_type": dom_evt.event_type,
+                "aggregate_type": dom_evt.aggregate_type,
+                "aggregate_id": dom_evt.aggregate_id,
+                "metadata": dom_evt.event_metadata or {},
+            }
+            if dom_evt.payload:
+                try:
+                    flat_payload.update(dom_evt.payload)
+                except Exception:
+                    flat_payload["payload"] = dom_evt.payload
+            if getattr(dom_evt, "created_at", None):
+                with contextlib.suppress(Exception):
+                    flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+
             out = EventOutbox(
                 id=dom_evt.event_id,
                 topic=get_domain_topic(session.scope_type),
                 key=str(session.id),
                 partition_key=str(session.id),
-                payload={
-                    "event_id": str(dom_evt.event_id),
-                    "event_type": dom_evt.event_type,
-                    "aggregate_type": dom_evt.aggregate_type,
-                    "aggregate_id": dom_evt.aggregate_id,
-                    "payload": dom_evt.payload or {},
-                    "metadata": dom_evt.event_metadata or {},
-                    "created_at": getattr(dom_evt.created_at, "isoformat", lambda: str(dom_evt.created_at))()
-                    if getattr(dom_evt, "created_at", None)
-                    else None,
-                },
+                payload=flat_payload,
                 headers={
                     "event_type": dom_evt.event_type,
                     "version": 1,

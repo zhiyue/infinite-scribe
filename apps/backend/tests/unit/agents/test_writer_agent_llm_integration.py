@@ -43,18 +43,28 @@ class FakeLLMService:
 
 
 @pytest.mark.asyncio
-async def test_writer_agent_process_success():
+async def test_writer_agent_process_success(monkeypatch):
     llm = FakeLLMService([
         LLMResponse(content="Hello Content", usage=TokenUsage(), provider="litellm", model="x"),
     ])
-    agent = WriterAgent(llm_service=llm)
+    # Capture OutboxEgress calls
+    captured: dict = {}
+
+    class FakeEgress:
+        async def enqueue_envelope(self, *, agent, topic, key, result, correlation_id=None, retries=0, headers_extra=None):
+            captured.update({"agent": agent, "topic": topic, "key": key, "result": result, "correlation_id": correlation_id})
+            return "outbox-id"
+
+    agent = WriterAgent(llm_service=llm, egress=FakeEgress())
 
     msg = {"type": "write_chapter", "chapter_id": 1, "prompt": "写一段内容"}
     result = await agent.process_message(msg, context={})
 
-    assert result is not None
-    assert result["type"] == "chapter_written"
-    assert "Hello Content" in result["content"]
+    # Now we enqueue via outbox and return None
+    assert result is None
+    assert captured.get("topic") == "genesis.writer.events"
+    assert captured.get("result", {}).get("type") == "chapter_written"
+    assert "Hello Content" in captured.get("result", {}).get("content", "")
 
 
 @pytest.mark.asyncio

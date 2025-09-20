@@ -21,6 +21,7 @@ from sqlalchemy import and_, select
 from src.agents.agent_config import get_agent_topics
 from src.agents.base import BaseAgent
 from src.agents.orchestrator.command_strategies import command_registry
+from src.agents.message import encode_message
 from src.agents.orchestrator.event_handlers import CapabilityEventHandlers
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.events.mapping import normalize_task_type
@@ -207,7 +208,7 @@ class OrchestratorAgent(BaseAgent):
             )
             raise
 
-        # 2) Emit capability task (agent bus) and create AsyncTask for tracking
+        # 2) Emit capability task (agent bus) via EventOutbox and create AsyncTask for tracking
         try:
             await self._create_async_task(
                 correlation_id=correlation_id,
@@ -220,6 +221,18 @@ class OrchestratorAgent(BaseAgent):
                 correlation_id=correlation_id,
                 task_type=normalize_task_type(mapping.capability_message.get("type", "")),
                 aggregate_id=aggregate_id,
+            )
+            # 2b) Enqueue capability task via EventOutbox (统一通过 Relay 发送到 Kafka)
+            await self._enqueue_capability_task_outbox(
+                capability_message=mapping.capability_message,
+                correlation_id=correlation_id,
+            )
+            self.log.info(
+                "orchestrator_capability_task_enqueued",
+                topic=mapping.capability_message.get("_topic"),
+                key=mapping.capability_message.get("_key") or aggregate_id,
+                msg_type=mapping.capability_message.get("type"),
+                correlation_id=correlation_id,
             )
         except Exception as e:
             self.log.warning(
@@ -238,7 +251,8 @@ class OrchestratorAgent(BaseAgent):
             correlation_id=correlation_id,
         )
 
-        return mapping.capability_message
+        # 统一通过 EventOutbox -> Relay 发送任务，不再直接返回给生产者
+        return None
 
     async def _handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
@@ -360,7 +374,68 @@ class OrchestratorAgent(BaseAgent):
                 has_input=bool(action.capability_message.get("input")),
             )
 
-        return action.capability_message
+        # Enqueue follow-up capability task via outbox instead of direct produce
+        if action.capability_message:
+            try:
+                await self._enqueue_capability_task_outbox(
+                    capability_message=action.capability_message,
+                    correlation_id=(action.domain_event or {}).get("correlation_id"),
+                )
+                self.log.info(
+                    "orchestrator_followup_task_enqueued",
+                    topic=action.capability_message.get("_topic"),
+                    key=action.capability_message.get("_key"),
+                    msg_type=action.capability_message.get("type"),
+                )
+            except Exception as e:
+                self.log.error(
+                    "orchestrator_followup_task_enqueue_failed",
+                    error=str(e),
+                    capability_type=action.capability_message.get("type"),
+                    exc_info=True,
+                )
+
+        return None
+
+    async def _enqueue_capability_task_outbox(self, *, capability_message: dict[str, Any], correlation_id: str | None) -> None:
+        """Enqueue capability task to EventOutbox for Relay to publish to Kafka.
+
+        The payload is encoded as a standard Envelope to be consumed by capability agents.
+        """
+        # Extract routing
+        topic = capability_message.get("_topic")
+        key = capability_message.get("_key") or capability_message.get("session_id")
+        if not topic:
+            self.log.warning("capability_task_enqueue_skipped", reason="missing_topic", msg=capability_message)
+            return
+
+        # Build envelope payload (strip routing keys)
+        result_payload = {k: v for k, v in capability_message.items() if k not in {"_topic", "_key"}}
+        envelope = encode_message(self.name, result_payload, correlation_id=correlation_id, retries=0)
+
+        async with create_sql_session() as db:
+            out = EventOutbox(
+                topic=topic,
+                key=str(key) if key is not None else None,
+                partition_key=str(key) if key is not None else None,
+                payload=envelope,
+                headers={
+                    "type": envelope.get("type"),
+                    "version": envelope.get("version"),
+                    "correlation_id": correlation_id,
+                    "agent": self.name,
+                },
+                status=OutboxStatus.PENDING,
+            )
+            db.add(out)
+            # flush for log id
+            await db.flush()
+            self.log.debug(
+                "capability_task_outbox_created",
+                outbox_id=str(out.id),
+                topic=topic,
+                key=key,
+            )
 
     async def _create_async_task(
         self, *, correlation_id: str | None, session_id: str, task_type: str, input_data: dict[str, Any]

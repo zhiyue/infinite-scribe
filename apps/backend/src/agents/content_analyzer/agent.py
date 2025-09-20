@@ -18,6 +18,7 @@ from src.agents.agent_config import get_agent_topics
 from src.agents.base import BaseAgent
 from src.external.clients.llm import ChatMessage, LLMRequest
 from src.services.llm import LLMService, LLMServiceFactory
+from src.services.outbox.egress import OutboxEgress
 
 
 class ContentAnalyzerAgent(BaseAgent):
@@ -30,6 +31,7 @@ class ContentAnalyzerAgent(BaseAgent):
         produce_topics: list[str] | None = None,
         *,
         llm_service: LLMService | None = None,
+        egress: OutboxEgress | None = None,
     ) -> None:
         # 允许从注册表传参，亦允许自决获取主题
         if consume_topics is None or produce_topics is None or name is None:
@@ -38,6 +40,7 @@ class ContentAnalyzerAgent(BaseAgent):
         else:
             super().__init__(name, consume_topics, produce_topics)
         self.llm = llm_service or LLMServiceFactory().create_service()
+        self.egress = egress or OutboxEgress()
 
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
@@ -50,37 +53,49 @@ class ContentAnalyzerAgent(BaseAgent):
         # 其他 Writer 能力事件暂不处理
         return None
 
-    async def _analyze_chapter(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _analyze_chapter(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         chapter_id = message.get("chapter_id")
         content = message.get("content") or ""
 
         prompt = self._build_analysis_prompt(content)
         analysis = await self._call_llm(prompt)
 
-        return {
-            "type": "content_analyzed",
-            "scope": "chapter",
-            "chapter_id": chapter_id,
-            "analysis": analysis,
-            "_topic": "genesis.analyzer.events",
-            "_key": str(chapter_id) if chapter_id is not None else None,
-        }
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.analyzer.events",
+            key=(str(chapter_id) if chapter_id is not None else None),
+            result={
+                "type": "content_analyzed",
+                "scope": "chapter",
+                "chapter_id": chapter_id,
+                "analysis": analysis,
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
-    async def _analyze_scene(self, message: dict[str, Any]) -> dict[str, Any]:
+    async def _analyze_scene(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         scene_id = message.get("scene_id")
         content = message.get("content") or ""
 
         prompt = self._build_analysis_prompt(content)
         analysis = await self._call_llm(prompt)
 
-        return {
-            "type": "content_analyzed",
-            "scope": "scene",
-            "scene_id": scene_id,
-            "analysis": analysis,
-            "_topic": "genesis.analyzer.events",
-            "_key": str(scene_id) if scene_id is not None else None,
-        }
+        corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.analyzer.events",
+            key=(str(scene_id) if scene_id is not None else None),
+            result={
+                "type": "content_analyzed",
+                "scope": "scene",
+                "scene_id": scene_id,
+                "analysis": analysis,
+            },
+            correlation_id=corr_id,
+        )
+        return None
 
     def _build_analysis_prompt(self, content: str) -> list[ChatMessage]:
         system = ChatMessage(

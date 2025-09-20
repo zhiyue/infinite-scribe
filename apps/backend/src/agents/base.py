@@ -105,11 +105,15 @@ class BaseAgent(ABC):
 
     async def _create_producer(self) -> Any:
         """Test-friendly wrapper for creating producer. Delegates to KafkaClientManager."""
-        return await self.kafka_client.create_producer()
+        # Prefer creating producer with topic existence check to avoid UnknownTopic errors
+        return await self.kafka_client.create_producer_with_topic_check(ensure_topics=True)
 
     async def _get_or_create_producer(self) -> Any:
         """Test-friendly wrapper for getting or creating producer. Delegates to KafkaClientManager."""
-        return await self.kafka_client.get_or_create_producer()
+        # Ensure topics exist on first creation to reduce send failures in early lifecycle
+        if self.kafka_client.producer is None:
+            return await self.kafka_client.create_producer_with_topic_check(ensure_topics=True)
+        return self.kafka_client.producer
 
     # Test-friendly configuration properties (for backward compatibility with tests)
     @property
