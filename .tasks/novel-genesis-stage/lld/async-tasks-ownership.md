@@ -52,11 +52,11 @@ class OrchestratorAgent:
         )
 
         # 2. 创建异步任务跟踪能力执行
-        # 位置: orchestrator/agent.py:96, 156
+        # 位置: orchestrator/agent.py:99-104, 156-199
         await self._create_async_task(
             correlation_id=correlation_id,
             session_id=aggregate_id,
-            task_type=self._normalize_task_type(mapping.capability_message.get("type", "")),
+            task_type=normalize_task_type(mapping.capability_message.get("type", "")),  # 使用统一映射
             input_data=mapping.capability_message.get("input") or {},
         )
 
@@ -109,11 +109,15 @@ class OrchestratorAgent:
             await db.flush()
 ```
 
-### 任务类型标准化
+### 任务类型标准化 ⚠️ **已迁移到统一映射**
+
+**当前实现**: 任务类型标准化已迁移到 `common/events/mapping.py` 统一管理
 
 ```python
-# orchestrator/agent.py:241
-def _normalize_task_type(self, event_type: str) -> str:
+# common/events/mapping.py (统一映射模块)
+from src.common.events.mapping import normalize_task_type
+
+def normalize_task_type(event_type: str) -> str:
     """规范化任务类型为基础动作类型，便于匹配统计"""
     # 将动作后缀映射为基础动作类型，保持三段式结构
     # 例子:
@@ -123,39 +127,24 @@ def _normalize_task_type(self, event_type: str) -> str:
     # "Review.Quality.EvaluationRequested" -> "Review.Quality.Evaluation"
     # "Review.Consistency.CheckRequested" -> "Review.Consistency.Check"
 
-    if not event_type:
-        return ""
-    parts = event_type.split(".")
-    if not parts:
-        return event_type
+    # 使用统一的后缀映射配置 (TASK_TYPE_SUFFIX_MAPPING)
+    # 详见: common/events/mapping.py
 
-    # 映射动作后缀到基础动作类型
-    suffix_to_base = {
-        "GenerationRequested": "Generation",
-        "Generated": "Generation",
-        "EvaluationRequested": "Evaluation",
-        "Evaluated": "Evaluation",
-        "CheckRequested": "Check",
-        "Checked": "Check",
-        "AnalysisRequested": "Analysis",
-        "Analyzed": "Analysis",
-        "ValidationRequested": "Validation",
-        "Validated": "Validation",
-        "RevisionRequested": "Revision",
-        "Revised": "Revision",
-        "Requested": "Request",
-        "Started": "Start",
-        "Completed": "Complete",
-        "Result": "Result"
-    }
-
-    last_part = parts[-1]
-    if last_part in suffix_to_base and len(parts) >= 2:
-        parts[-1] = suffix_to_base[last_part]
-        return ".".join(parts)
-
-    return event_type
+# 使用方式更新:
+# orchestrator/agent.py:102
+await self._create_async_task(
+    correlation_id=correlation_id,
+    session_id=aggregate_id,
+    task_type=normalize_task_type(mapping.capability_message.get("type", "")),  # 使用统一函数
+    input_data=mapping.capability_message.get("input") or {},
+)
 ```
+
+**重要变更**:
+- ✅ **函数迁移**: `OrchestratorAgent._normalize_task_type()` → `common.events.mapping.normalize_task_type()`
+- ✅ **配置集中**: 后缀映射在 `TASK_TYPE_SUFFIX_MAPPING` 中统一管理
+- ✅ **import更新**: OrchestratorAgent 导入并使用统一函数
+- ✅ **删除重复**: 原方法已从 OrchestratorAgent 移除
 
 ## 2. 任务执行 (Capability Agents)
 
@@ -199,7 +188,7 @@ class CharacterAgent(BaseAgent):
 
 ### 状态流转与更新
 
-**完成流程** (orchestrator/agent.py:181):
+**完成流程** (orchestrator/agent.py:201-239):
 - **执行者**: `OrchestratorAgent._complete_async_task()` 方法
 - **触发**: Orchestrator 处理能力结果事件时
 - **匹配**: 按 `correlation_id` 和任务类型前缀匹配最近的 RUNNING/PENDING 任务
@@ -211,7 +200,7 @@ class CharacterAgent(BaseAgent):
 ### 实际完成流程
 
 ```python
-# apps/backend/src/agents/orchestrator/agent.py:181
+# apps/backend/src/agents/orchestrator/agent.py:201-239
 class OrchestratorAgent:
     async def _complete_async_task(
         self, *, correlation_id: str | None, expect_task_prefix: str, result_data: dict[str, Any]
@@ -429,17 +418,31 @@ ORDER BY created_at;
 
 **2025年代码修复**:
 
-1. **任务类型标准化修复** (orchestrator/agent.py:241):
-   - ✅ 修复了 `_normalize_task_type` 实现，使其与 docstring 期望一致
+1. **事件映射统一化** (common/events/mapping.py):
+   - ✅ 实施了统一事件映射配置，集中管理所有映射逻辑
+   - ✅ 将任务类型标准化迁移到统一映射模块
+   - ✅ 更新 OrchestratorAgent, EventSerializationUtils, CommandStrategyRegistry 使用统一映射
+   - ✅ 添加映射验证工具和完整测试覆盖
+
+2. **任务类型标准化修复** (common/events/mapping.py:normalize_task_type):
+   - ✅ 修复了任务类型标准化实现，使其与期望一致
    - ✅ 使用直接映射方式将动作后缀转换为基础动作类型
    - ✅ 确保三段式任务类型格式 (`Capability.Entity.Action`)
+   - ✅ 从 OrchestratorAgent 移除重复的映射逻辑
 
-2. **幂等性保护** (orchestrator/agent.py:156):
+3. **幂等性保护** (orchestrator/agent.py:156):
    - ✅ 为 `_create_async_task` 添加幂等性检查
    - ✅ 防止重复创建相同 correlation_id + task_type 的 RUNNING/PENDING 任务
    - ✅ 避免重复消费或重放事件导致的数据不一致
 
-3. **任务创建流程确认**:
+4. **任务创建流程确认**:
    - ✅ 确认只在 `_handle_domain_event` 中创建任务（一次性创建）
    - ✅ Capability Agents 只执行任务并返回结果，不创建新任务记录
    - ✅ 所有后续能力消息通过 OrchestratorAgent 统一处理
+
+5. **架构改进收益**:
+   - ✅ **单一事实来源**: 所有事件映射在 `common/events/mapping.py` 中统一管理
+   - ✅ **类型安全**: 基于枚举和配置的映射防止错误
+   - ✅ **可维护性**: 新增事件映射只需修改一处配置
+   - ✅ **向后兼容**: 渐进式增强，不破坏现有代码
+   - ✅ **工具化**: 提供映射验证和统计工具

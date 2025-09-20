@@ -94,35 +94,30 @@ class CharacterRequestStrategy(CommandStrategy):
 - 🔧 **自动注册**: 构造器中自动注册默认策略
 - 🎯 **双向映射**: 命令 → 域事实 + 能力任务
 
-#### 1.4 能力任务路由工厂 (`apps/backend/src/agents/orchestrator/message_factory.py`)
+#### 1.4 能力任务路由工厂 (现状与建议)
 
-**功能**: 提供统一的能力任务消息创建和路由规范
+**现状**: `apps/backend/src/agents/orchestrator/message_factory.py` 提供特定场景的消息工厂
 
 ```python
 class MessageFactory:
     @staticmethod
-    def create_capability_message(task_type: str, session_id: str, input_data: dict,
-                                 topic: str = None) -> dict[str, Any]:
-        """统一的能力任务消息创建"""
-        return {
-            "type": task_type,
-            "session_id": session_id,
-            "input": input_data,
-            "_topic": topic,
-            "_key": session_id,
-        }
+    def create_quality_review_message(session_id: str, input_data: dict) -> dict[str, Any]:
+        """质量评审消息工厂"""
+        # 实际实现...
 
     @staticmethod
-    def normalize_task_type(raw_type: str) -> str:
-        """后缀归一化 (GenerationRequested → Generation)"""
-        return raw_type.replace("Requested", "").replace("Started", "")
+    def create_regeneration_message(session_id: str, input_data: dict) -> dict[str, Any]:
+        """内容再生成消息工厂"""
+        # 实际实现...
 ```
 
-**设计亮点**:
+**现有任务类型后缀归一化**: 在 `orchestrator/agent.py:241-274` 中实现
 
-- 🏭 **工厂模式**: 统一能力任务消息结构
-- 📐 **命名规范**: 任务类型后缀归一化
-- 🎯 **路由一致**: 统一的主题和分区键策略
+**建议改进**:
+
+- 🔄 **迁移归一化逻辑**: 将后缀归一化从编排器迁移到 `MessageFactory` 或 `common/events/naming.py`
+- 🏭 **扩展工厂方法**: 为常见能力任务提供统一的消息创建接口
+- 📐 **命名标准化**: 统一任务类型命名和路由规则
 
 ### 2. 分布式组件
 
@@ -506,7 +501,7 @@ class CommandStrategyRegistry:
 #### 1. **模块依赖耦合**
 
 - **风险**: mapping.py引入schema类增加模块间耦合
-- **缓解**: 仅导入必要类型，使用懒加载避免循环依赖
+- **缓解**: mapping.py仅import schemas.genesis_events/schemas.enums，禁止跨层依赖业务服务；使用懒加载避免循环依赖
 
 #### 2. **性能影响**
 
@@ -651,38 +646,64 @@ class EventSerializationUtils:
             return GenesisEventPayload(**payload_data)
 ```
 
-**CommandStrategyRegistry** (`agents/orchestrator/command_strategies.py`):
+**CommandStrategyRegistry** - 两种实现路径:
+
+**路径A: 配置仅处理域事实映射 (推荐，安全)**
 ```python
 from src.common.events.mapping import get_event_by_command
 
 class CommandStrategyRegistry:
     def process_command(self, cmd_type: str, scope_type: str, scope_prefix: str,
                        aggregate_id: str, payload: dict[str, Any]) -> CommandMapping | None:
-        """优先使用配置映射，回退到策略"""
+        """配置优先设置requested_action，capability_message沿用策略"""
         # 尝试配置映射
         event_type = get_event_by_command(cmd_type)
         if event_type:
-            return self._create_mapping_from_config(event_type, scope_type, scope_prefix,
-                                                   aggregate_id, payload)
+            # 配置命中：设置requested_action，但capability_message仍由策略生成
+            strategy = self._strategies.get(cmd_type)
+            if strategy:
+                result = strategy.process(scope_type, scope_prefix, aggregate_id, payload)
+                if result:
+                    # 覆盖requested_action为配置值
+                    return CommandMapping(
+                        requested_action=event_type,
+                        capability_message=result.capability_message
+                    )
 
-        # 回退到策略模式 (保持现有逻辑)
+        # 纯策略回退
         strategy = self._strategies.get(cmd_type)
         return strategy.process(scope_type, scope_prefix, aggregate_id, payload) if strategy else None
+```
 
-    def _create_mapping_from_config(self, event_type: str, scope_type: str,
-                                   scope_prefix: str, aggregate_id: str,
-                                   payload: dict[str, Any]) -> CommandMapping:
-        """基于配置创建标准映射"""
-        return CommandMapping(
-            requested_action=event_type,
-            capability_message={
-                "type": f"{event_type.replace('.', '.')}.GenerationRequested",
-                "session_id": aggregate_id,
-                "input": payload.get("payload", {}),
-                "_topic": self._build_topic_from_scope(scope_type, scope_prefix),
-                "_key": aggregate_id,
-            }
-        )
+**路径B: 结构化配置映射 (高级)**
+```python
+# common/events/mapping.py 扩展为结构化配置
+COMMAND_MAPPING: Final[Dict[str, Dict[str, str]]] = {
+    "Character.Request": {
+        "requested_action": "Character.Requested",
+        "capability_type": "Character.Design.GenerationRequested",
+        "base_topic": "character"
+    },
+    "Theme.Request": {
+        "requested_action": "Theme.Requested",
+        "capability_type": "Outliner.Theme.GenerationRequested",
+        "base_topic": "outline"
+    }
+}
+
+def _create_mapping_from_config(self, config: dict, scope_type: str, scope_prefix: str,
+                               aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
+    """基于结构化配置创建映射"""
+    return CommandMapping(
+        requested_action=config["requested_action"],
+        capability_message={
+            "type": config["capability_type"],
+            "session_id": aggregate_id,
+            "input": payload.get("payload", {}),
+            "_topic": self._build_topic(config["base_topic"], scope_type, scope_prefix),
+            "_key": aggregate_id,
+        }
+    )
 ```
 
 ### 🧪 测试策略
@@ -706,7 +727,9 @@ def test_event_payload_mapping_coverage():
 @pytest.mark.parametrize("event_type,expected_class", [
     (GenesisEventType.STAGE_ENTERED, StageEnteredPayload),
     (GenesisEventType.CONCEPT_SELECTED, ConceptSelectedPayload),
-    ("UNKNOWN_EVENT", GenesisEventPayload),  # 回退测试
+    (GenesisEventType.AI_GENERATION_FAILED, GenesisEventPayload),  # 未映射事件回退
+    (GenesisEventType.USER_INPUT_REQUESTED, GenesisEventPayload),  # 未映射事件回退
+    ("UNKNOWN_EVENT", GenesisEventPayload),  # 完全未知事件回退
 ])
 def test_get_event_payload_class(event_type, expected_class):
     """参数化测试反序列化类型正确性"""
@@ -732,14 +755,16 @@ def test_command_strategy_registry_with_config_mapping():
 
 ### 📊 迁移检查清单
 
-#### 阶段一完成标准
-- [ ] `common/events/mapping.py` 创建并包含核心映射表
-- [ ] `EventSerializationUtils.deserialize_payload` 使用统一映射
-- [ ] `CommandStrategyRegistry.process_command` 集成配置映射
-- [ ] 映射验证工具 `validate_event_mappings()` 可用
-- [ ] 参数化反序列化测试覆盖已映射事件
-- [ ] 现有功能测试全部通过
-- [ ] 新增 `events:lint` 脚本并集成CI
+#### 阶段一完成标准 ✅ **已完成**
+- [x] `common/events/mapping.py` 创建并包含核心映射表
+- [x] `EventSerializationUtils.deserialize_payload` 使用统一映射
+- [x] `CommandStrategyRegistry.process_command` 集成配置映射（路径A：安全配置+策略回退）
+- [x] 映射验证工具 `validate_event_mappings()` 可用
+- [x] 参数化反序列化测试覆盖已映射事件
+- [x] OrchestratorAgent 使用统一的 normalize_task_type
+- [x] 完整的单元测试和集成测试覆盖
+- [x] 确认未引入循环依赖（映射在方法内部import）
+- [ ] 新增 `events:lint` 脚本并集成CI（后续任务）
 
 #### 质量门禁
 - **代码覆盖率**: 新增映射逻辑100%覆盖
@@ -748,3 +773,79 @@ def test_command_strategy_registry_with_config_mapping():
 - **文档同步**: 更新开发文档说明新的映射机制
 
 这样的实施方案既解决了映射分散的问题，又保持了架构的清晰性和可维护性。
+
+## 🎉 实施完成总结
+
+### ✅ 已完成的统一化改进 (2025年1月)
+
+**核心成果**:
+
+1. **统一映射模块** (`src/common/events/mapping.py`):
+   - 集中管理任务类型后缀映射 (`TASK_TYPE_SUFFIX_MAPPING`)
+   - 集中管理事件-负载类映射 (`EVENT_PAYLOAD_MAPPING`)
+   - 集中管理命令-事件映射 (`COMMAND_EVENT_MAPPING`)
+   - 提供事件分类映射 (`EVENT_CATEGORY_MAPPING`)
+
+2. **核心函数接口**:
+   - `normalize_task_type()`: 统一的任务类型标准化
+   - `get_event_payload_class()`: 统一的事件负载类获取
+   - `get_event_by_command()`: 统一的命令-事件映射
+   - `validate_event_mappings()`: 映射完整性验证
+
+3. **使用方更新**:
+   - ✅ **OrchestratorAgent**: 使用统一的 `normalize_task_type`
+   - ✅ **EventSerializationUtils**: 使用统一的 `get_event_payload_class`
+   - ✅ **CommandStrategyRegistry**: 集成配置映射（路径A：安全回退）
+
+4. **质量保障**:
+   - ✅ **完整测试覆盖**: 单元测试 + 集成测试
+   - ✅ **向后兼容**: 保持现有API行为
+   - ✅ **类型安全**: 基于枚举和配置的强类型映射
+   - ✅ **循环依赖预防**: 使用局部import避免依赖问题
+
+### 📈 收益实现
+
+**开发效率提升**:
+- **单一修改点**: 新增事件映射只需修改 `mapping.py` 一处
+- **类型安全**: 编译时捕获映射错误，减少运行时问题
+- **统一接口**: 所有映射逻辑通过标准函数访问
+
+**维护成本降低**:
+- **消除重复**: 移除了分散在多处的映射逻辑
+- **集中验证**: 统一的映射验证工具检测不一致
+- **工具化**: 提供调试和统计工具
+
+**架构质量改善**:
+- **关注点分离**: 映射逻辑与业务逻辑解耦
+- **可扩展性**: 新映射类型容易添加
+- **可观测性**: 映射统计和验证工具
+
+### 🔍 技术亮点
+
+1. **渐进式迁移策略**:
+   - 采用路径A（安全配置+策略回退）避免大bang式重构
+   - 保持向后兼容，降低风险
+
+2. **智能回退机制**:
+   - `get_event_payload_class()`: 未映射事件回退到通用payload
+   - `CommandStrategyRegistry`: 配置映射优先，策略回退
+   - `normalize_task_type()`: 未知后缀保持原样
+
+3. **验证工具**:
+   - 映射完整性检查防止孤儿项
+   - 高频事件映射覆盖验证
+   - 统计工具提供系统洞察
+
+### 🚀 后续改进机会
+
+**第二阶段**（可选）:
+- 考虑扩展为结构化配置映射（路径B）
+- 为复杂命令提供更丰富的配置支持
+- 添加性能监控和缓存优化
+
+**工具增强**:
+- 开发 `events:lint` CI脚本
+- 创建映射可视化工具
+- 添加自动文档生成
+
+这次统一化改进成功实现了事件映射的集中管理，为系统的长期演进和维护奠定了坚实的基础。
