@@ -12,7 +12,7 @@ from src.agents.orchestrator.command_strategies import command_registry
 
 
 class CorrelationIdExtractor:
-    """correlation_id提取器，从各种来源处理correlation_id的提取工作。"""
+    """关联ID提取器，负责从各种数据源中提取correlation_id。"""
 
     @staticmethod
     def extract_correlation_id(evt: dict[str, Any], context: dict[str, Any] | None) -> str | None:
@@ -209,7 +209,7 @@ class DomainEventProcessor:
             metadata_keys=list(metadata.keys()) if metadata else [],
         )
 
-        # 验证事件类型 - 只处理命令接收事件
+        # 验证事件类型 - 只处理命令接收事件，过滤掉非命令事件以提高处理效率
         if not self.event_validator.is_command_received_event(event_type):
             self.log.debug(
                 "orchestrator_domain_event_ignored",

@@ -1,7 +1,7 @@
 """领域编排器代理
 
 消费领域总线和能力事件，并执行以下操作：
-- 将触发类领域事件（Command.Received）投影为领域事实（*Requested）
+- 将命令触发的领域事件（Command.Received）投影为领域事实（*Requested）
 - 向相应的能力主题发出能力任务
 - 将能力结果投影为领域事实（例如：*Proposed）
 
@@ -113,7 +113,7 @@ class OrchestratorAgent(BaseAgent):
         enriched_payload = processing_result["enriched_payload"]
         causation_id = processing_result["causation_id"]
 
-        # 1) 持久化领域事件
+        # 1) 持久化领域事件 - 通过Outbox模式确保事件最终一致性
         try:
             await self.outbox_manager.persist_domain_event(
                 scope_type=scope_type,
@@ -140,7 +140,7 @@ class OrchestratorAgent(BaseAgent):
             )
             raise
 
-        # 2) 创建异步任务并将能力任务入队
+        # 2) 创建异步任务并将能力任务入队 - 实现异步处理和任务跟踪
         try:
             await self.task_manager.create_async_task(
                 correlation_id=correlation_id,

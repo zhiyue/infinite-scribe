@@ -68,14 +68,14 @@ class EventDataExtractor:
 
     @staticmethod
     def extract_causation_id(context: dict[str, Any], data: dict[str, Any]) -> str | None:
-        """提取因果ID（能力事件的event_id用作下游领域事件的因果ID）。
+        """提取因果关系ID（能力事件的event_id用作下游领域事件的causation_id）。
 
         Args:
             context: 上下文信息字典
             data: 事件数据字典
 
         Returns:
-            因果ID字符串或None
+            因果关系ID字符串或None
         """
         return context.get("meta", {}).get("event_id") or data.get("event_id")
 
@@ -116,17 +116,17 @@ class EventHandlerMatcher:
         scope_type = scope_info["scope_type"]
         scope_prefix = scope_info["scope_prefix"]
 
-        # 定义要按顺序尝试的处理器列表
+        # 定义要按顺序尝试的处理器列表 - 按照业务优先级排序
         handlers = [
-            # 处理生成完成事件
+            # 1. 处理生成完成事件 - 最高优先级，直接影响用户体验
             lambda: CapabilityEventHandlers.handle_generation_completed(
                 msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
             ),
-            # 处理质量审查结果事件
+            # 2. 处理质量审查结果事件 - 内容质量保证
             lambda: CapabilityEventHandlers.handle_quality_review_result(
                 msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
             ),
-            # 处理一致性检查结果事件
+            # 3. 处理一致性检查结果事件 - 数据一致性验证
             lambda: CapabilityEventHandlers.handle_consistency_check_result(
                 msg_type, session_id, data, correlation_id, scope_type, causation_id
             ),

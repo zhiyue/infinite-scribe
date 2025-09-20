@@ -250,7 +250,7 @@ class OutboxEntryCreator:
         Returns:
             构建的有效负载字典
         """
-        # 扁平化有效负载结构以避免双重嵌套
+        # 扁平化有效负载结构以避免双重嵌套 - 确保下游消费者能正确解析数据
         outbox_payload = {
             "event_id": str(domain_event.event_id),
             "event_type": domain_event.event_type,
@@ -261,7 +261,7 @@ class OutboxEntryCreator:
         # 直接合并领域事件有效负载，而不是嵌套在"payload"键下
         outbox_payload.update(domain_event.payload or {})
 
-        # 添加created_at用于下游时间戳回退
+        # 添加created_at作为下游时间戳的备用值
         try:
             if getattr(domain_event, "created_at", None):
                 outbox_payload["created_at"] = domain_event.created_at.isoformat()  # type: ignore[attr-defined]
