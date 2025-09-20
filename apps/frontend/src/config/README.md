@@ -7,6 +7,7 @@
 - `sse.config.ts` - SSE服务相关配置
 - `genesis-status.config.ts` - Genesis状态显示配置
 - `api.ts` - API相关配置
+- `routes.config.ts` - 路由配置
 - `index.ts` - 统一导出文件
 
 ## Genesis状态配置
@@ -59,6 +60,8 @@ const isGenesis = isGenesisEvent('Genesis.Session.Command.Received')
 3. **类型安全**: 完整的TypeScript支持
 4. **易于扩展**: 提供了便利的函数来添加和管理配置
 5. **自动发现**: SSE hooks自动发现所有配置的事件类型
+6. **事件分类**: 支持按类别管理和获取事件类型
+7. **默认配置**: 为未知事件类型提供合理的默认显示方式
 
 ## 扩展示例
 
@@ -81,4 +84,32 @@ import { getEventTypesByCategory } from '@/config/genesis-status.config'
 
 const commandEvents = getEventTypesByCategory('COMMAND')
 const taskEvents = getEventTypesByCategory('TASK_ASSIGNMENT')
+const stepEvents = getEventTypesByCategory('STEP_EXECUTION')
+```
+
+### 动态添加事件配置
+
+```typescript
+// 运行时动态添加新的事件配置
+import { addGenesisStatusConfig } from '@/config/genesis-status.config'
+
+addGenesisStatusConfig('Genesis.Custom.Event', {
+  label: '自定义事件',
+  description: '这是一个动态添加的事件配置',
+  icon: Activity,
+  badgeVariant: 'outline',
+  cardClass: 'border-purple-200 bg-purple-50/50',
+  messageClass: 'bg-purple-50 border-purple-200',
+})
+```
+
+### 获取支持的事件类型
+
+```typescript
+// 获取所有支持的Genesis事件类型
+import { getSupportedGenesisEventTypes } from '@/config/genesis-status.config'
+
+const allEventTypes = getSupportedGenesisEventTypes()
+console.log(allEventTypes) 
+// ['Genesis.Session.Command.Received', 'Genesis.Session.Seed.Requested', ...]
 ```

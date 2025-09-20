@@ -10,6 +10,12 @@ Genesis 系统是 InfiniteScribe 平台的核心创作辅助功能，通过结�
 - **SSE 事件驱动**: 实时监听 AI 响应状态
 - **兜底策略**: SSE 连接失败时自动切换到轮询模式
 
+### Genesis 命令状态显示
+- **GenesisStatusCard**: 新增的命令状态显示组件，支持两种显示模式
+- **系统消息模式**: 在聊天流中显示为系统通知
+- **卡片模式**: 独立的状态卡片，支持展开查看详细信息
+- **状态配置化**: 通过配置文件定义不同事件类型的显示样式和行为
+
 ### 阶段化流程管理
 - **五个创世阶段**: 初始灵感 → 世界观设定 → 角色塑造 → 剧情大纲 → 创世完成
 - **渐进式解锁**: 完成当前阶段后解锁下一阶段
@@ -23,7 +29,8 @@ graph TD
     A[Genesis 系统] --> B[GenesisNavigation]
     A --> C[GenesisStageContent]
     A --> D[GenesisConversation]
-    A --> E[设置与错误处理]
+    A --> E[GenesisStatusCard]
+    A --> F[设置与错误处理]
     
     B --> B1[GenesisProgressBar]
     B --> B2[GenesisStatusBadge]
@@ -35,10 +42,15 @@ graph TD
     D --> D3[SSE 事件监听]
     D --> D4[命令状态管理]
     
-    E --> E1[GenesisSettingsOverview]
-    E --> E2[GenesisSettingsModal]
-    E --> E3[GenesisErrorAlert]
-    E --> E4[GenesisErrorDialog]
+    E --> E1[系统消息模式]
+    E --> E2[卡片模式]
+    E --> E3[状态配置]
+    E --> E4[展开/收起功能]
+    
+    F --> F1[GenesisSettingsOverview]
+    F --> F2[GenesisSettingsModal]
+    F --> F3[GenesisErrorAlert]
+    F --> F4[GenesisErrorDialog]
 ```
 
 ## 🔄 交互流程
@@ -79,12 +91,44 @@ sequenceDiagram
 - 处理用户输入和命令提交
 - 集成 SSE 事件监听和兜底策略
 - 提供流畅的用户交互体验
+- **Genesis 命令状态集成**: 新增对 Genesis 命令状态的监听和显示
 
 **关键特性**:
 - **乐观消息**: 立即显示用户消息，无需等待 API 响应
 - **SSE 集成**: 实时监听 AI 处理状态
 - **兜底机制**: SSE 连接失败时自动切换到轮询
 - **状态恢复**: 页面刷新后自动恢复对话状态
+- **Genesis 事件处理**: 通过 `useGenesisEvents` 监听和处理 Genesis 相关事件
+- **命令状态管理**: 支持在对话流中显示系统通知式的状态消息
+
+### GenesisStatusCard - 命令状态显示组件
+
+**主要职责**:
+- 显示 Genesis 相关命令的执行状态和详细信息
+- 支持两种显示模式：系统消息模式和卡片模式
+- 提供展开/收起功能查看详细信息
+- 通过配置文件定义不同事件类型的显示样式
+
+**关键特性**:
+- **双模式显示**: 
+  - 系统消息模式：在聊天流中显示为系统通知
+  - 卡片模式：独立的状态卡片，支持展开查看详细信息
+- **配置驱动**: 通过 `getGenesisStatusConfig` 获取不同事件类型的配置
+- **时间戳处理**: 格式化显示事件时间戳
+- **ID 缩短显示**: 对长 ID 进行截断显示，提升用户体验
+- **展开/收起**: 支持查看完整的命令状态信息
+
+**状态配置**:
+```typescript
+interface GenesisStatusConfig {
+  label: string           // 显示标签
+  description: string     // 详细描述
+  icon: React.ComponentType // 图标组件
+  badgeVariant: string   // 徽章样式
+  cardClass: string       // 卡片样式类
+  messageClass: string    // 消息样式类
+}
+```
 
 **核心架构**:
 ```mermaid

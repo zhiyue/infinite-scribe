@@ -176,7 +176,7 @@ flowchart TD
 
 ### CommandStrategyRegistry
 
-命令策略注册表，使用策略模式实现不同命令类型的处理逻辑：
+命令策略注册表，使用策略模式实现不同命令类型的处理逻辑。最近更新增强了命令映射配置，支持配置优先的映射策略：
 
 ```mermaid
 classDiagram
@@ -184,12 +184,14 @@ classDiagram
         +process_command()
         +register()
         -_strategies
+        -_register_default_strategies()
     }
     
     class CommandStrategy {
         <<abstract>>
         +get_aliases() set[str]
         +process() CommandMapping
+        +_build_topic() str
     }
     
     class CharacterRequestStrategy {
@@ -202,7 +204,32 @@ classDiagram
         +process() CommandMapping
     }
     
+    class SeedRequestStrategy {
+        +get_aliases() set[str]
+        +process() CommandMapping
+    }
+    
+    class WorldRequestStrategy {
+        +get_aliases() set[str]
+        +process() CommandMapping
+    }
+    
+    class PlotRequestStrategy {
+        +get_aliases() set[str]
+        +process() CommandMapping
+    }
+    
+    class DetailsRequestStrategy {
+        +get_aliases() set[str]
+        +process() CommandMapping
+    }
+    
     class StageValidationStrategy {
+        +get_aliases() set[str]
+        +process() CommandMapping
+    }
+    
+    class StageLockStrategy {
         +get_aliases() set[str]
         +process() CommandMapping
     }
@@ -210,7 +237,12 @@ classDiagram
     CommandStrategyRegistry --> CommandStrategy
     CharacterRequestStrategy --|> CommandStrategy
     ThemeRequestStrategy --|> CommandStrategy
+    SeedRequestStrategy --|> CommandStrategy
+    WorldRequestStrategy --|> CommandStrategy
+    PlotRequestStrategy --|> CommandStrategy
+    DetailsRequestStrategy --|> CommandStrategy
     StageValidationStrategy --|> CommandStrategy
+    StageLockStrategy --|> CommandStrategy
 ```
 
 ### CapabilityEventHandlers
@@ -246,11 +278,25 @@ graph TD
 
 ```mermaid
 flowchart TD
-    A[接收命令] --> B[解析命令类型]
-    B --> C[查找策略处理]
-    C --> D[生成领域事实]
-    D --> E[创建能力任务]
-    E --> F[发送到能力总线]
+    A[接收命令] --> B{配置映射存在?}
+    B -->|是| C[使用配置事件类型]
+    B -->|否| D[使用策略映射]
+    C --> E[选择对应策略]
+    D --> E
+    E --> F[生成领域事实]
+    F --> G[创建能力任务]
+    G --> H[发送到能力总线]
+    
+    subgraph "策略类型"
+        S1[CharacterRequestStrategy]
+        S2[ThemeRequestStrategy]
+        S3[SeedRequestStrategy]
+        S4[WorldRequestStrategy]
+        S5[PlotRequestStrategy]
+        S6[DetailsRequestStrategy]
+        S7[StageValidationStrategy]
+        S8[StageLockStrategy]
+    end
 ```
 
 ### 2. 幂等性保证
