@@ -135,7 +135,7 @@ class Publisher:
             ValueError: If user_id is missing
         """
         payload = envelope.get("payload", {})
-        user_id = payload.get("user_id")
+        user_id = payload.get("user_id") or (envelope.get("metadata", {}) or {}).get("user_id")
 
         if not user_id:
             raise ValueError(
@@ -188,7 +188,7 @@ class Publisher:
             "event_type": envelope.get("event_type"),
             "session_id": payload.get("session_id"),
             "correlation_id": envelope.get("correlation_id"),
-            "timestamp": payload.get("timestamp"),
+            "timestamp": payload.get("timestamp") or envelope.get("created_at"),
         }
 
         # Add optional but recommended fields if present

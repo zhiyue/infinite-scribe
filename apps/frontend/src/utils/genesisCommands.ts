@@ -5,18 +5,16 @@
  * ## Payload字段说明
  *
  * ### 标准化字段 (符合LLD文档要求)
- * - `user_input`: 用户输入内容，统一字段名
+ * - `user_input`: 用户输入内容，统一标准字段名
  * - `session_id`: 会话ID
  * - `stage`: 当前创世阶段
  * - `user_id`: 用户ID，通常由后端从认证上下文推导
+ * - `context`: 上下文信息（迭代次数、偏好设置等）
+ * - `preferences`: 用户偏好设置（针对特定命令类型）
  *
- * ### 兼容性字段 (向后兼容)
- * - `content`: UI组件期望的字段，与user_input内容相同
- *
- * ### 字段冗余处理
- * 当前同时保留user_input和content字段以保持向后兼容性，
- * 建议逐步迁移UI组件使用标准的user_input字段，
- * 然后移除content字段的冗余。
+ * ### 字段标准化完成
+ * 已完全迁移到使用标准的user_input字段，移除了冗余的content字段。
+ * UI组件现在统一使用payload.user_input获取用户输入内容。
  *
  * @see .tasks/novel-genesis-stage/lld/command-types.md
  */

@@ -149,11 +149,21 @@ class OrchestratorAgent(BaseAgent):
 
         # 1) Project to domain facts (*Requested) via DB Outbox
         try:
+            # Propagate context (user_id/timestamp) for SSE routing downstream
+            enriched_payload = {
+                "session_id": aggregate_id,
+                "input": (payload or {}).get("payload", {}),
+            }
+            if (payload or {}).get("user_id"):
+                enriched_payload["user_id"] = (payload or {}).get("user_id")
+            if evt.get("created_at"):
+                enriched_payload["timestamp"] = evt.get("created_at")
+
             await self._persist_domain_event(
                 scope_type=scope_type,
                 session_id=aggregate_id,
                 event_action=mapping.requested_action,
-                payload={"session_id": aggregate_id, "input": payload.get("payload", {})},
+                payload=enriched_payload,
                 correlation_id=correlation_id,
             )
             self.log.info(
@@ -639,19 +649,23 @@ class OrchestratorAgent(BaseAgent):
                     key=session_id,
                 )
 
+                # Fix: Flatten the payload structure to avoid double nesting
+                outbox_payload = {
+                    "event_id": str(dom_evt.event_id),
+                    "event_type": dom_evt.event_type,
+                    "aggregate_type": dom_evt.aggregate_type,
+                    "aggregate_id": dom_evt.aggregate_id,
+                    "metadata": dom_evt.event_metadata or {},
+                }
+                # Merge domain event payload directly instead of nesting under "payload" key
+                outbox_payload.update(dom_evt.payload or {})
+
                 out = EventOutbox(
                     id=dom_evt.event_id,
                     topic=topic,
                     key=str(session_id),
                     partition_key=str(session_id),
-                    payload={
-                        "event_id": str(dom_evt.event_id),
-                        "event_type": dom_evt.event_type,
-                        "aggregate_type": dom_evt.aggregate_type,
-                        "aggregate_id": dom_evt.aggregate_id,
-                        "payload": dom_evt.payload or {},
-                        "metadata": dom_evt.event_metadata or {},
-                    },
+                    payload=outbox_payload,
                     headers={
                         "event_type": dom_evt.event_type,
                         "version": 1,

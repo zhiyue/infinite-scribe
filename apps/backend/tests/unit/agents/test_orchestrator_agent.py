@@ -1,8 +1,12 @@
 import asyncio
 from typing import Any
+from uuid import uuid4
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 from src.agents.orchestrator.agent import OrchestratorAgent
+from src.models.workflow import EventOutbox
+from src.models.event import DomainEvent
 
 
 class EventCapture:
@@ -368,3 +372,109 @@ def test_consistency_checked_confirms_or_fails(monkeypatch, consistency_ok, expe
     else:
         # Fallback to direct payload structure
         assert payload.get("ok") == consistency_ok, f"Expected payload ok={consistency_ok}, got {payload.get('ok')}"
+
+
+@pytest.mark.asyncio
+async def test_persist_domain_event_no_double_payload_nesting():
+    """Test that EventOutbox payload doesn't have double payload nesting.
+
+    This is a regression test for the issue where EventOutbox payload
+    had structure like: {"payload": {"payload": {...}}}
+    Instead, it should be a flattened structure.
+    """
+    agent = OrchestratorAgent()
+
+    # Mock the database session and related components
+    mock_db_session = AsyncMock()
+    mock_domain_event = MagicMock()
+    mock_domain_event.event_id = uuid4()
+    mock_domain_event.event_type = "Genesis.Character.Requested"
+    mock_domain_event.aggregate_type = "GenesisFlow"
+    mock_domain_event.aggregate_id = "test-session-123"
+    mock_domain_event.payload = {"session_id": "test-session-123", "input": {"name": "Hero"}}
+    mock_domain_event.event_metadata = {"source": "orchestrator"}
+
+    # Mock the database operations
+    mock_db_session.scalar.return_value = None  # No existing domain event
+    mock_db_session.flush = AsyncMock()
+    mock_db_session.add = MagicMock()
+
+    captured_outbox = None
+
+    def capture_outbox_add(obj):
+        nonlocal captured_outbox
+        if isinstance(obj, EventOutbox):
+            captured_outbox = obj
+        elif hasattr(obj, '__class__') and obj.__class__.__name__ == 'EventOutbox':
+            captured_outbox = obj
+        else:
+            # Mock domain event creation
+            mock_domain_event.event_id = uuid4()
+
+    mock_db_session.add.side_effect = capture_outbox_add
+
+    # Mock the create_sql_session context manager
+    def mock_create_sql_session():
+        class MockContextManager:
+            async def __aenter__(self):
+                return mock_db_session
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+        return MockContextManager()
+
+    # Patch dependencies
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr("src.agents.orchestrator.agent.create_sql_session", mock_create_sql_session)
+        mp.setattr("src.agents.orchestrator.agent.select", lambda x: MagicMock())
+        mp.setattr("src.agents.orchestrator.agent.and_", lambda *args: MagicMock())
+        mp.setattr("src.agents.orchestrator.agent.UUID", lambda x: uuid4())
+        mp.setattr("src.agents.orchestrator.agent.DomainEvent", lambda **kwargs: mock_domain_event)
+        mp.setattr("src.agents.orchestrator.agent.EventOutbox", EventOutbox)
+        mp.setattr("src.agents.orchestrator.agent.OutboxStatus", MagicMock())
+        mp.setattr("src.agents.orchestrator.agent.build_event_type", lambda scope, action: f"{scope}.{action}")
+        mp.setattr("src.agents.orchestrator.agent.get_aggregate_type", lambda scope: f"{scope}Flow")
+        mp.setattr("src.agents.orchestrator.agent.get_domain_topic", lambda scope: f"{scope.lower()}.events")
+
+        # Call the method under test
+        await agent._persist_domain_event(
+            scope_type="GENESIS",
+            session_id="test-session-123",
+            event_action="Character.Requested",
+            payload={"session_id": "test-session-123", "input": {"name": "Hero"}},
+            correlation_id="test-correlation-123"
+        )
+
+    # Verify that an EventOutbox was created
+    assert captured_outbox is not None, "EventOutbox should have been created"
+
+    # Verify the payload structure does NOT have double nesting
+    outbox_payload = captured_outbox.payload
+    assert isinstance(outbox_payload, dict), "EventOutbox payload should be a dict"
+
+    # Check that we don't have {"payload": {"payload": {...}}} structure
+    if "payload" in outbox_payload:
+        nested_payload = outbox_payload["payload"]
+        assert "payload" not in nested_payload or not isinstance(nested_payload.get("payload"), dict), \
+            f"Double payload nesting detected: {outbox_payload}"
+
+    # Verify the expected flattened structure
+    expected_keys = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "session_id", "input"}
+    actual_keys = set(outbox_payload.keys())
+
+    # Should have core event fields + domain payload fields flattened
+    assert "event_id" in actual_keys, "Missing event_id in payload"
+    assert "event_type" in actual_keys, "Missing event_type in payload"
+    assert "aggregate_type" in actual_keys, "Missing aggregate_type in payload"
+    assert "aggregate_id" in actual_keys, "Missing aggregate_id in payload"
+    assert "metadata" in actual_keys, "Missing metadata in payload"
+
+    # Should have domain payload fields directly accessible (not nested under "payload")
+    assert "session_id" in actual_keys, "Missing session_id in payload (should be flattened)"
+    assert "input" in actual_keys, "Missing input in payload (should be flattened)"
+
+    # Verify the values are correct
+    assert outbox_payload["session_id"] == "test-session-123"
+    assert outbox_payload["input"] == {"name": "Hero"}
+    assert outbox_payload["event_type"] == "Genesis.Character.Requested"
+    assert outbox_payload["aggregate_type"] == "GenesisFlow"
+    assert outbox_payload["aggregate_id"] == "test-session-123"

@@ -29,6 +29,10 @@ class EventFilter:
     # White-listed event patterns (regex patterns)
     ALLOWED_EVENT_PATTERNS = [
         r"^Genesis\.Session\.Started$",
+        r"^Genesis\.Session\.Command\.Received$",
+        r"^Genesis\.Session\..*\.Requested$",
+        r"^Genesis\.Session\..*\.Generated$",
+        r"^Genesis\.Session\..*\.Evaluated$",
         r"^Genesis\.Session\..*\.Proposed$",
         r"^Genesis\.Session\..*\.Confirmed$",
         r"^Genesis\.Session\..*\.Updated$",

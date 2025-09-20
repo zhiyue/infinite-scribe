@@ -119,7 +119,7 @@ class GenesisMockService {
     }
 
     // 生成 AI 回复
-    const aiResponse = this.generateAIResponse(currentStage, userInput?.content || '')
+    const aiResponse = this.generateAIResponse(currentStage, userInput?.user_input || '')
     const aiRound: MockRoundData = {
       sessionId,
       round_path: (rounds.length + 2).toString(),

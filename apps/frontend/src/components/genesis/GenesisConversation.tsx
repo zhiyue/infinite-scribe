@@ -12,11 +12,16 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
-import { usePendingCommand, usePollCommandStatus, useRounds, useSubmitCommand } from '@/hooks/useConversations'
+import {
+  usePendingCommand,
+  usePollCommandStatus,
+  useRounds,
+  useSubmitCommand,
+} from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
 import type { RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
-import { getCommandTypeByStage, buildGenesisCommandPayload } from '@/utils/genesisCommands'
+import { buildGenesisCommandPayload, getCommandTypeByStage } from '@/utils/genesisCommands'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
@@ -204,55 +209,52 @@ export function GenesisConversation({
   }, [hasPendingUserMessage, isWaitingForResponse, isTyping, roundsLoading, rounds])
 
   // 监听Genesis进度事件，检测AI回复完成
-  useGenesisEvents(
-    sessionId,
-    (eventType, eventData) => {
-      console.log('[GenesisConversation] Genesis SSE event received:', { eventType, eventData })
-      const payload = eventData?.payload ?? eventData
-      const rawStatus =
-        typeof payload?.status === 'string'
-          ? payload.status
-          : typeof eventData?.status === 'string'
-            ? eventData.status
-            : ''
-      const status = rawStatus.toLowerCase()
+  useGenesisEvents(sessionId, (eventType, eventData) => {
+    console.log('[GenesisConversation] Genesis SSE event received:', { eventType, eventData })
+    const payload = eventData?.payload ?? eventData
+    const rawStatus =
+      typeof payload?.status === 'string'
+        ? payload.status
+        : typeof eventData?.status === 'string'
+          ? eventData.status
+          : ''
+    const status = rawStatus.toLowerCase()
 
-      if (!status) {
-        return
-      }
-
-      if (['processing', 'generating', 'running', 'queued'].includes(status)) {
-        console.log('[GenesisConversation] SSE - AI response started')
-        setIsTyping(true)
-        setIsWaitingForResponse(true)
-        setShouldPollCommand(false)
-        refetchPendingCommand() // 更新pending command状态
-        return
-      }
-
-      if (['completed', 'finished'].includes(status)) {
-        console.log('[GenesisConversation] SSE - AI response completed, allowing next message')
-        setIsWaitingForResponse(false)
-        setIsTyping(false)
-        setShouldPollCommand(false)
-        refetchPendingCommand() // 更新pending command状态，清除已完成的命令
-        void queryClient.invalidateQueries({
-          queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
-        })
-        return
-      }
-
-      if (['failed', 'error', 'cancelled'].includes(status)) {
-        console.error('[GenesisConversation] SSE - AI response failed:', payload)
-        setIsWaitingForResponse(false)
-        setIsTyping(false)
-        setShouldPollCommand(false)
-        setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
-        refetchPendingCommand() // 更新pending command状态，清除失败的命令
-        return
-      }
+    if (!status) {
+      return
     }
-  )
+
+    if (['processing', 'generating', 'running', 'queued'].includes(status)) {
+      console.log('[GenesisConversation] SSE - AI response started')
+      setIsTyping(true)
+      setIsWaitingForResponse(true)
+      setShouldPollCommand(false)
+      refetchPendingCommand() // 更新pending command状态
+      return
+    }
+
+    if (['completed', 'finished'].includes(status)) {
+      console.log('[GenesisConversation] SSE - AI response completed, allowing next message')
+      setIsWaitingForResponse(false)
+      setIsTyping(false)
+      setShouldPollCommand(false)
+      refetchPendingCommand() // 更新pending command状态，清除已完成的命令
+      void queryClient.invalidateQueries({
+        queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
+      })
+      return
+    }
+
+    if (['failed', 'error', 'cancelled'].includes(status)) {
+      console.error('[GenesisConversation] SSE - AI response failed:', payload)
+      setIsWaitingForResponse(false)
+      setIsTyping(false)
+      setShouldPollCommand(false)
+      setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
+      refetchPendingCommand() // 更新pending command状态，清除失败的命令
+      return
+    }
+  })
 
   // 提交对话命令
   const submitCommand = useSubmitCommand(sessionId, {
@@ -328,7 +330,7 @@ export function GenesisConversation({
         iteration_number: rounds.length + 1, // 基于当前轮次数量计算迭代次数
         user_preferences: {}, // 可以从用户配置中获取
         previous_attempts: 0, // 可以根据需要统计
-      }
+      },
     )
 
     // 生成LLD要求的请求头
@@ -339,7 +341,7 @@ export function GenesisConversation({
       commandType,
       stage,
       payload: commandPayload,
-      headers: { idempotencyKey, correlationId }
+      headers: { idempotencyKey, correlationId },
     })
 
     // 清空输入框并立即显示用户消息
@@ -351,19 +353,10 @@ export function GenesisConversation({
     })
     setIsTyping(true)
 
-    // 提交对话命令到后端，包含幂等和关联头
-    // Note: 保持向后兼容性 - 同时包含标准化字段和UI期望字段
-    // - user_input: 符合LLD文档要求的标准字段
-    // - content: UI组件期望的兼容字段，避免breaking changes
-    // TODO: 逐步迁移UI组件使用payload.user_input，移除content字段冗余
-    const finalPayload = {
-      ...commandPayload,
-      content: messageContent, // 保持UI期望的content字段
-    }
-
+    // 提交对话命令到后端，使用标准的user_input字段
     submitCommand.mutate({
       type: commandType,
-      payload: finalPayload,
+      payload: commandPayload,
       headers: {
         'Idempotency-Key': idempotencyKey,
         'X-Correlation-Id': correlationId,
@@ -404,16 +397,16 @@ export function GenesisConversation({
     if (rounds.length > optimisticMessage.initialRoundsLength) {
       // 查找在初始长度之后添加的用户round
       const newRounds = rounds.slice(optimisticMessage.initialRoundsLength)
-      const matchingRound = newRounds.find(round =>
-        round.role === 'user' &&
-        round.input?.payload?.content === optimisticMessage.content
+      const matchingRound = newRounds.find(
+        (round) =>
+          round.role === 'user' && round.input?.payload?.user_input === optimisticMessage.content,
       )
 
       if (matchingRound) {
         console.log(
           '[GenesisConversation] Real user round detected for optimistic message',
           optimisticMessage.id,
-          'clearing optimistic message'
+          'clearing optimistic message',
         )
         setOptimisticMessage(null)
       }
@@ -429,9 +422,9 @@ export function GenesisConversation({
   // 渲染消息
   const renderMessage = (round: RoundResponse) => {
     const isUser = round.role === 'user'
-    // 用户消息从input.payload.content获取，AI消息从output.content获取
+    // 用户消息从input.payload.user_input获取，AI消息从output.content获取
     const content = isUser
-      ? (round.input?.payload?.content as string) || ''
+      ? (round.input?.payload?.user_input as string) || ''
       : (round.output?.content as string) || ''
 
     // 对于AI消息，如果没有内容则不渲染；对于用户消息，始终渲染
@@ -618,26 +611,31 @@ export function GenesisConversation({
 
               {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
               {optimisticMessage &&
-               !(rounds.length > optimisticMessage.initialRoundsLength &&
-                 rounds.slice(optimisticMessage.initialRoundsLength).some(round =>
-                   round.role === 'user' &&
-                   round.input?.payload?.content === optimisticMessage.content
-                 )) && (
-                <div className="flex gap-3 flex-row-reverse opacity-80">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary/10">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col gap-1 max-w-[70%]">
-                    <div className="rounded-lg px-4 py-2.5 bg-primary text-primary-foreground">
-                      <div className="whitespace-pre-wrap break-words text-sm">
-                        {optimisticMessage.content}
+                !(
+                  rounds.length > optimisticMessage.initialRoundsLength &&
+                  rounds
+                    .slice(optimisticMessage.initialRoundsLength)
+                    .some(
+                      (round) =>
+                        round.role === 'user' &&
+                        round.input?.payload?.user_input === optimisticMessage.content,
+                    )
+                ) && (
+                  <div className="flex gap-3 flex-row-reverse opacity-80">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10">
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col gap-1 max-w-[70%]">
+                      <div className="rounded-lg px-4 py-2.5 bg-primary text-primary-foreground">
+                        <div className="whitespace-pre-wrap break-words text-sm">
+                          {optimisticMessage.content}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* 输入中提示 - 移除停止生成按钮 */}
               {(isTyping || hasPendingUserMessage) && (

@@ -422,6 +422,27 @@ class DomainEventBridgeService:
             if not isinstance(envelope, dict):
                 return None
 
+            # Merge selected Kafka headers into envelope for downstream validation
+            try:
+                headers = dict((k, (v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else v)) for k, v in (message.headers or []))
+            except Exception:  # pragma: no cover - defensive
+                headers = {}
+
+            if "correlation_id" not in envelope and headers.get("correlation_id"):
+                envelope["correlation_id"] = headers.get("correlation_id")
+
+            # Ensure required payload shape with sensible fallbacks
+            payload = envelope.get("payload") if isinstance(envelope.get("payload"), dict) else {}
+            if not payload:
+                payload = {}
+                envelope["payload"] = payload
+
+            if "session_id" not in payload and envelope.get("aggregate_id"):
+                payload["session_id"] = envelope.get("aggregate_id")
+
+            if "timestamp" not in payload and envelope.get("created_at"):
+                payload["timestamp"] = envelope.get("created_at")
+
             return envelope
 
         except Exception as e:

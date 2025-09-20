@@ -227,7 +227,9 @@ class ConversationCommandService:
             async with transactional(db):
                 # 1. Create CommandInbox with events and outbox
                 cmd = await self._get_or_create_command(db, session.id, command_type, payload, idempotency_key)
-                dom_evt = await self._get_or_create_domain_event(db, session, cmd, command_type, payload)
+                dom_evt = await self._get_or_create_domain_event(
+                    db, session, cmd, command_type, payload, user_id=user_id
+                )
                 await self._ensure_outbox_entry(db, session, dom_evt, cmd)
 
                 # 2. Create ConversationRound for the command (in the same transaction)
@@ -339,6 +341,8 @@ class ConversationCommandService:
         cmd: Any,  # CommandInbox
         command_type: str,
         payload: dict[str, Any] | None,
+        *,
+        user_id: int | None = None,
     ) -> Any:  # DomainEvent
         """Get existing or create new DomainEvent."""
         event_type = build_event_type(session.scope_type, "Command.Received")
@@ -349,14 +353,22 @@ class ConversationCommandService:
         )
 
         if not dom_evt:
+            # Enrich payload for downstream routing (SSE needs user_id/session_id)
+            enriched_payload: dict[str, Any] = {
+                "command_type": command_type,
+                "payload": payload or {},
+                "session_id": str(session.id),
+            }
+            if user_id is not None:
+                enriched_payload["user_id"] = str(user_id)
             dom_evt = DomainEvent(
                 event_type=event_type,
                 aggregate_type=get_aggregate_type(session.scope_type),
                 aggregate_id=str(session.id),
-                payload={"command_type": command_type, "payload": payload or {}},
+                payload=enriched_payload,
                 correlation_id=cmd.id,
                 causation_id=None,
-                event_metadata={"source": "api-gateway"},
+                event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
             )
             db.add(dom_evt)
             await db.flush()  # Get event_id
