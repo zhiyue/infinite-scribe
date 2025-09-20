@@ -373,14 +373,14 @@ ORDER BY created_at;
    (orchestrator/agent.py)
     ↓
 3. 投影领域事实 (*.Requested) + 创建 async_tasks (RUNNING)
-   (orchestrator/agent.py:87, 96, 156, 171)
+   (orchestrator/agent.py:88-95, 99-104, 156-199)
     ↓
 4. 发送能力任务消息到 Capability Agent
     ↓
 5. Capability Agent 执行 AI 任务 → 返回完成消息
     ↓
 6. OrchestratorAgent 接收完成消息 → 更新 async_tasks (COMPLETED)
-   (orchestrator/agent.py:181)
+   (orchestrator/agent.py:201-239)
 ```
 
 ### 📊 状态管理与约束
@@ -428,9 +428,9 @@ ORDER BY created_at;
    - ✅ 修复了任务类型标准化实现，使其与期望一致
    - ✅ 使用直接映射方式将动作后缀转换为基础动作类型
    - ✅ 确保三段式任务类型格式 (`Capability.Entity.Action`)
-   - ✅ 从 OrchestratorAgent 移除重复的映射逻辑
+   - ✅ 从 OrchestratorAgent 移除重复的映射逻辑 (原 orchestrator/agent.py:241-282)
 
-3. **幂等性保护** (orchestrator/agent.py:156):
+3. **幂等性保护** (orchestrator/agent.py:156-199):
    - ✅ 为 `_create_async_task` 添加幂等性检查
    - ✅ 防止重复创建相同 correlation_id + task_type 的 RUNNING/PENDING 任务
    - ✅ 避免重复消费或重放事件导致的数据不一致

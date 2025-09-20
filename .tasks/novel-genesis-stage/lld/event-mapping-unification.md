@@ -47,12 +47,13 @@ SCOPE_DOMAIN_TOPIC: Final[dict[str, str]] = {
 class EventSerializationUtils:
     @staticmethod
     def deserialize_payload(event_type: GenesisEventType, payload_data: dict[str, Any]):
-        """基于事件类型的智能反序列化"""
+        """基于事件类型的智能反序列化（当前实现，迁移前）"""
         payload_map = {
             GenesisEventType.STAGE_ENTERED: StageEnteredPayload,
             GenesisEventType.STAGE_COMPLETED: StageCompletedPayload,
             # ...
         }
+        # 注：迁移后将使用 get_event_payload_class() 统一获取
 
     @staticmethod
     def create_genesis_event(...) -> GenesisEventCreate:
@@ -102,12 +103,12 @@ class CharacterRequestStrategy(CommandStrategy):
 class MessageFactory:
     @staticmethod
     def create_quality_review_message(session_id: str, input_data: dict) -> dict[str, Any]:
-        """质量评审消息工厂"""
+        """质量评审消息工厂"""  # apps/backend/src/agents/orchestrator/message_factory.py:13
         # 实际实现...
 
     @staticmethod
     def create_regeneration_message(session_id: str, input_data: dict) -> dict[str, Any]:
-        """内容再生成消息工厂"""
+        """内容再生成消息工厂"""  # apps/backend/src/agents/orchestrator/message_factory.py:43
         # 实际实现...
 ```
 
@@ -595,6 +596,14 @@ COMMAND_EVENT_MAPPING: Final[Dict[str, str]] = {
 
 def get_event_payload_class(event_type: str | GenesisEventType) -> Type:
     """获取事件负载类，未映射时回退到通用负载"""
+    # 懒加载避免循环依赖
+    if not hasattr(get_event_payload_class, '_payload_classes_loaded'):
+        from src.schemas.genesis_events import (
+            StageEnteredPayload, StageCompletedPayload, ConceptSelectedPayload,
+            # ... 其他payload类
+        )
+        get_event_payload_class._payload_classes_loaded = True
+
     key = event_type.value if isinstance(event_type, GenesisEventType) else str(event_type)
     return EVENT_PAYLOAD_MAPPING.get(key, GenesisEventPayload)
 
@@ -609,10 +618,16 @@ def validate_event_mappings() -> Dict[str, List[str]]:
         "orphaned_mappings": []
     }
 
-    # 检查高频事件是否有映射 (按需定义高频事件列表)
-    high_frequency_events = [
-        "STAGE_ENTERED", "STAGE_COMPLETED", "AI_GENERATION_STARTED",
-        "AI_GENERATION_COMPLETED", "CONCEPT_SELECTED"
+    # 检查高频事件是否有映射
+    high_frequency_events = _get_high_frequency_events()
+
+def _get_high_frequency_events() -> List[str]:
+    """获取高频事件清单（集中维护）"""
+    return [
+        "STAGE_ENTERED", "STAGE_COMPLETED",
+        "AI_GENERATION_STARTED", "AI_GENERATION_COMPLETED",
+        "CONCEPT_SELECTED", "INSPIRATION_GENERATED",
+        "FEEDBACK_PROVIDED", "NOVEL_CREATED_FROM_GENESIS"
     ]
 
     for event in high_frequency_events:
@@ -675,10 +690,10 @@ class CommandStrategyRegistry:
         return strategy.process(scope_type, scope_prefix, aggregate_id, payload) if strategy else None
 ```
 
-**路径B: 结构化配置映射 (高级)**
+**路径B: 结构化配置映射 (高级，与路径A二选一)**
 ```python
-# common/events/mapping.py 扩展为结构化配置
-COMMAND_MAPPING: Final[Dict[str, Dict[str, str]]] = {
+# common/events/mapping.py 扩展为结构化配置（替代 COMMAND_EVENT_MAPPING）
+COMMAND_STRUCTURED_MAPPING: Final[Dict[str, Dict[str, str]]] = {
     "Character.Request": {
         "requested_action": "Character.Requested",
         "capability_type": "Character.Design.GenerationRequested",
