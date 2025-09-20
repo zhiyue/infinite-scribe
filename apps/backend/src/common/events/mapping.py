@@ -253,12 +253,12 @@ def validate_event_mappings() -> dict[str, list[str]]:
 
     # Check for orphaned payload mappings (mapped but not in enum)
     valid_events = {event.value for event in GenesisEventType}
-    for mapped_event in EVENT_PAYLOAD_MAPPING.keys():
+    for mapped_event in EVENT_PAYLOAD_MAPPING:
         if mapped_event not in valid_events:
             issues["orphaned_payload_mappings"].append(mapped_event)
 
     # Check for orphaned command mappings (target events not in enum)
-    valid_event_actions = set(COMMAND_EVENT_MAPPING.values())
+    set(COMMAND_EVENT_MAPPING.values())
     # Note: Command event actions are domain event actions, not GenesisEventType values
     # This is intentional as they map to different event spaces
 

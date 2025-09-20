@@ -80,7 +80,7 @@ class EventHandlerConfig:
 
     @classmethod
     def _load_config_from_source(cls, config_source: str | Path | None) -> WorkflowConfig:
-        if isinstance(config_source, (str, Path)):
+        if isinstance(config_source, str | Path):
             return cls._load_from_file(Path(config_source))
         return cls._get_default_config()
 

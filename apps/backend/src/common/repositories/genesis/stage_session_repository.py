@@ -168,7 +168,7 @@ class SqlAlchemyGenesisStageSessionRepository(GenesisStageSessionRepository):
             select(GenesisStageSession).where(
                 and_(
                     GenesisStageSession.stage_id == stage_id,
-                    GenesisStageSession.is_primary == True,
+                    GenesisStageSession.is_primary is True,
                     GenesisStageSession.status == StageSessionStatus.ACTIVE,
                 )
             )

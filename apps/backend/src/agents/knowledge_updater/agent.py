@@ -87,7 +87,7 @@ class KnowledgeUpdateAgent(BaseAgent):
                     from_app_id=str(rel.get("from_character")),
                     to_app_id=str(rel.get("to_character")),
                     type=str(rel.get("relationship_type")),
-                    strength=(rel.get("strength") if isinstance(rel.get("strength"), (int, float)) else None),
+                    strength=(rel.get("strength") if isinstance(rel.get("strength"), int | float) else None),
                     since_chapter=int(chapter_id) if isinstance(chapter_id, int) else None,
                 )
             except Exception as e:

@@ -10,6 +10,7 @@ from typing import Any
 
 from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
 from src.agents.orchestrator.types import (
+    BaseEventData,
     ConsistencyCheckData,
     GenerationData,
     MessageContext,
