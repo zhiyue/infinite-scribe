@@ -191,17 +191,48 @@ class OutboxRelayService:
         return processed
 
     async def _ensure_common_topics_exist(self) -> None:
-        """Ensure common topics exist by triggering auto-creation."""
-        common_topics = [
+        """Ensure common topics exist by triggering auto-creation.
+
+        除固定的领域事件主题外，动态收集已配置 agents 的 consume/produce 主题，
+        以及 EventBridge 配置的领域主题，尽量一次性触发 auto-creation，
+        降低首次投递 UnknownTopicOrPartitionError 的概率。
+        """
+        common_topics: list[str] = [
             "genesis.session.events",
-            # Add other common topics as needed
         ]
+
+        # Merge in EventBridge configured domain topics
+        try:
+            eb_topics = list(self.settings.eventbridge.domain_topics or [])
+            for t in eb_topics:
+                if isinstance(t, str) and t:
+                    common_topics.append(t)
+        except Exception:
+            pass
+
+        # Merge in all agent consume/produce topics from centralized config
+        try:
+            from src.agents.agent_config import AGENT_TOPICS
+
+            for cfg in (AGENT_TOPICS or {}).values():
+                for t in (cfg.get("consume") or []):
+                    if isinstance(t, str) and t:
+                        common_topics.append(t)
+                for t in (cfg.get("produce") or []):
+                    if isinstance(t, str) and t:
+                        common_topics.append(t)
+        except Exception:
+            # 兜底：如果配置导入失败，不影响主流程
+            pass
+
+        # De-duplicate
+        topics = sorted({t for t in common_topics if isinstance(t, str) and t})
 
         if not self._producer:
             log.warning("relay_topic_check_skipped", reason="no_producer")
             return
 
-        for topic in common_topics:
+        for topic in topics:
             try:
                 # Request metadata for the topic - this will trigger auto-creation if enabled
                 metadata = await self._producer.client.fetch_all_metadata()

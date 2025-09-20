@@ -97,7 +97,7 @@ class OrchestratorAgent(BaseAgent):
                         if str(k).lower().replace("_", "-") in {"correlation-id", "correlation_id"}:
                             try:
                                 correlation_id = correlation_id or (
-                                    v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else str(v)
+                                    v.decode("utf-8") if isinstance(v, bytes | bytearray) else str(v)
                                 )
                             except Exception:
                                 correlation_id = correlation_id or (str(v) if v is not None else None)

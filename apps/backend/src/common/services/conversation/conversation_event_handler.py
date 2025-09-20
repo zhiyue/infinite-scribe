@@ -152,7 +152,8 @@ class ConversationEventHandler:
                 "model": rnd.model,
             },
             correlation_id=corr_uuid,
-            causation_id=None,
+            # 若可解析到 correlation UUID（例如来自 Idempotency-Key），将其作为因果链ID
+            causation_id=corr_uuid,
             event_metadata={"source": "api-gateway"},
         )
         db.add(dom_evt)
@@ -252,7 +253,8 @@ class ConversationEventHandler:
                 aggregate_id=str(session.id),
                 payload={"command_type": command_type, "payload": payload or {}},
                 correlation_id=cmd.id,
-                causation_id=None,
+                # 命令接收事件以命令ID作为因果链ID，后续事件可据此串联
+                causation_id=cmd.id,
                 event_metadata={"source": "api-gateway"},
             )
             db.add(dom_evt)
@@ -342,7 +344,8 @@ class ConversationEventHandler:
                     **({"user_id": str(user_id)} if user_id is not None else {}),
                 },
                 correlation_id=existing_command.id,
-                causation_id=None,
+                # 与首个创建路径保持一致：命令接收事件以命令ID作为因果链ID
+                causation_id=existing_command.id,
                 event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
             )
             db.add(dom_evt)

@@ -54,7 +54,8 @@ class ConversationEventFactory:
                 aggregate_id=str(session.id),
                 payload=enriched_payload,
                 correlation_id=cmd.id,
-                causation_id=None,
+                # 初始命令投递的首个领域事件：将命令ID同时作为 causation_id 建立因果链起点
+                causation_id=cmd.id,
                 event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
             )
             db.add(dom_evt)
