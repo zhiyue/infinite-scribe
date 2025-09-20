@@ -6,13 +6,14 @@
 
 ```
 utils/
-├── genesisCommands.ts    # 创世命令工具函数
-├── errorHandler.ts       # 错误处理工具
-├── errorHandler.test.ts   # 错误处理测试
-├── sseStorage.ts         # SSE 存储工具
-├── api-response.ts       # API 响应处理工具
-├── passwordValidator.ts  # 密码验证工具
-└── README.md            # 工具函数文档
+├── genesisCommands.ts        # 创世命令工具函数
+├── genesisThinkingStorage.ts # Genesis 思考状态持久化工具
+├── errorHandler.ts           # 错误处理工具
+├── errorHandler.test.ts      # 错误处理测试
+├── sseStorage.ts             # SSE 存储工具
+├── api-response.ts           # API 响应处理工具
+├── passwordValidator.ts      # 密码验证工具
+└── README.md                 # 工具函数文档
 ```
 
 ## 🎯 核心模块
@@ -159,7 +160,129 @@ pie
 - `getUpdateCommandTypeByStage()` - 获取阶段更新命令
 - `getCommandTypeDisplayName()` - 获取命令显示名称
 
-### 2. 其他工具模块
+### 2. Genesis 思考状态持久化工具 (genesisThinkingStorage.ts)
+
+提供 Genesis 思考过程状态的本地持久化功能，确保页面刷新后能够恢复最近的思考状态。
+
+#### 核心功能
+
+**状态管理**:
+- **会话隔离**: 每个会话的状态独立存储，避免数据污染
+- **TTL 机制**: 自动清理过期状态数据（10分钟有效期）
+- **容量限制**: 每个会话最多保存 20 条状态记录
+- **错误容错**: 优雅处理 localStorage 读写异常
+
+**存储策略**:
+- **增量保存**: 新状态追加到现有状态列表
+- **截断管理**: 自动截断超长状态列表
+- **时间戳**: 记录状态更新时间，支持过期清理
+- **序列化安全**: 使用 JSON 安全序列化/反序列化
+
+#### 工具函数
+
+```typescript
+// 获取指定会话的状态列表
+getThinkingStatuses(sessionId: string): GenesisCommandStatus[]
+
+// 添加新的状态到会话
+appendThinkingStatus(sessionId: string, status: GenesisCommandStatus): void
+
+// 批量设置会话状态
+setThinkingStatuses(sessionId: string, statuses: GenesisCommandStatus[]): void
+
+// 清理指定会话的状态
+clearThinkingStatuses(sessionId: string): void
+```
+
+#### 存储结构
+
+```typescript
+interface GenesisCommandStatus {
+  event_id: string           // 事件唯一标识
+  event_type: string         // 事件类型
+  session_id: string         // 会话ID
+  correlation_id: string     // 关联ID
+  timestamp: string          // 时间戳
+  status: string             // 状态信息
+  _scope?: string           // 作用域
+  _version?: string         // 版本信息
+}
+
+type StoredSessionState = {
+  statuses: GenesisCommandStatus[]
+  updatedAt: number         // 更新时间戳
+}
+
+type StoredState = Record<string, StoredSessionState>
+```
+
+#### 配置参数
+
+```typescript
+const STORAGE_KEY = 'genesis_thinking_state_v1'  // 本地存储键名
+const MAX_PER_SESSION = 20                       // 每会话最大状态数
+const TTL_MS = 10 * 60 * 1000                   // 10分钟有效期
+```
+
+#### 使用示例
+
+```typescript
+import { 
+  getThinkingStatuses, 
+  appendThinkingStatus,
+  clearThinkingStatuses 
+} from '@/utils/genesisThinkingStorage'
+import type { GenesisCommandStatus } from '@/components/genesis/GenesisStatusCard'
+
+// 在组件中恢复状态
+function ThinkingComponent({ sessionId }: { sessionId: string }) {
+  const [statuses, setStatuses] = useState<GenesisCommandStatus[]>([])
+  
+  useEffect(() => {
+    // 初始恢复：从本地存储获取保存的状态
+    const savedStatuses = getThinkingStatuses(sessionId)
+    if (savedStatuses.length > 0) {
+      setStatuses(savedStatuses)
+    }
+  }, [sessionId])
+  
+  // 监听新事件并保存
+  const handleNewStatus = (newStatus: GenesisCommandStatus) => {
+    setStatuses(prev => [...prev, newStatus])
+    appendThinkingStatus(sessionId, newStatus)  // 持久化到本地
+  }
+  
+  return (
+    <div>
+      {/* 渲染思考状态 */}
+    </div>
+  )
+}
+```
+
+#### 状态恢复流程
+
+```mermaid
+graph TD
+    A[组件加载] --> B[读取本地存储]
+    B --> C{检查会话状态}
+    C -->|存在且未过期| D[恢复状态到UI]
+    C -->|不存在或已过期| E[显示初始状态]
+    D --> F[等待新SSE事件]
+    E --> F
+    F --> G[接收到新事件]
+    G --> H[更新UI状态]
+    H --> I[保存到本地存储]
+```
+
+#### 性能优化
+
+- **按需读取**: 仅在组件初始化时读取一次本地存储
+- **增量保存**: 新状态追加而非重写整个状态列表
+- **自动清理**: TTL 机制自动清理过期数据
+- **容量控制**: 防止单个会话状态无限增长
+
+### 3. 其他工具模块
 
 #### 错误处理工具 (errorHandler.ts)
 - 统一错误处理格式
@@ -665,3 +788,117 @@ describe('与后端 API 集成测试', () => {
 - 提供迁移工具和指南
 - 逐步淘汰废弃的功能
 - 保持足够长的过渡期
+
+## 🔧 工具集成示例
+
+### GenesisThinkingStorage 与创世命令集成
+
+```typescript
+import { 
+  getCommandTypeByStage, 
+  buildGenesisCommandPayload 
+} from '@/utils/genesisCommands'
+import { 
+  getThinkingStatuses, 
+  appendThinkingStatus 
+} from '@/utils/genesisThinkingStorage'
+import { useGenesisEvents } from '@/hooks/sse'
+
+// 在对话组件中使用状态持久化
+function GenesisConversationWithPersistence({ sessionId, stage }: {
+  sessionId: string
+  stage: GenesisStage
+}) {
+  const [statuses, setStatuses] = useState<GenesisCommandStatus[]>([])
+  
+  // 初始恢复状态
+  useEffect(() => {
+    const savedStatuses = getThinkingStatuses(sessionId)
+    if (savedStatuses.length > 0) {
+      setStatuses(savedStatuses)
+    }
+  }, [sessionId])
+  
+  // 监听 Genesis 事件
+  useGenesisEvents(sessionId, (eventType, eventData) => {
+    if (isGenesisEvent(eventType) && eventData.event_id) {
+      const newStatus: GenesisCommandStatus = {
+        event_id: eventData.event_id,
+        event_type: eventData.event_type,
+        session_id: sessionId,
+        correlation_id: eventData.correlation_id || '',
+        timestamp: eventData.timestamp || new Date().toISOString(),
+        status: eventData.status,
+        _scope: eventData._scope,
+        _version: eventData._version,
+      }
+      
+      // 更新UI状态
+      setStatuses(prev => [...prev, newStatus])
+      
+      // 持久化到本地存储
+      appendThinkingStatus(sessionId, newStatus)
+    }
+  })
+  
+  const handleSendMessage = (userInput: string) => {
+    const commandType = getCommandTypeByStage(stage)
+    const payload = buildGenesisCommandPayload(
+      commandType,
+      userInput,
+      sessionId,
+      stage
+    )
+    
+    // 发送命令到后端
+    // 后续的 SSE 事件会自动被上面的监听器捕获并保存
+    sendCommand({ type: commandType, payload })
+  }
+  
+  return (
+    <div>
+      {/* 渲染对话和思考状态 */}
+    </div>
+  )
+}
+```
+
+### 完整的状态管理架构
+
+```mermaid
+graph TB
+    subgraph "用户交互层"
+        A[用户输入]
+        B[AI响应显示]
+    end
+    
+    subgraph "状态管理层"
+        C[React State]
+        D[localStorage持久化]
+        E[SSE事件监听]
+    end
+    
+    subgraph "工具函数层"
+        F[genesisCommands]
+        G[genesisThinkingStorage]
+        H[errorHandler]
+    end
+    
+    subgraph "后端集成层"
+        I[API请求]
+        J[SSE连接]
+    end
+    
+    A --> F
+    F --> I
+    I --> J
+    J --> E
+    E --> G
+    G --> D
+    D --> C
+    C --> B
+    E --> C
+    
+    H -.-> I
+    H -.-> J
+```
