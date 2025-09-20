@@ -4,6 +4,44 @@
 
 ## 🚀 最新架构增强
 
+### 业务逻辑与配置解耦 ✨
+
+最近的重构实现了工作流逻辑与JSON配置的完全解耦，提供了清晰的业务规则接口：
+
+```mermaid
+graph TB
+    subgraph "解耦前：配置耦合"
+        A[业务逻辑] --> B[直接访问JSON配置]
+        B --> C[硬编码路径访问]
+        C --> D[配置变更影响业务逻辑]
+    end
+    
+    subgraph "解耦后：接口抽象"
+        E[业务逻辑] --> F[IWorkflowRules接口]
+        F --> G[抽象方法调用]
+        G --> H[配置与实现分离]
+        H --> I[可测试性提升]
+    end
+    
+    subgraph "实现选择"
+        J[ConfigBasedWorkflowRules] --> K[兼容现有配置]
+        L[StaticWorkflowRules] --> M[内嵌业务规则]
+        N[可插拔规则引擎] --> O[未来扩展]
+    end
+    
+    F --> J
+    F --> L
+    F --> N
+```
+
+#### 核心解耦特性
+
+- **接口抽象**: `IWorkflowRules` 提供统一的工作流决策接口
+- **实现分离**: 业务逻辑不再直接依赖JSON配置结构
+- **可测试性**: 支持Mock实现，便于单元测试
+- **向后兼容**: `ConfigBasedWorkflowRules` 桥接现有系统
+- **未来扩展**: 支持规则引擎、配置服务等多种实现方式
+
 ### Pydantic 类型系统升级 ✨
 
 最近的重构将原有的 TypedDict 类型系统升级为完整的 Pydantic 实现，实现了"ultrathink"级别的类型安全性：
@@ -132,7 +170,14 @@ orchestrator/
 ├── event_handlers.py          # 能力事件处理器
 ├── message_factory.py         # 消息工厂
 ├── outbox_manager.py         # Outbox管理模块
-└── task_manager.py           # 任务管理模块
+├── task_manager.py           # 任务管理模块
+├── workflow_rules.py         # 工作流业务规则接口
+└── workflows/                # 工作流配置
+    ├── __init__.py
+    ├── actions.py
+    ├── config.py
+    ├── genesis-workflow.json
+    └── test-workflow.json
 ```
 
 ## 🎯 核心组件
@@ -162,6 +207,11 @@ graph TB
         G[EventHandlers<br/>事件处理器]
     end
     
+    subgraph "业务规则模块"
+        H[WorkflowRules<br/>工作流规则]
+        I[IWorkflowRules接口]
+    end
+    
     A --> B
     A --> C
     B --> F
@@ -170,7 +220,112 @@ graph TB
     B --> E
     C --> D
     C --> E
+    F --> H
+    G --> H
+    H --> I
 ```
+
+### 🔄 工作流规则解耦 (WorkflowRules)
+
+最新的重构将工作流业务逻辑从配置中解耦，提供了清晰的抽象接口：
+
+```mermaid
+classDiagram
+    class IWorkflowRules {
+        <<interface>>
+        +get_target_for_event(event_type) str|None
+        +get_task_prefix(task_type) str
+        +evaluate_quality_review(request) WorkflowDecision
+        +get_confirmation_action(target_type) str
+        +get_failure_action(target_type) str
+        +get_regeneration_action(target_type) str
+        +should_confirm_consistency(result_data) bool
+    }
+    
+    class ConfigBasedWorkflowRules {
+        -_config: Any
+        +get_target_for_event(event_type) str|None
+        +get_task_prefix(task_type) str
+        +evaluate_quality_review(request) WorkflowDecision
+        +get_confirmation_action(target_type) str
+        +get_failure_action(target_type) str
+        +get_regeneration_action(target_type) str
+        +should_confirm_consistency(result_data) bool
+    }
+    
+    class StaticWorkflowRules {
+        -_EVENT_TARGET_MAPPING: dict
+        -_TASK_PREFIXES: dict
+        -_CONFIRMATION_ACTIONS: dict
+        -_FAILURE_ACTIONS: dict
+        -_REGENERATION_ACTIONS: dict
+        +get_target_for_event(event_type) str|None
+        +get_task_prefix(task_type) str
+        +evaluate_quality_review(request) WorkflowDecision
+        +get_confirmation_action(target_type) str
+        +get_failure_action(target_type) str
+        +get_regeneration_action(target_type) str
+        +should_confirm_consistency(result_data) bool
+    }
+    
+    class ReviewResult {
+        <<enumeration>>
+        APPROVED
+        REJECTED_RETRY
+        REJECTED_FAILED
+    }
+    
+    class QualityReviewRequest {
+        +score: float
+        +attempts: int
+        +max_attempts: int
+        +threshold: float
+        +target_type: str
+    }
+    
+    class WorkflowDecision {
+        +result: ReviewResult
+        +action: str
+        +reason: str|None
+    }
+    
+    IWorkflowRules <|.. ConfigBasedWorkflowRules
+    IWorkflowRules <|.. StaticWorkflowRules
+    
+    WorkflowRules --> ReviewResult
+    WorkflowRules --> QualityReviewRequest
+    WorkflowRules --> WorkflowDecision
+```
+
+#### 工作流决策流程
+
+```mermaid
+stateDiagram-v2
+    [*] --> 质量评审请求: 接收评分请求
+    
+    质量评审请求 --> 分数阈值检查: score >= threshold
+    分数阈值检查 --> 通过: 分数达标
+    分数阈值检查 --> 重试检查: 分数不达标
+    
+    重试检查 --> 允许重试: attempts + 1 < max_attempts
+    重试检查 --> 达到重试上限: attempts + 1 >= max_attempts
+    
+    通过 --> 确认动作: 生成确认事件
+    允许重试 --> 重新生成: 触发重新生成
+    达到重试上限 --> 失败动作: 生成失败事件
+    
+    确认动作 --> [*]
+    重新生成 --> [*]
+    失败动作 --> [*]
+```
+
+#### 业务规则优势
+
+- **逻辑清晰**: 将复杂的决策逻辑抽象为清晰的接口
+- **配置独立**: 业务规则不再直接依赖JSON配置结构
+- **易于测试**: 每个规则可以独立进行单元测试
+- **可扩展**: 支持添加新的决策规则和策略
+- **类型安全**: 使用数据类和枚举确保类型安全
 
 ### 📊 领域事件处理器 (DomainEventProcessor)
 
@@ -922,6 +1077,7 @@ async with create_sql_session() as db:
 - **CapabilityEventProcessor**: 专门处理能力事件相关逻辑  
 - **TaskManager**: 专门管理异步任务生命周期
 - **OutboxManager**: 专门管理事件持久化和消息入队
+- **WorkflowRules**: 专门管理工作流业务规则
 
 #### 依赖倒置原则 (DIP)
 - 通过依赖注入实现模块间的松耦合
@@ -963,6 +1119,7 @@ graph LR
 - **插件式架构**: 新的事件处理器可以轻松添加
 - **配置驱动**: 命令映射和事件处理可通过配置扩展
 - **策略模式**: 支持不同的处理策略和算法
+- **业务规则抽象**: 工作流规则与配置完全解耦
 
 ### 性能优化
 
@@ -1048,6 +1205,33 @@ class CustomCommandStrategy(CommandStrategy):
 
 # 注册到全局注册表
 command_registry.register(CustomCommandStrategy())
+```
+
+### 使用工作流规则
+
+```python
+# 使用业务规则接口
+class CustomWorkflowRules(IWorkflowRules):
+    def get_target_for_event(self, event_type: str) -> str | None:
+        # 自定义事件到目标类型的映射
+        return "custom_target"
+    
+    def evaluate_quality_review(self, request: QualityReviewRequest) -> WorkflowDecision:
+        # 自定义质量评审逻辑
+        if request.score >= request.threshold:
+            return WorkflowDecision(
+                result=ReviewResult.APPROVED,
+                action="Custom.Confirmed",
+                reason=f"Score {request.score} meets threshold {request.threshold}"
+            )
+        else:
+            return WorkflowDecision(
+                result=ReviewResult.REJECTED_RETRY,
+                action="Custom.RegenerationRequested",
+                reason=f"Score {request.score} below threshold {request.threshold}"
+            )
+    
+    # 实现其他抽象方法...
 ```
 
 ### 处理能力事件
@@ -1140,6 +1324,14 @@ class CustomEventHandler:
 - `orchestrator_outbox_entry_already_exists`: Outbox条目已存在
 - `orchestrator_domain_event_persist_completed`: 领域事件持久化完成
 
+#### 工作流规则日志
+- `orchestrator_workflow_decision_made`: 工作流决策完成
+- `orchestrator_quality_review_approved`: 质量评审通过
+- `orchestrator_quality_review_retry`: 质量评审需要重试
+- `orchestrator_quality_review_failed`: 质量评审失败
+- `orchestrator_consistency_check_passed`: 一致性检查通过
+- `orchestrator_consistency_check_failed`: 一致性检查失败
+
 ### 日志结构化信息
 
 每个日志事件都包含相关的上下文信息，便于追踪和调试：
@@ -1188,6 +1380,7 @@ graph TD
 2. **监控异步任务**: 关注任务创建和完成的日志序列
 3. **排查持久化问题**: 查看 `orchestrator_domain_event_persist_*` 系列日志
 4. **分析性能瓶颈**: 结合时间戳和执行状态日志
+5. **调试工作流规则**: 关注工作流决策相关的日志事件
 
 ## 🔗 相关模块
 
@@ -1195,6 +1388,7 @@ graph TD
 - **领域模型**: `src.models.event` - 领域事件模型
 - **工作流模型**: `src.models.workflow` - 异步任务模型
 - **基础代理**: `src.agents.base` - 代理基类
+- **业务规则**: `src.agents.orchestrator.workflow_rules` - 工作流规则接口
 
 ## 📝 注意事项
 
@@ -1202,6 +1396,7 @@ graph TD
 2. **错误处理**：能力任务创建失败时只记录警告，不中断主流程
 3. **事件溯源**：领域事件通过 EventOutbox 模式确保可靠投递
 4. **任务追踪**：每个能力任务都创建对应的 AsyncTask 记录用于追踪
+5. **业务规则解耦**: 工作流逻辑与配置完全分离，便于测试和维护
 
 ## 🔍 扩展指南
 
@@ -1292,6 +1487,35 @@ classDiagram
 - 依赖注入和生命周期管理
 - 便于监控和调试
 
+#### 业务规则模式 (Business Rules Pattern)
+```mermaid
+classDiagram
+    class IWorkflowRules {
+        <<interface>>
+        +evaluate_quality_review()
+        +get_target_for_event()
+    }
+    
+    class ConfigBasedWorkflowRules {
+        -config: Any
+        +evaluate_quality_review()
+    }
+    
+    class StaticWorkflowRules {
+        -mappings: dict
+        +evaluate_quality_review()
+    }
+    
+    IWorkflowRules <|.. ConfigBasedWorkflowRules
+    IWorkflowRules <|.. StaticWorkflowRules
+```
+
+**优势**：
+- 业务逻辑与配置分离
+- 支持多种实现策略
+- 便于单元测试
+- 提供清晰的抽象接口
+
 ### 添加新的命令类型
 
 1. 在`command_strategies.py`中注册新的命令映射
@@ -1342,6 +1566,34 @@ class CustomManager:
         return {"result": "success", "data": extracted_data}
 ```
 
+### 添加新的工作流规则
+
+```python
+# 自定义工作流规则示例
+class CustomWorkflowRules(IWorkflowRules):
+    def __init__(self, custom_config: dict[str, Any]):
+        self.config = custom_config
+    
+    def evaluate_quality_review(self, request: QualityReviewRequest) -> WorkflowDecision:
+        # 实现自定义的评审逻辑
+        custom_threshold = self.config.get("custom_threshold", 8.0)
+        
+        if request.score >= custom_threshold:
+            return WorkflowDecision(
+                result=ReviewResult.APPROVED,
+                action="Custom.HighQualityConfirmed",
+                reason=f"High quality: {request.score} >= {custom_threshold}"
+            )
+        else:
+            return WorkflowDecision(
+                result=ReviewResult.REJECTED_RETRY,
+                action="Custom.ImprovementNeeded",
+                reason=f"Needs improvement: {request.score} < {custom_threshold}"
+            )
+    
+    # 实现其他抽象方法...
+```
+
 ## 🧪 测试策略
 
 ### 模块化测试方法
@@ -1361,6 +1613,7 @@ graph TD
     C --> C2[CapabilityEventProcessor测试]
     C --> C3[TaskManager测试]
     C --> C4[OutboxManager测试]
+    C --> C5[WorkflowRules测试]
     
     D --> D1[功能正确性]
     D --> D2[边界条件]
@@ -1395,6 +1648,56 @@ class TestCorrelationIdExtractor:
         evt = {"metadata": {"correlation_id": "test-id"}}
         result = CorrelationIdExtractor.extract_correlation_id(evt, None)
         assert result == "test-id"
+```
+
+#### 工作流规则测试
+```python
+# WorkflowRules测试示例
+class TestWorkflowRules:
+    def test_quality_review_approval(self):
+        """测试质量评审通过"""
+        rules = StaticWorkflowRules()
+        request = QualityReviewRequest(
+            score=8.5,
+            attempts=1,
+            max_attempts=3,
+            threshold=7.5,
+            target_type="character"
+        )
+        
+        decision = rules.evaluate_quality_review(request)
+        assert decision.result == ReviewResult.APPROVED
+        assert "Confirmed" in decision.action
+    
+    def test_quality_review_retry(self):
+        """测试质量评审重试"""
+        rules = StaticWorkflowRules()
+        request = QualityReviewRequest(
+            score=6.0,
+            attempts=1,
+            max_attempts=3,
+            threshold=7.5,
+            target_type="character"
+        )
+        
+        decision = rules.evaluate_quality_review(request)
+        assert decision.result == ReviewResult.REJECTED_RETRY
+        assert "RegenerationRequested" in decision.action
+    
+    def test_quality_review_failure(self):
+        """测试质量评审失败"""
+        rules = StaticWorkflowRules()
+        request = QualityReviewRequest(
+            score=5.0,
+            attempts=3,
+            max_attempts=3,
+            threshold=7.5,
+            target_type="character"
+        )
+        
+        decision = rules.evaluate_quality_review(request)
+        assert decision.result == ReviewResult.REJECTED_FAILED
+        assert "Failed" in decision.action
 ```
 
 #### 匹配器测试
@@ -1610,6 +1913,7 @@ class TestOrchestratorErrorHandling:
 - **任务创建成功率**：AsyncTask创建的成功率
 - **端到端延迟**：从命令接收到结果返回的总时间
 - **错误率**：各类处理错误的分类统计
+- **工作流决策分布**：通过/重试/失败的比例统计
 
 ## 🔧 配置要求
 
@@ -1880,11 +2184,18 @@ graph TB
         H --> J
     end
     
+    subgraph "规则层"
+        E --> K[WorkflowRules]
+        K --> L[IWorkflowRules接口]
+        L --> M[ConfigBasedWorkflowRules]
+        L --> N[StaticWorkflowRules]
+    end
+    
     subgraph "输出层"
-        I --> K[异步任务跟踪]
-        J --> L[EventOutbox队列]
-        K --> M[任务状态更新]
-        L --> N[Kafka消息发布]
+        I --> O[异步任务跟踪]
+        J --> P[EventOutbox队列]
+        O --> Q[任务状态更新]
+        P --> R[Kafka消息发布]
     end
 ```
 
@@ -1897,6 +2208,7 @@ graph TB
 | **错误处理** | 分散在各处 | 统一异常处理 | 提升系统稳定性 |
 | **测试覆盖** | 集成测试为主 | 单元测试支持 | 提高测试效率 |
 | **代码复用** | 重复逻辑多 | 建造者模式 | DRY原则实现 |
+| **业务规则** | 配置耦合 | 接口抽象 | 可测试性提升 |
 
 #### 🎯 智能工作流编排
 
@@ -1917,7 +2229,8 @@ stateDiagram-v2
     
     能力事件处理 --> 命令匹配: 工厂模式匹配
     命令匹配 --> 工作流执行: 执行工作流逻辑
-    工作流执行 --> 决策分支: 根据结果决策
+    工作流执行 --> 业务规则决策: WorkflowRules.evaluate
+    业务规则决策 --> 决策分支: 根据结果决策
     决策分支 --> 任务完成: 更新任务状态
     决策分支 --> 重新生成: 质量不达标重试
     决策分支 --> 流程结束: 成功或失败
@@ -1973,29 +2286,33 @@ class EventCommandFactory:
         return None
 ```
 
-##### 3. 配置驱动决策
+##### 3. 业务规则驱动决策
 
 ```python
-# 配置驱动的工作流决策
+# 业务规则集成的工作流决策
 class QualityReviewCommand(EventCommand):
+    def __init__(self, config: EventHandlerConfig, workflow_rules: IWorkflowRules):
+        self.config = config
+        self.workflow_rules = workflow_rules
+    
     def execute(self, **kwargs) -> EventAction | None:
         data = kwargs.get('data')
         if not isinstance(data, QualityReviewData):
             return None
         
-        score = data.score or data.quality_score or 0.0
-        attempts = data.attempts
+        # 使用业务规则进行决策
+        request = QualityReviewRequest(
+            score=data.score or data.quality_score or 0.0,
+            attempts=data.attempts,
+            max_attempts=data.max_attempts,
+            threshold=data.threshold,
+            target_type=data.target_type or "unknown"
+        )
         
-        # 配置驱动的决策逻辑
-        if score >= self.config.QUALITY_THRESHOLD:
-            # 质量通过 → 确认
-            return self._create_confirmation_action(**kwargs)
-        elif attempts + 1 >= self.config.MAX_ATTEMPTS:
-            # 超过重试限制 → 失败
-            return self._create_failure_action(**kwargs)
-        else:
-            # 质量不达标 → 重新生成
-            return self._create_regeneration_action(**kwargs)
+        decision = self.workflow_rules.evaluate_quality_review(request)
+        
+        # 根据决策结果创建相应动作
+        return self._create_action_from_decision(decision, **kwargs)
 ```
 
 #### 📊 性能优化
@@ -2007,14 +2324,17 @@ graph LR
     A[策略缓存] --> B[策略查找优化]
     C[命令缓存] --> D[命令创建优化]
     E[配置缓存] --> F[配置读取优化]
+    G[规则缓存] --> H[规则查找优化]
     
-    B --> G[减少HashMap查找]
-    D --> H[避免重复实例化]
-    F --> I[提升配置访问速度]
+    B --> I[减少HashMap查找]
+    D --> J[避免重复实例化]
+    F --> K[提升配置访问速度]
+    H --> L[提升规则决策速度]
     
-    G --> J[提升整体性能]
-    H --> J
-    I --> J
+    I --> M[提升整体性能]
+    J --> M
+    K --> M
+    L --> M
 ```
 
 ##### 异步处理优化
@@ -2051,18 +2371,20 @@ graph TD
         A[策略测试] --> A1[CommandStrategy测试]
         B[命令测试] --> B1[EventCommand测试]
         C[配置测试] --> C1[EventHandlerConfig测试]
+        D[规则测试] --> D1[WorkflowRules测试]
     end
     
     subgraph "集成测试"
-        D[注册表测试] --> D1[策略注册和查找]
-        E[工厂测试] --> E1[命令创建和匹配]
-        F[编排测试] --> F1[完整工作流测试]
+        E[注册表测试] --> E1[策略注册和查找]
+        F[工厂测试] --> F1[命令创建和匹配]
+        G[编排测试] --> G1[完整工作流测试]
+        H[规则集成测试] --> H1[业务规则与处理器集成]
     end
     
     subgraph "性能测试"
-        G[吞吐量测试] --> G1[大量消息处理]
-        H[延迟测试] --> H1[端到端响应时间]
-        I[内存测试] --> I1[长期运行稳定性]
+        I[吞吐量测试] --> I1[大量消息处理]
+        J[延迟测试] --> J1[端到端响应时间]
+        K[内存测试] --> K1[长期运行稳定性]
     end
 ```
 
@@ -2073,5 +2395,33 @@ graph TD
 3. **机器学习**: 基于历史数据优化决策
 4. **可视化监控**: 实时工作流可视化
 5. **配置热更新**: 支持运行时配置更新
+6. **规则引擎**: 支持复杂规则表达式和决策树
+7. **分布式编排**: 支持跨服务的编排协调
 
-这次动态处理器分派机制的重构，将编排器提升到了一个新的架构高度，实现了真正的企业级工作流编排引擎。
+这次动态处理器分派机制的重构，结合业务逻辑与配置的完全解耦，将编排器提升到了一个新的架构高度，实现了真正的企业级工作流编排引擎。
+
+## 🎯 核心价值总结
+
+### 架构价值
+
+1. **高内聚低耦合**: 每个模块职责单一，依赖关系清晰
+2. **可扩展性**: 支持新功能添加而无需修改现有代码
+3. **可维护性**: 清晰的代码结构和丰富的文档
+4. **可靠性**: 完善的错误处理和幂等性保证
+5. **可观测性**: 详细的日志记录和监控指标
+
+### 业务价值
+
+1. **效率提升**: 自动化工作流编排，减少人工干预
+2. **质量保证**: 完善的质量评审和一致性检查机制
+3. **成本优化**: 资源的有效利用和错误处理
+4. **用户体验**: 快速响应和可靠的流程处理
+
+### 技术价值
+
+1. **最佳实践**: 展示了多种设计模式和架构原则的应用
+2. **代码质量**: 高质量的代码实现和测试覆盖
+3. **文档完善**: 详细的技术文档和使用指南
+4. **可复用性**: 通用组件可以在其他项目中复用
+
+这个编排器模块不仅是一个技术实现，更是一个展示了现代软件工程最佳实践的完整解决方案。
