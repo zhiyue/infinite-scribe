@@ -57,7 +57,8 @@ class OrchestratorAgent(BaseAgent):
                 aggregate_id=message.get("aggregate_id"),
                 has_payload=bool(message.get("payload")),
             )
-            return await self._handle_domain_event(message)
+            # 传入 context 以便在 handler 内部解析 headers 中的 correlation_id
+            return await self._handle_domain_event(message, context or {})
 
         # Capability event envelope - 从context中获取type而非message
         msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
@@ -73,12 +74,36 @@ class OrchestratorAgent(BaseAgent):
         self.log.debug("orchestrator_ignored_message", reason="unknown_shape")
         return None
 
-    async def _handle_domain_event(self, evt: dict[str, Any]) -> dict[str, Any] | None:
+    async def _handle_domain_event(self, evt: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         event_type = str(evt.get("event_type"))
         aggregate_id = str(evt.get("aggregate_id"))
         payload = evt.get("payload") or {}
         metadata = evt.get("metadata") or {}
-        correlation_id = metadata.get("correlation_id") or evt.get("correlation_id")
+        # 优先从 context.meta 或 headers 提取 correlation_id，其次才从事件本体中获取
+        correlation_id: str | None = None
+        try:
+            if context:
+                meta = (context or {}).get("meta") or {}
+                if isinstance(meta, dict):
+                    correlation_id = correlation_id or meta.get("correlation_id")
+                headers = (context or {}).get("headers")
+                # headers 可能是 dict 或 list[tuple[str, bytes]]
+                if isinstance(headers, dict):
+                    correlation_id = correlation_id or headers.get("correlation_id") or headers.get("correlation-id")
+                elif isinstance(headers, list):
+                    for k, v in headers:
+                        if str(k).lower().replace("_", "-") in {"correlation-id", "correlation_id"}:
+                            try:
+                                correlation_id = correlation_id or (
+                                    v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else str(v)
+                                )
+                            except Exception:
+                                correlation_id = correlation_id or (str(v) if v is not None else None)
+                            break
+        except Exception:
+            # 解析失败不影响后续逻辑，按原有回退策略
+            pass
+        correlation_id = correlation_id or metadata.get("correlation_id") or evt.get("correlation_id")
 
         self.log.info(
             "orchestrator_domain_event_details",

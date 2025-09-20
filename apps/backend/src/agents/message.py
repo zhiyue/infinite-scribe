@@ -53,7 +53,8 @@ def encode_message(agent: str, result: dict[str, Any], *, correlation_id: str | 
         status="ok",
         data=data,
     )
-    return env.model_dump()
+    # 输出 JSON 友好的 dict，确保 datetime 等可被 json.dumps 序列化
+    return env.model_dump(mode="json")
 
 
 def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
