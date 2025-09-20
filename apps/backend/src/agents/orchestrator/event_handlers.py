@@ -30,6 +30,7 @@ class CapabilityEventHandlers:
         correlation_id: str | None,
         scope_type: str,
         scope_prefix: str,
+        causation_id: str | None = None,
     ) -> EventAction | None:
         """Handle generation completion events (Character.Design.Generated, Theme.Generated).
 
@@ -43,6 +44,7 @@ class CapabilityEventHandlers:
                 "event_action": "Character.Proposed",
                 "payload": {"session_id": session_id, "content": data},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
 
             task_completion = {
@@ -66,6 +68,7 @@ class CapabilityEventHandlers:
                 "event_action": "Theme.Proposed",
                 "payload": {"session_id": session_id, "content": data},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
 
             task_completion = {
@@ -92,6 +95,7 @@ class CapabilityEventHandlers:
         correlation_id: str | None,
         scope_type: str,
         scope_prefix: str,
+        causation_id: str | None = None,
     ) -> EventAction | None:
         """Handle quality review result events.
 
@@ -122,6 +126,7 @@ class CapabilityEventHandlers:
                 "event_action": action,
                 "payload": {"session_id": session_id, "score": score},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
             return EventAction(domain_event=domain_event, task_completion=task_completion)
 
@@ -134,6 +139,7 @@ class CapabilityEventHandlers:
                 "event_action": action,
                 "payload": {"session_id": session_id, "score": score, "attempts": attempts + 1},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
             return EventAction(domain_event=domain_event, task_completion=task_completion)
 
@@ -145,6 +151,7 @@ class CapabilityEventHandlers:
             "event_action": regen_action,
             "payload": {"session_id": session_id, "score": score, "attempts": attempts + 1},
             "correlation_id": correlation_id,
+            "causation_id": causation_id,
         }
 
         capability_message = MessageFactory.create_regeneration_message(
@@ -157,7 +164,7 @@ class CapabilityEventHandlers:
 
     @staticmethod
     def handle_consistency_check_result(
-        msg_type: str, session_id: str, data: dict[str, Any], correlation_id: str | None, scope_type: str
+        msg_type: str, session_id: str, data: dict[str, Any], correlation_id: str | None, scope_type: str, causation_id: str | None = None
     ) -> EventAction | None:
         """Handle consistency check result events.
 
@@ -190,6 +197,7 @@ class CapabilityEventHandlers:
                 "event_action": "Stage.Confirmed",
                 "payload": {"session_id": session_id, "result": data},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
         else:
             domain_event = {
@@ -198,6 +206,7 @@ class CapabilityEventHandlers:
                 "event_action": "Stage.Failed",
                 "payload": {"session_id": session_id, "result": data},
                 "correlation_id": correlation_id,
+                "causation_id": causation_id,
             }
 
         return EventAction(domain_event=domain_event, task_completion=task_completion)

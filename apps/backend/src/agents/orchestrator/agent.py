@@ -18,10 +18,9 @@ from uuid import UUID
 
 from sqlalchemy import and_, select
 
-from src.agents.agent_config import get_agent_topics
 from src.agents.base import BaseAgent
-from src.agents.orchestrator.command_strategies import command_registry
 from src.agents.message import encode_message
+from src.agents.orchestrator.command_strategies import command_registry
 from src.agents.orchestrator.event_handlers import CapabilityEventHandlers
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.events.mapping import normalize_task_type
@@ -75,7 +74,9 @@ class OrchestratorAgent(BaseAgent):
         self.log.debug("orchestrator_ignored_message", reason="unknown_shape")
         return None
 
-    async def _handle_domain_event(self, evt: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def _handle_domain_event(
+        self, evt: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         event_type = str(evt.get("event_type"))
         aggregate_id = str(evt.get("aggregate_id"))
         payload = evt.get("payload") or {}
@@ -190,6 +191,7 @@ class OrchestratorAgent(BaseAgent):
                 event_action=mapping.requested_action,
                 payload=enriched_payload,
                 correlation_id=correlation_id,
+                causation_id=evt.get("event_id"),
             )
             self.log.info(
                 "orchestrator_domain_event_persisted",
@@ -265,6 +267,8 @@ class OrchestratorAgent(BaseAgent):
         scope_type = scope_prefix
         # 优先从context['meta']读取correlation_id，回退到data
         correlation_id = context.get("meta", {}).get("correlation_id") or data.get("correlation_id")
+        # 提取 causation_id (能力事件的 event_id 作为后续 domain event 的 causation_id)
+        causation_id = context.get("meta", {}).get("event_id") or data.get("event_id")
 
         self.log.info(
             "orchestrator_capability_event_details",
@@ -280,13 +284,13 @@ class OrchestratorAgent(BaseAgent):
         # Try different event handlers in sequence
         handlers = [
             lambda: CapabilityEventHandlers.handle_generation_completed(
-                msg_type, session_id, data, correlation_id, scope_type, scope_prefix
+                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
             ),
             lambda: CapabilityEventHandlers.handle_quality_review_result(
-                msg_type, session_id, data, correlation_id, scope_type, scope_prefix
+                msg_type, session_id, data, correlation_id, scope_type, scope_prefix, causation_id
             ),
             lambda: CapabilityEventHandlers.handle_consistency_check_result(
-                msg_type, session_id, data, correlation_id, scope_type
+                msg_type, session_id, data, correlation_id, scope_type, causation_id
             ),
         ]
 
@@ -397,7 +401,9 @@ class OrchestratorAgent(BaseAgent):
 
         return None
 
-    async def _enqueue_capability_task_outbox(self, *, capability_message: dict[str, Any], correlation_id: str | None) -> None:
+    async def _enqueue_capability_task_outbox(
+        self, *, capability_message: dict[str, Any], correlation_id: str | None
+    ) -> None:
         """Enqueue capability task to EventOutbox for Relay to publish to Kafka.
 
         The payload is encoded as a standard Envelope to be consumed by capability agents.
@@ -637,6 +643,7 @@ class OrchestratorAgent(BaseAgent):
         event_action: str,
         payload: dict[str, Any],
         correlation_id: str | None,
+        causation_id: str | None = None,
     ) -> None:
         """Persist domain event + outbox (idempotent by correlation_id + event_type)."""
         evt_type = build_event_type(scope_type, event_action)
@@ -713,7 +720,7 @@ class OrchestratorAgent(BaseAgent):
                     aggregate_id=str(session_id),
                     payload=payload,
                     correlation_id=UUID(str(correlation_id)) if correlation_id else None,
-                    causation_id=None,
+                    causation_id=UUID(str(causation_id)) if causation_id else None,
                     event_metadata={"source": "orchestrator"},
                 )
                 db.add(dom_evt)
