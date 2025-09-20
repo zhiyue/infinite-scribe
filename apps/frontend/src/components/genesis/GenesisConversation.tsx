@@ -11,10 +11,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
-import { GenesisStatusCard, type GenesisCommandStatus } from './GenesisStatusCard'
-import { getGenesisStatusConfig } from '@/config/genesis-status.config'
 import { isGenesisEvent } from '@/config/genesis-status.config'
+import { useGenesisEvents, useSSEStatus } from '@/hooks/sse'
 import {
   usePendingCommand,
   usePollCommandStatus,
@@ -42,6 +40,8 @@ import {
   User,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { GenesisCommandStatus } from './GenesisStatusCard'
+import { ThinkingProcess } from './ThinkingProcess'
 
 interface GenesisConversationProps {
   stage: GenesisStage
@@ -111,7 +111,6 @@ export function GenesisConversation({
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null)
   const [genesisCommandStatuses, setGenesisCommandStatuses] = useState<GenesisCommandStatus[]>([])
-  const [showStatusDetails, setShowStatusDetails] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -190,10 +189,9 @@ export function GenesisConversation({
     })
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
 
-  // 最近一条Genesis状态，用于顶部的紧凑提示条
-  const latestGenesisStatus = useMemo(() => {
-    if (!genesisCommandStatuses.length) return null
-    return genesisCommandStatuses[genesisCommandStatuses.length - 1]
+  // 扁平化系统事件：最近若干条
+  const recentFlatStatuses = useMemo(() => {
+    return genesisCommandStatuses.slice(-5)
   }, [genesisCommandStatuses])
 
   // SSE连接状态日志
@@ -238,6 +236,12 @@ export function GenesisConversation({
 
       console.log('[GenesisConversation] Adding Genesis command status:', commandStatus)
       setGenesisCommandStatuses((prev) => [...prev, commandStatus])
+      // 持久化最近的思考状态，便于刷新后恢复
+      try {
+        // 动态导入，避免循环依赖
+        const { appendThinkingStatus } = require('@/utils/genesisThinkingStorage') as typeof import('@/utils/genesisThinkingStorage')
+        appendThinkingStatus(sessionId, commandStatus)
+      } catch {}
       return
     }
 
@@ -285,6 +289,19 @@ export function GenesisConversation({
       return
     }
   })
+
+  // 初始恢复：页面刷新后，从本地存储恢复最近的思考状态
+  useEffect(() => {
+    try {
+      const { getThinkingStatuses } = require('@/utils/genesisThinkingStorage') as typeof import('@/utils/genesisThinkingStorage')
+      const restored = getThinkingStatuses(sessionId)
+      if (restored.length > 0) {
+        setGenesisCommandStatuses(restored)
+      }
+    } catch {}
+    // 仅在会话切换时恢复一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
 
   // 提交对话命令
   const submitCommand = useSubmitCommand(sessionId, {
@@ -639,51 +656,7 @@ export function GenesisConversation({
               {/* 对话消息 */}
               {rounds.map(renderMessage).filter(Boolean)}
 
-              {/* 顶部紧凑状态条（默认显示最新一条，节省空间） */}
-              {latestGenesisStatus && (
-                <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 my-1">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const cfg = getGenesisStatusConfig(latestGenesisStatus.event_type)
-                      const Icon = cfg.icon
-                      return (
-                        <>
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="text-xs font-medium">{cfg.label}</span>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {cfg.description}
-                          </span>
-                        </>
-                      )
-                    })()}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {(isTyping || isWaitingForResponse) && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>AI 正在思考</span>
-                      </div>
-                    )}
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
-                      onClick={() => setShowStatusDetails(v => !v)}>
-                      {showStatusDetails ? '隐藏详情' : '查看详情'}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Genesis命令状态消息（默认折叠，仅在需要时展开） */}
-              {showStatusDetails && (
-                <div className="space-y-2">
-                  {genesisCommandStatuses.slice(-10).map((commandStatus, index) => (
-                    <GenesisStatusCard
-                      key={`${commandStatus.event_id}-${index}`}
-                      commandStatus={commandStatus}
-                      showAsSystemMessage={true}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* 不再在顶部显示系统状态条；系统事件转移到“思考中”区域的扁平列表 */}
 
               {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
               {optimisticMessage &&
@@ -713,21 +686,15 @@ export function GenesisConversation({
                   </div>
                 )}
 
-              {/* 输入中提示（ChatGPT风格，紧凑气泡） */}
-              {(isTyping || hasPendingUserMessage) && (
-                <div className="flex gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-secondary">
-                      <Bot className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="rounded-lg border bg-muted/40 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                      <span className="text-xs text-muted-foreground">AI 正在思考...</span>
-                    </div>
-                  </div>
-                </div>
+              {/* 输入中提示（ChatGPT风格，紧凑气泡）+ 扁平化系统事件列表 */}
+              {/* AI 思考过程 - 使用新的 ThinkingProcess 组件 */}
+              {(isTyping || hasPendingUserMessage || recentFlatStatuses.length > 0) && (
+                <ThinkingProcess
+                  isThinking={isTyping || hasPendingUserMessage}
+                  statusList={recentFlatStatuses}
+                  thinkingText="AI 正在思考..."
+                  compactListCount={5}
+                />
               )}
             </div>
           </ScrollArea>
