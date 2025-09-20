@@ -1,7 +1,7 @@
-"""Task Management Module
+"""任务管理模块
 
-Handles async task lifecycle management for the orchestrator.
-Provides creation and completion operations with idempotency protection.
+处理编排器的异步任务生命周期管理。
+提供具有幂等性保护的创建和完成操作。
 """
 
 from __future__ import annotations
@@ -19,11 +19,20 @@ from src.schemas.enums import TaskStatus
 
 
 class TaskIdempotencyChecker:
-    """Handles task idempotency validation."""
+    """任务幂等性检查器，处理任务的幂等性验证。"""
 
     @staticmethod
     async def check_existing_task(trig_cmd_id: UUID, task_type: str, db_session) -> AsyncTask | None:
-        """Check if a RUNNING/PENDING task already exists to prevent duplicates."""
+        """检查是否已存在RUNNING/PENDING状态的任务，以防止重复创建。
+
+        Args:
+            trig_cmd_id: 触发命令ID
+            task_type: 任务类型
+            db_session: 数据库会话对象
+
+        Returns:
+            如果存在则返回AsyncTask对象，否则返回None
+        """
         existing_stmt = select(AsyncTask).where(
             and_(
                 AsyncTask.triggered_by_command_id == trig_cmd_id,
@@ -35,16 +44,28 @@ class TaskIdempotencyChecker:
 
 
 class TaskCreator:
-    """Handles task creation logic."""
+    """任务创建器，处理任务创建逻辑。"""
 
     def __init__(self, logger):
+        """初始化任务创建器。
+
+        Args:
+            logger: 日志记录器实例
+        """
         self.log = logger
         self.idempotency_checker = TaskIdempotencyChecker()
 
     async def create_task(
         self, correlation_id: str | None, session_id: str, task_type: str, input_data: dict[str, Any]
     ) -> None:
-        """Create an AsyncTask row to track capability execution with idempotency protection."""
+        """创建AsyncTask行来跟踪能力执行，具有幂等性保护。
+
+        Args:
+            correlation_id: 关联ID
+            session_id: 会话ID
+            task_type: 任务类型
+            input_data: 输入数据
+        """
         self.log.info(
             "orchestrator_creating_async_task",
             correlation_id=correlation_id,
@@ -64,10 +85,10 @@ class TaskCreator:
 
         trig_cmd_id = self._parse_correlation_id(correlation_id)
         if correlation_id and not trig_cmd_id:
-            return  # Already logged in _parse_correlation_id
+            return  # 已在_parse_correlation_id中记录日志
 
         async with create_sql_session() as db:
-            # Check for existing RUNNING/PENDING task to prevent duplicates
+            # 检查现有的RUNNING/PENDING任务以防止重复
             if trig_cmd_id:
                 existing_task = await self.idempotency_checker.check_existing_task(trig_cmd_id, task_type, db)
                 if existing_task:
@@ -85,7 +106,14 @@ class TaskCreator:
             await self._create_new_task(trig_cmd_id, session_id, task_type, input_data, db)
 
     def _parse_correlation_id(self, correlation_id: str | None) -> UUID | None:
-        """Parse correlation_id string to UUID, with error handling."""
+        """将correlation_id字符串解析为UUID，带有错误处理。
+
+        Args:
+            correlation_id: 关联ID字符串
+
+        Returns:
+            解析后的UUID或None
+        """
         if not correlation_id:
             return None
 
@@ -108,7 +136,15 @@ class TaskCreator:
     async def _create_new_task(
         self, trig_cmd_id: UUID | None, session_id: str, task_type: str, input_data: dict, db_session
     ) -> None:
-        """Create new AsyncTask in database."""
+        """在数据库中创建新的AsyncTask。
+
+        Args:
+            trig_cmd_id: 触发命令ID
+            session_id: 会话ID
+            task_type: 任务类型
+            input_data: 输入数据
+            db_session: 数据库会话对象
+        """
         self.log.info(
             "orchestrator_creating_new_async_task",
             task_type=task_type,
@@ -137,20 +173,25 @@ class TaskCreator:
 
 
 class TaskCompleter:
-    """Handles task completion logic."""
+    """任务完成器，处理任务完成逻辑。"""
 
     def __init__(self, logger):
+        """初始化任务完成器。
+
+        Args:
+            logger: 日志记录器实例
+        """
         self.log = logger
 
     async def complete_task(
         self, correlation_id: str | None, expect_task_prefix: str, result_data: dict[str, Any]
     ) -> None:
-        """Mark latest RUNNING/PENDING AsyncTask (by correlation) as COMPLETED.
+        """将最新的RUNNING/PENDING AsyncTask（通过correlation）标记为COMPLETED。
 
         Args:
-            correlation_id: UUID string from envelope meta
-            expect_task_prefix: Prefix of task_type to match (e.g., "Character.Design.Generation")
-            result_data: Result data to store in the task
+            correlation_id: 来自envelope meta的UUID字符串
+            expect_task_prefix: 要匹配的task_type前缀（例如："Character.Design.Generation"）
+            result_data: 要存储在任务中的结果数据
         """
         self.log.info(
             "orchestrator_completing_async_task",
@@ -169,7 +210,7 @@ class TaskCompleter:
 
         trig_cmd_id = self._parse_correlation_id(correlation_id)
         if not trig_cmd_id:
-            return  # Already logged in _parse_correlation_id
+            return  # 已在_parse_correlation_id中记录日志
 
         async with create_sql_session() as db:
             task = await self._find_task_to_complete(trig_cmd_id, expect_task_prefix, db)
@@ -177,7 +218,14 @@ class TaskCompleter:
                 await self._mark_task_completed(task, result_data, db)
 
     def _parse_correlation_id(self, correlation_id: str) -> UUID | None:
-        """Parse correlation_id string to UUID, with error handling."""
+        """将correlation_id字符串解析为UUID，带有错误处理。
+
+        Args:
+            correlation_id: 关联ID字符串
+
+        Returns:
+            解析后的UUID或None
+        """
         try:
             trig_cmd_id = UUID(str(correlation_id))
             self.log.debug(
@@ -195,14 +243,23 @@ class TaskCompleter:
             return None
 
     async def _find_task_to_complete(self, trig_cmd_id: UUID, expect_task_prefix: str, db_session) -> AsyncTask | None:
-        """Find the most recent RUNNING/PENDING task with matching prefix."""
+        """查找具有匹配前缀的最新RUNNING/PENDING任务。
+
+        Args:
+            trig_cmd_id: 触发命令ID
+            expect_task_prefix: 期望的任务前缀
+            db_session: 数据库会话对象
+
+        Returns:
+            找到的AsyncTask对象或None
+        """
         self.log.debug(
             "orchestrator_searching_async_task_to_complete",
             trig_cmd_id=str(trig_cmd_id),
             expect_task_prefix=expect_task_prefix,
         )
 
-        # Pick most recent RUNNING/PENDING task with matching prefix
+        # 选择具有匹配前缀的最新RUNNING/PENDING任务
         stmt = (
             select(AsyncTask)
             .where(
@@ -236,7 +293,13 @@ class TaskCompleter:
         return task
 
     async def _mark_task_completed(self, task: AsyncTask, result_data: dict, db_session) -> None:
-        """Mark task as completed with result data."""
+        """将任务标记为已完成并保存结果数据。
+
+        Args:
+            task: 要完成的AsyncTask对象
+            result_data: 结果数据
+            db_session: 数据库会话对象
+        """
         task.status = TaskStatus.COMPLETED
         task.completed_at = utc_now()
         task.result_data = result_data or {}
@@ -252,9 +315,14 @@ class TaskCompleter:
 
 
 class TaskManager:
-    """Unified task management interface."""
+    """统一的任务管理接口，提供异步任务创建和完成的统一操作。"""
 
     def __init__(self, logger):
+        """初始化任务管理器。
+
+        Args:
+            logger: 日志记录器实例
+        """
         self.log = logger
         self.creator = TaskCreator(logger)
         self.completer = TaskCompleter(logger)
@@ -262,11 +330,24 @@ class TaskManager:
     async def create_async_task(
         self, *, correlation_id: str | None, session_id: str, task_type: str, input_data: dict[str, Any]
     ) -> None:
-        """Create an async task with idempotency protection."""
+        """创建具有幂等性保护的异步任务。
+
+        Args:
+            correlation_id: 关联ID
+            session_id: 会话ID
+            task_type: 任务类型
+            input_data: 输入数据
+        """
         await self.creator.create_task(correlation_id, session_id, task_type, input_data)
 
     async def complete_async_task(
         self, *, correlation_id: str | None, expect_task_prefix: str, result_data: dict[str, Any]
     ) -> None:
-        """Complete an async task by correlation_id and task prefix."""
+        """通过correlation_id和任务前缀完成异步任务。
+
+        Args:
+            correlation_id: 关联ID
+            expect_task_prefix: 期望的任务前缀
+            result_data: 结果数据
+        """
         await self.completer.complete_task(correlation_id, expect_task_prefix, result_data)

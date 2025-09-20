@@ -1,14 +1,14 @@
-"""Domain Orchestrator Agent
+"""领域编排器代理
 
-Consumes domain bus + capability events and:
-- Projects trigger-class domain events (Command.Received) into domain facts (*Requested)
-- Emits capability tasks to corresponding capability topics
-- Projects capability results into domain facts (e.g., *Proposed)
+消费领域总线和能力事件，并执行以下操作：
+- 将触发类领域事件（Command.Received）投影为领域事实（*Requested）
+- 向相应的能力主题发出能力任务
+- 将能力结果投影为领域事实（例如：*Proposed）
 
-Notes:
-- Domain facts are persisted via DomainEvent + EventOutbox (DB write-through),
-  not directly produced to Kafka. Outbox relay will publish them.
-- Capability tasks are sent to Kafka (agent bus) using BaseAgent producer.
+注意事项：
+- 领域事实通过DomainEvent + EventOutbox（数据库直写）持久化，
+  不直接生产到Kafka。Outbox relay将发布它们。
+- 能力任务使用BaseAgent生产者发送到Kafka（代理总线）。
 """
 
 from __future__ import annotations
@@ -19,10 +19,19 @@ from src.agents.base import BaseAgent
 
 
 class OrchestratorAgent(BaseAgent):
+    """编排器代理，负责协调领域事件和能力事件的处理流程。"""
+
     def __init__(self, name: str, consume_topics: list[str], produce_topics: list[str] | None = None) -> None:
+        """初始化编排器代理。
+
+        Args:
+            name: 代理名称
+            consume_topics: 消费的主题列表
+            produce_topics: 生产的主题列表（可选）
+        """
         super().__init__(name=name, consume_topics=consume_topics, produce_topics=produce_topics)
 
-        # Initialize processors and managers
+        # 初始化处理器和管理器
         from src.agents.orchestrator.capability_event_processor import CapabilityEventProcessor
         from src.agents.orchestrator.domain_event_processor import DomainEventProcessor
         from src.agents.orchestrator.outbox_manager import OutboxManager
@@ -36,7 +45,15 @@ class OrchestratorAgent(BaseAgent):
     async def process_message(
         self, message: dict[str, Any], context: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
-        """Process message by routing to appropriate processor."""
+        """通过路由到适当的处理器来处理消息。
+
+        Args:
+            message: 要处理的消息字典
+            context: 可选的上下文信息字典
+
+        Returns:
+            处理结果字典或None
+        """
         self.log.info(
             "orchestrator_message_received",
             message_keys=list(message.keys()),
@@ -44,7 +61,7 @@ class OrchestratorAgent(BaseAgent):
             context_keys=list(context.keys()) if context else [],
         )
 
-        # Domain event shape
+        # 领域事件形状识别
         if "event_type" in message and "aggregate_id" in message:
             self.log.info(
                 "orchestrator_processing_domain_event",
@@ -54,7 +71,7 @@ class OrchestratorAgent(BaseAgent):
             )
             return await self._handle_domain_event(message, context or {})
 
-        # Capability event envelope - get type from context
+        # 能力事件信封 - 从上下文获取类型
         msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
         if msg_type:
             self.log.info(
@@ -71,16 +88,24 @@ class OrchestratorAgent(BaseAgent):
     async def _handle_domain_event(
         self, evt: dict[str, Any], context: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
-        """Handle domain event using domain event processor."""
+        """使用领域事件处理器处理领域事件。
+
+        Args:
+            evt: 领域事件字典
+            context: 可选的上下文信息字典
+
+        Returns:
+            处理结果字典或None
+        """
         from src.common.events.mapping import normalize_task_type
 
-        # Process event through domain processor
+        # 通过领域处理器处理事件
         processing_result = await self.domain_processor.handle_domain_event(evt, context)
 
         if not processing_result:
             return None
 
-        # Extract processing results
+        # 提取处理结果
         correlation_id = processing_result["correlation_id"]
         scope_type = processing_result["scope_type"]
         aggregate_id = processing_result["aggregate_id"]
@@ -88,7 +113,7 @@ class OrchestratorAgent(BaseAgent):
         enriched_payload = processing_result["enriched_payload"]
         causation_id = processing_result["causation_id"]
 
-        # 1) Persist domain event
+        # 1) 持久化领域事件
         try:
             await self.outbox_manager.persist_domain_event(
                 scope_type=scope_type,
@@ -115,7 +140,7 @@ class OrchestratorAgent(BaseAgent):
             )
             raise
 
-        # 2) Create async task and enqueue capability task
+        # 2) 创建异步任务并将能力任务入队
         try:
             await self.task_manager.create_async_task(
                 correlation_id=correlation_id,
@@ -140,19 +165,35 @@ class OrchestratorAgent(BaseAgent):
     async def _handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """Handle capability event using capability event processor."""
-        # Process event through capability processor
+        """使用能力事件处理器处理能力事件。
+
+        Args:
+            msg_type: 消息类型
+            message: 消息内容字典
+            context: 上下文信息字典
+
+        Returns:
+            处理结果字典或None
+        """
+        # 通过能力处理器处理事件
         processing_result = await self.capability_processor.handle_capability_event(msg_type, message, context)
 
         if not processing_result:
             return None
 
-        # Execute the action
+        # 执行操作
         action = processing_result["action"]
         return await self._execute_event_action(action)
 
     async def _execute_event_action(self, action) -> dict[str, Any] | None:
-        """Execute the actions specified by an event handler using managers."""
+        """使用管理器执行事件处理器指定的操作。
+
+        Args:
+            action: 要执行的事件操作对象
+
+        Returns:
+            执行结果字典或None
+        """
         self.log.info(
             "orchestrator_executing_event_action",
             has_domain_event=bool(action.domain_event),
@@ -160,7 +201,7 @@ class OrchestratorAgent(BaseAgent):
             has_capability_message=bool(action.capability_message),
         )
 
-        # Persist domain event if specified
+        # 如果指定，则持久化领域事件
         if action.domain_event:
             try:
                 await self.outbox_manager.persist_domain_event(**action.domain_event)
@@ -171,7 +212,7 @@ class OrchestratorAgent(BaseAgent):
                 self.log.error("orchestrator_domain_event_persist_failed", error=str(e), exc_info=True)
                 raise
 
-        # Complete async task if specified
+        # 如果指定，则完成异步任务
         if action.task_completion:
             try:
                 await self.task_manager.complete_async_task(**action.task_completion)
@@ -182,7 +223,7 @@ class OrchestratorAgent(BaseAgent):
             except Exception as e:
                 self.log.error("orchestrator_async_task_complete_failed", error=str(e), exc_info=True)
 
-        # Enqueue follow-up capability task if specified
+        # 如果指定，则将后续能力任务入队
         if action.capability_message:
             try:
                 await self.outbox_manager.enqueue_capability_task(

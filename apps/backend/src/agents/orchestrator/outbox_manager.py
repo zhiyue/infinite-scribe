@@ -1,7 +1,7 @@
-"""Outbox Management Module
+"""Outbox管理模块
 
-Handles domain event persistence and capability task enqueueing for the orchestrator.
-Provides idempotent operations for domain events and outbox entries.
+处理编排器的领域事件持久化和能力任务入队功能。
+为领域事件和outbox条目提供幂等性操作。
 """
 
 from __future__ import annotations
@@ -20,11 +20,20 @@ from src.schemas.enums import OutboxStatus
 
 
 class DomainEventIdempotencyChecker:
-    """Handles domain event idempotency validation."""
+    """领域事件幂等性检查器，处理领域事件的幂等性验证。"""
 
     @staticmethod
     async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
-        """Check if domain event already exists by correlation_id and event_type."""
+        """通过correlation_id和事件类型检查领域事件是否已存在。
+
+        Args:
+            correlation_id: 关联ID字符串
+            evt_type: 事件类型字符串
+            db_session: 数据库会话对象
+
+        Returns:
+            如果存在则返回DomainEvent对象，否则返回None
+        """
         try:
             return await db_session.scalar(
                 select(DomainEvent).where(
@@ -35,14 +44,19 @@ class DomainEventIdempotencyChecker:
                 )
             )
         except Exception:
-            # If correlation_id is invalid UUID or other error, treat as no existing event
+            # 如果correlation_id是无效的UUID或其他错误，视为没有现有事件
             return None
 
 
 class DomainEventCreator:
-    """Handles domain event creation."""
+    """领域事件创建器，处理领域事件的创建逻辑。"""
 
     def __init__(self, logger):
+        """初始化领域事件创建器。
+
+        Args:
+            logger: 日志记录器实例
+        """
         self.log = logger
         self.idempotency_checker = DomainEventIdempotencyChecker()
 
@@ -56,11 +70,24 @@ class DomainEventCreator:
         causation_id: str | None,
         db_session,
     ) -> DomainEvent:
-        """Create new domain event or return existing one if found by correlation_id + event_type."""
+        """创建新的领域事件，或如果通过correlation_id + 事件类型找到现有事件则返回现有事件。
+
+        Args:
+            scope_type: 作用域类型
+            session_id: 会话ID
+            event_action: 事件动作
+            payload: 有效负载数据
+            correlation_id: 关联ID
+            causation_id: 因果ID
+            db_session: 数据库会话对象
+
+        Returns:
+            创建或获取的DomainEvent对象
+        """
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
 
-        # Check for existing domain event (idempotency)
+        # 检查现有领域事件（幂等性）
         existing = None
         if correlation_id:
             self.log.debug(
@@ -87,7 +114,7 @@ class DomainEventCreator:
                     evt_type=evt_type,
                 )
 
-        # Create new domain event
+        # 创建新的领域事件
         self.log.info(
             "orchestrator_creating_new_domain_event",
             evt_type=evt_type,
@@ -119,9 +146,14 @@ class DomainEventCreator:
 
 
 class OutboxEntryCreator:
-    """Handles outbox entry creation."""
+    """Outbox条目创建器，处理outbox条目的创建逻辑。"""
 
     def __init__(self, logger):
+        """初始化outbox条目创建器。
+
+        Args:
+            logger: 日志记录器实例
+        """
         self.log = logger
 
     async def create_or_get_outbox_entry(
@@ -132,10 +164,21 @@ class OutboxEntryCreator:
         correlation_id: str | None,
         db_session,
     ) -> EventOutbox:
-        """Create outbox entry or return existing one if found by domain event id."""
+        """创建outbox条目，或如果通过领域事件ID找到现有条目则返回现有条目。
+
+        Args:
+            domain_event: 领域事件对象
+            scope_type: 作用域类型
+            session_id: 会话ID
+            correlation_id: 关联ID
+            db_session: 数据库会话对象
+
+        Returns:
+            创建或获取的EventOutbox对象
+        """
         topic = get_domain_topic(scope_type)
 
-        # Check for existing outbox entry (idempotency by domain event id)
+        # 检查现有outbox条目（通过领域事件ID进行幂等性检查）
         self.log.debug(
             "orchestrator_checking_outbox_entry",
             domain_event_id=str(domain_event.event_id),
@@ -152,7 +195,7 @@ class OutboxEntryCreator:
             )
             return existing_outbox
 
-        # Create new outbox entry
+        # 创建新的outbox条目
         self.log.info(
             "orchestrator_creating_outbox_entry",
             event_id=str(domain_event.event_id),
@@ -187,12 +230,27 @@ class OutboxEntryCreator:
         return outbox_entry
 
     async def _check_existing_outbox(self, event_id: UUID, db_session) -> EventOutbox | None:
-        """Check if outbox entry already exists for the given event_id."""
+        """检查给定event_id的outbox条目是否已存在。
+
+        Args:
+            event_id: 事件ID
+            db_session: 数据库会话对象
+
+        Returns:
+            如果存在则返回EventOutbox对象，否则返回None
+        """
         return await db_session.scalar(select(EventOutbox).where(EventOutbox.id == event_id))
 
     def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
-        """Build outbox payload from domain event."""
-        # Flatten the payload structure to avoid double nesting
+        """从领域事件构建outbox有效负载。
+
+        Args:
+            domain_event: 领域事件对象
+
+        Returns:
+            构建的有效负载字典
+        """
+        # 扁平化有效负载结构以避免双重嵌套
         outbox_payload = {
             "event_id": str(domain_event.event_id),
             "event_type": domain_event.event_type,
@@ -200,10 +258,10 @@ class OutboxEntryCreator:
             "aggregate_id": domain_event.aggregate_id,
             "metadata": domain_event.event_metadata or {},
         }
-        # Merge domain event payload directly instead of nesting under "payload" key
+        # 直接合并领域事件有效负载，而不是嵌套在"payload"键下
         outbox_payload.update(domain_event.payload or {})
 
-        # Add created_at for downstream timestamp fallback
+        # 添加created_at用于下游时间戳回退
         try:
             if getattr(domain_event, "created_at", None):
                 outbox_payload["created_at"] = domain_event.created_at.isoformat()  # type: ignore[attr-defined]
@@ -214,15 +272,26 @@ class OutboxEntryCreator:
 
 
 class CapabilityTaskEnqueuer:
-    """Handles capability task enqueueing."""
+    """能力任务入队器，处理能力任务的入队逻辑。"""
 
     def __init__(self, logger, agent_name: str):
+        """初始化能力任务入队器。
+
+        Args:
+            logger: 日志记录器实例
+            agent_name: 代理名称
+        """
         self.log = logger
         self.agent_name = agent_name
 
     async def enqueue_capability_task(self, capability_message: dict[str, Any], correlation_id: str | None) -> None:
-        """Enqueue capability task to EventOutbox for relay to publish to Kafka."""
-        # Extract routing
+        """将能力任务入队到EventOutbox，供relay发布到Kafka。
+
+        Args:
+            capability_message: 能力消息字典
+            correlation_id: 关联ID
+        """
+        # 提取路由信息
         topic = capability_message.get("_topic")
         key = capability_message.get("_key") or capability_message.get("session_id")
 
@@ -230,7 +299,7 @@ class CapabilityTaskEnqueuer:
             self.log.warning("capability_task_enqueue_skipped", reason="missing_topic", msg=capability_message)
             return
 
-        # Build envelope payload (strip routing keys)
+        # 构建信封有效负载（剥离路由键）
         result_payload = {k: v for k, v in capability_message.items() if k not in {"_topic", "_key"}}
         envelope = encode_message(self.agent_name, result_payload, correlation_id=correlation_id, retries=0)
 
@@ -243,7 +312,14 @@ class CapabilityTaskEnqueuer:
         topic: str,
         key: Any,
     ) -> None:
-        """Create outbox entry for capability task."""
+        """为能力任务创建outbox条目。
+
+        Args:
+            envelope: 信封数据
+            correlation_id: 关联ID
+            topic: 主题名称
+            key: 分区键
+        """
         async with create_sql_session() as db:
             outbox_entry = EventOutbox(
                 topic=topic,
@@ -259,7 +335,7 @@ class CapabilityTaskEnqueuer:
                 status=OutboxStatus.PENDING,
             )
             db.add(outbox_entry)
-            # flush for log id
+            # 刷新以获取日志ID
             await db.flush()
 
             self.log.debug(
@@ -271,9 +347,15 @@ class CapabilityTaskEnqueuer:
 
 
 class OutboxManager:
-    """Unified outbox management interface."""
+    """统一的outbox管理接口，提供领域事件持久化和能力任务入队的统一操作。"""
 
     def __init__(self, logger, agent_name: str):
+        """初始化outbox管理器。
+
+        Args:
+            logger: 日志记录器实例
+            agent_name: 代理名称
+        """
         self.log = logger
         self.domain_event_creator = DomainEventCreator(logger)
         self.outbox_entry_creator = OutboxEntryCreator(logger)
@@ -289,7 +371,16 @@ class OutboxManager:
         correlation_id: str | None,
         causation_id: str | None = None,
     ) -> None:
-        """Persist domain event + outbox (idempotent by correlation_id + event_type)."""
+        """持久化领域事件和outbox（通过correlation_id + 事件类型保证幂等性）。
+
+        Args:
+            scope_type: 作用域类型
+            session_id: 会话ID
+            event_action: 事件动作
+            payload: 有效负载数据
+            correlation_id: 关联ID
+            causation_id: 因果ID
+        """
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
         topic = get_domain_topic(scope_type)
@@ -307,12 +398,12 @@ class OutboxManager:
         )
 
         async with create_sql_session() as db:
-            # Create or get domain event (idempotent)
+            # 创建或获取领域事件（幂等性）
             domain_event = await self.domain_event_creator.create_or_get_domain_event(
                 scope_type, session_id, event_action, payload, correlation_id, causation_id, db
             )
 
-            # Create or get outbox entry (idempotent)
+            # 创建或获取outbox条目（幂等性）
             await self.outbox_entry_creator.create_or_get_outbox_entry(
                 domain_event, scope_type, session_id, correlation_id, db
             )
@@ -326,5 +417,10 @@ class OutboxManager:
         )
 
     async def enqueue_capability_task(self, *, capability_message: dict[str, Any], correlation_id: str | None) -> None:
-        """Enqueue capability task to outbox for relay to publish to Kafka."""
+        """将能力任务入队到outbox，供relay发布到Kafka。
+
+        Args:
+            capability_message: 能力消息字典
+            correlation_id: 关联ID
+        """
         await self.capability_enqueuer.enqueue_capability_task(capability_message, correlation_id)
