@@ -43,13 +43,32 @@ class OrchestratorAgent(BaseAgent):
         #    { event_type, aggregate_type, aggregate_id, payload, metadata, ... }
         # 2) Capability Envelope (agent bus) via BaseAgent: { id, ts, type, data:{...} }
 
+        self.log.info(
+            "orchestrator_message_received",
+            message_keys=list(message.keys()),
+            has_context=context is not None,
+            context_keys=list(context.keys()) if context else [],
+        )
+
         # Domain event shape
         if "event_type" in message and "aggregate_id" in message:
+            self.log.info(
+                "orchestrator_processing_domain_event",
+                event_type=message.get("event_type"),
+                aggregate_id=message.get("aggregate_id"),
+                has_payload=bool(message.get("payload")),
+            )
             return await self._handle_domain_event(message)
 
         # Capability event envelope - 从context中获取type而非message
         msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
         if msg_type:
+            self.log.info(
+                "orchestrator_processing_capability_event",
+                msg_type=msg_type,
+                topic=context.get("topic") if context else None,
+                has_data=bool(message.get("data")),
+            )
             return await self._handle_capability_event(msg_type, message, context or {})
 
         self.log.debug("orchestrator_ignored_message", reason="unknown_shape")
@@ -62,16 +81,44 @@ class OrchestratorAgent(BaseAgent):
         metadata = evt.get("metadata") or {}
         correlation_id = metadata.get("correlation_id") or evt.get("correlation_id")
 
+        self.log.info(
+            "orchestrator_domain_event_details",
+            event_type=event_type,
+            aggregate_id=aggregate_id,
+            correlation_id=correlation_id,
+            payload_keys=list(payload.keys()) if payload else [],
+            metadata_keys=list(metadata.keys()) if metadata else [],
+        )
+
         # Only react to trigger-class events (commands/user actions)
         if not event_type.endswith("Command.Received"):
+            self.log.debug(
+                "orchestrator_domain_event_ignored",
+                event_type=event_type,
+                reason="not_command_received",
+            )
             return None
 
         cmd_type = (payload or {}).get("command_type")
         if not cmd_type:
+            self.log.warning(
+                "orchestrator_domain_event_missing_command_type",
+                event_type=event_type,
+                aggregate_id=aggregate_id,
+                payload_keys=list(payload.keys()) if payload else [],
+            )
             return None
 
         scope_prefix = event_type.split(".", 1)[0] if "." in event_type else "Genesis"
         scope_type = scope_prefix.upper()  # e.g., GENESIS
+
+        self.log.info(
+            "orchestrator_processing_command",
+            cmd_type=cmd_type,
+            scope_type=scope_type,
+            scope_prefix=scope_prefix,
+            aggregate_id=aggregate_id,
+        )
 
         # Map command to domain requested + capability task
         mapping = command_registry.process_command(
@@ -83,16 +130,48 @@ class OrchestratorAgent(BaseAgent):
         )
 
         if not mapping:
+            self.log.warning(
+                "orchestrator_command_mapping_failed",
+                cmd_type=cmd_type,
+                scope_type=scope_type,
+                aggregate_id=aggregate_id,
+                reason="no_mapping_found",
+            )
             return None
 
-        # 1) Project to domain facts (*Requested) via DB Outbox
-        await self._persist_domain_event(
-            scope_type=scope_type,
-            session_id=aggregate_id,
-            event_action=mapping.requested_action,
-            payload={"session_id": aggregate_id, "input": payload.get("payload", {})},
-            correlation_id=correlation_id,
+        self.log.info(
+            "orchestrator_command_mapped",
+            cmd_type=cmd_type,
+            requested_action=mapping.requested_action,
+            capability_type=mapping.capability_message.get("type"),
+            has_capability_input=bool(mapping.capability_message.get("input")),
         )
+
+        # 1) Project to domain facts (*Requested) via DB Outbox
+        try:
+            await self._persist_domain_event(
+                scope_type=scope_type,
+                session_id=aggregate_id,
+                event_action=mapping.requested_action,
+                payload={"session_id": aggregate_id, "input": payload.get("payload", {})},
+                correlation_id=correlation_id,
+            )
+            self.log.info(
+                "orchestrator_domain_event_persisted",
+                scope_type=scope_type,
+                event_action=mapping.requested_action,
+                aggregate_id=aggregate_id,
+            )
+        except Exception as e:
+            self.log.error(
+                "orchestrator_domain_event_persist_failed",
+                scope_type=scope_type,
+                event_action=mapping.requested_action,
+                aggregate_id=aggregate_id,
+                error=str(e),
+                exc_info=True,
+            )
+            raise
 
         # 2) Emit capability task (agent bus) and create AsyncTask for tracking
         try:
@@ -102,10 +181,28 @@ class OrchestratorAgent(BaseAgent):
                 task_type=normalize_task_type(mapping.capability_message.get("type", "")),
                 input_data=mapping.capability_message.get("input") or {},
             )
-        except Exception:
-            self.log.warning(
-                "async_task_create_failed", correlation_id=correlation_id, task=mapping.capability_message.get("type")
+            self.log.info(
+                "orchestrator_async_task_created",
+                correlation_id=correlation_id,
+                task_type=normalize_task_type(mapping.capability_message.get("type", "")),
+                aggregate_id=aggregate_id,
             )
+        except Exception as e:
+            self.log.warning(
+                "async_task_create_failed",
+                correlation_id=correlation_id,
+                task=mapping.capability_message.get("type"),
+                error=str(e),
+                exc_info=True,
+            )
+
+        self.log.info(
+            "orchestrator_domain_event_processed",
+            cmd_type=cmd_type,
+            scope_type=scope_type,
+            aggregate_id=aggregate_id,
+            correlation_id=correlation_id,
+        )
 
         return mapping.capability_message
 
@@ -121,6 +218,17 @@ class OrchestratorAgent(BaseAgent):
         # 优先从context['meta']读取correlation_id，回退到data
         correlation_id = context.get("meta", {}).get("correlation_id") or data.get("correlation_id")
 
+        self.log.info(
+            "orchestrator_capability_event_details",
+            msg_type=msg_type,
+            session_id=session_id,
+            topic=topic,
+            scope_prefix=scope_prefix,
+            scope_type=scope_type,
+            correlation_id=correlation_id,
+            data_keys=list(data.keys()) if data else [],
+        )
+
         # Try different event handlers in sequence
         handlers = [
             lambda: CapabilityEventHandlers.handle_generation_completed(
@@ -134,24 +242,90 @@ class OrchestratorAgent(BaseAgent):
             ),
         ]
 
-        for handler in handlers:
+        for i, handler in enumerate(handlers):
+            self.log.debug(
+                "orchestrator_trying_handler",
+                handler_index=i,
+                msg_type=msg_type,
+                session_id=session_id,
+            )
+
             action = handler()
             if action:
+                self.log.info(
+                    "orchestrator_handler_matched",
+                    handler_index=i,
+                    msg_type=msg_type,
+                    session_id=session_id,
+                    has_domain_event=bool(action.domain_event),
+                    has_task_completion=bool(action.task_completion),
+                    has_capability_message=bool(action.capability_message),
+                )
                 return await self._execute_event_action(action)
 
+        self.log.debug(
+            "orchestrator_no_handler_matched",
+            msg_type=msg_type,
+            session_id=session_id,
+            handlers_tried=len(handlers),
+        )
         return None
 
     async def _execute_event_action(self, action) -> dict[str, Any] | None:
         """Execute the actions specified by an event handler."""
+        self.log.info(
+            "orchestrator_executing_event_action",
+            has_domain_event=bool(action.domain_event),
+            has_task_completion=bool(action.task_completion),
+            has_capability_message=bool(action.capability_message),
+        )
+
         # Persist domain event if specified
         if action.domain_event:
-            await self._persist_domain_event(**action.domain_event)
+            try:
+                self.log.info("orchestrator_persisting_domain_event", **action.domain_event)
+                await self._persist_domain_event(**action.domain_event)
+                self.log.info(
+                    "orchestrator_domain_event_persisted_success",
+                    event_action=action.domain_event.get("event_action"),
+                    scope_type=action.domain_event.get("scope_type"),
+                )
+            except Exception as e:
+                self.log.error(
+                    "orchestrator_domain_event_persist_failed",
+                    error=str(e),
+                    domain_event_params=action.domain_event,
+                    exc_info=True,
+                )
+                raise
 
         # Complete async task if specified
         if action.task_completion:
-            await self._complete_async_task(**action.task_completion)
+            try:
+                self.log.info("orchestrator_completing_async_task", **action.task_completion)
+                await self._complete_async_task(**action.task_completion)
+                self.log.info(
+                    "orchestrator_async_task_completed_success",
+                    correlation_id=action.task_completion.get("correlation_id"),
+                    expect_task_prefix=action.task_completion.get("expect_task_prefix"),
+                )
+            except Exception as e:
+                self.log.error(
+                    "orchestrator_async_task_complete_failed",
+                    error=str(e),
+                    task_completion_params=action.task_completion,
+                    exc_info=True,
+                )
+                # 不抛出异常，任务完成失败不应该阻止消息返回
 
         # Return capability message for further processing
+        if action.capability_message:
+            self.log.info(
+                "orchestrator_returning_capability_message",
+                message_type=action.capability_message.get("type"),
+                has_input=bool(action.capability_message.get("input")),
+            )
+
         return action.capability_message
 
     async def _create_async_task(
@@ -160,18 +334,49 @@ class OrchestratorAgent(BaseAgent):
         """Create an AsyncTask row to track capability execution with idempotency protection."""
         from datetime import UTC, datetime
 
+        self.log.info(
+            "orchestrator_creating_async_task",
+            correlation_id=correlation_id,
+            session_id=session_id,
+            task_type=task_type,
+            input_data_keys=list(input_data.keys()) if input_data else [],
+        )
+
         if not task_type:
+            self.log.warning(
+                "orchestrator_async_task_skipped",
+                reason="empty_task_type",
+                correlation_id=correlation_id,
+                session_id=session_id,
+            )
             return
+
         trig_cmd_id = None
         if correlation_id:
             try:
                 trig_cmd_id = UUID(str(correlation_id))
-            except Exception:
+                self.log.debug(
+                    "orchestrator_async_task_correlation_parsed",
+                    correlation_id=correlation_id,
+                    trig_cmd_id=str(trig_cmd_id),
+                )
+            except Exception as e:
+                self.log.warning(
+                    "orchestrator_async_task_correlation_parse_failed",
+                    correlation_id=correlation_id,
+                    error=str(e),
+                )
                 trig_cmd_id = None
 
         async with create_sql_session() as db:
             # Check for existing RUNNING/PENDING task to prevent duplicates
             if trig_cmd_id:
+                self.log.debug(
+                    "orchestrator_checking_existing_task",
+                    trig_cmd_id=str(trig_cmd_id),
+                    task_type=task_type,
+                )
+
                 existing_stmt = select(AsyncTask).where(
                     and_(
                         AsyncTask.triggered_by_command_id == trig_cmd_id,
@@ -181,13 +386,23 @@ class OrchestratorAgent(BaseAgent):
                 )
                 existing_task = await db.scalar(existing_stmt)
                 if existing_task:
-                    self.log.debug(
+                    self.log.info(
                         "async_task_already_exists",
                         correlation_id=correlation_id,
                         task_type=task_type,
                         existing_task_id=str(existing_task.id),
+                        existing_status=existing_task.status.value
+                        if hasattr(existing_task.status, "value")
+                        else str(existing_task.status),
                     )
                     return
+
+            self.log.info(
+                "orchestrator_creating_new_async_task",
+                task_type=task_type,
+                trig_cmd_id=str(trig_cmd_id) if trig_cmd_id else None,
+                session_id=session_id,
+            )
 
             task = AsyncTask(
                 task_type=task_type,
@@ -198,6 +413,15 @@ class OrchestratorAgent(BaseAgent):
             )
             db.add(task)
             await db.flush()
+
+            self.log.info(
+                "orchestrator_async_task_created_success",
+                task_id=str(task.id),
+                task_type=task_type,
+                status=task.status.value if hasattr(task.status, "value") else str(task.status),
+                correlation_id=correlation_id,
+                session_id=session_id,
+            )
 
     async def _complete_async_task(
         self, *, correlation_id: str | None, expect_task_prefix: str, result_data: dict[str, Any]
@@ -210,13 +434,43 @@ class OrchestratorAgent(BaseAgent):
         """
         from src.common.utils.datetime_utils import utc_now
 
+        self.log.info(
+            "orchestrator_completing_async_task",
+            correlation_id=correlation_id,
+            expect_task_prefix=expect_task_prefix,
+            result_data_keys=list(result_data.keys()) if result_data else [],
+        )
+
         if not correlation_id:
+            self.log.warning(
+                "orchestrator_async_task_complete_skipped",
+                reason="no_correlation_id",
+                expect_task_prefix=expect_task_prefix,
+            )
             return
+
         try:
             trig_cmd_id = UUID(str(correlation_id))
-        except Exception:
+            self.log.debug(
+                "orchestrator_async_task_complete_correlation_parsed",
+                correlation_id=correlation_id,
+                trig_cmd_id=str(trig_cmd_id),
+            )
+        except Exception as e:
+            self.log.warning(
+                "orchestrator_async_task_complete_correlation_parse_failed",
+                correlation_id=correlation_id,
+                error=str(e),
+            )
             return
+
         async with create_sql_session() as db:
+            self.log.debug(
+                "orchestrator_searching_async_task_to_complete",
+                trig_cmd_id=str(trig_cmd_id),
+                expect_task_prefix=expect_task_prefix,
+            )
+
             # pick most recent RUNNING/PENDING task with matching prefix
             stmt = (
                 select(AsyncTask)
@@ -230,12 +484,36 @@ class OrchestratorAgent(BaseAgent):
                 .order_by(AsyncTask.created_at.desc())
             )
             task = await db.scalar(stmt)
+
             if not task:
+                self.log.warning(
+                    "orchestrator_async_task_not_found_for_completion",
+                    correlation_id=correlation_id,
+                    expect_task_prefix=expect_task_prefix,
+                    trig_cmd_id=str(trig_cmd_id),
+                )
                 return
+
+            self.log.info(
+                "orchestrator_async_task_found_for_completion",
+                task_id=str(task.id),
+                task_type=task.task_type,
+                current_status=task.status.value if hasattr(task.status, "value") else str(task.status),
+                created_at=str(task.created_at),
+            )
+
             task.status = TaskStatus.COMPLETED
             task.completed_at = utc_now()
             task.result_data = result_data or {}
             db.add(task)
+
+            self.log.info(
+                "orchestrator_async_task_completed_success",
+                task_id=str(task.id),
+                task_type=task.task_type,
+                correlation_id=correlation_id,
+                result_data_size=len(str(result_data)) if result_data else 0,
+            )
 
         return None
 
@@ -256,11 +534,29 @@ class OrchestratorAgent(BaseAgent):
         aggregate_type = get_aggregate_type(scope_type)
         topic = get_domain_topic(scope_type)
 
+        self.log.info(
+            "orchestrator_persisting_domain_event",
+            scope_type=scope_type,
+            session_id=session_id,
+            event_action=event_action,
+            correlation_id=correlation_id,
+            evt_type=evt_type,
+            aggregate_type=aggregate_type,
+            topic=topic,
+            payload_keys=list(payload.keys()) if payload else [],
+        )
+
         async with create_sql_session() as db:
             # Idempotency: check existing DomainEvent by (correlation_id, event_type)
             existing = None
             if correlation_id:
                 try:
+                    self.log.debug(
+                        "orchestrator_checking_existing_domain_event",
+                        correlation_id=correlation_id,
+                        evt_type=evt_type,
+                    )
+
                     existing = await db.scalar(
                         select(DomainEvent).where(
                             and_(
@@ -269,10 +565,39 @@ class OrchestratorAgent(BaseAgent):
                             )
                         )
                     )
-                except Exception:
+
+                    if existing:
+                        self.log.info(
+                            "orchestrator_domain_event_already_exists",
+                            correlation_id=correlation_id,
+                            evt_type=evt_type,
+                            existing_event_id=str(existing.event_id),
+                            existing_aggregate_id=existing.aggregate_id,
+                        )
+                    else:
+                        self.log.debug(
+                            "orchestrator_no_existing_domain_event_found",
+                            correlation_id=correlation_id,
+                            evt_type=evt_type,
+                        )
+                except Exception as e:
+                    self.log.warning(
+                        "orchestrator_existing_domain_event_check_failed",
+                        correlation_id=correlation_id,
+                        evt_type=evt_type,
+                        error=str(e),
+                    )
                     existing = None
 
             if existing is None:
+                self.log.info(
+                    "orchestrator_creating_new_domain_event",
+                    evt_type=evt_type,
+                    aggregate_type=aggregate_type,
+                    aggregate_id=session_id,
+                    correlation_id=correlation_id,
+                )
+
                 dom_evt = DomainEvent(
                     event_type=evt_type,
                     aggregate_type=aggregate_type,
@@ -284,12 +609,36 @@ class OrchestratorAgent(BaseAgent):
                 )
                 db.add(dom_evt)
                 await db.flush()
+
+                self.log.info(
+                    "orchestrator_domain_event_created",
+                    event_id=str(dom_evt.event_id),
+                    evt_type=evt_type,
+                    aggregate_id=session_id,
+                )
             else:
                 dom_evt = existing
+                self.log.debug(
+                    "orchestrator_using_existing_domain_event",
+                    event_id=str(dom_evt.event_id),
+                    evt_type=evt_type,
+                )
 
             # Upsert Outbox by id=domain_event.event_id
+            self.log.debug(
+                "orchestrator_checking_outbox_entry",
+                domain_event_id=str(dom_evt.event_id),
+            )
+
             out = await db.scalar(select(EventOutbox).where(EventOutbox.id == dom_evt.event_id))
             if out is None:
+                self.log.info(
+                    "orchestrator_creating_outbox_entry",
+                    event_id=str(dom_evt.event_id),
+                    topic=topic,
+                    key=session_id,
+                )
+
                 out = EventOutbox(
                     id=dom_evt.event_id,
                     topic=topic,
@@ -311,4 +660,25 @@ class OrchestratorAgent(BaseAgent):
                     status=OutboxStatus.PENDING,
                 )
                 db.add(out)
-            # commit via context manager
+
+                self.log.info(
+                    "orchestrator_outbox_entry_created",
+                    event_id=str(dom_evt.event_id),
+                    topic=topic,
+                    status=out.status.value if hasattr(out.status, "value") else str(out.status),
+                )
+            else:
+                self.log.debug(
+                    "orchestrator_outbox_entry_already_exists",
+                    event_id=str(dom_evt.event_id),
+                    existing_status=out.status.value if hasattr(out.status, "value") else str(out.status),
+                )
+
+        self.log.info(
+            "orchestrator_domain_event_persist_completed",
+            evt_type=evt_type,
+            event_id=str(dom_evt.event_id),
+            session_id=session_id,
+            correlation_id=correlation_id,
+        )
+        # commit via context manager
