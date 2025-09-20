@@ -94,17 +94,37 @@ class OrchestratorAgent:
 # orchestrator/agent.py:221
 def _normalize_task_type(self, event_type: str) -> str:
     """规范化任务类型为基础类型前缀，便于匹配统计"""
-    # 去掉 Requested/Generated/Completed 等后缀
+    # 去掉 Action 部分，保留 <Capability>.<Entity>
     # 例子:
-    # "Character.Design.GenerationRequested" -> "Character.Design.Generation"
-    # "Outliner.Theme.Generated" -> "Outliner.Theme.Generation"
+    # "Character.Design.GenerationRequested" -> "Character.Design"
+    # "Character.Design.Generated" -> "Character.Design"
+    # "Character.Relationship.AnalysisRequested" -> "Character.Relationship"
+    # "Outliner.Theme.Generated" -> "Outliner.Theme"
+    # "Review.Quality.EvaluationRequested" -> "Review.Quality"
 
     if not event_type:
         return ""
     parts = event_type.split(".")
-    suffixes = {"Requested", "Generated", "Started", "Completed", "Result", "Checked"}
-    if parts[-1] in suffixes and len(parts) >= 2:
+
+    # 能力事件格式: <Capability>.<Entity>.<Action>
+    # 去掉 Action 部分的各种后缀
+    action_suffixes = {
+        "GenerationRequested", "Generated", "Generation",
+        "AnalysisRequested", "Analysis", "Analyzed",
+        "EvaluationRequested", "Evaluated", "Evaluation",
+        "CheckRequested", "Checked", "Check",
+        "ValidationRequested", "Validated", "Validation",
+        "RevisionRequested", "Revised", "Revision",
+        "Requested", "Started", "Completed", "Result"
+    }
+
+    if len(parts) >= 3 and parts[-1] in action_suffixes:
+        # 返回 <Capability>.<Entity>
         return ".".join(parts[:-1])
+    elif len(parts) >= 2 and parts[-1] in {"Requested", "Generated", "Started", "Completed", "Result", "Checked"}:
+        # 兼容简单后缀
+        return ".".join(parts[:-1])
+
     return event_type
 ```
 
@@ -216,22 +236,22 @@ correlation_id = "cmd-123"
 # 任务1: 角色基础设计
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Character.Design.Generation",
+    task_type="Character.Design",        # 标准化后的任务类型
     input_data={"character_type": "protagonist"}
 )
 
 # 任务2: 角色关系分析
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Character.Relationship.Analysis",
+    task_type="Character.Relationship",  # 标准化后的任务类型
     input_data={"existing_characters": [...]}
 )
 
-# 任务3: 角色弧线设计
+# 任务3: 质量评估
 await self._create_async_task(
     correlation_id=correlation_id,
-    task_type="Character.Arc.Design",
-    input_data={"character_id": "char-456"}
+    task_type="Review.Quality",          # 标准化后的任务类型
+    input_data={"content_type": "character"}
 )
 
 # 所有任务都通过 triggered_by_command_id 关联到同一个命令
@@ -246,7 +266,7 @@ await self._create_async_task(
 -- 状态枚举定义: apps/backend/src/schemas/enums.py:59
 CREATE TABLE async_tasks (
     id UUID PRIMARY KEY,
-    task_type TEXT NOT NULL,                           -- 如 "Character.Design.Generation"
+    task_type TEXT NOT NULL,                           -- 如 "Character.Design", "Outliner.Theme"
     triggered_by_command_id UUID,                      -- 外键到 command_inbox.id (workflow.py:118)
     status task_status NOT NULL DEFAULT 'PENDING',     -- PENDING|RUNNING|COMPLETED|FAILED|CANCELLED
     progress NUMERIC(5,2) NOT NULL DEFAULT 0.00,       -- 进度 0.00-100.00
@@ -293,10 +313,10 @@ WHERE triggered_by_command_id = 'cmd-uuid-123'
 ORDER BY created_at;
 
 # 可能的结果：
-# - Character.Design.Generation
-# - Character.Relationship.Analysis
-# - Character.Arc.Design
-# - Review.Quality.Evaluation
+# - Character.Design
+# - Character.Relationship
+# - Review.Quality
+# - Outliner.Theme
 ```
 
 ## 总结：基于实际代码的职责分工
