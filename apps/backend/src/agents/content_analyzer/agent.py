@@ -10,10 +10,10 @@
 
 from __future__ import annotations
 
-from external.clients.llm.types import LLMResponse
 import json
 from typing import Any
 
+from external.clients.llm.types import LLMResponse
 from src.agents.agent_config import get_agent_topics
 from src.agents.base import BaseAgent
 from src.external.clients.llm import ChatMessage, LLMRequest

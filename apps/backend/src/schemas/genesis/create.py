@@ -2,13 +2,10 @@
 创世流程创建相关的 Pydantic 模型
 """
 
-from typing import Any
-from uuid import UUID
 
 from pydantic import Field
 
 from src.schemas.base import BaseSchema
-from src.schemas.enums import GenesisStage, GenesisStatus
 
 
 class ConceptTemplateCreateRequest(BaseSchema):

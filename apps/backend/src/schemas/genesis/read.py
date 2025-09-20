@@ -2,13 +2,11 @@
 创世流程查询响应相关的 Pydantic 模型
 """
 
-from typing import Any
 from uuid import UUID
 
 from pydantic import Field
 
 from src.schemas.base import BaseSchema, TimestampMixin
-from src.schemas.enums import GenesisStage, GenesisStatus
 
 
 class ConceptTemplateResponse(BaseSchema, TimestampMixin):

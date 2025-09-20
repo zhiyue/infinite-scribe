@@ -16,13 +16,14 @@ from src.agents.orchestrator.types import (
     GenerationData,
     QualityReviewData,
 )
-from src.agents.orchestrator.workflows import EventAction, EventActionBuilder, EventHandlerConfig
+from src.agents.orchestrator.workflow_constants import WORKFLOW_DEFAULTS
 from src.agents.orchestrator.workflow_rules import (
-    IWorkflowRules,
     ConfigBasedWorkflowRules,
+    IWorkflowRules,
     QualityReviewRequest,
     ReviewResult,
 )
+from src.agents.orchestrator.workflows import EventAction, EventActionBuilder, EventHandlerConfig
 
 
 class EventCommand(ABC):
@@ -140,12 +141,30 @@ class QualityReviewCommand(EventCommand):
         if not (self.can_handle(msg_type) and session_id):
             return None
 
-        # Extract data fields
-        score = float(data.score or data.quality_score or 0.0)
-        attempts = int(data.attempts or 0)
-        max_attempts = int(data.max_attempts or 3)  # Default fallback
-        threshold = float(data.threshold or 7.5)    # Default fallback
-        target_type = str(data.target_type or data.entity or "content").lower()
+        # Extract data fields with safe type conversion
+        def safe_float(value, default=0.0):
+            """Safely convert value to float with fallback."""
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+
+        def safe_int(value, default=0):
+            """Safely convert value to int with fallback."""
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return default
+
+        score = safe_float(getattr(data, 'score', None) or getattr(data, 'quality_score', None))
+        attempts = safe_int(getattr(data, 'attempts', None))
+        max_attempts = safe_int(getattr(data, 'max_attempts', None), WORKFLOW_DEFAULTS.MAX_ATTEMPTS)
+        threshold = safe_float(getattr(data, 'threshold', None), WORKFLOW_DEFAULTS.QUALITY_THRESHOLD)
+        target_type = str(getattr(data, 'target_type', None) or getattr(data, 'entity', None) or "content").lower()
 
         # Create quality review request
         request = QualityReviewRequest(

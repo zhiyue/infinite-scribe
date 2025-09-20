@@ -5,8 +5,8 @@
 
 from uuid import UUID
 
-from src.common.repositories.genesis.flow_repository import GenesisFlowRepository
 from src.common.repositories.conversation.session_repository import ConversationSessionRepository
+from src.common.repositories.genesis.flow_repository import GenesisFlowRepository
 from src.models.conversation import ConversationSession
 from src.models.genesis_flows import GenesisFlow
 

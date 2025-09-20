@@ -9,8 +9,8 @@ from src.agents.writer.tools import get_writer_tool_specs
 from src.external.clients.errors import ServiceAuthenticationError
 from src.external.clients.llm import ChatMessage, LLMRequest
 from src.services.llm import LLMService, LLMServiceFactory
-from src.services.outbox.egress import OutboxEgress
 from src.services.llm.context_builder import PreContextBuilder
+from src.services.outbox.egress import OutboxEgress
 
 
 class WriterAgent(BaseAgent):

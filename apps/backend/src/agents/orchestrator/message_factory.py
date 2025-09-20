@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.common.events.config import get_message_type, get_strategy_config
+
 
 class MessageFactory:
     """Factory for creating common message types."""
@@ -27,13 +29,17 @@ class MessageFactory:
         Returns:
             Formatted quality review message
         """
+        # Use configuration for review strategy
+        review_config = get_strategy_config("stage_validation")
+        base_topic = review_config["base_topic"] if review_config else "review"
+
         # 运行时返回字典，类型提示为 CapabilityTaskMessage
         return {
-            "type": "Review.Quality.EvaluationRequested",
+            "type": get_message_type("quality_review"),
             "session_id": session_id,
             "target_type": target_type,
             "input": {"content": content},
-            "_topic": f"{scope_prefix.lower()}.review.tasks",
+            "_topic": f"{scope_prefix.lower()}.{base_topic}.tasks",
             "_key": session_id,
         }
 
@@ -52,27 +58,22 @@ class MessageFactory:
         Returns:
             Formatted regeneration message or None if target_type not supported
         """
-        if target_type == "character":
-            # 运行时返回字典，类型提示为 CapabilityTaskMessage
-            return {
-                "type": "Character.Design.GenerationRequested",
-                "session_id": session_id,
-                "input": {"prompt_adjust": "structured", "attempt": attempts + 1},
-                "_topic": f"{scope_prefix.lower()}.character.tasks",
-                "_key": session_id,
-            }
+        # Get strategy configuration for the target type
+        strategy_config = get_strategy_config(target_type)
+        if not strategy_config:
+            return None
 
-        elif target_type == "theme":
-            # 运行时返回字典，类型提示为 CapabilityTaskMessage
-            return {
-                "type": "Outliner.Theme.GenerationRequested",
-                "session_id": session_id,
-                "input": {"prompt_adjust": "detailed", "attempt": attempts + 1},
-                "_topic": f"{scope_prefix.lower()}.outline.tasks",
-                "_key": session_id,
-            }
-
-        return None
+        # Use configuration-driven approach
+        return {
+            "type": strategy_config["capability_type"],
+            "session_id": session_id,
+            "input": {
+                "prompt_adjust": "structured" if target_type == "character" else "detailed",
+                "attempt": attempts + 1
+            },
+            "_topic": f"{scope_prefix.lower()}.{strategy_config['base_topic']}.tasks",
+            "_key": session_id,
+        }
 
     @staticmethod
     def get_confirmation_action(target_type: str) -> str:

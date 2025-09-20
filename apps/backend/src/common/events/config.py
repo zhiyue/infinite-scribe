@@ -78,6 +78,13 @@ def build_event_type(scope_type: str | ScopeType, action: str) -> str:
 
 # ==================== Strategy Configuration ====================
 
+# Message type configuration for common patterns
+MESSAGE_TYPE_CONFIG: Final[dict[str, str]] = {
+    "quality_review": "Review.Quality.EvaluationRequested",
+    "character_generation": "Character.Design.GenerationRequested",
+    "theme_generation": "Outliner.Theme.GenerationRequested",
+}
+
 # Strategy configuration for orchestrator command mapping
 STRATEGY_CONFIG: Final[dict[str, dict[str, str]]] = {
     "character": {
@@ -200,6 +207,18 @@ def is_state_change_event(event_type: str) -> bool:
     return False
 
 
+def get_message_type(message_key: str) -> str:
+    """Get message type from configuration.
+
+    Args:
+        message_key: Key for message type (e.g., "quality_review", "character_generation")
+
+    Returns:
+        Message type string
+    """
+    return MESSAGE_TYPE_CONFIG.get(message_key, "Unknown.MessageType")
+
+
 __all__ = [
     "get_domain_prefix",
     "get_aggregate_type",
@@ -209,7 +228,9 @@ __all__ = [
     "get_strategy_keys",
     "is_command_received_event",
     "is_state_change_event",
+    "get_message_type",
     "STRATEGY_CONFIG",
+    "MESSAGE_TYPE_CONFIG",
     "EVENT_PATTERNS",
     "DEFAULT_VALUES",
 ]

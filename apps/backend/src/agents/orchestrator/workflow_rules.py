@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from .workflow_constants import WORKFLOW_DEFAULTS
+
 
 class ReviewResult(Enum):
     """Result of quality or consistency review."""
@@ -148,7 +150,9 @@ class ConfigBasedWorkflowRules(IWorkflowRules):
             threshold = result_data.get("threshold", 1.0)
             try:
                 ok = float(score) >= float(threshold)
-            except Exception:
+            except (ValueError, TypeError):
+                # Log the error for debugging but don't fail the operation
+                # In production, you might want to use proper logging here
                 ok = False
         return ok
 
@@ -158,56 +162,26 @@ class StaticWorkflowRules(IWorkflowRules):
 
     This implementation embeds the business rules directly in code,
     eliminating the dependency on JSON configuration files.
+    Uses centralized constants to avoid hardcoded values.
     """
-
-    # Event to target type mapping
-    _EVENT_TARGET_MAPPING = {
-        "Character.Design.Generated": "character",
-        "Character.Generated": "character",
-        "Outliner.Theme.Generated": "theme",
-        "Theme.Generated": "theme",
-    }
-
-    # Task prefixes
-    _TASK_PREFIXES = {
-        "quality_review": "Review.Quality.Evaluation",
-        "consistency_check": "Review.Consistency.Check",
-    }
-
-    # Actions for different target types
-    _CONFIRMATION_ACTIONS = {
-        "character": "Character.Confirmed",
-        "theme": "Theme.Confirmed",
-    }
-
-    _FAILURE_ACTIONS = {
-        "character": "Character.Failed",
-        "theme": "Theme.Failed",
-    }
-
-    _REGENERATION_ACTIONS = {
-        "character": "Character.RegenerationRequested",
-        "theme": "Theme.RegenerationRequested",
-    }
-
-    # Default thresholds
-    _QUALITY_THRESHOLD = 7.5
-    _MAX_ATTEMPTS = 3
-    _CONSISTENCY_THRESHOLD = 1.0
 
     def get_target_for_event(self, event_type: str) -> str | None:
         """Get target type for a generation event."""
-        return self._EVENT_TARGET_MAPPING.get(event_type)
+        return WORKFLOW_DEFAULTS.EVENT_TARGET_MAPPING.get(event_type)
 
     def get_task_prefix(self, task_type: str) -> str:
         """Get task prefix for a given task type."""
-        return self._TASK_PREFIXES.get(task_type, "Unknown")
+        task_mapping = {
+            "quality_review": WORKFLOW_DEFAULTS.QUALITY_REVIEW_PREFIX,
+            "consistency_check": WORKFLOW_DEFAULTS.CONSISTENCY_CHECK_PREFIX,
+        }
+        return task_mapping.get(task_type, "Unknown")
 
     def evaluate_quality_review(self, request: QualityReviewRequest) -> WorkflowDecision:
         """Evaluate quality review and return decision."""
         # Use defaults if not provided
-        threshold = request.threshold or self._QUALITY_THRESHOLD
-        max_attempts = request.max_attempts or self._MAX_ATTEMPTS
+        threshold = request.threshold or WORKFLOW_DEFAULTS.QUALITY_THRESHOLD
+        max_attempts = request.max_attempts or WORKFLOW_DEFAULTS.MAX_ATTEMPTS
 
         # Quality passed - confirm the content
         if request.score >= threshold:
@@ -237,15 +211,15 @@ class StaticWorkflowRules(IWorkflowRules):
 
     def get_confirmation_action(self, target_type: str) -> str:
         """Get confirmation action for target type."""
-        return self._CONFIRMATION_ACTIONS.get(target_type, "Stage.Confirmed")
+        return WORKFLOW_DEFAULTS.CONFIRMATION_ACTIONS.get(target_type, "Stage.Confirmed")
 
     def get_failure_action(self, target_type: str) -> str:
         """Get failure action for target type."""
-        return self._FAILURE_ACTIONS.get(target_type, "Stage.Failed")
+        return WORKFLOW_DEFAULTS.FAILURE_ACTIONS.get(target_type, "Stage.Failed")
 
     def get_regeneration_action(self, target_type: str) -> str:
         """Get regeneration action for target type."""
-        return self._REGENERATION_ACTIONS.get(target_type, "Stage.RegenerationRequested")
+        return WORKFLOW_DEFAULTS.REGENERATION_ACTIONS.get(target_type, "Stage.RegenerationRequested")
 
     def should_confirm_consistency(self, result_data: dict[str, Any]) -> bool:
         """Determine if consistency check result should be confirmed."""
@@ -253,9 +227,11 @@ class StaticWorkflowRules(IWorkflowRules):
         ok = bool(result_data.get("ok") or result_data.get("passed"))
         if not ok:
             score = result_data.get("score", 0.0)
-            threshold = result_data.get("threshold", self._CONSISTENCY_THRESHOLD)
+            threshold = result_data.get("threshold", WORKFLOW_DEFAULTS.CONSISTENCY_THRESHOLD)
             try:
                 ok = float(score) >= float(threshold)
-            except Exception:
+            except (ValueError, TypeError):
+                # Log the error for debugging but don't fail the operation
+                # In production, you might want to use proper logging here
                 ok = False
         return ok

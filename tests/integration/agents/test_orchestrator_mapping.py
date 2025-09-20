@@ -128,10 +128,16 @@ class TestOrchestratorTaskTypeNormalization:
     def test_orchestrator_uses_unified_mapping(self):
         """Test that OrchestratorAgent uses unified mapping."""
         from src.agents.orchestrator.agent import OrchestratorAgent
+        import inspect
 
-        # Verify the import exists in the agent module
-        import src.agents.orchestrator.agent as agent_module
-        assert hasattr(agent_module, 'normalize_task_type')
+        # Verify the normalize_task_type function is imported and used in the agent module
+        agent_source = inspect.getsource(OrchestratorAgent)
+        assert "normalize_task_type" in agent_source, "OrchestratorAgent should use normalize_task_type function"
+
+        # Also check the import is present in the module
+        with open(inspect.getfile(OrchestratorAgent), 'r') as f:
+            module_source = f.read()
+        assert "from src.common.events.mapping import normalize_task_type" in module_source
 
 
 class TestEventSerializationIntegration:

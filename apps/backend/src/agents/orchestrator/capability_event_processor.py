@@ -137,7 +137,7 @@ class EventHandlerMatcher:
         self,
         msg_type: str,
         session_id: str,
-        data: GenerationData | QualityReviewData | ConsistencyCheckData,
+        data: BaseEventData,
         correlation_id: str | None,
         scope_info: ScopeInfo,
         causation_id: str | None,

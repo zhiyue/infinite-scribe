@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Mapping
+from collections.abc import Mapping
 
 from .types import LLMRequest
 

@@ -10,16 +10,14 @@ from abc import ABC, abstractmethod
 from typing import Any, NamedTuple
 
 from src.common.events.config import (
-    DEFAULT_VALUES,
-    STRATEGY_CONFIG,
     get_strategy_config,
     get_strategy_keys,
     is_state_change_event,
 )
 from src.common.events.mapping import (
     build_topic_name,
-    get_command_aliases_for_action,
     extract_strategy_key_from_event_type,
+    get_command_aliases_for_action,
 )
 
 
@@ -81,8 +79,6 @@ class GenericRequestStrategy(CommandStrategy):
         )
 
 
-
-
 class CommandStrategyRegistry:
     """Registry for command strategies with auto-discovery."""
 
@@ -94,8 +90,15 @@ class CommandStrategyRegistry:
         """Register all default strategies using configuration data."""
         # Create generic strategies for all configured strategy keys
         for strategy_key in get_strategy_keys():
-            strategy = GenericRequestStrategy(strategy_key)
-            self.register(strategy)
+            try:
+                strategy = GenericRequestStrategy(strategy_key)
+                self.register(strategy)
+            except ValueError as e:
+                # Log the error but continue with other strategies
+                # This prevents total registry failure due to one bad configuration
+                import logging
+
+                logging.warning(f"Failed to register strategy '{strategy_key}': {e}")
 
     def register(self, strategy: CommandStrategy) -> None:
         """Register a strategy for its aliases."""
@@ -111,31 +114,37 @@ class CommandStrategyRegistry:
         # Try configuration mapping first
         event_type = get_event_by_command(cmd_type)
         if event_type:
-            # Configuration hit: set requested_action from config, then choose appropriate strategy
+            # Check if this is a state-only change that doesn't need capability tasks
+            if is_state_change_event(event_type):
+                return CommandMapping(requested_action=event_type, capability_message=None)
+
+            # For events that need capability tasks, find appropriate strategy
             strategy = self._strategies.get(cmd_type)
             if not strategy:
-                # Check if this is a confirmation/update/revision event that should not trigger capability tasks
-                if is_state_change_event(event_type):
-                    # Return mapping without capability message for state-only changes
-                    return CommandMapping(requested_action=event_type, capability_message=None)
-
-                # Fallback: choose strategy by event_type prefix using configuration
+                # Try to create strategy based on event type prefix
                 strategy_key = extract_strategy_key_from_event_type(event_type)
                 if strategy_key and strategy_key in get_strategy_keys():
-                    strategy = GenericRequestStrategy(strategy_key)
+                    try:
+                        strategy = GenericRequestStrategy(strategy_key)
+                    except ValueError:
+                        # Strategy creation failed, return state-only mapping
+                        return CommandMapping(requested_action=event_type, capability_message=None)
 
             if strategy:
                 result = strategy.process(scope_type, scope_prefix, aggregate_id, payload)
-                if result:
+                if result and result.capability_message:
+                    # Use event_type from configuration for consistency
                     return CommandMapping(requested_action=event_type, capability_message=result.capability_message)
+                else:
+                    # Strategy exists but couldn't process, return state-only mapping
+                    return CommandMapping(requested_action=event_type, capability_message=None)
 
-        # Pure strategy fallback (existing behavior)
+        # Pure strategy fallback (existing behavior for unmapped commands)
         strategy = self._strategies.get(cmd_type)
-        if not strategy:
-            return None
+        if strategy:
+            return strategy.process(scope_type, scope_prefix, aggregate_id, payload)
 
-        return strategy.process(scope_type, scope_prefix, aggregate_id, payload)
-    
+        return None
 
 
 # Global registry instance

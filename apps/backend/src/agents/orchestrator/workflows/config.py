@@ -5,9 +5,10 @@ from __future__ import annotations
 import copy
 import json
 import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 
 class WorkflowConfigError(RuntimeError):
@@ -52,7 +53,8 @@ class EventHandlerConfig:
     DEFAULT_WORKFLOW_FILENAME = "genesis-workflow.json"
     ENV_WORKFLOW_PATH = "ORCHESTRATOR_WORKFLOW_CONFIG"
 
-    _cached_default_config: WorkflowConfig | None = None
+    _cached_default_config: ClassVar[WorkflowConfig | None] = None
+    _config_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(self, config_source: str | Path | WorkflowConfig | None = None) -> None:
         if isinstance(config_source, WorkflowConfig):
@@ -84,9 +86,12 @@ class EventHandlerConfig:
 
     @classmethod
     def _get_default_config(cls) -> WorkflowConfig:
-        """Load (and cache) the default workflow configuration."""
+        """Load (and cache) the default workflow configuration with thread safety."""
         if cls._cached_default_config is None:
-            cls._cached_default_config = cls._load_from_file(cls.default_config_path())
+            with cls._config_lock:
+                # Double-checked locking pattern
+                if cls._cached_default_config is None:
+                    cls._cached_default_config = cls._load_from_file(cls.default_config_path())
         # Return a deep copy to avoid accidental mutations across instances
         return copy.deepcopy(cls._cached_default_config)
 
