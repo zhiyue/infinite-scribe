@@ -4,6 +4,8 @@
 
 Novel Dialogue Schema 模块定义了小说对话系统的数据模型，采用 CQRS（命令查询职责分离）架构模式。该模块为 InfiniteScribe 的对话系统提供完整的类型安全数据结构。
 
+**最近更新**: `CommandEventItem` 已添加到公共导出列表，增强了命令事件追踪能力。
+
 ## 架构设计
 
 ### CQRS 分层架构
@@ -57,7 +59,7 @@ graph TD
 - **CommandRequest**: 命令请求模型
 - **CommandStatusResponse**: 命令状态响应
 - **PendingCommandResponse**: 待处理命令响应
-- **CommandEventItem**: 命令事件时间线
+- **CommandEventItem**: 命令事件时间线（最新添加到公共导出）
 
 ## 枚举类型
 
@@ -173,6 +175,22 @@ class ConversationRoundUpdate(BaseSchema):
     cost: Decimal | None                  # 轮次成本
 ```
 
+### 命令事件 Schema (read.py)
+
+#### CommandEventItem
+```python
+class CommandEventItem(BaseSchema):
+    event_id: UUID                        # 事件ID
+    event_type: str                       # 事件类型（如 Genesis.Session.Command.Received）
+    session_id: UUID                      # 会话ID（aggregate_id）
+    correlation_id: UUID | None           # 因果/关联ID，通常为命令ID
+    timestamp: str                        # 事件时间（ISO）
+    status: str | None                    # 可选：事件状态（如 processing/completed/failed）
+    payload: dict[str, Any] | None        # 可选：事件业务载荷
+```
+
+**最近更新**：`CommandEventItem` 已添加到公共导出列表，现在可以被其他模块直接导入使用。
+
 ## 数据流转
 
 ### 对话生命周期
@@ -201,14 +219,37 @@ sequenceDiagram
     participant A as API
     participant S as Service
     participant W as Workflow
+    participant E as EventStore
     
     C->>A: CommandRequest
     A->>S: enqueue_command()
     S->>W: 发送到消息队列
     W->>W: 异步处理
+    W->>E: 生成 CommandEventItem
     W-->>S: DomainEvent
     S-->>A: 状态更新
     A-->>C: CommandStatusResponse
+```
+
+### 命令事件时间线
+
+```mermaid
+graph LR
+    A[命令提交] --> B[CommandEventItem-Received]
+    B --> C[CommandEventItem-Processing]
+    C --> D{处理结果}
+    D -->|成功| E[CommandEventItem-Completed]
+    D -->|失败| F[CommandEventItem-Failed]
+    E --> G[CommandStatusResponse-成功]
+    F --> H[CommandStatusResponse-失败]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#fff3e0
+    style E fill:#e8f5e8
+    style F fill:#ffebee
+    style G fill:#e8f5e8
+    style H fill:#ffebee
 ```
 
 ## 验证和约束
