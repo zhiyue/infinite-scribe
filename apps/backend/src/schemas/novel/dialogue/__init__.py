@@ -17,6 +17,7 @@ from .create import (
 )
 from .enums import DialogueRole, ScopeType, SessionStatus
 from .read import (
+    CommandEventItem,
     CommandStatusResponse,
     ConversationRoundResponse,
     ConversationSessionResponse,
@@ -55,6 +56,7 @@ __all__ = [
     "DialogueCache",
     "SessionResponse",
     "RoundResponse",
+    "CommandEventItem",
     "CommandStatusResponse",
     "PendingCommandResponse",
     # Update models (from update.py)
