@@ -156,33 +156,70 @@ sequenceDiagram
     end
 ```
 
-### EventBridge 集成流程
+### EventBridge 集成流程 ✨
+
+最新的重构优化了 EventBridge 集成，实现了原生的事件结构兼容性：
+
+#### 事件存储架构改进
+
+- **原生结构存储**: 直接存储 EventBridge 平面结构，避免嵌套信封包装
+- **数据兼容性**: 确保 EventBridge 和 Kafka 消费端都能正确处理事件格式
+- **关键字段处理**: 正确处理 `aggregate_id` 为 `None` 的情况，避免错误的字符串转换
+- **关联ID提取**: 支持从多个字段提取 `correlation_id`，提高兼容性
 
 ```mermaid
 flowchart TD
-    A[EventBridgePublisher] --> B[事件发布请求]
-    B --> C[OutboxEgress.store_event()]
-    C --> D[事件格式转换]
-    D --> E[提取关键字段]
-    E --> F[构建信封格式]
-    F --> G[调用 enqueue_envelope]
-    G --> H[存储到 EventOutbox]
-    H --> I[返回处理结果]
+    A[EventBridgePublisher] --> B[OutboxEgress.store_event()]
+    B --> C[关键字段提取]
+    C --> D[数据结构验证]
+    D --> E[原生 EventBridge 结构]
+    E --> F[直接存储到 EventOutbox]
+    F --> G[返回处理结果]
     
-    subgraph "事件转换"
-        J[event_id]
-        K[event_type]
-        L[aggregate_id]
-        M[metadata.topic]
-        N[metadata.correlation_id]
+    subgraph "关键字段提取"
+        H[topic: metadata.topic]
+        I[key: aggregate_id处理]
+        J[correlation_id: 多源提取]
+        K[event_type: 事件类型]
+        L[payload: 事件负载]
     end
     
-    D --> J
-    D --> K
-    D --> L
-    D --> M
-    D --> N
+    C --> H
+    C --> I
+    C --> J
+    C --> K
+    C --> L
 ```
+
+#### 数据格式优化
+
+**优化前 (嵌套信封结构)**:
+```python
+# 使用 encode_message 包装
+envelope = encode_message(agent, result, correlation_id=correlation_id)
+# 结果: { "id": "...", "type": "...", "data": { "event_type": "...", "payload": {...} } }
+```
+
+**优化后 (原生 EventBridge 结构)**:
+```python
+# 直接存储 EventBridge 格式
+eventbridge_payload = {
+    "event_id": event.get("event_id"),
+    "event_type": event.get("event_type"),
+    "aggregate_id": aggregate_id,
+    "correlation_id": correlation_id,
+    "payload": event.get("payload", {}),
+    "metadata": event.get("metadata", {}),
+    "timestamp": event.get("timestamp"),
+}
+```
+
+#### 错误处理和兼容性增强
+
+- **空值处理**: 正确处理 `aggregate_id` 为 `None` 的情况，避免 `str(None)` 转换
+- **多源关联ID**: 支持从 `event.correlation_id` 和 `event.metadata.correlation_id` 提取
+- **数据验证**: 确保所有关键字段的存在性和有效性
+- **异常处理**: 完整的异常捕获和日志记录机制
 
 ## 🔧 核心功能
 

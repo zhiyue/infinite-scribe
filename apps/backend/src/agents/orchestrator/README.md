@@ -427,24 +427,46 @@ classDiagram
 - **智能类型转换**: `CapabilityEventMessage.to_typed_data()` 自动推断数据类型
 - **类型安全**: 使用Pydantic模型确保运行时数据验证
 
-#### 类型推断机制 ✨
+#### 智能类型转换和字段检测 ✨
+
+最新的重构优化了类型转换逻辑，增强了字段检测能力：
+
+- **类型注解优化**: 添加 `CapabilityEventMessage` 类型注解，提升代码可读性
+- **字段集检测**: 使用 `typed_data.model_fields_set` 替代 `model_dump(exclude_none=True)`，提供更准确的字段存在性检测
+- **空值处理**: 改进对空值字段的处理逻辑，避免错误地跳过包含有效空值的事件数据
+- **类型约束**: 优化 `EventHandlerMatcher.find_matching_handler()` 方法的类型约束，使用具体类型替代基类型
 
 ```mermaid
 graph TD
-    A[原始消息数据] --> B[create_capability_event_message_from_dict]
+    A[原始消息] --> B[create_capability_event_message_from_dict]
     B --> C[CapabilityEventMessage]
     C --> D[to_typed_data()]
     
-    D --> E{数据特征分析}
-    E -->|包含score/quality_score| F[QualityReviewData]
-    E -->|包含ok/passed| G[ConsistencyCheckData]
-    E -->|其他情况| H[GenerationData]
+    D --> E{字段集检查}
+    E -->|model_fields_set非空| F[返回具体类型数据]
+    E -->|无有效字段| G[回退到类型推断]
     
-    F --> I[类型验证]
-    G --> I
-    H --> I
-    I --> J[返回具体类型对象]
+    G --> H{内容特征分析}
+    H -->|包含score字段| I[QualityReviewData]
+    H -->|包含ok字段| J[ConsistencyCheckData]
+    H -->|其他情况| K[GenerationData]
+    
+    F --> L[类型安全的事件处理]
+    I --> L
+    J --> L
+    K --> L
 ```
+
+#### 类型推断机制增强
+
+新的字段检测机制解决了以下问题：
+
+1. **空值字段支持**: 正确处理包含 `None` 值但有效字段的事件
+2. **类型准确性**: 提供更精确的类型判断，避免误判
+3. **性能优化**: 减少不必要的序列化操作，提升处理效率
+4. **错误减少**: 降低因字段检测不准确导致的事件处理错误
+
+这些改进确保了能力事件处理器在面对复杂数据结构时能够更准确地进行类型推断和处理。
 
 ### 🎯 任务管理器 (TaskManager)
 
