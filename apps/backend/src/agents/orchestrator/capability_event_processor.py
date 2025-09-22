@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents.orchestrator.types import CapabilityEventMessage
 from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
 from src.agents.orchestrator.types import (
+    CapabilityEventMessage,
     ConsistencyCheckData,
     GenerationData,
     MessageContext,
