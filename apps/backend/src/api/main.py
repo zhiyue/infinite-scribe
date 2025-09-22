@@ -118,6 +118,34 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to register SSE provider: {e}")
             app.state.sse_provider = None
 
+        # Start embedded CommandStatusWorker (Kafka consumer) with API if enabled
+        try:
+            if settings.command_status.enabled:
+                from src.api.background.command_status_worker import CommandStatusWorker
+                from src.db.sql.session import get_session_maker
+                from src.services.command.event_publisher import EventBridgePublisher
+
+                session_factory = get_session_maker()
+                event_publisher = EventBridgePublisher()  # Publish via Outbox -> Relay -> Kafka -> EventBridge
+
+                cmd_worker = CommandStatusWorker(
+                    session_factory=session_factory,
+                    shutdown_event=app.state.shutdown_event,
+                    event_publisher=event_publisher,
+                    topics=list(settings.command_status.topics or []),
+                    batch_size=settings.command_status.batch_size,
+                    poll_timeout_ms=settings.command_status.poll_timeout_ms,
+                )
+                await cmd_worker.start()
+                app.state.command_status_worker = cmd_worker
+                logger.info("CommandStatusWorker started with API gateway")
+            else:
+                logger.info("CommandStatusWorker disabled by configuration")
+                app.state.command_status_worker = None
+        except Exception as e:
+            logger.error(f"Failed to start CommandStatusWorker: {e}")
+            app.state.command_status_worker = None
+
         # Initialize launcher components
         logger.info("Initializing launcher components...")
         try:
@@ -164,6 +192,15 @@ async def lifespan(app: FastAPI):
                 app.state.sse_provider = None
         except Exception as e:
             logger.error(f"Unexpected error during SSE provider cleanup: {e}")
+
+        # Stop embedded CommandStatusWorker if running
+        try:
+            worker = getattr(app.state, "command_status_worker", None)
+            if worker is not None:
+                await worker.stop()
+                app.state.command_status_worker = None
+        except Exception as e:
+            logger.error(f"Unexpected error during CommandStatusWorker cleanup: {e}")
 
         # Cleanup launcher components
         if hasattr(app.state, "orchestrator") and app.state.orchestrator:

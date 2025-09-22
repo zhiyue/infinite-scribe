@@ -30,6 +30,7 @@ class EventFilter:
     ALLOWED_EVENT_PATTERNS = [
         r"^Genesis\.Session\.Started$",
         r"^Genesis\.Session\.Command\.Received$",
+        r"^Genesis\.Session\.Command\.(Started|Completed|Failed|Progress)$",
         r"^Genesis\.Session\..*\.Requested$",
         r"^Genesis\.Session\..*\.Generated$",
         r"^Genesis\.Session\..*\.Evaluated$",

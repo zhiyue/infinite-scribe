@@ -33,7 +33,14 @@ class CommandInbox(Base):
 
     __tablename__ = "command_inbox"
     __table_args__ = (
-        Index("idx_command_inbox_unique_pending_command", "session_id", "command_type", unique=True),
+        # 修复：仅对待处理命令(RECEIVED/PROCESSING)保证唯一性，允许完成后重新发送同类型命令
+        Index(
+            "idx_command_inbox_unique_pending_command", 
+            "session_id", 
+            "command_type", 
+            unique=True,
+            postgresql_where=text("status IN ('RECEIVED', 'PROCESSING')")
+        ),
         UniqueConstraint("idempotency_key"),
         CheckConstraint("retry_count >= 0", name="check_retry_count_non_negative"),
         CheckConstraint(

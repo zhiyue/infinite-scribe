@@ -355,6 +355,15 @@ class EventBridgeSettings(BaseModel):
 
     metrics_log_interval: int = Field(default=100, description="Log metrics every N processed events")
 
+class CommandStatusSettings(BaseModel):
+    """Settings for API-embedded command status consumer."""
+
+    enabled: bool = Field(default=True, description="Enable embedded command status consumer in API")
+    topics: list[str] = Field(default_factory=lambda: ["command.status.events"], description="Kafka topics to consume")
+    group_id_suffix: str = Field(default="command-status", description="Group ID suffix for the consumer")
+    batch_size: int = Field(default=100, description="Max records per poll batch")
+    poll_timeout_ms: int = Field(default=1000, description="Poll timeout in milliseconds")
+
     # Prometheus configuration
     prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics export")
     prometheus_port: int = Field(default=9090, description="Prometheus metrics server port")
@@ -424,6 +433,8 @@ class Settings(BaseSettings):
 
     # EventBridge service (nested)
     eventbridge: EventBridgeSettings = Field(default_factory=EventBridgeSettings)
+    # Embedded command status consumer (API background worker)
+    command_status: CommandStatusSettings = Field(default_factory=CommandStatusSettings)
 
     # MinIO
     minio_endpoint: str = Field(default="localhost:9000")

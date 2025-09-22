@@ -3,7 +3,7 @@
  * 统一管理Genesis相关事件的显示配置
  */
 
-import { Activity, CheckCircle, XCircle, Send, Bot, Sparkles, type LucideIcon } from 'lucide-react'
+import { Activity, CheckCircle, XCircle, Send, PlayCircle, type LucideIcon } from 'lucide-react'
 
 // 徽章变体类型
 export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
@@ -28,6 +28,33 @@ export const GENESIS_STATUS_CONFIGS: Record<string, GenesisStatusConfig> = {
     badgeVariant: 'secondary',
     cardClass: 'border-gray-200 bg-gray-50/50',
     messageClass: 'bg-gray-50 border-gray-200',
+  },
+
+  'Genesis.Session.Command.Started': {
+    label: '命令开始执行',
+    description: 'Agent已开始处理您的命令，正在执行相关任务',
+    icon: PlayCircle,
+    badgeVariant: 'default',
+    cardClass: 'border-blue-200 bg-blue-50/50',
+    messageClass: 'bg-blue-50 border-blue-200',
+  },
+
+  'Genesis.Session.Command.Completed': {
+    label: '命令执行完成',
+    description: '命令已成功执行完成，所有任务已处理',
+    icon: CheckCircle,
+    badgeVariant: 'default',
+    cardClass: 'border-green-200 bg-green-50/50',
+    messageClass: 'bg-green-50 border-green-200',
+  },
+
+  'Genesis.Session.Command.Failed': {
+    label: '命令执行失败',
+    description: '命令执行过程中出现错误，请检查日志或重试',
+    icon: XCircle,
+    badgeVariant: 'destructive',
+    cardClass: 'border-red-200 bg-red-50/50',
+    messageClass: 'bg-red-50 border-red-200',
   },
 
   'Genesis.Session.Seed.Requested': {
@@ -125,7 +152,12 @@ export function addGenesisStatusConfig(eventType: string, config: GenesisStatusC
 
 // 常用的状态类别
 export const GENESIS_STATUS_CATEGORIES = {
-  COMMAND: ['Genesis.Session.Command.Received'],
+  COMMAND: [
+    'Genesis.Session.Command.Received',
+    'Genesis.Session.Command.Started',
+    'Genesis.Session.Command.Completed',
+    'Genesis.Session.Command.Failed'
+  ],
   TASK_ASSIGNMENT: ['Genesis.Session.Seed.Requested'],
   STEP_EXECUTION: ['genesis.step-completed', 'genesis.step-failed'],
   SESSION_LIFECYCLE: ['genesis.session-completed', 'genesis.session-failed'],
@@ -138,6 +170,6 @@ export const GENESIS_STATUS_CATEGORIES = {
  */
 export function getEventTypesByCategory(
   category: keyof typeof GENESIS_STATUS_CATEGORIES,
-): string[] {
+): readonly string[] {
   return GENESIS_STATUS_CATEGORIES[category] || []
 }

@@ -221,3 +221,14 @@ litellm_api_key = "${LLM__LITELLM_API_KEY:-${LITELLM_API_KEY:-}}"
 "^glm-" = "litellm"
 "^qwen-" = "litellm"
 "^deepseek-" = "litellm"
+
+[command_status]
+# API 内嵌命令状态消费者（Kafka -> DB -> 域事件）
+enabled = "${COMMAND_STATUS__ENABLED:-true}"
+# 命令状态事件主题列表（逗号分隔可通过 JSON 数组覆盖）
+topics = ["${COMMAND_STATUS__TOPICS:-command.status.events}"]
+# 消费组后缀（完整 group id = <KAFKA_GROUP_ID_PREFIX>-<suffix>-group）
+group_id_suffix = "${COMMAND_STATUS__GROUP_ID_SUFFIX:-command-status}"
+# 批处理与 poll 配置
+batch_size = "${COMMAND_STATUS__BATCH_SIZE:-100}"
+poll_timeout_ms = "${COMMAND_STATUS__POLL_TIMEOUT_MS:-1000}"
