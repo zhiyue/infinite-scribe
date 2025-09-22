@@ -99,11 +99,7 @@ export function ThinkingProcess({
   const [currentStageIndex, setCurrentStageIndex] = useState(0)
 
   const latestStatus = statusList.length > 0 ? statusList[statusList.length - 1] : null
-  const latestStageCfg = latestStatus
-    ? THINKING_STAGES[latestStatus.event_type as keyof typeof THINKING_STAGES] || THINKING_STAGES.default
-    : THINKING_STAGES.default
   const latestConfig = latestStatus ? getGenesisStatusConfig(latestStatus.event_type) : null
-  const LatestStageIcon = latestStageCfg.icon
   const { stage, isCompleted, hasError } = getCurrentStage(statusList)
   const headerText = latestStatus
     ? latestConfig?.label || stage
@@ -112,7 +108,6 @@ export function ThinkingProcess({
       : stage
 
   const shouldShowCompactList = !isExpanded && statusList.length > 0 && compactListCount > 0
-  const shouldShowLatestSummary = !isExpanded && statusList.length > 0 && compactListCount === 0
 
   // 自动滚动到最新阶段
   useEffect(() => {
@@ -200,28 +195,6 @@ export function ThinkingProcess({
             </ul>
           )}
 
-          {shouldShowLatestSummary && latestStatus && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              {isThinking && !isCompleted && !hasError ? (
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              ) : (
-                <LatestStageIcon className="h-3 w-3 text-muted-foreground" />
-              )}
-              <span className="truncate font-medium text-muted-foreground">
-                {latestConfig?.label || stage}
-              </span>
-              {latestConfig?.description && (
-                <span className="hidden sm:inline truncate text-muted-foreground/70">
-                  — {latestConfig.description}
-                </span>
-              )}
-              {latestStatus.timestamp && (
-                <span className="ml-auto text-[10px] text-muted-foreground/70">
-                  {formatTime(latestStatus.timestamp)}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 详细思考步骤（展开时显示） - 扁平、适合长列表滚动 */}
@@ -234,10 +207,10 @@ export function ThinkingProcess({
                   const stageCfg =
                     THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES] ||
                     THINKING_STAGES.default
-                  const StIcon = stageCfg.icon
-
                   const isCurrentStep = index === currentStageIndex
                   const isLastStep = index === statusList.length - 1
+                  const shouldSpin = isLastStep && isThinking && !hasError
+                  const IconComponent = shouldSpin ? Loader2 : stageCfg.icon
 
                   return (
                     <li
@@ -248,10 +221,14 @@ export function ThinkingProcess({
                       )}
                       title={cfg.description}
                     >
-                      <StIcon
+                      <IconComponent
                         className={cn(
                           'h-3 w-3',
-                          isCurrentStep ? 'text-primary' : 'text-muted-foreground/70',
+                          shouldSpin
+                            ? 'text-primary animate-spin'
+                            : isCurrentStep
+                              ? 'text-primary'
+                              : 'text-muted-foreground/70',
                         )}
                       />
                       <span className={cn('truncate', isCurrentStep && 'font-medium')}>
@@ -260,9 +237,6 @@ export function ThinkingProcess({
                       <span className="hidden sm:inline text-muted-foreground/70 truncate">
                         — {cfg.description}
                       </span>
-                      {isLastStep && isThinking && (
-                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-1" />
-                      )}
                       <span className="ml-auto text-[10px] text-muted-foreground/70">
                         {formatTime(status.timestamp)}
                       </span>
