@@ -197,11 +197,15 @@ class TestOutboxToEventBridgeChain:
         # Step 3: Start OutboxRelay to publish to Kafka
         relay_service = OutboxRelayService()
 
-        # Start the relay in background
-        relay_task = asyncio.create_task(relay_service.start())
+        # Initialize the relay service
+        await relay_service.start()
 
         try:
-            # Wait for relay to start
+            # Process outbox events by draining once
+            processed_count = await relay_service._drain_once()
+            print(f"✓ OutboxRelay processed {processed_count} events")
+
+            # Wait a moment for Kafka delivery
             await asyncio.sleep(2)
 
             # Step 4: Start EventBridge to consume from Kafka
@@ -238,10 +242,6 @@ class TestOutboxToEventBridgeChain:
         finally:
             # Stop OutboxRelay
             await relay_service.stop()
-            if not relay_task.done():
-                relay_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await relay_task
 
     @pytest.mark.asyncio
     async def test_outbox_egress_aggregate_id_handling(self):

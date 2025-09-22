@@ -355,6 +355,9 @@ class EventBridgeSettings(BaseModel):
 
     metrics_log_interval: int = Field(default=100, description="Log metrics every N processed events")
 
+    # Monitoring configuration
+    prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics collection")
+
 class CommandStatusSettings(BaseModel):
     """Settings for API-embedded command status consumer."""
 
