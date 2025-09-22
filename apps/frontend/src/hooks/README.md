@@ -133,6 +133,34 @@ Genesis 阶段会话 Hook，用于管理特定阶段的会话信息。
 - 对话详情查询
 - 对话创建和删除
 - 对话状态更新
+- 命令事件时间线管理
+- SSE 事件集成
+- 命令 ID 推断和状态追踪
+
+**最新更新 (feat/genesis-stage)：**
+- **useCommandEvents**: 新增命令事件时间线 Hook，合并 API 和 SSE 事件
+- **命令 ID 推断**: 优化命令 ID 推断逻辑，支持多数据源获取
+- **事件去重**: 实现基于 event_id 的事件去重和时间排序
+- **分页加载**: 支持历史事件的分页加载
+- **状态持久化**: 支持页面刷新后恢复事件时间线
+
+**使用示例：**
+```typescript
+// 基本对话管理
+const { data: sessions } = useListSessions(params)
+const { data: rounds } = useRounds(sessionId)
+const submitCommand = useSubmitCommand(sessionId)
+
+// 命令事件时间线
+const commandTimeline = useCommandEvents(sessionId, commandId, {
+  limit: 20,
+  enabled: !!commandId
+})
+
+// 命令状态管理
+const { data: pendingCommand } = usePendingCommand(sessionId)
+const { data: commandStatus } = useCommandStatus(sessionId, commandId)
+```
 
 #### useHealthCheck
 

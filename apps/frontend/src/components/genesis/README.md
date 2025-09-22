@@ -119,6 +119,8 @@ sequenceDiagram
 - **命令状态显示集成**: 在对话流中显示 Genesis 命令执行状态
 - **优化的错误处理**: 更完善的错误分类和用户提示
 - **性能优化**: 减少不必要的重渲染和 API 调用
+- **命令 ID 推断逻辑**: 优化命令 ID 推断，支持从多个数据源获取命令 ID
+- **useCommandEvents 集成**: 合并 API 和 SSE 事件，提供完整的时间线追踪
 
 ### ThinkingProcess - AI 思考过程显示组件
 
