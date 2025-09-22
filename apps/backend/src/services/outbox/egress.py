@@ -77,7 +77,7 @@ class OutboxEgress:
             topic = event.get("metadata", {}).get("topic", "genesis.session.events")
             key = str(event.get("aggregate_id", ""))
             correlation_id = event.get("metadata", {}).get("correlation_id")
-            
+
             # Convert event to result format expected by enqueue_envelope
             result = {
                 "type": event.get("event_type"),  # Required by encode_message to preserve event type
@@ -88,7 +88,7 @@ class OutboxEgress:
                 "payload": event.get("payload", {}),
                 "metadata": event.get("metadata", {}),
             }
-            
+
             await self.enqueue_envelope(
                 agent=agent,
                 topic=topic,
@@ -97,7 +97,7 @@ class OutboxEgress:
                 correlation_id=correlation_id,
             )
             return True
-            
+
         except Exception as e:
             from src.core.logging import get_logger
             logger = get_logger(__name__)
