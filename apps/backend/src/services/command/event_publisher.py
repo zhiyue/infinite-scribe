@@ -135,9 +135,13 @@ class EventBridgePublisher(DomainEventPublisher):
         try:
             # 使用 outbox 服务确保可靠发布（若提供外部服务）
             if self.event_outbox is not None:
-                await self.event_outbox.store_event(event)
-                logger.debug(f"Event stored in outbox by service: {event.get('event_id')}")
-                return True
+                success = await self.event_outbox.store_event(event)
+                if success:
+                    logger.debug(f"Event stored in outbox by service: {event.get('event_id')}")
+                    return True
+                else:
+                    logger.error(f"Failed to store event in outbox service: {event.get('event_id')}")
+                    return False
 
             # 直接写入 EventOutbox（与 ConversationOutboxManager 保持一致的扁平化结构）
             # Choose first configured domain topic for EventBridge

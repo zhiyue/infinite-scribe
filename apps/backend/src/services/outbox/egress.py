@@ -80,6 +80,7 @@ class OutboxEgress:
             
             # Convert event to result format expected by enqueue_envelope
             result = {
+                "type": event.get("event_type"),  # Required by encode_message to preserve event type
                 "event_id": event.get("event_id"),
                 "event_type": event.get("event_type"),
                 "aggregate_type": event.get("aggregate_type", "Session"),

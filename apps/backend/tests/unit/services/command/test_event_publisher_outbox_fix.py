@@ -102,6 +102,7 @@ class TestEventBridgePublisherOutboxFix:
 
             # Verify result structure
             result_data = call_args["result"]
+            assert result_data["type"] == "Command.Completed"  # Required for encode_message
             assert result_data["event_id"] == "test-event-123"
             assert result_data["event_type"] == "Command.Completed"
             assert result_data["aggregate_id"] == "session-456"
@@ -186,3 +187,27 @@ class TestEventBridgePublisherOutboxFix:
         publisher = EventBridgePublisher()
 
         assert publisher.event_outbox is None
+
+    async def test_publisher_with_outbox_service_handles_store_failure(self, mock_outbox_service):
+        """Test that publisher properly handles store_event returning False."""
+        mock_outbox_service.store_event = AsyncMock(return_value=False)
+        publisher = EventBridgePublisher(event_outbox_service=mock_outbox_service)
+
+        event = {
+            "event_id": "failing-event-123",
+            "event_type": "Command.Failed",
+            "aggregate_id": "session-789",
+            "source": "test-agent"
+        }
+
+        result = await publisher.publish_event(event)
+
+        assert result is False
+        mock_outbox_service.store_event.assert_called_once()
+
+        # Verify the event passed contains our original data plus enrichment
+        called_event = mock_outbox_service.store_event.call_args[0][0]
+        assert called_event["event_id"] == event["event_id"]
+        assert called_event["event_type"] == event["event_type"]
+        assert called_event["aggregate_id"] == event["aggregate_id"]
+        assert called_event["source"] == event["source"]
