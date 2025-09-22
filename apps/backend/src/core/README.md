@@ -4,6 +4,32 @@
 
 Core 模块是 InfiniteScribe 后端的核心基础设施层，提供配置管理、日志记录、消息队列等基础服务。该模块为整个应用提供统一的基础设施支持。
 
+## 📊 监控配置
+
+### EventBridge 监控
+
+EventBridge 服务支持 Prometheus 监控配置，提供详细的性能指标收集：
+
+```python
+# 启用 Prometheus 监控
+settings.eventbridge.prometheus_enabled = True
+
+# 配置监控参数
+settings.eventbridge.metrics_log_interval = 100  # 每 100 个事件记录一次指标
+settings.eventbridge.log_level = "INFO"  # 监控日志级别
+```
+
+### Command Status 监控
+
+API 嵌入式命令状态消费者也支持 Prometheus 监控：
+
+```python
+# 启用命令状态监控
+settings.command_status.prometheus_enabled = True
+settings.command_status.prometheus_port = 9090  # 监控端口
+settings.command_status.prometheus_host = "0.0.0.0"  # 监控地址
+```
+
 ## 核心功能
 
 ### 🔧 配置管理 (config.py)
@@ -29,7 +55,8 @@ Core 模块是 InfiniteScribe 后端的核心基础设施层，提供配置管�
 - **EmbeddingSettings**: 嵌入服务提供商配置（Ollama、OpenAI、Anthropic）
 - **LLMSettings**: 大语言模型提供商配置
 - **RelaySettings**: Outbox 消息中继服务配置
-- **EventBridgeSettings**: 事件桥接服务配置
+- **EventBridgeSettings**: 事件桥接服务配置，包含 Kafka 域事件处理和监控配置
+- **CommandStatusSettings**: API 嵌入式命令状态消费者配置
 
 ### 📋 日志系统 (logging/)
 
@@ -186,6 +213,41 @@ export DATABASE__POSTGRES_HOST="prod.db.example.com"
 
 ## 监控和可观测性
 
+### 监控架构
+
+```mermaid
+graph TB
+    A[Core Module] --> B[监控系统]
+    B --> C[EventBridge 监控]
+    B --> D[Command Status 监控]
+    B --> E[日志监控]
+    
+    C --> F[Prometheus 指标]
+    C --> G[事件处理指标]
+    C --> H[熔断器状态]
+    
+    D --> I[命令执行状态]
+    D --> J[Kafka 消费状态]
+    D --> K[API 背景任务监控]
+    
+    E --> L[结构化日志]
+    E --> M[性能指标]
+    E --> N[错误追踪]
+    
+    F --> O[Grafana 仪表板]
+    G --> O
+    H --> O
+    I --> O
+    J --> O
+    K --> O
+    L --> P[日志分析]
+    M --> O
+    N --> P
+    
+    O --> Q[监控告警]
+    P --> Q
+```
+
 ### 日志监控
 
 - **结构化字段**：统一字段命名约定
@@ -198,6 +260,13 @@ export DATABASE__POSTGRES_HOST="prod.db.example.com"
 - **配置变更**：记录配置加载和变更
 - **连接状态**：外部服务连接状态监控
 - **验证失败**：配置验证错误记录
+
+### 事件桥接监控
+
+- **事件处理指标**：处理成功/失败计数、延迟统计
+- **熔断器状态**：故障率、熔断/恢复状态
+- **Kafka 监控**：分区分配、偏移量提交、消费延迟
+- **Prometheus 集成**：指标导出和健康检查
 
 ## 依赖关系
 
