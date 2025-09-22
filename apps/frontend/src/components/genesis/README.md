@@ -121,6 +121,8 @@ sequenceDiagram
 - **性能优化**: 减少不必要的重渲染和 API 调用
 - **命令 ID 推断逻辑**: 优化命令 ID 推断，支持从多个数据源获取命令 ID
 - **useCommandEvents 集成**: 合并 API 和 SSE 事件，提供完整的时间线追踪
+- **增强的状态恢复**: 改进页面刷新后的思考状态恢复机制，通过 rounds 数据推断命令 ID
+- **动态状态摘要显示**: 支持紧凑模式下动态显示最近状态和进度信息
 
 ### ThinkingProcess - AI 思考过程显示组件
 
@@ -138,6 +140,10 @@ sequenceDiagram
 - **阶段化显示**: 根据事件类型显示不同的思考阶段
 - **状态持久化**: 集成 genesisThinkingStorage 实现状态恢复
 - **响应式设计**: 适配不同屏幕尺寸，支持移动端
+- **动态状态摘要**: 
+  - 根据 `compactListCount` 参数动态调整显示模式
+  - 当 `compactListCount = 0` 时，显示为最新的状态摘要
+  - 支持实时状态更新和阶段切换显示
 
 **思考阶段配置**:
 ```typescript
@@ -166,11 +172,16 @@ graph TD
     
     D --> D1[紧凑模式]
     D --> D2[进度条模式]
-    D --> D3[时间戳显示]
+    D --> D3[动态状态摘要]
+    D --> D4[时间戳显示]
     
     E --> E1[滚动区域]
     E --> E2[步骤详情]
     E --> E3[当前步骤高亮]
+    
+    D3 --> D3a[compactListCount=0]
+    D3 --> D3b[最新状态摘要]
+    D3 --> D3c[实时状态更新]
 ```
 
 ### GenesisStatusCard - 命令状态显示组件
@@ -414,6 +425,29 @@ const customPrompts = {
   [GenesisStage.INITIAL_PROMPT]: '描述你的创作灵感...',
   [GenesisStage.WORLDVIEW]: '构建你的世界...'
 }
+
+// 动态状态摘要显示配置
+function GenesisPage() {
+  return (
+    <div className="space-y-4">
+      {/* 进度条模式显示最新状态 */}
+      <ThinkingProcess
+        isThinking={isThinking}
+        statusList={statusList}
+        compactListCount={0}  // 显示为最新状态摘要
+        thinkingText="AI 正在处理你的请求..."
+      />
+      
+      {/* 紧凑模式显示最近3条状态 */}
+      <ThinkingProcess
+        isThinking={isThinking}
+        statusList={statusList}
+        compactListCount={3}  // 显示最近3条状态
+        thinkingText="AI 正在思考..."
+      />
+    </div>
+  )
+}
 ```
 
 ### 关键Hook使用
@@ -503,6 +537,44 @@ if (rounds.length > optimisticMessage.initialRoundsLength) {
     setOptimisticMessage(null) // 清除乐观消息
   }
 }
+```
+
+### 状态恢复机制
+
+```typescript
+// 页面刷新后的状态恢复逻辑
+const hasPendingUserMessage = useMemo(() => {
+  return (
+    rounds.length > 0 &&
+    rounds[rounds.length - 1]?.role === 'user' &&
+    !rounds[rounds.length - 1]?.output
+  )
+}, [rounds])
+
+// 命令ID推断逻辑
+const inferredCommandId = useMemo(() => {
+  if (currentCommandId) return currentCommandId
+  
+  if (hasPendingUserMessage && rounds.length > 0) {
+    const lastUserRound = rounds[rounds.length - 1]
+    if (lastUserRound?.role === 'user') {
+      // 优先使用 round 级别的 correlation_id
+      if (lastUserRound.correlation_id) {
+        return lastUserRound.correlation_id
+      }
+      // 其次尝试从 input 中获取
+      if (lastUserRound.input?.correlation_id) {
+        return lastUserRound.input.correlation_id
+      }
+      // 最后尝试从 input.payload 中获取
+      if (lastUserRound.input?.payload?.correlation_id) {
+        return lastUserRound.input.payload.correlation_id
+      }
+    }
+  }
+  
+  return null
+}, [currentCommandId, hasPendingUserMessage, rounds])
 ```
 
 ## 🔮 未来规划
