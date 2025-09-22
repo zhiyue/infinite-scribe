@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from agents.orchestrator.types import CapabilityEventMessage
 from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
 from src.agents.orchestrator.types import (
-    BaseEventData,
     ConsistencyCheckData,
     GenerationData,
     MessageContext,
@@ -25,6 +25,7 @@ from src.agents.orchestrator.types import (
     create_quality_review_data_from_dict,
 )
 from src.agents.orchestrator.workflows import EventAction
+from src.common.events.config import DEFAULT_VALUES
 
 
 class EventDataExtractor:
@@ -41,13 +42,17 @@ class EventDataExtractor:
             提取出的事件数据对象
         """
         # 使用 Pydantic 进行类型安全的数据提取和转换
-        event_msg = create_capability_event_message_from_dict(message)
+        event_msg: CapabilityEventMessage = create_capability_event_message_from_dict(message)
         typed_data = event_msg.to_typed_data()
-        if typed_data.model_dump(exclude_none=True):
+        # 检查是否有任何有效字段（包括空值字段）
+        if hasattr(typed_data, "model_fields_set") and typed_data.model_fields_set:
             return typed_data
 
         # Fallback: 如果消息没有标准 data 字段，直接根据内容猜测类型
-        payload = message.get("data") if isinstance(message.get("data"), dict) else message
+        potential_payload = message.get("data") if isinstance(message.get("data"), dict) else message
+
+        # 确保 payload 是一个有效的字典
+        payload = {} if not isinstance(potential_payload, dict) else potential_payload
 
         if "score" in payload or "quality_score" in payload:
             return create_quality_review_data_from_dict(payload)
@@ -73,8 +78,6 @@ class EventDataExtractor:
         topic = context.topic or ""
 
         # 从主题前缀推断作用域 (例如: genesis.outline.events -> GENESIS)
-        from src.common.events.config import DEFAULT_VALUES
-
         scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else DEFAULT_VALUES["scope_type"]
         scope_type = scope_prefix
 
@@ -138,7 +141,7 @@ class EventHandlerMatcher:
         self,
         msg_type: str,
         session_id: str,
-        data: BaseEventData,
+        data: GenerationData | QualityReviewData | ConsistencyCheckData,
         correlation_id: str | None,
         scope_info: ScopeInfo,
         causation_id: str | None,
@@ -244,7 +247,7 @@ class CapabilityEventProcessor:
             scope_prefix=scope_info.scope_prefix,
             scope_type=scope_info.scope_type,
             correlation_id=correlation_id,
-            data_fields=list(data.model_fields_set) if hasattr(data, "model_fields_set") else [],
+            data_fields=list(data.model_fields_set),
         )
 
         # 查找匹配的处理器

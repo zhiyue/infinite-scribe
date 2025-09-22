@@ -64,38 +64,57 @@ class OutboxEgress:
 
     async def store_event(self, event: dict[str, Any]) -> bool:
         """Store event in outbox for EventBridgePublisher compatibility.
-        
+
         Args:
             event: Event data from EventBridgePublisher
-            
+
         Returns:
             True if successfully stored
         """
         try:
-            # Extract event data for enqueue_envelope
-            agent = event.get("source", "api-gateway")
+            # Extract topic and partition key info
             topic = event.get("metadata", {}).get("topic", "genesis.session.events")
-            key = str(event.get("aggregate_id", ""))
-            correlation_id = event.get("metadata", {}).get("correlation_id")
+            aggregate_id = event.get("aggregate_id")
 
-            # Convert event to result format expected by enqueue_envelope
-            result = {
-                "type": event.get("event_type"),  # Required by encode_message to preserve event type
+            # Fix aggregate_id handling - don't convert None to string
+            key = None
+            if aggregate_id is not None:
+                key = str(aggregate_id)
+
+            correlation_id = event.get("correlation_id") or event.get("metadata", {}).get("correlation_id")
+
+            # Create EventBridge-compatible flat structure directly
+            # Instead of using encode_message which creates nested Envelope structure
+            eventbridge_payload = {
                 "event_id": event.get("event_id"),
                 "event_type": event.get("event_type"),
-                "aggregate_type": event.get("aggregate_type", "Session"),
-                "aggregate_id": event.get("aggregate_id"),
+                "aggregate_id": aggregate_id,
+                "correlation_id": correlation_id,
                 "payload": event.get("payload", {}),
+                # Preserve additional fields that might be needed
+                "aggregate_type": event.get("aggregate_type", "Session"),
                 "metadata": event.get("metadata", {}),
+                "timestamp": event.get("timestamp"),
             }
 
-            await self.enqueue_envelope(
-                agent=agent,
-                topic=topic,
-                key=key,
-                result=result,
-                correlation_id=correlation_id,
-            )
+            # Store directly to outbox without using enqueue_envelope
+            # since that would wrap it in Envelope structure
+            async with create_sql_session() as db:
+                out = EventOutbox(
+                    topic=topic,
+                    key=key,
+                    partition_key=key,
+                    payload=eventbridge_payload,
+                    headers={
+                        "event_type": event.get("event_type"),
+                        "correlation_id": correlation_id,
+                        "agent": event.get("source", "api-gateway"),
+                    },
+                    status=OutboxStatus.PENDING,
+                )
+                db.add(out)
+                await db.flush()
+
             return True
 
         except Exception as e:

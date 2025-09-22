@@ -12,7 +12,7 @@ def kafka_container(pytestconfig: pytest.Config) -> Generator[KafkaContainer, No
     """
     会话级 Kafka 容器：启动一次，所有用例复用。
     """
-    image = os.getenv("TEST_KAFKA_IMAGE", "confluentinc/cp-kafka:latest")
+    image = os.getenv("TEST_KAFKA_IMAGE", "confluentinc/cp-kafka:7.4.0")
 
     container = KafkaContainer(image=image)
     # 启用 KRaft 模式
