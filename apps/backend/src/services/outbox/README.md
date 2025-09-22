@@ -76,10 +76,24 @@ outbox/
 
 统一的消息出口服务，为所有代理提供标准化的消息投递接口：
 
+#### 核心方法
+
+1. **`enqueue_envelope()`** - 标准消息入队方法
+   - 为代理提供统一的消息投递接口
+   - 支持信封编码和数据库持久化
+   - 返回 outbox 记录 ID
+
+2. **`store_event()`** - EventBridge 兼容方法（新增）
+   - 为 EventBridgePublisher 提供兼容接口
+   - 自动转换事件格式为信封格式
+   - 支持错误处理和日志记录
+   - 确保与现有 outbox 流程的无缝集成
+
 ```mermaid
 classDiagram
     class OutboxEgress {
         +enqueue_envelope() str
+        +store_event() bool
         -encode_message() dict
         -create_outbox_entry() EventOutbox
     }
@@ -99,7 +113,12 @@ classDiagram
         +produce_message()
     }
     
+    class EventBridgePublisher {
+        +publish_event() bool
+    }
+    
     Agent --> OutboxEgress
+    EventBridgePublisher --> OutboxEgress
     OutboxEgress --> EventOutbox
 ```
 
@@ -112,12 +131,19 @@ sequenceDiagram
     participant DB as 数据库
     participant Relay as OutboxRelay
     participant Kafka as Kafka
+    participant EBP as EventBridgePublisher
     
     Agent->>OE: enqueue_envelope()
     Note over OE: 1. 编码消息信封
     OE->>DB: 创建 EventOutbox 记录
     DB-->>OE: 返回记录 ID
     OE-->>Agent: 返回 outbox_id
+    
+    EBP->>OE: store_event()
+    Note over OE: 2. 转换事件格式
+    OE->>DB: 创建 EventOutbox 记录
+    DB-->>OE: 返回记录 ID
+    OE-->>EBP: 返回成功状态
     
     Note over Relay: 异步扫描 PENDING 记录
     Relay->>DB: 查询 PENDING 记录
@@ -128,6 +154,34 @@ sequenceDiagram
         Kafka-->>Relay: 发布确认
         Relay->>DB: 更新状态为 PROCESSED
     end
+```
+
+### EventBridge 集成流程
+
+```mermaid
+flowchart TD
+    A[EventBridgePublisher] --> B[事件发布请求]
+    B --> C[OutboxEgress.store_event()]
+    C --> D[事件格式转换]
+    D --> E[提取关键字段]
+    E --> F[构建信封格式]
+    F --> G[调用 enqueue_envelope]
+    G --> H[存储到 EventOutbox]
+    H --> I[返回处理结果]
+    
+    subgraph "事件转换"
+        J[event_id]
+        K[event_type]
+        L[aggregate_id]
+        M[metadata.topic]
+        N[metadata.correlation_id]
+    end
+    
+    D --> J
+    D --> K
+    D --> L
+    D --> M
+    D --> N
 ```
 
 ## 🔧 核心功能
@@ -272,6 +326,36 @@ for msg in messages:
     outbox_ids.append(outbox_id)
 
 print(f"批量消息已入队: {outbox_ids}")
+```
+
+### EventBridge 兼容模式
+
+```python
+# 使用 store_event 方法（EventBridgePublisher 兼容）
+event_data = {
+    "event_id": "evt-123",
+    "event_type": "session_created",
+    "aggregate_type": "Session",
+    "aggregate_id": "session-456",
+    "payload": {
+        "user_id": "user-789",
+        "session_data": {...}
+    },
+    "metadata": {
+        "topic": "genesis.session.events",
+        "correlation_id": "corr-abc-123",
+        "timestamp": "2025-09-20T14:03:00Z"
+    },
+    "source": "api-gateway"
+}
+
+# 直接存储事件到 outbox
+success = await egress.store_event(event_data)
+
+if success:
+    print("事件已成功存储到 outbox")
+else:
+    print("事件存储失败，请检查日志")
 ```
 
 ## 📊 监控和调试
