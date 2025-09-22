@@ -133,9 +133,23 @@ class CommandStatusUpdater:
                 event_type = CommandEventType(event_type_str)
             except ValueError:
                 logger.warning(f"Unknown command event type: {event_type_str}")
+                # 安全地解析 UUID，避免在无效 UUID 时再次抛出异常
+                try:
+                    parsed_command_id = UUID(command_id_str) if command_id_str else uuid4()
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid command_id format: {command_id_str}")
+                    return CommandUpdateResult(
+                        success=False,
+                        command_id=uuid4(),
+                        old_status=CommandStatus.RECEIVED,
+                        new_status=CommandStatus.RECEIVED,
+                        updated_at=utc_now(),
+                        error_message="Invalid command_id format",
+                        should_notify=False,
+                    )
                 return CommandUpdateResult(
                     success=False,
-                    command_id=UUID(command_id_str) if command_id_str else uuid4(),
+                    command_id=parsed_command_id,
                     old_status=CommandStatus.RECEIVED,
                     new_status=CommandStatus.RECEIVED,
                     updated_at=utc_now(),
@@ -189,9 +203,31 @@ class CommandStatusUpdater:
                     should_notify=False,
                 )
 
-            # 3. 验证状态转换合法性
+            # 3. 验证状态转换合法性或检查幂等性
             transition = self._find_valid_transition(cmd.status, event_type)
             if not transition:
+                # 检查是否为幂等重复事件（已处于目标状态）
+                if self._is_idempotent_duplicate(cmd.status, event_type):
+                    logger.info(
+                        f"Idempotent duplicate event for command {command_id}: "
+                        f"{cmd.status} + {event_type} (already in target state)",
+                        extra={
+                            "command_id": str(command_id),
+                            "current_status": cmd.status.value,
+                            "event_type": event_type.value,
+                            "idempotent": True,
+                        },
+                    )
+                    return CommandUpdateResult(
+                        success=True,
+                        command_id=command_id,
+                        old_status=cmd.status,
+                        new_status=cmd.status,  # 保持当前状态
+                        updated_at=utc_now(),
+                        should_notify=False,  # 幂等事件不需要通知
+                    )
+
+                # 真正的无效状态转换
                 logger.warning(
                     f"Invalid state transition for command {command_id}: " f"{cmd.status} -> {event_type}",
                     extra={
@@ -307,6 +343,30 @@ class CommandStatusUpdater:
                 should_notify=False,
             )
 
+    def _is_idempotent_duplicate(self, current_status: CommandStatus, event_type: CommandEventType) -> bool:
+        """检查是否为幂等的重复事件（已处于目标状态）
+
+        Args:
+            current_status: 当前状态
+            event_type: 事件类型
+
+        Returns:
+            是否为幂等重复事件
+        """
+        # 定义事件类型到目标状态的映射
+        event_to_target_status = {
+            CommandEventType.STARTED: CommandStatus.PROCESSING,
+            CommandEventType.COMPLETED: CommandStatus.COMPLETED,
+            CommandEventType.FAILED: CommandStatus.FAILED,
+            CommandEventType.TIMEOUT: CommandStatus.FAILED,
+            CommandEventType.CANCELLED: CommandStatus.FAILED,
+            # PROGRESS 事件不改变状态，始终是幂等的
+            CommandEventType.PROGRESS: current_status,
+        }
+
+        target_status = event_to_target_status.get(event_type)
+        return target_status is not None and current_status == target_status
+
     def _find_valid_transition(
         self, current_status: CommandStatus, event_type: CommandEventType
     ) -> CommandStatusTransition | None:
@@ -342,10 +402,10 @@ class CommandStatusUpdater:
         try:
             # 查询 user_id (从 session_id -> novel_id -> user_id)
             user_id = await self._get_user_id_for_session(db, command.session_id)
-            
+
             # 映射到 Genesis 域事件类型
             genesis_event_type = self._map_to_genesis_event_type(update_result.new_status)
-            
+
             # 构建域事件数据
             domain_event = {
                 "event_type": genesis_event_type,
@@ -432,27 +492,27 @@ class CommandStatusUpdater:
 
     def _map_to_genesis_event_type(self, command_status: CommandStatus) -> str:
         """映射命令状态到 Genesis 域事件类型
-        
+
         Args:
             command_status: 命令状态
-            
+
         Returns:
             Genesis 域事件类型字符串
         """
         mapping = {
             CommandStatus.PROCESSING: "Genesis.Session.Command.Started",
-            CommandStatus.COMPLETED: "Genesis.Session.Command.Completed", 
+            CommandStatus.COMPLETED: "Genesis.Session.Command.Completed",
             CommandStatus.FAILED: "Genesis.Session.Command.Failed",
         }
         return mapping.get(command_status, "Genesis.Session.Command.Failed")
 
     async def _get_user_id_for_session(self, db: AsyncSession, session_id: UUID) -> int | None:
         """从会话ID查询用户ID
-        
+
         Args:
             db: 数据库会话
             session_id: 会话ID
-            
+
         Returns:
             用户ID，如果查询失败返回 None
         """
@@ -460,50 +520,43 @@ class CommandStatusUpdater:
             from sqlalchemy import select
             from src.models.conversation import ConversationSession
             from src.models.novel import Novel
-            
+
             # 查询会话的 scope_id (novel_id)
-            session = await db.scalar(
-                select(ConversationSession).where(ConversationSession.id == session_id)
-            )
-            
+            session = await db.scalar(select(ConversationSession).where(ConversationSession.id == session_id))
+
             if not session:
-                logger.warning(
-                    f"Session {session_id} not found",
-                    extra={"session_id": str(session_id)}
-                )
+                logger.warning(f"Session {session_id} not found", extra={"session_id": str(session_id)})
                 return None
-                
+
             # 对于 Genesis 会话，scope_id 是 novel_id
             if session.scope_type != "GENESIS":
                 logger.warning(
                     f"Session {session_id} has unsupported scope_type: {session.scope_type}",
-                    extra={"session_id": str(session_id), "scope_type": session.scope_type}
+                    extra={"session_id": str(session_id), "scope_type": session.scope_type},
                 )
                 return None
-                
+
             try:
                 novel_id = UUID(session.scope_id)
             except (ValueError, TypeError):
                 logger.warning(
                     f"Invalid novel_id format in session {session_id}: {session.scope_id}",
-                    extra={"session_id": str(session_id), "scope_id": session.scope_id}
+                    extra={"session_id": str(session_id), "scope_id": session.scope_id},
                 )
                 return None
-            
+
             # 查询小说的 user_id
-            novel = await db.scalar(
-                select(Novel).where(Novel.id == novel_id)
-            )
-            
+            novel = await db.scalar(select(Novel).where(Novel.id == novel_id))
+
             if not novel:
                 logger.warning(
                     f"Novel {novel_id} not found for session {session_id}",
-                    extra={"session_id": str(session_id), "novel_id": str(novel_id)}
+                    extra={"session_id": str(session_id), "novel_id": str(novel_id)},
                 )
                 return None
-                
+
             return novel.user_id
-            
+
         except Exception as e:
             logger.error(
                 f"Error querying user_id for session {session_id}: {e}",

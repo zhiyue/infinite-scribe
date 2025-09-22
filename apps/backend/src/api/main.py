@@ -124,9 +124,12 @@ async def lifespan(app: FastAPI):
                 from src.api.background.command_status_worker import CommandStatusWorker
                 from src.db.sql.session import get_session_maker
                 from src.services.command.event_publisher import EventBridgePublisher
+                from src.services.outbox.egress import OutboxEgress
 
                 session_factory = get_session_maker()
-                event_publisher = EventBridgePublisher()  # Publish via Outbox -> Relay -> Kafka -> EventBridge
+                # Create outbox service for reliable event publishing
+                outbox_service = OutboxEgress()
+                event_publisher = EventBridgePublisher(event_outbox_service=outbox_service)  # Publish via Outbox -> Relay -> Kafka -> EventBridge
 
                 cmd_worker = CommandStatusWorker(
                     session_factory=session_factory,

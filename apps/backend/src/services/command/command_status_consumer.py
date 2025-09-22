@@ -218,7 +218,7 @@ class CommandStatusConsumer:
         Args:
             failed_events: 失败的事件列表
             context: 上下文信息
-            
+
         Returns:
             处理结果统计: {"retry_success": int, "retry_failed": int, "sent_to_dlq": int}
         """
@@ -226,7 +226,7 @@ class CommandStatusConsumer:
             return {"retry_success": 0, "retry_failed": 0, "sent_to_dlq": 0}
 
         logger.warning(f"Handling {len(failed_events)} failed events")
-        
+
         retry_success = 0
         retry_failed = 0
         sent_to_dlq = 0
@@ -253,11 +253,7 @@ class CommandStatusConsumer:
                         else:
                             logger.error(
                                 f"Event processing failed permanently after {retry_count + 1} retries: {error}",
-                                extra={
-                                    "event": event, 
-                                    "retry_count": retry_count + 1, 
-                                    "dlq_enabled": self.enable_dlq
-                                },
+                                extra={"event": event, "retry_count": retry_count + 1, "dlq_enabled": self.enable_dlq},
                             )
             elif self.enable_dlq:
                 await self._send_to_dlq(event, error, retry_count, context)
@@ -268,11 +264,11 @@ class CommandStatusConsumer:
                     f"Event processing failed permanently: {error}",
                     extra={"event": event, "retry_count": retry_count, "dlq_enabled": self.enable_dlq},
                 )
-                
+
         logger.info(
             f"Failed events handled: {retry_success} retry success, {retry_failed} retry failed, {sent_to_dlq} sent to DLQ"
         )
-        
+
         return {"retry_success": retry_success, "retry_failed": retry_failed, "sent_to_dlq": sent_to_dlq}
 
     def _should_retry(self, error: str, retry_count: int) -> bool:
@@ -297,7 +293,12 @@ class CommandStatusConsumer:
             "Unknown event type",
             "Invalid command_id format",
             "Command not found",
+            "badly formed hexadecimal UUID string",  # UUID 解析错误
         ]
+
+        # Handle None or empty error messages
+        if not error:
+            return True
 
         return not any(non_retryable in error for non_retryable in non_retryable_errors)
 
@@ -305,18 +306,18 @@ class CommandStatusConsumer:
         self, event: dict[str, Any], retry_count: int, context: dict[str, Any] | None = None
     ) -> bool:
         """安排事件重试
-        
+
         Args:
             event: 要重试的事件
             retry_count: 重试次数
             context: 上下文信息
-            
+
         Returns:
             重试是否成功
         """
         # 计算退避延迟
         delay = self.retry_delay_seconds * (2 ** (retry_count - 1))  # 指数退避
-        
+
         logger.info(
             f"Retrying event #{retry_count} after {delay}s delay",
             extra={
@@ -326,15 +327,15 @@ class CommandStatusConsumer:
                 "delay_seconds": delay,
             },
         )
-        
+
         # 应用退避延迟
         await asyncio.sleep(delay)
-        
+
         # 立即重新处理事件 - 这次重试会在当前批次中处理
         async with self.session_factory() as db:
             try:
                 result = await self._process_single_event(db, event, context)
-                
+
                 if result["success"]:
                     logger.info(
                         f"Retry #{retry_count} succeeded for event",
@@ -357,7 +358,7 @@ class CommandStatusConsumer:
                         },
                     )
                     return False
-                    
+
             except Exception as e:
                 logger.error(
                     f"Retry #{retry_count} failed with exception: {e}",

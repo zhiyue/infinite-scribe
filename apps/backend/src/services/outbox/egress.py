@@ -61,3 +61,44 @@ class OutboxEgress:
             db.add(out)
             await db.flush()
             return str(out.id)
+
+    async def store_event(self, event: dict[str, Any]) -> bool:
+        """Store event in outbox for EventBridgePublisher compatibility.
+        
+        Args:
+            event: Event data from EventBridgePublisher
+            
+        Returns:
+            True if successfully stored
+        """
+        try:
+            # Extract event data for enqueue_envelope
+            agent = event.get("source", "api-gateway")
+            topic = event.get("metadata", {}).get("topic", "genesis.session.events")
+            key = str(event.get("aggregate_id", ""))
+            correlation_id = event.get("metadata", {}).get("correlation_id")
+            
+            # Convert event to result format expected by enqueue_envelope
+            result = {
+                "event_id": event.get("event_id"),
+                "event_type": event.get("event_type"),
+                "aggregate_type": event.get("aggregate_type", "Session"),
+                "aggregate_id": event.get("aggregate_id"),
+                "payload": event.get("payload", {}),
+                "metadata": event.get("metadata", {}),
+            }
+            
+            await self.enqueue_envelope(
+                agent=agent,
+                topic=topic,
+                key=key,
+                result=result,
+                correlation_id=correlation_id,
+            )
+            return True
+            
+        except Exception as e:
+            from src.core.logging import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Failed to store event in outbox: {e}", exc_info=True)
+            return False
