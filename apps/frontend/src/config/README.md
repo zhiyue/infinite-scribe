@@ -1,14 +1,201 @@
 # 配置系统
 
-本目录包含了前端应用的所有配置文件，采用配置驱动的设计模式。
+本目录包含了前端应用的所有配置文件，采用配置驱动的设计模式，实现统一管理和动态扩展。
 
-## 文件结构
+## 🏗️ 架构概述
 
-- `sse.config.ts` - SSE服务相关配置
-- `genesis-status.config.ts` - Genesis状态显示配置
-- `api.ts` - API相关配置
-- `routes.config.ts` - 路由配置
-- `index.ts` - 统一导出文件
+### 设计理念
+- **配置驱动**: 新增功能无需修改组件代码，只需配置即可
+- **类型安全**: 完整的 TypeScript 类型支持
+- **模块化**: 按功能划分配置模块，便于维护
+- **动态扩展**: 支持运行时动态添加配置
+
+### 配置架构图
+```mermaid
+graph TB
+    A[配置文件] --> B[统一导出]
+    B --> C[应用组件]
+    
+    D[genesis-status.config.ts] --> E[状态管理]
+    F[api.ts] --> G[API调用]
+    H[routes.config.ts] --> I[路由导航]
+    J[sse.config.ts] --> K[事件订阅]
+    
+    E --> C
+    G --> C
+    I --> C
+    K --> C
+```
+
+## 📁 目录结构
+
+```
+config/
+├── api.ts                    # API端点和配置
+├── genesis-status.config.ts   # Genesis状态显示配置
+├── routes.config.ts           # 路由和导航配置
+├── sse.config.ts             # SSE服务配置
+└── index.ts                  # 统一导出文件
+```
+
+## 🔧 核心配置模块
+
+### API 配置 (`api.ts`)
+
+集中管理所有 API 端点和相关配置。
+
+#### 功能特性
+- **环境变量支持**: 通过 `VITE_API_BASE_URL` 配置 API 基础地址
+- **版本管理**: 统一的 API 版本控制
+- **类型安全**: 完整的 TypeScript 类型定义
+- **动态路径**: 支持参数化的 API 路径
+
+#### 配置结构
+```typescript
+// API 基础配置
+API_BASE_URL: string           // API 基础地址
+API_VERSION: string           // API 版本号
+
+// API 端点
+API_ENDPOINTS: {
+  health: string              // 健康检查
+  sse: {                      // SSE 服务
+    stream: string           // 事件流端点
+    health: string           // SSE 健康检查
+  }
+  genesis: {                  // Genesis 相关
+    start: string            // 启动 Genesis
+    status: (sessionId: string) => string  // 获取状态
+  }
+  novels: {                   // 小说相关
+    list: string             // 小说列表
+    detail: (id: string) => string  // 小说详情
+    chapters: (id: string) => string  // 章节列表
+  }
+}
+```
+
+#### 使用示例
+```typescript
+import { API_BASE_URL, API_ENDPOINTS } from '@/config'
+
+// 使用 API 端点
+const novelDetailUrl = API_ENDPOINTS.novels.detail(novelId)
+const genesisStatusUrl = API_ENDPOINTS.genesis.status(sessionId)
+
+// 发起 API 请求
+const response = await fetch(`${API_BASE_URL}${novelDetailUrl}`)
+```
+
+### 路由配置 (`routes.config.ts`)
+
+集中管理应用路由、导航和页面元信息。
+
+#### 功能特性
+- **路由定义**: 集中管理所有路由路径
+- **导航配置**: 统一的导航菜单配置
+- **权限控制**: 路由访问权限管理
+- **元信息**: 页面标题和描述配置
+- **工具函数**: 路由相关的辅助函数
+
+#### 配置结构
+```typescript
+// 路由定义
+ROUTES: {
+  auth: { ... }              // 认证相关路由
+  novels: {                  // 小说相关路由
+    list: string
+    detail: (id: string) => string
+    genesis: (id: string) => string
+    // ... 其他路由
+  }
+  // ... 其他路由组
+}
+
+// 导航配置
+NAV_ITEMS: {
+  novel: [                   // 小说相关导航
+    { name: string, path: string, icon: string }
+  ]
+}
+
+// 页面元信息
+PAGE_META: {
+  titles: { ... }           // 页面标题
+  descriptions: { ... }     // 页面描述
+}
+
+// 权限配置
+ROUTE_ACCESS: {
+  public: string[]          // 公开路由
+  protected: string[]       // 需要认证的路由
+}
+```
+
+#### 使用示例
+```typescript
+import { ROUTES, NAV_ITEMS, isProtectedRoute } from '@/config'
+
+// 使用路由
+const novelGenesisUrl = ROUTES.novels.genesis(novelId)
+
+// 检查路由权限
+if (isProtectedRoute(currentPath)) {
+  // 需要认证
+}
+
+// 获取导航配置
+const novelNavItems = NAV_ITEMS.novel
+```
+
+### SSE 配置 (`sse.config.ts`)
+
+Server-Sent Events 服务相关配置。
+
+#### 功能特性
+- **事件类型定义**: 预定义的通用事件类型
+- **连接配置**: SSE 连接参数和选项
+- **重试机制**: 连接失败的重试策略
+- **事件过滤**: 事件类型过滤和分类
+
+#### 配置结构
+```typescript
+// 通用事件类型
+COMMON_EVENT_TYPES: string[]
+
+// 连接配置
+SSE_CONFIG: {
+  retryInterval: number      // 重试间隔
+  maxRetries: number         // 最大重试次数
+  timeout: number           // 连接超时
+}
+
+// 事件分类
+EVENT_CATEGORIES: {
+  SYSTEM: string[]          // 系统事件
+  BUSINESS: string[]        // 业务事件
+}
+```
+
+### 统一导出 (`index.ts`)
+
+提供所有配置的统一导出入口。
+
+#### 功能特性
+- **集中导出**: 所有配置的统一入口
+- **类型安全**: 完整的类型导出
+- **向后兼容**: 保持现有导入方式
+
+#### 使用方式
+```typescript
+// 从统一入口导入
+import { 
+  API_ENDPOINTS, 
+  ROUTES, 
+  GENESIS_STATUS_CONFIGS,
+  isGenesisEvent 
+} from '@/config'
+```
 
 ## Genesis状态配置
 
