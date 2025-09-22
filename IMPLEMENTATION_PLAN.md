@@ -28,6 +28,13 @@
 **Tests**: 前端页面手动验证
 **Status**: Complete
 
+## Stage 5: 思考过程视觉强化
+
+**Goal**: 优化 ThinkingProcess 组件视觉与交互体验，使其符合现代前端最佳实践
+**Success Criteria**: 折叠态提供清晰的最新进展摘要；展开态以时间线样式展示步骤并区分完成/进行中/错误状态；交互连贯、层级清晰
+**Tests**: 前端页面手动验证
+**Status**: Not Started
+
 ---
 
 # 动态处理器分派机制实现计划
