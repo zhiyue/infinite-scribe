@@ -100,7 +100,7 @@ interface OptimisticMessage {
 export function GenesisConversation({
   stage,
   sessionId,
-  novelId,
+  novelId: _novelId,
   onStageComplete,
   isStageChanging = false,
   className,
@@ -189,6 +189,7 @@ export function GenesisConversation({
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
 
 
+
   // SSE连接状态日志
   useEffect(() => {
     console.log('[GenesisConversation] SSE connection status:', {
@@ -212,11 +213,50 @@ export function GenesisConversation({
     }
   }, [hasPendingUserMessage, isWaitingForResponse, isTyping, roundsLoading, rounds])
 
+  // 推断命令ID：优先使用pendingCommand，其次从最近的用户消息推断
+  const inferredCommandId = useMemo(() => {
+    if (currentCommandId) return currentCommandId
+
+    // 如果有待回复的用户消息，尝试从rounds中推断命令ID
+    if (hasPendingUserMessage && rounds.length > 0) {
+      const lastUserRound = rounds[rounds.length - 1]
+      if (lastUserRound?.role === 'user') {
+        // 优先使用 round 级别的 correlation_id
+        if (lastUserRound.correlation_id) {
+          return lastUserRound.correlation_id
+        }
+        // 其次尝试从 input 中获取
+        if (lastUserRound.input?.correlation_id) {
+          return lastUserRound.input.correlation_id
+        }
+        // 最后尝试从 input.payload 中获取（兼容不同的数据结构）
+        if (lastUserRound.input?.payload?.correlation_id) {
+          return lastUserRound.input.payload.correlation_id
+        }
+      }
+    }
+
+    return null
+  }, [currentCommandId, hasPendingUserMessage, rounds])
+
   // 使用 useCommandEvents（API+SSE）统一时间线并驱动思考状态
-  const commandTimeline = useCommandEvents(sessionId, currentCommandId || '', {
+  const commandTimeline = useCommandEvents(sessionId, inferredCommandId || '', {
     limit: 20,
-    enabled: !!currentCommandId,
+    enabled: !!inferredCommandId,
   })
+
+  // 调试命令ID推断逻辑
+  useEffect(() => {
+    console.log('[GenesisConversation] Command ID inference:', {
+      currentCommandId,
+      inferredCommandId,
+      hasPendingUserMessage,
+      pendingCommand,
+      lastUserRound: rounds.length > 0 ? rounds[rounds.length - 1] : null,
+      commandTimelineEnabled: !!inferredCommandId,
+      commandTimelineData: commandTimeline.data?.length || 0,
+    })
+  }, [currentCommandId, inferredCommandId, hasPendingUserMessage, pendingCommand, rounds, commandTimeline.data])
 
   // 扁平化系统事件：最近若干条
   const recentFlatStatuses = useMemo(() => {

@@ -31,7 +31,7 @@ import type {
 } from '@/types/api'
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CommandEventItem } from '@/types/api'
 import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
 import { useSSEEvents as useSSEEventsGeneric } from '@/hooks/sse'
@@ -87,12 +87,16 @@ export function useCommandEvents(
     queryKey: [...conversationKeys.command(sessionId, commandId), 'events', pageSize],
     queryFn: () => conversationsService.getCommandEvents(sessionId, commandId, pageSize),
     enabled: !!sessionId && !!commandId && options?.enabled !== false,
-    onSuccess: (data) => {
-      setMergedEvents((prev) => mergeUniqueEvents([...prev], data))
-      // 如果返回少于请求条数，则认为没有更多历史
-      setHasMore(data.length >= pageSize)
-    },
   })
+
+  // 处理查询成功后的数据更新
+  useEffect(() => {
+    if (query.data) {
+      setMergedEvents((prev) => mergeUniqueEvents([...prev], query.data))
+      // 如果返回少于请求条数，则认为没有更多历史
+      setHasMore(query.data.length >= pageSize)
+    }
+  }, [query.data, pageSize])
 
   // 加载更早的历史（before 最早一条时间戳）
   async function loadMore() {
@@ -397,7 +401,7 @@ export function usePendingCommand(
   options?: Omit<UseQueryOptions<PendingCommandResponse, Error>, 'queryKey' | 'queryFn'>,
 ) {
   return useQuery({
-    queryKey: conversationKeys.session(sessionId, 'pending-command'),
+    queryKey: [...conversationKeys.session(sessionId), 'pending-command'],
     queryFn: () => conversationsService.getPendingCommand(sessionId),
     enabled: !!sessionId,
     ...options,
