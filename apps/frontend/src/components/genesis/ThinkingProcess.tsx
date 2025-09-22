@@ -5,19 +5,9 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { getGenesisStatusConfig } from '@/config/genesis-status.config'
 import { cn } from '@/lib/utils'
-import {
-  Brain,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Loader2,
-  XCircle,
-  Zap,
-} from 'lucide-react'
+import { Brain, CheckCircle, ChevronDown, ChevronUp, Loader2, XCircle, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { GenesisCommandStatus } from './GenesisStatusCard'
 
@@ -107,7 +97,83 @@ export function ThinkingProcess({
       ? thinkingText
       : stage
 
-  const shouldShowCompactList = !isExpanded && statusList.length > 0 && compactListCount > 0
+  type StepState = 'default' | 'processing' | 'success' | 'error'
+  const getStepVisual = (status: GenesisCommandStatus, index: number) => {
+    const stageCfg =
+      THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES] || THINKING_STAGES.default
+    const normalizedStatus = (status.status || '').toLowerCase()
+    const eventType = status.event_type.toLowerCase()
+    const isLatest = index === statusList.length - 1
+
+    let state: StepState = 'default'
+
+    if (['failed', 'error', 'cancel'].some((keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword))) {
+      state = 'error'
+    } else if (
+      ['completed', 'finished', 'success', 'done'].some(
+        (keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword),
+      )
+    ) {
+      state = 'success'
+    } else if (
+      ['processing', 'running', 'queued', 'pending', 'generating'].some(
+        (keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword),
+      )
+    ) {
+      state = 'processing'
+    }
+
+    if (isLatest && isThinking && !hasError && state !== 'error') {
+      state = 'processing'
+    }
+
+    let IconComponent = stageCfg.icon
+    let iconClassName = 'text-muted-foreground'
+    let circleClassName = 'border-border/60 bg-background text-muted-foreground'
+    let badgeClassName = 'border-border/60 bg-muted/40 text-muted-foreground/80'
+    let stateLabel = '准备中'
+    let animate = false
+
+    switch (state) {
+      case 'processing':
+        IconComponent = Loader2
+        iconClassName = 'text-primary'
+        circleClassName = 'border-primary/40 bg-primary/10 text-primary'
+        badgeClassName = 'border-primary/30 bg-primary/10 text-primary'
+        stateLabel = '进行中'
+        animate = true
+        break
+      case 'success':
+        IconComponent = CheckCircle
+        iconClassName = 'text-emerald-600'
+        circleClassName = 'border-emerald-400/60 bg-emerald-500/10 text-emerald-600'
+        badgeClassName = 'border-emerald-400/60 bg-emerald-500/10 text-emerald-700'
+        stateLabel = '已完成'
+        break
+      case 'error':
+        IconComponent = XCircle
+        iconClassName = 'text-red-600'
+        circleClassName = 'border-red-400/60 bg-red-500/10 text-red-600'
+        badgeClassName = 'border-red-400/60 bg-red-500/10 text-red-600'
+        stateLabel = '出错'
+        break
+      default:
+        stateLabel = '准备中'
+    }
+
+    return {
+      IconComponent,
+      iconClassName,
+      circleClassName,
+      badgeClassName,
+      stateLabel,
+      stageCfg,
+      state,
+      animate,
+    }
+  }
+
+  const latestVisual = latestStatus ? getStepVisual(latestStatus, statusList.length - 1) : null
 
   // 自动滚动到最新阶段
   useEffect(() => {
@@ -133,7 +199,7 @@ export function ThinkingProcess({
         {/* 主要思考状态显示 */}
         <div
           className={cn(
-            'rounded-lg border px-4 py-3 transition-all duration-200',
+            'rounded-xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm transition-all duration-200 backdrop-blur supports-[backdrop-filter]:bg-background/70',
             hasError
               ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20'
               : isCompleted
@@ -142,7 +208,7 @@ export function ThinkingProcess({
           )}
         >
           {/* 思考状态头部 */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {isThinking && !isCompleted && !hasError && (
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -153,11 +219,23 @@ export function ThinkingProcess({
               <span className="text-sm font-medium">{headerText}</span>
 
               {statusList.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="outline" className="text-[11px] font-medium">
                   {statusList.length} 步骤
                 </Badge>
               )}
             </div>
+
+            {latestStatus && latestVisual && (
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/80">
+                <Badge
+                  variant="outline"
+                  className={cn('text-[10px] font-medium', latestVisual.badgeClassName)}
+                >
+                  {latestVisual.stateLabel}
+                </Badge>
+                {latestStatus.timestamp && <span>{formatTime(latestStatus.timestamp)}</span>}
+              </div>
+            )}
 
             {/* 展开/收起按钮 */}
             {statusList.length > 0 && (
@@ -175,75 +253,69 @@ export function ThinkingProcess({
               </Button>
             )}
           </div>
-
-          {/* 折叠视图：优先展示扁平小项；若 compactListCount=0 则回退为进度条 */}
-          {shouldShowCompactList && (
-            <ul className="mt-2 space-y-1">
-              {statusList.slice(-compactListCount).map((status, index) => {
-                const cfg = getGenesisStatusConfig(status.event_type)
-                const StIcon =
-                  THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES]?.icon || THINKING_STAGES.default.icon
-                return (
-                  <li key={`${status.event_id}-${index}`} className="flex items-center gap-2">
-                    <StIcon className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[11px] leading-4 text-muted-foreground">{cfg.label}</span>
-                    <span className="text-[11px] text-muted-foreground/70 hidden sm:inline">— {cfg.description}</span>
-                    <span className="ml-auto text-[10px] text-muted-foreground/70">{formatTime(status.timestamp)}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
         </div>
 
         {/* 详细思考步骤（展开时显示） - 扁平、适合长列表滚动 */}
         {isExpanded && statusList.length > 0 && (
-          <div className="mt-3">
+          <div className="mt-4">
             <div className="max-h-60 overflow-y-auto pr-1">
-              <ul className="divide-y divide-border">
-                {statusList.map((status, index) => {
-                  const cfg = getGenesisStatusConfig(status.event_type)
-                  const stageCfg =
-                    THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES] ||
-                    THINKING_STAGES.default
-                  const isCurrentStep = index === currentStageIndex
-                  const isLastStep = index === statusList.length - 1
-                  const shouldSpin = isLastStep && isThinking && !hasError
-                  const IconComponent = shouldSpin ? Loader2 : stageCfg.icon
+              <div className="relative pl-8">
+                <div className="absolute left-3 top-2 bottom-4 w-px bg-border/60" aria-hidden />
+                <ul className="space-y-4">
+                  {statusList.map((status, index) => {
+                    const cfg = getGenesisStatusConfig(status.event_type)
+                    const visual = getStepVisual(status, index)
+                    const isCurrentStep = index === currentStageIndex
 
-                  return (
-                    <li
-                      key={`${status.event_id}-${index}`}
-                      className={cn(
-                        'flex items-center gap-2 py-1.5 text-xs',
-                        isCurrentStep ? 'text-foreground' : 'text-muted-foreground',
-                      )}
-                      title={cfg.description}
-                    >
-                      <IconComponent
+                    return (
+                      <li
+                        key={`${status.event_id}-${index}`}
                         className={cn(
-                          'h-3 w-3',
-                          shouldSpin
-                            ? 'text-primary animate-spin'
-                            : isCurrentStep
-                              ? 'text-primary'
-                              : 'text-muted-foreground/70',
+                      "relative pl-9 text-xs after:absolute after:left-[11px] after:top-6 after:h-[calc(100%-1.5rem)] after:w-px after:bg-border/50 after:content-[''] last:after:hidden",
+                          isCurrentStep ? 'text-foreground' : 'text-muted-foreground',
                         )}
-                      />
-                      <span className={cn('truncate', isCurrentStep && 'font-medium')}>
-                        {stageCfg.label}
-                      </span>
-                      <span className="hidden sm:inline text-muted-foreground/70 truncate">
-                        — {cfg.description}
-                      </span>
-                      <span className="ml-auto text-[10px] text-muted-foreground/70">
-                        {formatTime(status.timestamp)}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+                        title={cfg.description}
+                      >
+                        <span
+                          className={cn(
+                            'absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-all duration-200',
+                            visual.circleClassName,
+                            isCurrentStep && 'ring-2 ring-offset-2 ring-offset-background ring-primary/30',
+                          )}
+                        >
+                          <visual.IconComponent
+                            className={cn(
+                              'h-3.5 w-3.5 transition-transform duration-200',
+                              visual.iconClassName,
+                              visual.animate && 'animate-spin',
+                            )}
+                          />
+                        </span>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn('truncate text-sm', isCurrentStep && 'font-medium')}>
+                              {visual.stageCfg.label}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={cn('text-[10px] font-medium', visual.badgeClassName)}
+                            >
+                              {visual.stateLabel}
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground/70">
+                            {formatTime(status.timestamp)}
+                          </span>
+                        </div>
+                        {cfg.description && (
+                          <p className="mt-1 text-xs text-muted-foreground/80 leading-5">{cfg.description}</p>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             </div>
           </div>
         )}

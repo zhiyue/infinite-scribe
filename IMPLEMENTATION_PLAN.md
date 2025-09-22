@@ -33,7 +33,14 @@
 **Goal**: 优化 ThinkingProcess 组件视觉与交互体验，使其符合现代前端最佳实践
 **Success Criteria**: 折叠态提供清晰的最新进展摘要；展开态以时间线样式展示步骤并区分完成/进行中/错误状态；交互连贯、层级清晰
 **Tests**: 前端页面手动验证
-**Status**: Not Started
+**Status**: Complete
+
+## Stage 6: 折叠态样式统一
+
+**Goal**: 统一折叠态摘要卡片与展开态时间线的视觉风格，并在收起时隐藏底部额外内容
+**Success Criteria**: 折叠态只有顶部摘要条；卡片配色、圆角、层次与时间线节点一致
+**Tests**: 前端页面手动验证
+**Status**: Complete
 
 ---
 
