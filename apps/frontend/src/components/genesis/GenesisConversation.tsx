@@ -688,7 +688,7 @@ export function GenesisConversation({
                   isThinking={isTyping || hasPendingUserMessage}
                   statusList={recentFlatStatuses}
                   thinkingText="AI 正在思考..."
-                  compactListCount={5}
+                  compactListCount={0}
                 />
               )}
               {/* 加载更多历史系统事件 */}

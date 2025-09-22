@@ -98,7 +98,21 @@ export function ThinkingProcess({
   const [isExpanded, setIsExpanded] = useState(propShowDetails)
   const [currentStageIndex, setCurrentStageIndex] = useState(0)
 
+  const latestStatus = statusList.length > 0 ? statusList[statusList.length - 1] : null
+  const latestStageCfg = latestStatus
+    ? THINKING_STAGES[latestStatus.event_type as keyof typeof THINKING_STAGES] || THINKING_STAGES.default
+    : THINKING_STAGES.default
+  const latestConfig = latestStatus ? getGenesisStatusConfig(latestStatus.event_type) : null
+  const LatestStageIcon = latestStageCfg.icon
   const { stage, isCompleted, hasError } = getCurrentStage(statusList)
+  const headerText = latestStatus
+    ? latestConfig?.label || stage
+    : isThinking && !isCompleted && !hasError
+      ? thinkingText
+      : stage
+
+  const shouldShowCompactList = !isExpanded && statusList.length > 0 && compactListCount > 0
+  const shouldShowLatestSummary = !isExpanded && statusList.length > 0 && compactListCount === 0
 
   // 自动滚动到最新阶段
   useEffect(() => {
@@ -141,9 +155,7 @@ export function ThinkingProcess({
               {isCompleted && <CheckCircle className="h-4 w-4 text-green-600" />}
               {hasError && <XCircle className="h-4 w-4 text-red-600" />}
 
-              <span className="text-sm font-medium">
-                {isThinking && !isCompleted && !hasError ? thinkingText : stage}
-              </span>
+              <span className="text-sm font-medium">{headerText}</span>
 
               {statusList.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
@@ -170,40 +182,45 @@ export function ThinkingProcess({
           </div>
 
           {/* 折叠视图：优先展示扁平小项；若 compactListCount=0 则回退为进度条 */}
-          {!isExpanded && statusList.length > 0 && (
-            compactListCount > 0 ? (
-              <ul className="mt-2 space-y-1">
-                {statusList.slice(-compactListCount).map((status, index) => {
-                  const cfg = getGenesisStatusConfig(status.event_type)
-                  const StIcon = THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES]?.icon || THINKING_STAGES.default.icon
-                  return (
-                    <li key={`${status.event_id}-${index}`} className="flex items-center gap-2">
-                      <StIcon className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-[11px] leading-4 text-muted-foreground">{cfg.label}</span>
-                      <span className="text-[11px] text-muted-foreground/70 hidden sm:inline">— {cfg.description}</span>
-                      <span className="ml-auto text-[10px] text-muted-foreground/70">{formatTime(status.timestamp)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex-1 bg-muted-foreground/20 rounded-full h-1">
-                  <div
-                    className={cn(
-                      'h-1 rounded-full transition-all duration-300',
-                      hasError ? 'bg-red-500' : isCompleted ? 'bg-green-500' : 'bg-primary',
-                    )}
-                    style={{
-                      width: `${Math.min(100, (statusList.length / Math.max(5, statusList.length)) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {statusList.length > 0 && formatTime(statusList[statusList.length - 1].timestamp)}
+          {shouldShowCompactList && (
+            <ul className="mt-2 space-y-1">
+              {statusList.slice(-compactListCount).map((status, index) => {
+                const cfg = getGenesisStatusConfig(status.event_type)
+                const StIcon =
+                  THINKING_STAGES[status.event_type as keyof typeof THINKING_STAGES]?.icon || THINKING_STAGES.default.icon
+                return (
+                  <li key={`${status.event_id}-${index}`} className="flex items-center gap-2">
+                    <StIcon className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-[11px] leading-4 text-muted-foreground">{cfg.label}</span>
+                    <span className="text-[11px] text-muted-foreground/70 hidden sm:inline">— {cfg.description}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground/70">{formatTime(status.timestamp)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {shouldShowLatestSummary && latestStatus && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              {isThinking && !isCompleted && !hasError ? (
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              ) : (
+                <LatestStageIcon className="h-3 w-3 text-muted-foreground" />
+              )}
+              <span className="truncate font-medium text-muted-foreground">
+                {latestConfig?.label || stage}
+              </span>
+              {latestConfig?.description && (
+                <span className="hidden sm:inline truncate text-muted-foreground/70">
+                  — {latestConfig.description}
                 </span>
-              </div>
-            )
+              )}
+              {latestStatus.timestamp && (
+                <span className="ml-auto text-[10px] text-muted-foreground/70">
+                  {formatTime(latestStatus.timestamp)}
+                </span>
+              )}
+            </div>
           )}
         </div>
 

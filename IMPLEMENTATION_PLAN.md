@@ -1,3 +1,28 @@
+# 创世思考过程交互优化计划
+
+## Stage 1: 现状梳理与需求确认
+
+**Goal**: 弄清 Genesis 阶段 Thinking 展示逻辑及数据来源，确认需要变更的交互点
+**Success Criteria**: 列出当前折叠/展开状态的展示差异与缺口，明确要改成“默认显示最新事件、点击展开列表”的方案
+**Tests**: 暂无（分析阶段）
+**Status**: Complete
+
+## Stage 2: 组件与调用层改造
+
+**Goal**: 更新 ThinkingProcess 组件与 GenesisConversation 调用逻辑，实现折叠态只展示最新事件摘要
+**Success Criteria**: 折叠态头部文案使用最新事件信息；默认不展示事件列表；展开后保持完整步骤列表
+**Tests**: 预留手动核验（Storybook/页面自测）
+**Status**: Complete
+
+## Stage 3: 自检与回归验证
+
+**Goal**: 手动检查 UI 行为、复查相关文档及状态
+**Success Criteria**: 页面刷新后状态保持正确；昨日行为不受影响；计划文件更新完毕
+**Tests**: 前端页面手动验证（需运行前端应用）
+**Status**: Complete
+
+---
+
 # 动态处理器分派机制实现计划
 
 ## 项目概述
