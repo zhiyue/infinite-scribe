@@ -4,6 +4,122 @@
 
 ## 🚀 最新架构增强
 
+### 领域事件有效负载构建逻辑增强 ✨
+
+最近的重构增强了领域事件有效负载构建逻辑，支持关键字段冲突隔离，确保下游消费者能正确解析数据：
+
+```mermaid
+graph TD
+    subgraph "增强前：简单合并"
+        A[领域事件payload] --> B[系统字段]
+        A --> C[业务数据]
+        B --> D[直接合并到outbox payload]
+        C --> D
+        D --> E[可能字段冲突]
+        E --> F[下游解析错误]
+    end
+    
+    subgraph "增强后：冲突检测与隔离"
+        G[领域事件payload] --> H[保护字段检测]
+        G --> I[业务数据]
+        H --> J{冲突字段?}
+        J -->|是| K[隔离到domain_payload]
+        J -->|否| L[直接合并到顶层]
+        K --> M[outbox payload]
+        L --> M
+        M --> N[结构化输出]
+        N --> O[下游正确解析]
+    end
+```
+
+#### 有效负载构建特性
+
+- **关键字段保护**: 保护 `event_id`, `event_type`, `aggregate_type`, `aggregate_id`, `metadata`, `created_at` 等系统字段
+- **冲突检测**: 自动检测领域payload中的字段冲突
+- **智能隔离**: 将冲突字段隔离到 `domain_payload` 子对象中
+- **结构化输出**: 确保输出结构的一致性和可预测性
+- **向下兼容**: 保持与现有消费者的兼容性
+
+#### 实现细节
+
+```python
+# 保护的关键系统字段
+protected_fields = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
+
+# 冲突检测和隔离逻辑
+conflicting_fields = set(domain_payload.keys()) & protected_fields
+if conflicting_fields:
+    # 将冲突字段隔离到domain_payload子对象中
+    domain_payload_safe = {}
+    domain_payload_conflicts = {}
+    
+    for key, value in domain_payload.items():
+        if key in protected_fields:
+            domain_payload_conflicts[key] = value
+        else:
+            domain_payload_safe[key] = value
+    
+    # 安全字段直接合并到顶层
+    outbox_payload.update(domain_payload_safe)
+    
+    # 冲突字段放入domain_payload子对象
+    if domain_payload_conflicts:
+        outbox_payload["domain_payload"] = domain_payload_conflicts
+```
+
+#### 输出结构示例
+
+**无冲突情况**:
+```json
+{
+  "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "event_type": "Genesis.Character.Created",
+  "aggregate_type": "Genesis",
+  "aggregate_id": "session-123",
+  "metadata": {"source": "orchestrator"},
+  "character_name": "张三",
+  "character_age": 25
+}
+```
+
+**有冲突情况**:
+```json
+{
+  "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "event_type": "Genesis.Character.Created", 
+  "aggregate_type": "Genesis",
+  "aggregate_id": "session-123",
+  "metadata": {"source": "orchestrator"},
+  "domain_payload": {
+    "event_type": "Character.Created",
+    "aggregate_id": "session-456"
+  },
+  "character_name": "张三"
+}
+```
+
+#### 日志增强
+
+```python
+# 冲突检测日志
+if conflicting_fields:
+    self.log.warning(
+        "domain_payload_field_conflict_detected",
+        event_id=str(domain_event.event_id),
+        event_type=domain_event.event_type,
+        conflicting_fields=list(conflicting_fields),
+        message="领域payload包含系统保留字段，将被隔离到domain_payload子对象中"
+    )
+```
+
+#### 新增日志事件
+
+- `domain_payload_field_conflict_detected`: 字段冲突检测警告，包含：
+  - `event_id`: 事件ID
+  - `event_type`: 事件类型  
+  - `conflicting_fields`: 冲突字段列表
+  - `message`: 处理说明
+
 ### 领域事件幂等性检查器增强 ✨
 
 最近的重构增强了领域事件幂等性检查器，添加了全面的日志记录功能以提升系统可观测性：
@@ -702,7 +818,7 @@ classDiagram
 
 ### 📬 Outbox管理器 (OutboxManager)
 
-统一的领域事件持久化和能力任务入队管理接口：
+统一的领域事件持久化和能力任务入队管理接口，最近增强了有效负载构建逻辑和冲突检测能力：
 
 ```mermaid
 classDiagram
@@ -721,10 +837,13 @@ classDiagram
     
     class OutboxEntryCreator {
         +create_or_get_outbox_entry()
+        +_build_outbox_payload()
+        -_check_existing_outbox()
     }
     
     class CapabilityTaskEnqueuer {
         +enqueue_capability_task()
+        -_create_outbox_entry()
     }
     
     class DomainEventIdempotencyChecker {
@@ -732,19 +851,161 @@ classDiagram
         +logger: 可选日志记录器
     }
     
+    class PayloadBuilder {
+        +_build_outbox_payload()
+        +detect_field_conflicts()
+        +isolate_conflicting_fields()
+    }
+    
     OutboxManager --> DomainEventCreator
     OutboxManager --> OutboxEntryCreator
     OutboxManager --> CapabilityTaskEnqueuer
     DomainEventCreator --> DomainEventIdempotencyChecker
+    OutboxEntryCreator --> PayloadBuilder
 ```
 
-**核心特性**：
+#### 核心架构增强
+
+**领域事件处理流程**:
+```mermaid
+sequenceDiagram
+    participant O as OutboxManager
+    participant DC as DomainEventCreator
+    participant OC as OutboxEntryCreator  
+    participant PB as PayloadBuilder
+    participant DB as Database
+    
+    O->>DC: persist_domain_event()
+    DC->>DC: create_or_get_domain_event()
+    DC->>DB: 幂等性检查
+    DC-->>DC: DomainEvent
+    
+    O->>OC: create_or_get_outbox_entry()
+    OC->>PB: _build_outbox_payload()
+    PB->>PB: 检测字段冲突
+    PB->>PB: 隔离冲突字段
+    PB-->>OC: 结构化payload
+    
+    OC->>DB: 创建EventOutbox
+    OC-->>O: EventOutbox
+```
+
+**有效负载构建流程**:
+```mermaid
+flowchart TD
+    A[领域事件] --> B[提取基础字段]
+    B --> C[分析领域payload]
+    C --> D{字段冲突检测}
+    
+    D -->|无冲突| E[直接合并到顶层]
+    D -->|有冲突| F[隔离冲突字段]
+    
+    F --> G[安全字段合并]
+    G --> H[冲突字段放入domain_payload]
+    H --> I[最终outbox payload]
+    
+    E --> I
+    I --> J[EventOutbox创建]
+```
+
+#### 核心特性
+
 - **领域事件幂等性**: 通过correlation_id + event_type确保唯一性
 - **增强错误追踪**: 幂等性检查器支持可选日志记录器，提供详细的错误信息追踪
 - **系统可用性保障**: 数据库查询失败时优雅降级，确保系统持续可用
 - **Outbox条目管理**: 基于领域事件ID的幂等性检查
 - **能力任务入队**: 统一的能力任务消息封装和路由
 - **事务一致性**: 领域事件和Outbox条目在同一个事务中创建
+
+#### 新增有效负载构建增强 ✨
+
+- **关键字段保护**: 自动保护系统关键字段不被覆盖
+- **冲突智能检测**: 检测领域payload与系统字段的冲突
+- **结构化隔离**: 将冲突字段隔离到专门的子对象中
+- **向下兼容**: 保持与现有消费者的完全兼容性
+- **详细日志记录**: 记录冲突检测和处理过程
+
+#### 有效负载构建策略
+
+```python
+def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
+    """构建outbox有效负载，支持字段冲突隔离"""
+    
+    # 1. 定义保护字段
+    protected_fields = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
+    
+    # 2. 构建基础payload
+    outbox_payload = {
+        "event_id": str(domain_event.event_id),
+        "event_type": domain_event.event_type,
+        "aggregate_type": domain_event.aggregate_type,
+        "aggregate_id": domain_event.aggregate_id,
+        "metadata": domain_event.event_metadata or {},
+    }
+    
+    # 3. 处理领域payload
+    domain_payload = domain_event.payload or {}
+    if domain_payload:
+        conflicting_fields = set(domain_payload.keys()) & protected_fields
+        
+        if conflicting_fields:
+            # 智能隔离冲突字段
+            self._isolate_conflicting_fields(domain_payload, conflicting_fields, outbox_payload)
+        else:
+            # 无冲突，直接合并
+            outbox_payload.update(domain_payload)
+    
+    return outbox_payload
+```
+
+#### 使用示例
+
+```python
+# 创建OutboxManager
+outbox_manager = OutboxManager(logger, agent_name="orchestrator")
+
+# 持久化领域事件（自动处理字段冲突）
+await outbox_manager.persist_domain_event(
+    scope_type="GENESIS",
+    session_id="session-123", 
+    event_action="Character.Created",
+    payload={
+        "character_name": "张三",
+        "event_type": "Character.Created",  # 冲突字段
+        "aggregate_id": "session-456"      # 冲突字段
+    },
+    correlation_id="corr-123"
+)
+
+# 输出结果：
+# {
+#   "event_id": "...",
+#   "event_type": "Genesis.Character.Created",
+#   "aggregate_type": "Genesis", 
+#   "aggregate_id": "session-123",
+#   "character_name": "张三",
+#   "domain_payload": {
+#     "event_type": "Character.Created",
+#     "aggregate_id": "session-456"
+#   }
+# }
+```
+
+#### 监控和日志
+
+**新增监控指标**:
+- 字段冲突检测次数
+- 冲突字段隔离成功率
+- 有效负载构建时间
+- Outbox条目创建成功率
+
+**关键日志事件**:
+- `domain_payload_field_conflict_detected`: 字段冲突检测
+- `outbox_payload_build_success`: 有效负载构建成功
+- `outbox_payload_build_failed`: 有效负载构建失败
+- `conflicting_fields_isolated`: 冲突字段隔离完成
+
+这些增强确保了OutboxManager在处理复杂数据结构时的可靠性和可维护性，同时提供了完整的监控和调试能力。
 
 ### OrchestratorAgent
 
@@ -1544,6 +1805,13 @@ class CustomEventHandler:
 - `orchestrator_outbox_entry_created`: Outbox条目创建成功
 - `orchestrator_outbox_entry_already_exists`: Outbox条目已存在
 - `orchestrator_domain_event_persist_completed`: 领域事件持久化完成
+
+#### 🆕 有效负载构建日志 ✨
+- `domain_payload_field_conflict_detected`: 字段冲突检测警告，包含冲突字段列表和处理说明
+- `outbox_payload_build_success`: 有效负载构建成功
+- `outbox_payload_build_failed`: 有效负载构建失败  
+- `conflicting_fields_isolated`: 冲突字段隔离完成
+- `protected_fields_validation`: 保护字段验证结果
 
 #### 🆕 领域事件幂等性检查器增强日志
 - `orchestrator_domain_event_check_failed`: 数据库查询失败警告日志，包含：
