@@ -245,9 +245,23 @@ class OrchestratorAgent(BaseAgent):
         # 如果指定，则将后续能力任务入队
         if action.capability_message:
             try:
+                # 创建异步任务以保持可观测性和一致性
+                from src.common.events.mapping import normalize_task_type
+
+                correlation_id = (action.domain_event or {}).get("correlation_id")
+                session_id = action.capability_message.get("session_id") or (action.domain_event or {}).get(
+                    "session_id", ""
+                )
+                await self.task_manager.create_async_task(
+                    correlation_id=correlation_id,
+                    session_id=session_id,
+                    task_type=normalize_task_type(action.capability_message.get("type", "")),
+                    input_data=action.capability_message.get("input") or {},
+                )
+
                 await self.outbox_manager.enqueue_capability_task(
                     capability_message=action.capability_message,
-                    correlation_id=(action.domain_event or {}).get("correlation_id"),
+                    correlation_id=correlation_id,
                 )
                 self.log.info("orchestrator_followup_task_enqueued", topic=action.capability_message.get("_topic"))
             except Exception as e:
