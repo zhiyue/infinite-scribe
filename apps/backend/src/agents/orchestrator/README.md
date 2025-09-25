@@ -644,6 +644,7 @@ classDiagram
     
     class DomainEventIdempotencyChecker {
         +check_existing_domain_event()
+        +logger: 可选日志记录器
     }
     
     OutboxManager --> DomainEventCreator
@@ -654,6 +655,8 @@ classDiagram
 
 **核心特性**：
 - **领域事件幂等性**: 通过correlation_id + event_type确保唯一性
+- **增强错误追踪**: 幂等性检查器支持可选日志记录器，提供详细的错误信息追踪
+- **系统可用性保障**: 数据库查询失败时优雅降级，确保系统持续可用
 - **Outbox条目管理**: 基于领域事件ID的幂等性检查
 - **能力任务入队**: 统一的能力任务消息封装和路由
 - **事务一致性**: 领域事件和Outbox条目在同一个事务中创建
@@ -1446,7 +1449,8 @@ class CustomEventHandler:
 - `orchestrator_checking_existing_domain_event`: 检查现有领域事件
 - `orchestrator_domain_event_already_exists`: 检测到重复领域事件
 - `orchestrator_no_existing_domain_event_found`: 未找到现有领域事件
-- `orchestrator_existing_domain_event_check_failed`: 现有领域事件检查失败
+- `orchestrator_existing_domain_event_check_failed`: 现有领域事件检查失败 ✨
+- `orchestrator_domain_event_check_failed`: 数据库查询失败，记录错误详情 ✨
 - `orchestrator_creating_new_domain_event`: 创建新领域事件
 - `orchestrator_domain_event_created`: 领域事件创建成功
 - `orchestrator_using_existing_domain_event`: 使用现有领域事件
@@ -2285,6 +2289,56 @@ class MyModel(BaseModel):
 这个类型系统升级为编排器带来了更强的类型安全性、更好的错误处理和更优秀的开发体验，同时保持了向后兼容性。
 
 ## 🚀 最新架构改进
+
+### 领域事件幂等性检查器增强 ✨
+
+最近的重构增强了领域事件幂等性检查器的可观测性和错误处理能力：
+
+#### 🔍 增强功能特性
+
+```mermaid
+graph TD
+    subgraph "幂等性检查器增强"
+        A[DomainEventIdempotencyChecker] --> B[可选日志记录器]
+        A --> C[异常捕获与记录]
+        A --> D[优雅降级机制]
+        B --> E[详细错误信息]
+        C --> F[错误类型和消息]
+        D --> G[系统可用性保障]
+    end
+    
+    E --> H[提升调试能力]
+    F --> H
+    G --> I[增强系统稳定性]
+```
+
+#### 🛡️ 错误处理机制
+
+新的错误处理策略确保系统在数据库查询失败时能够优雅降级：
+
+```python
+# 增强后的异常处理
+except Exception as e:
+    # 记录数据库错误以提升可观测性
+    if logger:
+        logger.warning(
+            "orchestrator_domain_event_check_failed",
+            correlation_id=correlation_id,
+            evt_type=evt_type,
+            error=str(e),
+            error_type=type(e).__name__,
+            message="数据库查询失败，假定不存在现有事件以保证系统可用性",
+        )
+    # 保证系统可用性，视为没有现有事件
+    return None
+```
+
+#### 📊 监控能力提升
+
+- **详细错误追踪**: 记录错误类型、错误消息和相关上下文
+- **上下文信息保留**: 包含 correlation_id 和 event_type 用于问题定位
+- **系统可用性**: 数据库故障时不会中断业务流程
+- **调试友好**: 丰富的日志信息便于开发调试和问题排查
 
 ### 动态处理器分派机制 ✨
 
