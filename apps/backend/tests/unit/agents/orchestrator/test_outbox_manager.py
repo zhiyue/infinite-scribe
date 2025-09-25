@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-
 from src.agents.orchestrator.outbox_manager import (
     CapabilityTaskEnqueuer,
     DomainEventCreator,
@@ -44,9 +43,7 @@ class TestDomainEventIdempotencyChecker:
         mock_session.scalar.return_value = existing_event
 
         # Act
-        result = await DomainEventIdempotencyChecker.check_existing_domain_event(
-            correlation_id, evt_type, mock_session
-        )
+        result = await DomainEventIdempotencyChecker.check_existing_domain_event(correlation_id, evt_type, mock_session)
 
         # Assert
         assert result == existing_event
@@ -64,9 +61,7 @@ class TestDomainEventIdempotencyChecker:
         mock_session.scalar.return_value = None
 
         # Act
-        result = await DomainEventIdempotencyChecker.check_existing_domain_event(
-            correlation_id, evt_type, mock_session
-        )
+        result = await DomainEventIdempotencyChecker.check_existing_domain_event(correlation_id, evt_type, mock_session)
 
         # Assert
         assert result is None
@@ -82,9 +77,7 @@ class TestDomainEventIdempotencyChecker:
         mock_session.add = MagicMock()  # Make synchronous
 
         # Act
-        result = await DomainEventIdempotencyChecker.check_existing_domain_event(
-            correlation_id, evt_type, mock_session
-        )
+        result = await DomainEventIdempotencyChecker.check_existing_domain_event(correlation_id, evt_type, mock_session)
 
         # Assert
         assert result is None  # Should return None for invalid UUID
@@ -101,9 +94,7 @@ class TestDomainEventIdempotencyChecker:
         mock_session.scalar.side_effect = Exception("Database connection failed")
 
         # Act
-        result = await DomainEventIdempotencyChecker.check_existing_domain_event(
-            correlation_id, evt_type, mock_session
-        )
+        result = await DomainEventIdempotencyChecker.check_existing_domain_event(correlation_id, evt_type, mock_session)
 
         # Assert
         assert result is None  # Should return None for database error
@@ -310,6 +301,205 @@ class TestOutboxEntryCreator:
         assert result == existing_outbox
         mock_session.add.assert_not_called()
 
+    def test_build_outbox_payload_no_conflicts(self):
+        """Test _build_outbox_payload with no conflicting fields."""
+        # Arrange
+        domain_event = DomainEvent(
+            event_id=uuid4(),
+            event_type="Genesis.Character.Requested",
+            aggregate_type="Genesis",
+            aggregate_id="session-123",
+            payload={"character_type": "hero", "description": "A brave hero"},
+            event_metadata={"source": "test"},
+        )
+        domain_event.created_at = MagicMock()
+        domain_event.created_at.isoformat.return_value = "2023-01-01T00:00:00Z"
+
+        # Act
+        result = self.creator._build_outbox_payload(domain_event)
+
+        # Assert
+        expected_payload = {
+            "event_id": str(domain_event.event_id),
+            "event_type": "Genesis.Character.Requested",
+            "aggregate_type": "Genesis",
+            "aggregate_id": "session-123",
+            "metadata": {"source": "test"},
+            "character_type": "hero",
+            "description": "A brave hero",
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+        assert result == expected_payload
+        # No warnings should be logged for non-conflicting fields
+        self.mock_logger.warning.assert_not_called()
+
+    def test_build_outbox_payload_with_conflicts(self):
+        """Test _build_outbox_payload with conflicting system fields."""
+        # Arrange
+        domain_event = DomainEvent(
+            event_id=uuid4(),
+            event_type="Genesis.Character.Requested",
+            aggregate_type="Genesis",
+            aggregate_id="session-123",
+            payload={
+                "character_type": "hero",
+                "description": "A brave hero",
+                # Conflicting system fields
+                "event_id": "malicious-event-id",
+                "event_type": "Malicious.Event.Type",
+                "metadata": {"malicious": "data"},
+            },
+            event_metadata={"source": "test"},
+        )
+        domain_event.created_at = MagicMock()
+        domain_event.created_at.isoformat.return_value = "2023-01-01T00:00:00Z"
+
+        # Act
+        result = self.creator._build_outbox_payload(domain_event)
+
+        # Assert
+        # System fields should not be overridden
+        assert result["event_id"] == str(domain_event.event_id)
+        assert result["event_type"] == "Genesis.Character.Requested"
+        assert result["aggregate_type"] == "Genesis"
+        assert result["aggregate_id"] == "session-123"
+        assert result["metadata"] == {"source": "test"}
+
+        # Safe fields should be at top level
+        assert result["character_type"] == "hero"
+        assert result["description"] == "A brave hero"
+
+        # Conflicting fields should be isolated in domain_payload
+        assert "domain_payload" in result
+        assert result["domain_payload"]["event_id"] == "malicious-event-id"
+        assert result["domain_payload"]["event_type"] == "Malicious.Event.Type"
+        assert result["domain_payload"]["metadata"] == {"malicious": "data"}
+
+        # Warning should be logged
+        self.mock_logger.warning.assert_called_once()
+        call_args = self.mock_logger.warning.call_args
+        assert call_args[0][0] == "domain_payload_field_conflict_detected"
+        assert call_args[1]["event_id"] == str(domain_event.event_id)
+        assert call_args[1]["event_type"] == "Genesis.Character.Requested"
+        expected_conflicts = {"event_id", "event_type", "metadata"}
+        assert set(call_args[1]["conflicting_fields"]) == expected_conflicts
+
+    def test_build_outbox_payload_all_protected_fields(self):
+        """Test _build_outbox_payload when all protected fields are in payload."""
+        # Arrange
+        domain_event = DomainEvent(
+            event_id=uuid4(),
+            event_type="Genesis.Character.Requested",
+            aggregate_type="Genesis",
+            aggregate_id="session-123",
+            payload={
+                # All protected fields
+                "event_id": "malicious-event-id",
+                "event_type": "Malicious.Event.Type",
+                "aggregate_type": "Malicious.Aggregate",
+                "aggregate_id": "malicious-aggregate-id",
+                "metadata": {"malicious": "data"},
+                "created_at": "2020-01-01T00:00:00Z",
+                # Safe fields
+                "character_type": "hero",
+            },
+            event_metadata={"source": "test"},
+        )
+        domain_event.created_at = MagicMock()
+        domain_event.created_at.isoformat.return_value = "2023-01-01T00:00:00Z"
+
+        # Act
+        result = self.creator._build_outbox_payload(domain_event)
+
+        # Assert
+        # All system fields should remain unchanged
+        assert result["event_id"] == str(domain_event.event_id)
+        assert result["event_type"] == "Genesis.Character.Requested"
+        assert result["aggregate_type"] == "Genesis"
+        assert result["aggregate_id"] == "session-123"
+        assert result["metadata"] == {"source": "test"}
+        assert result["created_at"] == "2023-01-01T00:00:00Z"  # From domain_event.created_at
+
+        # Safe fields should be at top level
+        assert result["character_type"] == "hero"
+
+        # All conflicting fields should be isolated
+        assert "domain_payload" in result
+        domain_payload = result["domain_payload"]
+        assert domain_payload["event_id"] == "malicious-event-id"
+        assert domain_payload["event_type"] == "Malicious.Event.Type"
+        assert domain_payload["aggregate_type"] == "Malicious.Aggregate"
+        assert domain_payload["aggregate_id"] == "malicious-aggregate-id"
+        assert domain_payload["metadata"] == {"malicious": "data"}
+        assert domain_payload["created_at"] == "2020-01-01T00:00:00Z"
+
+        # Warning should be logged
+        self.mock_logger.warning.assert_called_once()
+        call_args = self.mock_logger.warning.call_args
+        expected_conflicts = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
+        assert set(call_args[1]["conflicting_fields"]) == expected_conflicts
+
+    def test_build_outbox_payload_empty_payload(self):
+        """Test _build_outbox_payload with empty payload."""
+        # Arrange
+        domain_event = DomainEvent(
+            event_id=uuid4(),
+            event_type="Genesis.Character.Requested",
+            aggregate_type="Genesis",
+            aggregate_id="session-123",
+            payload=None,
+            event_metadata={"source": "test"},
+        )
+        domain_event.created_at = MagicMock()
+        domain_event.created_at.isoformat.return_value = "2023-01-01T00:00:00Z"
+
+        # Act
+        result = self.creator._build_outbox_payload(domain_event)
+
+        # Assert
+        expected_payload = {
+            "event_id": str(domain_event.event_id),
+            "event_type": "Genesis.Character.Requested",
+            "aggregate_type": "Genesis",
+            "aggregate_id": "session-123",
+            "metadata": {"source": "test"},
+            "created_at": "2023-01-01T00:00:00Z",
+        }
+        assert result == expected_payload
+        # No conflicts should be detected for empty payload
+        self.mock_logger.warning.assert_not_called()
+
+    def test_build_outbox_payload_created_at_exception(self):
+        """Test _build_outbox_payload when created_at access raises exception."""
+        # Arrange
+        domain_event = DomainEvent(
+            event_id=uuid4(),
+            event_type="Genesis.Character.Requested",
+            aggregate_type="Genesis",
+            aggregate_id="session-123",
+            payload={"character_type": "hero"},
+            event_metadata={"source": "test"},
+        )
+        # Mock created_at to raise an exception when accessed
+        domain_event.created_at = MagicMock()
+        domain_event.created_at.isoformat.side_effect = Exception("Created at not available")
+
+        # Act
+        result = self.creator._build_outbox_payload(domain_event)
+
+        # Assert
+        expected_payload = {
+            "event_id": str(domain_event.event_id),
+            "event_type": "Genesis.Character.Requested",
+            "aggregate_type": "Genesis",
+            "aggregate_id": "session-123",
+            "metadata": {"source": "test"},
+            "character_type": "hero",
+        }
+        assert result == expected_payload
+        # created_at should not be in result when exception occurs
+        assert "created_at" not in result
+
 
 class TestCapabilityTaskEnqueuer:
     """Tests for capability task enqueueing logic."""
@@ -454,9 +644,7 @@ class TestOutboxManager:
         self.manager.capability_enqueuer.enqueue_capability_task = AsyncMock()
 
         # Act
-        await self.manager.enqueue_capability_task(
-            capability_message=capability_message, correlation_id=correlation_id
-        )
+        await self.manager.enqueue_capability_task(capability_message=capability_message, correlation_id=correlation_id)
 
         # Assert
         self.manager.capability_enqueuer.enqueue_capability_task.assert_called_once_with(

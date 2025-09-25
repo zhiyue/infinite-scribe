@@ -287,6 +287,9 @@ class OutboxEntryCreator:
         Returns:
             构建的有效负载字典
         """
+        # 定义需要保护的关键系统字段
+        protected_fields = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
+
         # 扁平化有效负载结构以避免双重嵌套 - 确保下游消费者能正确解析数据
         outbox_payload = {
             "event_id": str(domain_event.event_id),
@@ -295,8 +298,39 @@ class OutboxEntryCreator:
             "aggregate_id": domain_event.aggregate_id,
             "metadata": domain_event.event_metadata or {},
         }
-        # 直接合并领域事件有效负载，而不是嵌套在"payload"键下
-        outbox_payload.update(domain_event.payload or {})
+
+        # 校验并隔离领域payload中的关键字段冲突
+        domain_payload = domain_event.payload or {}
+        if domain_payload:
+            conflicting_fields = set(domain_payload.keys()) & protected_fields
+            if conflicting_fields:
+                self.log.warning(
+                    "domain_payload_field_conflict_detected",
+                    event_id=str(domain_event.event_id),
+                    event_type=domain_event.event_type,
+                    conflicting_fields=list(conflicting_fields),
+                    message="领域payload包含系统保留字段，将被隔离到domain_payload子对象中",
+                )
+
+                # 将冲突字段隔离到domain_payload子对象中
+                domain_payload_safe = {}
+                domain_payload_conflicts = {}
+
+                for key, value in domain_payload.items():
+                    if key in protected_fields:
+                        domain_payload_conflicts[key] = value
+                    else:
+                        domain_payload_safe[key] = value
+
+                # 安全字段直接合并到顶层
+                outbox_payload.update(domain_payload_safe)
+
+                # 冲突字段放入domain_payload子对象
+                if domain_payload_conflicts:
+                    outbox_payload["domain_payload"] = domain_payload_conflicts
+            else:
+                # 没有冲突，直接合并领域事件有效负载
+                outbox_payload.update(domain_payload)
 
         # 添加created_at作为下游时间戳的备用值
         try:
