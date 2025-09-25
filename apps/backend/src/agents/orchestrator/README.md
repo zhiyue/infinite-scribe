@@ -4,6 +4,116 @@
 
 ## 🚀 最新架构增强
 
+### 领域事件幂等性检查器增强 ✨
+
+最近的重构增强了领域事件幂等性检查器，添加了可选的日志记录功能以提升系统可观测性：
+
+```mermaid
+graph TD
+    subgraph "增强前：静默失败"
+        A[数据库查询失败] --> B[静默返回None]
+        B --> C[继续创建新事件]
+        C --> D[可能导致重复事件]
+    end
+    
+    subgraph "增强后：可观测性提升"
+        E[数据库查询失败] --> F[记录警告日志]
+        F --> G[包含详细错误信息]
+        G --> H[返回None继续处理]
+        H --> I[保证系统可用性]
+    end
+```
+
+#### 增强特性
+
+- **可观测性提升**: 捕获数据库查询异常并记录详细警告信息
+- **错误追踪**: 包含错误类型、错误消息和相关上下文信息
+- **系统可用性**: 在数据库异常时仍保证系统正常运行
+- **灵活配置**: 日志记录器参数为可选，保持向后兼容性
+- **上下文信息**: 日志包含 correlation_id 和 evt_type 便于追踪
+
+#### 实现细节
+
+```python
+# 增强前
+@staticmethod
+async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
+    try:
+        # 查询逻辑...
+    except Exception:
+        # 静默失败
+        return None
+
+# 增强后
+@staticmethod
+async def check_existing_domain_event(
+    correlation_id: str, evt_type: str, db_session, logger=None
+) -> DomainEvent | None:
+    try:
+        # 查询逻辑...
+    except Exception as e:
+        # 记录数据库错误以提升可观测性
+        if logger:
+            logger.warning(
+                "orchestrator_domain_event_check_failed",
+                correlation_id=correlation_id,
+                evt_type=evt_type,
+                error=str(e),
+                error_type=type(e).__name__,
+                message="数据库查询失败，假定不存在现有事件以保证系统可用性",
+            )
+        # 如果发生任何其他错误，视为没有现有事件以保证系统可用性
+        return None
+```
+
+#### 新增日志事件
+
+- `orchestrator_domain_event_check_failed`: 数据库查询失败的警告日志，包含：
+  - `correlation_id`: 关联ID
+  - `evt_type`: 事件类型
+  - `error`: 错误详情
+  - `error_type`: 错误类型
+  - `message`: 错误处理说明
+
+### 主题前缀推断逻辑优化 ✨
+
+最近的重构优化了主题前缀推断逻辑，改进了作用域类型的处理方式：
+
+```mermaid
+graph TD
+    subgraph "优化前：直接转换"
+        A[主题: genesis.outline.events] --> B[split获取前缀: genesis]
+        B --> C[直接转换为大写: GENESIS]
+        C --> D[scope_type = scope_prefix]
+    end
+    
+    subgraph "优化后：两步转换"
+        E[主题: genesis.outline.events] --> F[split获取前缀: genesis]
+        F --> G[首字母大写: Genesis]
+        G --> H[转换为大写: GENESIS]
+        H --> I[scope_type = scope_prefix.upper()]
+    end
+```
+
+#### 优化特性
+
+- **更清晰的语义**: `scope_prefix` 使用首字母大写格式 (Genesis)，更符合命名规范
+- **类型分离**: `scope_prefix` 和 `scope_type` 职责分离，前者用于显示，后者用于内部处理
+- **向后兼容**: 最终的 `scope_type` 保持不变，确保现有逻辑正常运行
+- **代码可读性**: 更清晰地表达了作用域信息的处理流程
+
+#### 实现细节
+
+```python
+# 优化前
+scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else DEFAULT_VALUES["scope_type"]
+scope_type = scope_prefix
+
+# 优化后  
+scope_prefix = topic.split(".", 1)[0].capitalize() if "." in topic else DEFAULT_VALUES["scope_prefix"]
+scope_type = scope_prefix.upper()  # 例如: GENESIS
+```
+
 ### 业务逻辑与配置解耦 ✨
 
 最近的重构实现了工作流逻辑与JSON配置的完全解耦，提供了清晰的业务规则接口：
