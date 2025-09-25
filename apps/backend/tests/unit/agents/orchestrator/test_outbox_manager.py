@@ -89,6 +89,35 @@ class TestDomainEventIdempotencyChecker:
         # Assert
         assert result is None  # Should return None for invalid UUID
 
+    @pytest.mark.asyncio
+    @patch("src.agents.orchestrator.outbox_manager.logger")
+    async def test_check_existing_domain_event_database_error(self, mock_logger):
+        """Test database error handling with module-level logger."""
+        # Arrange
+        correlation_id = str(uuid4())
+        evt_type = "Genesis.Character.Requested"
+
+        mock_session = AsyncMock()
+        mock_session.scalar.side_effect = Exception("Database connection failed")
+
+        # Act
+        result = await DomainEventIdempotencyChecker.check_existing_domain_event(
+            correlation_id, evt_type, mock_session
+        )
+
+        # Assert
+        assert result is None  # Should return None for database error
+        mock_logger.warning.assert_called_once()
+
+        # Verify the logged error contains expected information
+        call_args = mock_logger.warning.call_args
+        assert call_args[0][0] == "orchestrator_domain_event_check_failed"
+        assert call_args[1]["correlation_id"] == correlation_id
+        assert call_args[1]["evt_type"] == evt_type
+        assert call_args[1]["error"] == "Database connection failed"
+        assert call_args[1]["error_type"] == "Exception"
+        assert "数据库查询失败" in call_args[1]["message"]
+
 
 class TestDomainEventCreator:
     """Tests for domain event creation logic."""
