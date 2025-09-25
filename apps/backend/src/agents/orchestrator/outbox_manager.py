@@ -24,13 +24,16 @@ class DomainEventIdempotencyChecker:
     """领域事件幂等性检查器，处理领域事件的幂等性验证。"""
 
     @staticmethod
-    async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
+    async def check_existing_domain_event(
+        correlation_id: str, evt_type: str, db_session, logger=None
+    ) -> DomainEvent | None:
         """通过correlation_id和事件类型检查领域事件是否已存在。
 
         Args:
             correlation_id: 关联ID字符串
             evt_type: 事件类型字符串
             db_session: 数据库会话对象
+            logger: 日志记录器实例（可选）
 
         Returns:
             如果存在则返回DomainEvent对象，否则返回None
@@ -50,8 +53,18 @@ class DomainEventIdempotencyChecker:
                     )
                 )
             )
-        except Exception:
-            # 如果发生任何其他错误，视为没有现有事件
+        except Exception as e:
+            # 记录数据库错误以提升可观测性
+            if logger:
+                logger.warning(
+                    "orchestrator_domain_event_check_failed",
+                    correlation_id=correlation_id,
+                    evt_type=evt_type,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message="数据库查询失败，假定不存在现有事件以保证系统可用性",
+                )
+            # 如果发生任何其他错误，视为没有现有事件以保证系统可用性
             return None
 
 
@@ -103,7 +116,9 @@ class DomainEventCreator:
                 evt_type=evt_type,
             )
 
-            existing = await self.idempotency_checker.check_existing_domain_event(correlation_id, evt_type, db_session)
+            existing = await self.idempotency_checker.check_existing_domain_event(
+                correlation_id, evt_type, db_session, self.log
+            )
 
             if existing:
                 self.log.info(
