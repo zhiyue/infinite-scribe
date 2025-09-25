@@ -55,3 +55,11 @@ def kafka_service(kafka_connection_info: dict[str, str]) -> dict[str, str]:
     提供 Kafka 服务配置，与现有测试兼容。
     """
     return kafka_connection_info
+
+
+@pytest.fixture
+def redis_service(redis_connection_info: dict[str, str]) -> dict[str, str]:
+    """
+    提供 Redis 服务配置，与现有测试兼容。
+    """
+    return redis_connection_info

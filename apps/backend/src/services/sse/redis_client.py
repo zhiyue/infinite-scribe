@@ -113,8 +113,12 @@ class RedisSSEService:
     async def close(self) -> None:
         """Close Pub/Sub client during app shutdown."""
         if self._pubsub_client:
-            await self._pubsub_client.close()
-            self._pubsub_client = None
+            try:
+                await self._pubsub_client.close()
+            except Exception as e:
+                logger.warning("Error closing pubsub client during shutdown", error=str(e))
+            finally:
+                self._pubsub_client = None
 
     async def check_health(self) -> bool:
         """

@@ -91,9 +91,64 @@ class EventHandlerConfig:
             with cls._config_lock:
                 # Double-checked locking pattern
                 if cls._cached_default_config is None:
-                    cls._cached_default_config = cls._load_from_file(cls.default_config_path())
+                    cls._cached_default_config = cls._create_builtin_default_config()
         # Return a deep copy to avoid accidental mutations across instances
         return copy.deepcopy(cls._cached_default_config)
+
+    @classmethod
+    def _create_builtin_default_config(cls) -> WorkflowConfig:
+        """Create the built-in default genesis workflow configuration."""
+        thresholds = WorkflowThresholds(
+            quality_threshold=7.5,
+            max_attempts=3,
+            consistency_threshold=1.0,
+        )
+
+        routing = WorkflowRouting(
+            event_target_mapping={
+                "Genesis.Character.Command.Received": "character",
+                "Genesis.Theme.Command.Received": "theme",
+                "Genesis.World.Command.Received": "world",
+                "Character.Design.Generated": "character",
+                "Character.Generated": "character",
+                "Outliner.Theme.Generated": "theme",
+                "Theme.Generated": "theme",
+            },
+            target_confirmation_actions={
+                "character": "Character.Confirmed",
+                "theme": "Theme.Confirmed",
+                "world": "Stage.Confirmed",
+            },
+            target_failure_actions={
+                "character": "Character.Failed",
+                "theme": "Theme.Failed",
+                "world": "Stage.Failed",
+            },
+            target_regeneration_actions={
+                "character": "Character.RegenerationRequested",
+                "theme": "Theme.RegenerationRequested",
+                "world": "Stage.RegenerationRequested",
+            },
+            task_prefix_mapping={
+                "Character.Design": "Character.Design",
+                "Theme.Creation": "Theme.Creation",
+                "World.Building": "World.Building",
+                "quality_review": "Review.Quality.Evaluation",
+                "consistency_check": "Review.Consistency.Check",
+            },
+        )
+
+        return WorkflowConfig(
+            name="genesis-workflow",
+            description="Genesis stage workflow configuration",
+            version="1.0.0",
+            thresholds=thresholds,
+            routing=routing,
+            metadata={
+                "created_by": "system",
+                "environment": "builtin",
+            },
+        )
 
     @classmethod
     def _load_from_file(cls, file_path: Path) -> WorkflowConfig:
