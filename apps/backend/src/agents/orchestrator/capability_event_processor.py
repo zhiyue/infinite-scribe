@@ -77,9 +77,9 @@ class EventDataExtractor:
         session_id = str(data.session_id or data.aggregate_id or "")
         topic = context.topic or ""
 
-        # 从主题前缀推断作用域 (例如: genesis.outline.events -> GENESIS)
-        scope_prefix = topic.split(".", 1)[0].upper() if "." in topic else DEFAULT_VALUES["scope_type"]
-        scope_type = scope_prefix
+        # 从主题前缀推断作用域 (例如: genesis.outline.events -> Genesis)
+        scope_prefix = topic.split(".", 1)[0].capitalize() if "." in topic else DEFAULT_VALUES["scope_prefix"]
+        scope_type = scope_prefix.upper()  # 例如: GENESIS
 
         scope_info = ScopeInfo(
             topic=topic,
