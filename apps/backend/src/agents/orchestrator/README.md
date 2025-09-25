@@ -6,7 +6,7 @@
 
 ### 领域事件幂等性检查器增强 ✨
 
-最近的重构增强了领域事件幂等性检查器，添加了可选的日志记录功能以提升系统可观测性：
+最近的重构增强了领域事件幂等性检查器，添加了全面的日志记录功能以提升系统可观测性：
 
 ```mermaid
 graph TD
@@ -29,13 +29,13 @@ graph TD
 - **可观测性提升**: 捕获数据库查询异常并记录详细警告信息
 - **错误追踪**: 包含错误类型、错误消息和相关上下文信息
 - **系统可用性**: 在数据库异常时仍保证系统正常运行
-- **灵活配置**: 日志记录器参数为可选，保持向后兼容性
+- **内置日志记录**: 使用模块级logger实例，无需额外配置
 - **上下文信息**: 日志包含 correlation_id 和 evt_type 便于追踪
 
 #### 实现细节
 
 ```python
-# 增强前
+# 增强前 (简化的异常处理)
 @staticmethod
 async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
     try:
@@ -44,24 +44,34 @@ async def check_existing_domain_event(correlation_id: str, evt_type: str, db_ses
         # 静默失败
         return None
 
-# 增强后
+# 增强后 (完整的可观测性)
 @staticmethod
-async def check_existing_domain_event(
-    correlation_id: str, evt_type: str, db_session, logger=None
-) -> DomainEvent | None:
+async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
     try:
-        # 查询逻辑...
+        # 安全地转换correlation_id为UUID
+        safe_correlation_id = safe_uuid_conversion(correlation_id)
+        if safe_correlation_id is None:
+            # 如果correlation_id无法转换为UUID，视为没有现有事件
+            return None
+
+        return await db_session.scalar(
+            select(DomainEvent).where(
+                and_(
+                    DomainEvent.correlation_id == safe_correlation_id,
+                    DomainEvent.event_type == evt_type,
+                )
+            )
+        )
     except Exception as e:
         # 记录数据库错误以提升可观测性
-        if logger:
-            logger.warning(
-                "orchestrator_domain_event_check_failed",
-                correlation_id=correlation_id,
-                evt_type=evt_type,
-                error=str(e),
-                error_type=type(e).__name__,
-                message="数据库查询失败，假定不存在现有事件以保证系统可用性",
-            )
+        logger.warning(
+            "orchestrator_domain_event_check_failed",
+            correlation_id=correlation_id,
+            evt_type=evt_type,
+            error=str(e),
+            error_type=type(e).__name__,
+            message="数据库查询失败，假定不存在现有事件以保证系统可用性",
+        )
         # 如果发生任何其他错误，视为没有现有事件以保证系统可用性
         return None
 ```
@@ -74,6 +84,81 @@ async def check_existing_domain_event(
   - `error`: 错误详情
   - `error_type`: 错误类型
   - `message`: 错误处理说明
+
+#### UUID安全性增强
+
+增强后的实现还包括了UUID格式验证，确保correlation_id的有效性：
+
+```python
+# 安全的UUID转换逻辑
+safe_correlation_id = safe_uuid_conversion(correlation_id)
+if safe_correlation_id is None:
+    # 如果correlation_id无法转换为UUID，视为没有现有事件
+    return None
+```
+
+这确保了数据库查询的安全性和数据一致性。
+
+#### 增强前后对比
+
+```mermaid
+graph TD
+    subgraph "增强前：静默失败模式"
+        A1[数据库异常] --> A2[静默返回None]
+        A2 --> A3[可能创建重复事件]
+        A3 --> A4[数据一致性问题]
+        A4 --> A5[调试困难]
+        style A5 fill:#ffcccc
+    end
+    
+    subgraph "增强后：可观测性模式"
+        B1[数据库异常] --> B2[记录详细警告]
+        B2 --> B3[返回None继续处理]
+        B3 --> B4[保证系统可用性]
+        B4 --> B5[完整的错误追踪]
+        style B5 fill:#ccffcc
+    end
+    
+    subgraph "技术特性对比"
+        C1[错误处理] --> C2[静默失败 vs 警告日志]
+        C3[调试能力] --> C4[无追踪 vs 详细上下文]
+        C5[系统稳定性] --> C6[可能不稳定 vs 优雅降级]
+        C7[UUID安全性] --> C8[无验证 vs 安全转换]
+    end
+```
+
+#### 功能特性对比表
+
+| 特性维度 | 增强前 | 增强后 | 改进效果 |
+|---------|--------|--------|---------|
+| **错误处理** | 静默失败 | 详细警告日志 | 🔧 提升问题诊断能力 |
+| **可观测性** | 无错误信息 | 完整上下文追踪 | 🔍 便于调试和监控 |
+| **系统稳定性** | 可能产生副作用 | 优雅降级 | 🛡️ 保证系统可用性 |
+| **UUID安全性** | 直接使用参数 | 安全转换验证 | 🛡️ 防止无效数据 |
+| **日志记录** | 无相关日志 | 结构化警告日志 | 📊 增强系统可观测性 |
+| **维护成本** | 问题定位困难 | 快速错误诊断 | ⚡ 降低运维成本 |
+
+#### 新增日志事件详细说明
+
+**`orchestrator_domain_event_check_failed` 事件结构**:
+```json
+{
+  "event": "orchestrator_domain_event_check_failed",
+  "level": "warning", 
+  "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "evt_type": "Genesis.Character.Created",
+  "error": "relation \"domain_events\" does not exist",
+  "error_type": "ProgrammingError",
+  "message": "数据库查询失败，假定不存在现有事件以保证系统可用性"
+}
+```
+
+**日志字段说明**:
+- `correlation_id`: 用于追踪请求链路的唯一标识
+- `evt_type`: 事件类型，便于分类和过滤
+- `error`: 具体的错误信息，便于问题诊断
+- `error_type`: 错误类型，帮助快速定位问题类别
+- `message`: 系统处理说明，提供上下文信息
 
 ### 主题前缀推断逻辑优化 ✨
 
@@ -1459,6 +1544,14 @@ class CustomEventHandler:
 - `orchestrator_outbox_entry_created`: Outbox条目创建成功
 - `orchestrator_outbox_entry_already_exists`: Outbox条目已存在
 - `orchestrator_domain_event_persist_completed`: 领域事件持久化完成
+
+#### 🆕 领域事件幂等性检查器增强日志
+- `orchestrator_domain_event_check_failed`: 数据库查询失败警告日志，包含：
+  - `correlation_id`: 关联ID，用于请求链路追踪
+  - `evt_type`: 事件类型，便于分类和过滤
+  - `error`: 具体错误信息，便于问题诊断
+  - `error_type`: 错误类型，帮助快速定位问题类别
+  - `message`: 系统处理说明，提供上下文信息
 
 #### 工作流规则日志
 - `orchestrator_workflow_decision_made`: 工作流决策完成
