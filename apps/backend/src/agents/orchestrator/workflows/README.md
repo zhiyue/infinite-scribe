@@ -114,7 +114,47 @@ config = EventHandlerConfig.for_testing(
 )
 ```
 
-#### 线程安全缓存
+#### 内置默认配置
+
+系统提供了内置的默认 Genesis 工作流配置，无需外部文件即可运行：
+
+```python
+@classmethod
+def _create_builtin_default_config(cls) -> WorkflowConfig:
+    """创建内置的默认 Genesis 工作流配置"""
+    thresholds = WorkflowThresholds(
+        quality_threshold=7.5,
+        max_attempts=3,
+        consistency_threshold=1.0,
+    )
+    
+    routing = WorkflowRouting(
+        event_target_mapping={
+            "Genesis.Character.Command.Received": "character",
+            "Genesis.Theme.Command.Received": "theme",
+            "Genesis.World.Command.Received": "world",
+            "Character.Design.Generated": "character",
+            "Character.Generated": "character",
+            "Outliner.Theme.Generated": "theme",
+            "Theme.Generated": "theme",
+        },
+        # ... 其他路由配置
+    )
+    
+    return WorkflowConfig(
+        name="genesis-workflow",
+        description="Genesis stage workflow configuration",
+        version="1.0.0",
+        thresholds=thresholds,
+        routing=routing,
+        metadata={
+            "created_by": "system",
+            "environment": "builtin",
+        },
+    )
+```
+
+### 线程安全的配置缓存
 ```python
 class EventHandlerConfig:
     _cached_default_config: ClassVar[WorkflowConfig | None] = None
