@@ -46,6 +46,49 @@ EventActionType = Literal[
 TargetType = Literal["character", "theme", "content"]
 ScopeType = Literal["GENESIS"]
 
+# =============================================================================
+# 统一事件元数据模型
+# =============================================================================
+
+
+class UnifiedEventMetadata(BaseModel):
+    """统一的事件元数据模型 - 合并所有元数据字段并消除重复定义"""
+    
+    # 核心标识字段
+    event_id: str | None = None
+    event_type: str | None = None  # 统一名称：event_type（而不是type）
+    aggregate_type: str | None = None
+    aggregate_id: str | None = None
+    
+    # 关联字段
+    correlation_id: str | None = None
+    causation_id: str | None = None
+    
+    # 时间字段
+    created_at: str | None = None
+    
+    # 版本字段
+    event_version: int | None = None
+    version: str | None = None  # 兼容现有的version字段
+    
+    # 追踪字段
+    trace_id: str | None = None
+    span_id: str | None = None
+    source: str | None = None
+    
+    # 通用元数据
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    
+    model_config = ConfigDict(
+        extra="allow",  # 允许额外字段以保持向后兼容
+        validate_assignment=True
+    )
+
+
+# 向后兼容的别名 - 逐步迁移时使用
+EventMetadata = UnifiedEventMetadata
+DomainEventMetadata = UnifiedEventMetadata
+
 
 # === Pydantic 模型 - 运行时类型安全 ===
 

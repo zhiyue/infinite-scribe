@@ -233,18 +233,27 @@ def get_command_for_event(event_type: str) -> Optional[str]:
 
 ## 领域对象定义
 
+### Pydantic 模型使用说明
+
+本项目统一使用 Pydantic 进行数据验证和序列化，具有以下优势：
+
+- **类型安全**：编译时和运行时的类型检查
+- **数据验证**：自动验证字段格式和约束
+- **序列化支持**：内置 JSON 序列化/反序列化
+- **IDE 支持**：良好的代码提示和类型推断
+- **生态一致**：与项目现有的 FastAPI 和 schemas 模块保持一致
+
 ### 命令对象
 
 ```python
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any, Optional
 import uuid
+from pydantic import BaseModel, Field, ConfigDict
 
-@dataclass
-class DomainCommand:
+class DomainCommand(BaseModel):
     """领域命令基类"""
-    command_id: str
+    command_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     command_type: CommandType
     aggregate_id: str
     aggregate_type: str
@@ -252,56 +261,22 @@ class DomainCommand:
     user_id: str
     correlation_id: Optional[str] = None
     causation_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    created_at: Optional[datetime] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    def __post_init__(self):
-        if not self.command_id:
-            self.command_id = str(uuid.uuid4())
-        if not self.created_at:
-            self.created_at = datetime.utcnow()
-        if self.metadata is None:
-            self.metadata = {}
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            "command_id": self.command_id,
-            "command_type": self.command_type.value,
-            "aggregate_id": self.aggregate_id,
-            "aggregate_type": self.aggregate_type,
-            "payload": self.payload,
-            "user_id": self.user_id,
-            "correlation_id": self.correlation_id,
-            "causation_id": self.causation_id,
-            "metadata": self.metadata,
-            "created_at": self.created_at.isoformat() if self.created_at else None
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DomainCommand':
-        """从字典创建命令对象"""
-        return cls(
-            command_id=data["command_id"],
-            command_type=CommandType.from_string(data["command_type"]),
-            aggregate_id=data["aggregate_id"],
-            aggregate_type=data["aggregate_type"],
-            payload=data["payload"],
-            user_id=data["user_id"],
-            correlation_id=data.get("correlation_id"),
-            causation_id=data.get("causation_id"),
-            metadata=data.get("metadata", {}),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
-        )
+    model_config = ConfigDict(
+        extra="forbid",  # 禁止额外字段
+        use_enum_values=True,  # 序列化时使用枚举值
+        validate_assignment=True,  # 赋值时验证
+    )
 ```
 
 ### 事件对象
 
 ```python
-@dataclass
-class DomainEvent:
+class DomainEvent(BaseModel):
     """领域事件基类"""
-    event_id: str
+    event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_type: GenesisEventType
     aggregate_id: str
     aggregate_type: str
@@ -310,49 +285,14 @@ class DomainEvent:
     user_id: Optional[str] = None
     correlation_id: Optional[str] = None
     causation_id: Optional[str] = None
-    occurred_at: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
+    occurred_at: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    def __post_init__(self):
-        if not self.event_id:
-            self.event_id = str(uuid.uuid4())
-        if not self.occurred_at:
-            self.occurred_at = datetime.utcnow()
-        if self.metadata is None:
-            self.metadata = {}
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            "event_id": self.event_id,
-            "event_type": self.event_type.value,
-            "aggregate_id": self.aggregate_id,
-            "aggregate_type": self.aggregate_type,
-            "aggregate_version": self.aggregate_version,
-            "payload": self.payload,
-            "user_id": self.user_id,
-            "correlation_id": self.correlation_id,
-            "causation_id": self.causation_id,
-            "occurred_at": self.occurred_at.isoformat() if self.occurred_at else None,
-            "metadata": self.metadata
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DomainEvent':
-        """从字典创建事件对象"""
-        return cls(
-            event_id=data["event_id"],
-            event_type=GenesisEventType.from_string(data["event_type"]),
-            aggregate_id=data["aggregate_id"],
-            aggregate_type=data["aggregate_type"],
-            aggregate_version=data["aggregate_version"],
-            payload=data["payload"],
-            user_id=data.get("user_id"),
-            correlation_id=data.get("correlation_id"),
-            causation_id=data.get("causation_id"),
-            occurred_at=datetime.fromisoformat(data["occurred_at"]) if data.get("occurred_at") else None,
-            metadata=data.get("metadata", {})
-        )
+    model_config = ConfigDict(
+        extra="forbid",
+        use_enum_values=True,
+        validate_assignment=True,
+    )
 ```
 
 ## 序列化器实现
@@ -654,26 +594,31 @@ sse_data = EventSerializer.serialize_for_sse(event)
 采用命名空间隔离的Builder模式，将系统元数据与业务数据完全分离：
 
 ```python
-from typing import TypedDict, NotRequired, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+from pydantic import BaseModel, Field
 
-class SystemMetadata(TypedDict):
-    """系统元数据类型定义"""
+class SystemMetadata(BaseModel):
+    """系统元数据类型定义 - 使用 Pydantic 进行类型安全和验证"""
     event_id: str
     event_type: str
     aggregate_type: str
     aggregate_id: str
-    metadata: dict[str, Any]
-    correlation_id: NotRequired[str]
-    causation_id: NotRequired[str]
-    created_at: NotRequired[str]
-    event_version: NotRequired[int]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    correlation_id: Optional[str] = None
+    causation_id: Optional[str] = None
+    created_at: Optional[str] = None
+    event_version: Optional[int] = None
 
-class OutboxPayload(TypedDict):
-    """Outbox有效负载结构定义"""
+    model_config = ConfigDict(extra="forbid")
+
+class OutboxPayloadEnvelope(BaseModel):
+    """Outbox有效负载信封结构定义"""
     system: SystemMetadata
-    data: dict[str, Any]
-    schema_version: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = "v1"
+
+    model_config = ConfigDict(extra="forbid")
 ```
 
 #### Builder实现
@@ -744,7 +689,7 @@ class OutboxPayloadBuilder:
         self._schema_version = version
         return self
 
-    def build(self) -> OutboxPayload:
+    def build(self) -> OutboxPayloadEnvelope:
         """构建最终的outbox payload"""
         # 完整性校验：必需的系统字段
         required_fields = ["event_id", "event_type", "aggregate_type", "aggregate_id"]
@@ -753,11 +698,11 @@ class OutboxPayloadBuilder:
         if missing_fields:
             raise ValueError(f"Missing required system metadata fields: {missing_fields}")
 
-        return {
-            "system": self._system_metadata,
-            "data": self._business_data,
-            "schema_version": self._schema_version
-        }
+        return OutboxPayloadEnvelope(
+            system=SystemMetadata(**self._system_metadata),
+            data=self._business_data,
+            schema_version=self._schema_version
+        )
 
     @classmethod
     def from_domain_event(cls, domain_event: DomainEvent) -> 'OutboxPayloadBuilder':

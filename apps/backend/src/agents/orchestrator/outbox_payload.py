@@ -5,31 +5,37 @@
 
 from __future__ import annotations
 
-from typing import Any, NotRequired, TypedDict
+import contextlib
+from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
 from src.models.event import DomainEvent
 
 
-class SystemMetadata(TypedDict):
-    """系统元数据类型定义"""
+class SystemMetadata(BaseModel):
+    """系统元数据类型定义 - 使用Pydantic确保类型安全"""
 
     event_id: str
     event_type: str
     aggregate_type: str
     aggregate_id: str
-    metadata: dict[str, Any]
-    correlation_id: NotRequired[str]
-    causation_id: NotRequired[str]
-    created_at: NotRequired[str]
-    event_version: NotRequired[int]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = None
+    causation_id: str | None = None
+    created_at: str | None = None
+    event_version: int | None = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
-class OutboxPayloadEnvelope(TypedDict):
-    """Outbox有效负载信封结构定义"""
+class OutboxPayloadEnvelope(BaseModel):
+    """Outbox有效负载信封结构定义 - 使用Pydantic确保类型安全"""
 
     system: SystemMetadata
-    data: dict[str, Any]
-    schema_version: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = "v1"
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class OutboxPayloadBuilder:
@@ -64,12 +70,9 @@ class OutboxPayloadBuilder:
 
         if hasattr(event, "causation_id") and event.causation_id:
             self._system_metadata["causation_id"] = str(event.causation_id)
-
         if hasattr(event, "created_at") and event.created_at:
-            try:
+            with contextlib.suppress(Exception):
                 self._system_metadata["created_at"] = event.created_at.isoformat()
-            except Exception:
-                # 静默处理时间格式化异常
                 pass
 
         # 添加event_version支持
@@ -108,7 +111,11 @@ class OutboxPayloadBuilder:
         if missing_fields:
             raise ValueError(f"Missing required system metadata fields: {missing_fields}")
 
-        return {"system": self._system_metadata, "data": self._business_data, "schema_version": self._schema_version}
+        return OutboxPayloadEnvelope(
+            system=SystemMetadata(**self._system_metadata),
+            data=self._business_data,
+            schema_version=self._schema_version,
+        )
 
     @classmethod
     def from_domain_event(cls, domain_event: DomainEvent) -> OutboxPayloadBuilder:

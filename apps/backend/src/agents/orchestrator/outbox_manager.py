@@ -13,7 +13,7 @@ from sqlalchemy import and_, select
 
 from src.agents.message import encode_message
 from src.agents.orchestrator.outbox_payload import OutboxPayloadBuilder
-from src.agents.orchestrator.types import DomainEventMetadata, EventOutboxHeaders, OutboxPayload
+from src.agents.orchestrator.types import UnifiedEventMetadata, EventOutboxHeaders, OutboxPayload
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
@@ -169,7 +169,7 @@ class DomainEventCreator:
             payload=payload,
             correlation_id=safe_correlation_id,
             causation_id=safe_causation_id,
-            event_metadata=DomainEventMetadata(source="orchestrator").model_dump(),
+            event_metadata=UnifiedEventMetadata(source="orchestrator").model_dump(),
         )
         db_session.add(domain_event)
         await db_session.flush()
@@ -289,31 +289,45 @@ class OutboxEntryCreator:
         return await db_session.scalar(select(EventOutbox).where(EventOutbox.id == event_id))
 
     def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
-        """使用Builder模式构建outbox有效负载，确保字段隔离。
+        """构建outbox有效负载，保持扁平化结构以确保向后兼容性。
 
-        采用LLD规范的命名空间隔离设计：
-        - system: 系统元数据（event_id, event_type, aggregate_*, metadata等）
-        - data: 业务数据（原domain_event.payload内容）
-        - schema_version: 版本标识（支持演进）
+        为了不破坏现有的下游消费者（如OrchestratorAgent.process_message和EventBridge.EventFilter），
+        我们保持原有的扁平化schema，但使用Builder模式确保字段冲突检测和类型安全。
 
         Args:
             domain_event: 领域事件对象
 
         Returns:
-            分层结构的payload字典
+            扁平化的payload字典，兼容现有消费者
         """
         try:
-            payload = OutboxPayloadBuilder.from_domain_event(domain_event).build()
+            # 使用Builder模式构建结构化payload（用于验证和字段冲突检测）
+            payload_envelope = OutboxPayloadBuilder.from_domain_event(domain_event).build()
+
+            # 扁平化为向后兼容的结构
+            flat_payload = {}
+            
+            # 添加系统元数据到顶层（保持现有消费者期望的字段）
+            system_data = payload_envelope.system.model_dump(exclude_none=True)
+            flat_payload.update(system_data)
+            
+            # 添加业务数据到顶层（保持原有的payload字段）
+            if payload_envelope.data:
+                flat_payload["payload"] = payload_envelope.data
+            
+            # 可选：添加schema版本用于未来迁移追踪
+            flat_payload["_schema_version"] = payload_envelope.schema_version
 
             self.log.debug(
-                "outbox_payload_built_with_builder",
+                "outbox_payload_built_flat_compatible",
                 event_id=str(domain_event.event_id),
                 event_type=domain_event.event_type,
-                schema_version=payload["schema_version"],
-                has_business_data=bool(payload["data"]),
+                schema_version=payload_envelope.schema_version,
+                has_business_data=bool(payload_envelope.data),
+                flat_keys=list(flat_payload.keys()),
             )
 
-            return payload
+            return flat_payload
 
         except Exception as e:
             self.log.error(
