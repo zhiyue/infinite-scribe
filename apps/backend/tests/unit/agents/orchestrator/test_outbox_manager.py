@@ -155,7 +155,8 @@ class TestDomainEventCreator:
         assert result.payload == payload
         assert result.correlation_id == UUID(correlation_id)
         assert result.causation_id == UUID(causation_id)
-        assert result.event_metadata == {"source": "orchestrator"}
+        # Check that source is correctly set in event_metadata
+        assert result.event_metadata.get("source") == "orchestrator"
 
         mock_session.add.assert_called_once_with(result)
         mock_session.flush.assert_called_once()
@@ -247,16 +248,22 @@ class TestOutboxEntryCreator:
         assert result.partition_key == session_id
         assert result.status == OutboxStatus.PENDING
 
-        # Verify payload structure
-        expected_payload = {
-            "event_id": str(domain_event.event_id),
-            "event_type": domain_event.event_type,
-            "aggregate_type": domain_event.aggregate_type,
-            "aggregate_id": domain_event.aggregate_id,
-            "metadata": domain_event.event_metadata or {},
-            "character_type": "hero",  # Payload should be flattened
-        }
-        assert result.payload == expected_payload
+        # Verify payload structure - new envelope format
+        assert "system" in result.payload
+        assert "data" in result.payload
+        assert "schema_version" in result.payload
+        assert result.payload["schema_version"] == "v1"
+
+        # Verify system layer
+        system = result.payload["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == domain_event.event_type
+        assert system["aggregate_type"] == domain_event.aggregate_type
+        assert system["aggregate_id"] == domain_event.aggregate_id
+
+        # Verify data layer
+        data = result.payload["data"]
+        assert data["character_type"] == "hero"
 
         mock_session.add.assert_called_once_with(result)
 
@@ -318,20 +325,29 @@ class TestOutboxEntryCreator:
         # Act
         result = self.creator._build_outbox_payload(domain_event)
 
-        # Assert
-        expected_payload = {
-            "event_id": str(domain_event.event_id),
-            "event_type": "Genesis.Character.Requested",
-            "aggregate_type": "Genesis",
-            "aggregate_id": "session-123",
-            "metadata": {"source": "test"},
-            "character_type": "hero",
-            "description": "A brave hero",
-            "created_at": "2023-01-01T00:00:00Z",
-        }
-        assert result == expected_payload
-        # No warnings should be logged for non-conflicting fields
-        self.mock_logger.warning.assert_not_called()
+        # Assert - 新的分层结构
+        # 验证顶层结构
+        assert "system" in result
+        assert "data" in result
+        assert "schema_version" in result
+        assert result["schema_version"] == "v1"
+
+        # 验证system层
+        system = result["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == "Genesis.Character.Requested"
+        assert system["aggregate_type"] == "Genesis"
+        assert system["aggregate_id"] == "session-123"
+        assert system["metadata"] == {"source": "test"}
+        assert system["created_at"] == "2023-01-01T00:00:00Z"
+
+        # 验证data层包含业务数据
+        data = result["data"]
+        assert data["character_type"] == "hero"
+        assert data["description"] == "A brave hero"
+
+        # 新设计不会产生冲突警告，因为业务数据完全隔离在data层
+        # 不再检查warning调用
 
     def test_build_outbox_payload_with_conflicts(self):
         """Test _build_outbox_payload with conflicting system fields."""
@@ -357,32 +373,31 @@ class TestOutboxEntryCreator:
         # Act
         result = self.creator._build_outbox_payload(domain_event)
 
-        # Assert
-        # System fields should not be overridden
-        assert result["event_id"] == str(domain_event.event_id)
-        assert result["event_type"] == "Genesis.Character.Requested"
-        assert result["aggregate_type"] == "Genesis"
-        assert result["aggregate_id"] == "session-123"
-        assert result["metadata"] == {"source": "test"}
+        # Assert - 新的分层结构
+        # 验证顶层结构
+        assert "system" in result
+        assert "data" in result
+        assert "schema_version" in result
+        assert result["schema_version"] == "v1"
 
-        # Safe fields should be at top level
-        assert result["character_type"] == "hero"
-        assert result["description"] == "A brave hero"
+        # 验证system层包含真实的系统元数据（不会被业务数据覆盖）
+        system = result["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == "Genesis.Character.Requested"
+        assert system["aggregate_type"] == "Genesis"
+        assert system["aggregate_id"] == "session-123"
+        assert system["metadata"] == {"source": "test"}
 
-        # Conflicting fields should be isolated in domain_payload
-        assert "domain_payload" in result
-        assert result["domain_payload"]["event_id"] == "malicious-event-id"
-        assert result["domain_payload"]["event_type"] == "Malicious.Event.Type"
-        assert result["domain_payload"]["metadata"] == {"malicious": "data"}
+        # 验证data层包含所有业务数据（包括与system字段同名的数据）
+        data = result["data"]
+        assert data["character_type"] == "hero"
+        assert data["description"] == "A brave hero"
+        assert data["event_id"] == "malicious-event-id"
+        assert data["event_type"] == "Malicious.Event.Type"
+        assert data["metadata"] == {"malicious": "data"}
 
-        # Warning should be logged
-        self.mock_logger.warning.assert_called_once()
-        call_args = self.mock_logger.warning.call_args
-        assert call_args[0][0] == "domain_payload_field_conflict_detected"
-        assert call_args[1]["event_id"] == str(domain_event.event_id)
-        assert call_args[1]["event_type"] == "Genesis.Character.Requested"
-        expected_conflicts = {"event_id", "event_type", "metadata"}
-        assert set(call_args[1]["conflicting_fields"]) == expected_conflicts
+        # 新的Builder设计不会产生冲突警告，因为完全命名空间隔离
+        # 不再检查warning调用
 
     def test_build_outbox_payload_all_protected_fields(self):
         """Test _build_outbox_payload when all protected fields are in payload."""
@@ -411,33 +426,34 @@ class TestOutboxEntryCreator:
         # Act
         result = self.creator._build_outbox_payload(domain_event)
 
-        # Assert
-        # All system fields should remain unchanged
-        assert result["event_id"] == str(domain_event.event_id)
-        assert result["event_type"] == "Genesis.Character.Requested"
-        assert result["aggregate_type"] == "Genesis"
-        assert result["aggregate_id"] == "session-123"
-        assert result["metadata"] == {"source": "test"}
-        assert result["created_at"] == "2023-01-01T00:00:00Z"  # From domain_event.created_at
+        # Assert - 新的分层结构
+        # 验证顶层结构
+        assert "system" in result
+        assert "data" in result
+        assert "schema_version" in result
+        assert result["schema_version"] == "v1"
 
-        # Safe fields should be at top level
-        assert result["character_type"] == "hero"
+        # 验证system层的系统元数据
+        system = result["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == "Genesis.Character.Requested"
+        assert system["aggregate_type"] == "Genesis"
+        assert system["aggregate_id"] == "session-123"
+        assert system["metadata"] == {"source": "test"}
+        assert system["created_at"] == "2023-01-01T00:00:00Z"
 
-        # All conflicting fields should be isolated
-        assert "domain_payload" in result
-        domain_payload = result["domain_payload"]
-        assert domain_payload["event_id"] == "malicious-event-id"
-        assert domain_payload["event_type"] == "Malicious.Event.Type"
-        assert domain_payload["aggregate_type"] == "Malicious.Aggregate"
-        assert domain_payload["aggregate_id"] == "malicious-aggregate-id"
-        assert domain_payload["metadata"] == {"malicious": "data"}
-        assert domain_payload["created_at"] == "2020-01-01T00:00:00Z"
+        # 验证data层包含所有业务数据（包括原来的冲突字段，现在安全地隔离在data层）
+        data = result["data"]
+        assert data["character_type"] == "hero"
+        assert data["event_id"] == "malicious-event-id"
+        assert data["event_type"] == "Malicious.Event.Type"
+        assert data["aggregate_type"] == "Malicious.Aggregate"
+        assert data["aggregate_id"] == "malicious-aggregate-id"
+        assert data["metadata"] == {"malicious": "data"}
+        assert data["created_at"] == "2020-01-01T00:00:00Z"
 
-        # Warning should be logged
-        self.mock_logger.warning.assert_called_once()
-        call_args = self.mock_logger.warning.call_args
-        expected_conflicts = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
-        assert set(call_args[1]["conflicting_fields"]) == expected_conflicts
+        # 新的Builder设计不会产生冲突警告，因为业务数据完全隔离在data层
+        # 不再检查warning调用
 
     def test_build_outbox_payload_empty_payload(self):
         """Test _build_outbox_payload with empty payload."""
@@ -456,18 +472,26 @@ class TestOutboxEntryCreator:
         # Act
         result = self.creator._build_outbox_payload(domain_event)
 
-        # Assert
-        expected_payload = {
-            "event_id": str(domain_event.event_id),
-            "event_type": "Genesis.Character.Requested",
-            "aggregate_type": "Genesis",
-            "aggregate_id": "session-123",
-            "metadata": {"source": "test"},
-            "created_at": "2023-01-01T00:00:00Z",
-        }
-        assert result == expected_payload
-        # No conflicts should be detected for empty payload
-        self.mock_logger.warning.assert_not_called()
+        # Assert - 新的分层结构
+        # 验证顶层结构
+        assert "system" in result
+        assert "data" in result
+        assert "schema_version" in result
+        assert result["schema_version"] == "v1"
+
+        # 验证system层
+        system = result["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == "Genesis.Character.Requested"
+        assert system["aggregate_type"] == "Genesis"
+        assert system["aggregate_id"] == "session-123"
+        assert system["metadata"] == {"source": "test"}
+        assert system["created_at"] == "2023-01-01T00:00:00Z"
+
+        # 验证data层为空（因为没有业务payload）
+        assert result["data"] == {}
+
+        # 不检查warning调用，因为新设计不会产生冲突
 
     def test_build_outbox_payload_created_at_exception(self):
         """Test _build_outbox_payload when created_at access raises exception."""
@@ -487,18 +511,26 @@ class TestOutboxEntryCreator:
         # Act
         result = self.creator._build_outbox_payload(domain_event)
 
-        # Assert
-        expected_payload = {
-            "event_id": str(domain_event.event_id),
-            "event_type": "Genesis.Character.Requested",
-            "aggregate_type": "Genesis",
-            "aggregate_id": "session-123",
-            "metadata": {"source": "test"},
-            "character_type": "hero",
-        }
-        assert result == expected_payload
-        # created_at should not be in result when exception occurs
-        assert "created_at" not in result
+        # Assert - 新的分层结构
+        # 验证顶层结构
+        assert "system" in result
+        assert "data" in result
+        assert "schema_version" in result
+        assert result["schema_version"] == "v1"
+
+        # 验证system层（没有created_at因为格式化失败）
+        system = result["system"]
+        assert system["event_id"] == str(domain_event.event_id)
+        assert system["event_type"] == "Genesis.Character.Requested"
+        assert system["aggregate_type"] == "Genesis"
+        assert system["aggregate_id"] == "session-123"
+        assert system["metadata"] == {"source": "test"}
+        # created_at should not be in system when exception occurs
+        assert "created_at" not in system
+
+        # 验证data层包含业务数据
+        data = result["data"]
+        assert data["character_type"] == "hero"
 
 
 class TestCapabilityTaskEnqueuer:

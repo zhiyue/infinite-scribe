@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -248,6 +249,75 @@ class DomainEventMetadata(BaseModel):
     span_id: str | None = None
 
     model_config = ConfigDict(extra="allow")
+
+
+class EventOutboxHeaders(BaseModel):
+    """事件 Outbox 头部信息 - 运行时验证的结构化数据"""
+
+    event_type: str | None = None
+    version: int = Field(default=1, ge=1)
+    correlation_id: str | None = None
+    causation_id: str | None = None  # 因果关系ID
+    aggregate_id: str | None = None   # 聚合ID
+    aggregate_type: str | None = None # 聚合类型
+    content_type: str = Field(default="application/json") # 内容类型
+    schema_version: str = Field(default="v1") # 架构版本
+    timestamp: str | None = None      # 时间戳
+    user_id: str | None = None       # 用户ID
+    source: str | None = None        # 事件源
+    trace_id: str | None = None      # 追踪ID
+    agent: str | None = None
+    type: str | None = None  # 兼容现有代码
+
+    @field_validator("correlation_id")
+    @classmethod
+    def validate_correlation_id(cls, v: str | None) -> str | None:
+        """验证 correlation_id 格式 - 优雅处理无效 UUID"""
+        if v is not None and v.strip():
+            try:
+                UUID(v)
+                return v
+            except ValueError:
+                return None  # 优雅处理无效 UUID，不抛出异常
+        return v
+
+    @field_validator("causation_id")
+    @classmethod
+    def validate_causation_id(cls, v: str | None) -> str | None:
+        """验证 causation_id 格式"""
+        if v is not None and v.strip():
+            try:
+                UUID(v)
+                return v
+            except ValueError:
+                return None  # 优雅处理无效 UUID，不抛出异常
+        return v
+
+    model_config = ConfigDict(extra="forbid")  # 严格模式
+
+
+class OutboxPayload(BaseModel):
+    """Outbox 有效负载 - 运行时验证的结构化数据"""
+
+    event_id: str
+    event_type: str
+    aggregate_type: str
+    aggregate_id: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    domain_payload: dict[str, Any] | None = None  # 冲突字段容器
+    created_at: str | None = None
+
+    @field_validator("event_id")
+    @classmethod
+    def validate_event_id(cls, v: str) -> str:
+        """验证 event_id 格式"""
+        try:
+            UUID(v)  # 验证是否为有效 UUID
+            return v
+        except ValueError as err:
+            raise ValueError(f"Invalid event_id format: {v}") from err
+
+    model_config = ConfigDict(extra="allow")  # 支持额外字段
 
 
 class DomainEvent(BaseModel):

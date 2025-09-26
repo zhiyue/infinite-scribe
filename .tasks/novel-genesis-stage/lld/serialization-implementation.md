@@ -640,3 +640,215 @@ sse_data = EventSerializer.serialize_for_sse(event)
 ```
 
 这套序列化实现确保了命令和事件在不同存储和传输层之间的一致性和正确性。
+
+## Outbox Payload 构建最佳实践
+
+### 问题背景
+
+当前outbox payload构建方式存在安全风险：直接将领域事件的`payload`字段merge到顶层，可能导致业务数据覆盖系统关键字段（如`event_id`、`event_type`、`metadata`等）。
+
+### Builder模式解决方案（推荐）
+
+#### 核心设计思路
+
+采用命名空间隔离的Builder模式，将系统元数据与业务数据完全分离：
+
+```python
+from typing import TypedDict, NotRequired, Dict, Any, Optional
+from datetime import datetime, timezone
+
+class SystemMetadata(TypedDict):
+    """系统元数据类型定义"""
+    event_id: str
+    event_type: str
+    aggregate_type: str
+    aggregate_id: str
+    metadata: dict[str, Any]
+    correlation_id: NotRequired[str]
+    causation_id: NotRequired[str]
+    created_at: NotRequired[str]
+    event_version: NotRequired[int]
+
+class OutboxPayload(TypedDict):
+    """Outbox有效负载结构定义"""
+    system: SystemMetadata
+    data: dict[str, Any]
+    schema_version: str
+```
+
+#### Builder实现
+
+```python
+from src.models.event import DomainEvent
+
+class OutboxPayloadBuilder:
+    """类型安全的outbox payload构建器
+
+    优势：
+    - 彻底消除字段冲突风险
+    - 为后续演进（版本升级）提供明确边界
+    - 保持结构清晰：system层专注元数据，data层专注业务负载
+    """
+
+    RESERVED_TOP_LEVEL_FIELDS = {"system", "data", "schema_version"}
+
+    def __init__(self):
+        self._system_metadata: dict[str, Any] = {}
+        self._business_data: dict[str, Any] = {}
+        self._schema_version: str = "v1"
+
+    def with_domain_event(self, event: DomainEvent) -> 'OutboxPayloadBuilder':
+        """从领域事件提取系统元数据"""
+        self._system_metadata = {
+            "event_id": str(event.event_id),
+            "event_type": event.event_type,
+            "aggregate_type": event.aggregate_type,
+            "aggregate_id": event.aggregate_id,
+            "metadata": event.event_metadata or {},
+        }
+
+        # 添加可选字段
+        if hasattr(event, "correlation_id") and event.correlation_id:
+            self._system_metadata["correlation_id"] = str(event.correlation_id)
+
+        if hasattr(event, "causation_id") and event.causation_id:
+            self._system_metadata["causation_id"] = str(event.causation_id)
+
+        if hasattr(event, "created_at") and event.created_at:
+            try:
+                self._system_metadata["created_at"] = event.created_at.isoformat()
+            except Exception:
+                # 静默处理时间格式化异常
+                pass
+
+        return self
+
+    def with_business_data(self, data: dict[str, Any]) -> 'OutboxPayloadBuilder':
+        """设置业务数据，防御性检查顶层保留字段冲突"""
+        if not data:
+            return self
+
+        # 检查业务数据是否包含顶层保留字段
+        conflicts = set(data.keys()) & self.RESERVED_TOP_LEVEL_FIELDS
+        if conflicts:
+            raise ValueError(
+                f"Business data contains reserved top-level fields: {conflicts}. "
+                f"These fields conflict with the envelope structure."
+            )
+
+        self._business_data = data
+        return self
+
+    def with_schema_version(self, version: str) -> 'OutboxPayloadBuilder':
+        """设置Schema版本（支持灰度迁移）"""
+        self._schema_version = version
+        return self
+
+    def build(self) -> OutboxPayload:
+        """构建最终的outbox payload"""
+        # 完整性校验：必需的系统字段
+        required_fields = ["event_id", "event_type", "aggregate_type", "aggregate_id"]
+        missing_fields = [field for field in required_fields if field not in self._system_metadata]
+
+        if missing_fields:
+            raise ValueError(f"Missing required system metadata fields: {missing_fields}")
+
+        return {
+            "system": self._system_metadata,
+            "data": self._business_data,
+            "schema_version": self._schema_version
+        }
+
+    @classmethod
+    def from_domain_event(cls, domain_event: DomainEvent) -> 'OutboxPayloadBuilder':
+        """便捷工厂方法"""
+        return cls().with_domain_event(domain_event).with_business_data(domain_event.payload or {})
+```
+
+#### 集成到现有代码
+
+修改 `OutboxEntryCreator._build_outbox_payload` 方法（位于 `apps/backend/src/agents/orchestrator/outbox_manager.py:281`）：
+
+```python
+def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
+    """使用Builder模式构建outbox有效负载，确保字段隔离"""
+    try:
+        payload = OutboxPayloadBuilder.from_domain_event(domain_event).build()
+
+        self.log.debug(
+            "outbox_payload_built_with_builder",
+            event_id=str(domain_event.event_id),
+            event_type=domain_event.event_type,
+            schema_version=payload["schema_version"],
+            has_business_data=bool(payload["data"]),
+        )
+
+        return payload
+
+    except Exception as e:
+        self.log.error(
+            "outbox_payload_build_failed",
+            event_id=str(domain_event.event_id),
+            event_type=domain_event.event_type,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+```
+
+#### 配套更新
+
+1. **Headers增强**：在EventOutbox的headers中增加schema版本
+```python
+headers={
+    "event_type": domain_event.event_type,
+    "version": 1,
+    "correlation_id": str(correlation_id) if correlation_id else None,
+    "schema_version": "v1",  # 与payload版本对齐
+}
+```
+
+2. **测试更新**：现有测试需要适配新的payload结构
+```python
+# 旧断言（平铺结构）
+assert result.payload["character_type"] == "hero"
+
+# 新断言（分层结构）
+assert result.payload["system"]["event_id"] == str(domain_event.event_id)
+assert result.payload["data"]["character_type"] == "hero"
+assert result.payload["schema_version"] == "v1"
+```
+
+### 迁移策略
+
+#### 阶段1：并行运行（兼容性保证）
+- 保持当前实现作为fallback
+- 新增Builder实现，通过配置开关控制
+- 下游消费者同时支持两种格式
+
+#### 阶段2：逐步切换
+- 消费者优先识别新格式
+- 生产者逐步切换到Builder模式
+- 监控和日志跟踪切换进度
+
+#### 阶段3：完全迁移
+- 移除旧实现
+- 统一使用Builder模式
+- 清理兼容性代码
+
+### 优势总结
+
+1. **安全性**：彻底消除字段冲突风险，系统元数据不会被业务数据覆盖
+2. **可维护性**：清晰的分层结构，system和data职责明确
+3. **可扩展性**：通过schema_version支持平滑演进和向后兼容
+4. **可观测性**：Builder过程可以加入详细的日志和监控
+5. **类型安全**：TypedDict提供编译时类型检查
+
+### 对比现有方案
+
+| 方案 | 安全性 | 性能 | 兼容性 | 复杂度 | 推荐度 |
+|------|--------|------|--------|--------|--------|
+| 当前修复（运行时检测） | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | 过渡方案 |
+| **Builder模式（命名空间隔离）** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | **长期推荐** |
+
+Builder模式通过结构化设计从根本上解决了字段冲突问题，同时为系统演进提供了清晰的架构基础。

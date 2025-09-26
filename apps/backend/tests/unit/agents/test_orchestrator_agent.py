@@ -424,13 +424,17 @@ async def test_persist_domain_event_no_double_payload_nesting():
     async def mock_persist_domain_event(*args, **kwargs):
         # Create a mock EventOutbox to verify payload structure
         mock_outbox = MagicMock()
+        # Use new envelope structure (system/data/schema_version)
         mock_outbox.payload = {
-            "event_id": str(uuid4()),
-            "event_type": "Genesis.Character.Requested",
-            "aggregate_type": "GenesisFlow",
-            "aggregate_id": "test-session-123",
-            "metadata": {"source": "orchestrator"},
-            **test_payload  # Flatten the domain payload directly
+            "system": {
+                "event_id": str(uuid4()),
+                "event_type": "Genesis.Character.Requested",
+                "aggregate_type": "GenesisFlow",
+                "aggregate_id": "test-session-123",
+                "metadata": {"source": "orchestrator"},
+            },
+            "data": test_payload,  # Business data in separate layer
+            "schema_version": "v1"
         }
         nonlocal captured_outbox
         captured_outbox = mock_outbox
@@ -461,23 +465,24 @@ async def test_persist_domain_event_no_double_payload_nesting():
             nested_payload.get("payload"), dict
         ), f"Double payload nesting detected: {outbox_payload}"
 
-    # Verify the expected flattened structure
+    # Verify the expected envelope structure (system/data/schema_version)
     actual_keys = set(outbox_payload.keys())
 
-    # Should have core event fields + domain payload fields flattened
-    assert "event_id" in actual_keys, "Missing event_id in payload"
-    assert "event_type" in actual_keys, "Missing event_type in payload"
-    assert "aggregate_type" in actual_keys, "Missing aggregate_type in payload"
-    assert "aggregate_id" in actual_keys, "Missing aggregate_id in payload"
-    assert "metadata" in actual_keys, "Missing metadata in payload"
+    # Should have envelope structure
+    assert "system" in actual_keys, "Missing system layer in payload"
+    assert "data" in actual_keys, "Missing data layer in payload"
+    assert "schema_version" in actual_keys, "Missing schema_version in payload"
+    assert outbox_payload["schema_version"] == "v1", "Incorrect schema version"
 
-    # Should have domain payload fields directly accessible (not nested under "payload")
-    assert "session_id" in actual_keys, "Missing session_id in payload (should be flattened)"
-    assert "input" in actual_keys, "Missing input in payload (should be flattened)"
+    # Verify system layer contains system metadata
+    system = outbox_payload["system"]
+    assert system["event_type"] == "Genesis.Character.Requested"
+    assert system["aggregate_type"] == "GenesisFlow"
+    assert system["aggregate_id"] == "test-session-123"
+    assert "event_id" in system, "Missing event_id in system layer"
+    assert "metadata" in system, "Missing metadata in system layer"
 
-    # Verify the values are correct
-    assert outbox_payload["session_id"] == "test-session-123"
-    assert outbox_payload["input"] == {"name": "Hero"}
-    assert outbox_payload["event_type"] == "Genesis.Character.Requested"
-    assert outbox_payload["aggregate_type"] == "GenesisFlow"
-    assert outbox_payload["aggregate_id"] == "test-session-123"
+    # Verify data layer contains business payload
+    data = outbox_payload["data"]
+    assert data["session_id"] == "test-session-123", "Missing session_id in data layer"
+    assert data["input"] == {"name": "Hero"}, "Missing input in data layer"

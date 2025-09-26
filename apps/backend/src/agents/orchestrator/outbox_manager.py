@@ -12,6 +12,8 @@ from uuid import UUID
 from sqlalchemy import and_, select
 
 from src.agents.message import encode_message
+from src.agents.orchestrator.outbox_payload import OutboxPayloadBuilder
+from src.agents.orchestrator.types import DomainEventMetadata, EventOutboxHeaders, OutboxPayload
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
@@ -167,7 +169,7 @@ class DomainEventCreator:
             payload=payload,
             correlation_id=safe_correlation_id,
             causation_id=safe_causation_id,
-            event_metadata={"source": "orchestrator"},
+            event_metadata=DomainEventMetadata(source="orchestrator").model_dump(),
         )
         db_session.add(domain_event)
         await db_session.flush()
@@ -248,11 +250,19 @@ class OutboxEntryCreator:
             key=str(session_id),
             partition_key=str(session_id),
             payload=outbox_payload,
-            headers={
-                "event_type": domain_event.event_type,
-                "version": 1,
-                "correlation_id": str(correlation_id) if correlation_id else None,
-            },
+            headers=EventOutboxHeaders(
+                event_type=domain_event.event_type,
+                correlation_id=str(correlation_id) if correlation_id else None,
+                causation_id=str(domain_event.causation_id) if hasattr(domain_event, "causation_id") and domain_event.causation_id else None,
+                aggregate_id=domain_event.aggregate_id,
+                aggregate_type=domain_event.aggregate_type,
+                content_type="application/json",
+                schema_version="v1",
+                timestamp=domain_event.created_at.isoformat() if hasattr(domain_event, "created_at") and domain_event.created_at else None,
+                user_id=getattr(domain_event, "user_id", None),
+                source=domain_event.event_metadata.get("source", "orchestrator") if domain_event.event_metadata else "orchestrator",
+                trace_id=domain_event.event_metadata.get("trace_id") if domain_event.event_metadata else None,
+            ).model_dump(),
             status=OutboxStatus.PENDING,
         )
         db_session.add(outbox_entry)
@@ -279,67 +289,41 @@ class OutboxEntryCreator:
         return await db_session.scalar(select(EventOutbox).where(EventOutbox.id == event_id))
 
     def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
-        """从领域事件构建outbox有效负载。
+        """使用Builder模式构建outbox有效负载，确保字段隔离。
+
+        采用LLD规范的命名空间隔离设计：
+        - system: 系统元数据（event_id, event_type, aggregate_*, metadata等）
+        - data: 业务数据（原domain_event.payload内容）
+        - schema_version: 版本标识（支持演进）
 
         Args:
             domain_event: 领域事件对象
 
         Returns:
-            构建的有效负载字典
+            分层结构的payload字典
         """
-        # 定义需要保护的关键系统字段
-        protected_fields = {"event_id", "event_type", "aggregate_type", "aggregate_id", "metadata", "created_at"}
-
-        # 扁平化有效负载结构以避免双重嵌套 - 确保下游消费者能正确解析数据
-        outbox_payload = {
-            "event_id": str(domain_event.event_id),
-            "event_type": domain_event.event_type,
-            "aggregate_type": domain_event.aggregate_type,
-            "aggregate_id": domain_event.aggregate_id,
-            "metadata": domain_event.event_metadata or {},
-        }
-
-        # 校验并隔离领域payload中的关键字段冲突
-        domain_payload = domain_event.payload or {}
-        if domain_payload:
-            conflicting_fields = set(domain_payload.keys()) & protected_fields
-            if conflicting_fields:
-                self.log.warning(
-                    "domain_payload_field_conflict_detected",
-                    event_id=str(domain_event.event_id),
-                    event_type=domain_event.event_type,
-                    conflicting_fields=list(conflicting_fields),
-                    message="领域payload包含系统保留字段，将被隔离到domain_payload子对象中",
-                )
-
-                # 将冲突字段隔离到domain_payload子对象中
-                domain_payload_safe = {}
-                domain_payload_conflicts = {}
-
-                for key, value in domain_payload.items():
-                    if key in protected_fields:
-                        domain_payload_conflicts[key] = value
-                    else:
-                        domain_payload_safe[key] = value
-
-                # 安全字段直接合并到顶层
-                outbox_payload.update(domain_payload_safe)
-
-                # 冲突字段放入domain_payload子对象
-                if domain_payload_conflicts:
-                    outbox_payload["domain_payload"] = domain_payload_conflicts
-            else:
-                # 没有冲突，直接合并领域事件有效负载
-                outbox_payload.update(domain_payload)
-
-        # 添加created_at作为下游时间戳的备用值
         try:
-            if getattr(domain_event, "created_at", None):
-                outbox_payload["created_at"] = domain_event.created_at.isoformat()
-        except Exception:
-            pass
+            payload = OutboxPayloadBuilder.from_domain_event(domain_event).build()
 
-        return outbox_payload
+            self.log.debug(
+                "outbox_payload_built_with_builder",
+                event_id=str(domain_event.event_id),
+                event_type=domain_event.event_type,
+                schema_version=payload["schema_version"],
+                has_business_data=bool(payload["data"]),
+            )
+
+            return payload
+
+        except Exception as e:
+            self.log.error(
+                "outbox_payload_build_failed",
+                event_id=str(domain_event.event_id),
+                event_type=domain_event.event_type,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise
 
 
 class CapabilityTaskEnqueuer:
@@ -397,12 +381,12 @@ class CapabilityTaskEnqueuer:
                 key=str(key) if key is not None else None,
                 partition_key=str(key) if key is not None else None,
                 payload=envelope,
-                headers={
-                    "type": envelope.get("type"),
-                    "version": envelope.get("version"),
-                    "correlation_id": correlation_id,
-                    "agent": self.agent_name,
-                },
+                headers=EventOutboxHeaders(
+                    type=envelope.get("type"),
+                    version=envelope.get("version", 1),
+                    correlation_id=correlation_id,
+                    agent=self.agent_name,
+                ).model_dump(),
                 status=OutboxStatus.PENDING,
             )
             db.add(outbox_entry)
