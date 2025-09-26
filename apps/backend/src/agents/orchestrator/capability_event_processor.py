@@ -68,8 +68,17 @@ class EventDataExtractor:
         Returns:
             (会话ID, 作用域信息字典) 元组
         """
-        # 从 Pydantic 模型中提取会话 ID
-        session_id = str(data.session_id or data.aggregate_id or "")
+        # 从上下文中提取会话ID（系统信息）
+        # 优先从 context.meta 获取系统字段，符合新的分层设计
+        session_id = ""
+        if context.meta:
+            # aggregate_id 通常对应 session_id
+            session_id = str(context.meta.aggregate_id or "")
+
+        # 如果 context 中没有，尝试从消息本身获取（业务层回退）
+        if not session_id:
+            # 某些消息可能在业务数据中包含 session_id
+            session_id = str(getattr(data, 'session_id', '') or "")
         topic = context.topic or ""
 
         # 从主题前缀推断作用域 (例如: genesis.outline.events -> Genesis)
@@ -97,10 +106,14 @@ class EventDataExtractor:
         Returns:
             关联ID字符串或None
         """
-        # 从 Pydantic 模型中安全提取 correlation_id
+        # 从上下文中提取 correlation_id（系统信息）
+        # 根据新的分层设计，系统字段应该在 context.meta 中
         if context.meta and context.meta.correlation_id:
             return context.meta.correlation_id
-        return data.correlation_id
+
+        # 如果 context 中没有，返回 None（不再从 data 获取系统字段）
+        # 注意：data 现在只包含纯业务字段，不应包含系统字段
+        return None
 
     @staticmethod
     def extract_causation_id(
@@ -115,10 +128,14 @@ class EventDataExtractor:
         Returns:
             因果关系ID字符串或None
         """
-        # 从 Pydantic 模型中安全提取 event_id
+        # 从上下文中提取 event_id（系统信息）
+        # 根据新的分层设计，系统字段应该在 context.meta 中
         if context.meta and context.meta.event_id:
             return context.meta.event_id
-        return data.event_id
+
+        # 如果 context 中没有，返回 None（不再从 data 获取系统字段）
+        # 注意：data 现在只包含纯业务字段，不应包含系统字段
+        return None
 
 
 class EventHandlerMatcher:
