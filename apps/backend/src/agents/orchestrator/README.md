@@ -2,11 +2,39 @@
 
 负责协调和管理领域事件与能力任务之间的流转，是整个事件驱动架构的核心协调组件。
 
-## 🚀 最新架构增强
+## 🚀 最新架构增强 (2024.09.26)
 
-### Pydantic 模型与 Outbox 有效负载构建器升级 ✨
+### 事件类型系统与能力事件处理优化 ✨
 
-最近的重构实现了"ultrathink"级别的类型安全性和领域事件有效负载构建器的重大升级：
+最近的重构实现了事件类型定义的统一和能力事件处理流程的优化：
+
+#### 🔧 统一事件元数据模型
+
+**实现了完整的事件类型系统**：
+- 字符串字面量类型：`MessageType`、`EventActionType`、`TargetType`、`ScopeType`
+- 统一事件元数据：`EventMetadata` 类，消除重复定义
+- 类型安全的数据模型：`GenerationData`、`QualityReviewData`、`ConsistencyCheckData`
+- 智能类型转换：`CapabilityEventMessage.to_typed_data()` 自动推断数据类型
+
+```mermaid
+graph TD
+    subgraph "事件类型系统"
+        A[字符串字面量类型] --> B[编译时类型检查]
+        C[统一事件元数据] --> D[运行时验证]
+        E[智能类型转换] --> F[自动数据推断]
+    end
+    
+    subgraph "数据模型层次"
+        G[BaseEventData] --> H[GenerationData]
+        G --> I[QualityReviewData] 
+        G --> J[ConsistencyCheckData]
+        K[CapabilityEventMessage] --> L[智能转换]
+    end
+    
+    B --> D
+    D --> F
+    F --> L
+```
 
 #### 🔧 Pydantic 类型系统完整实现
 
@@ -887,6 +915,34 @@ classDiagram
 - **关联ID管理**: 提取和管理correlation_id和causation_id
 - **智能类型转换**: `CapabilityEventMessage.to_typed_data()` 自动推断数据类型
 - **类型安全**: 使用Pydantic模型确保运行时数据验证
+
+#### 🔧 能力事件处理器优化 ✨
+
+**重构了能力事件处理器的数据提取和类型转换逻辑**：
+
+- **数据提取器优化**：`EventDataExtractor` 提供统一的数据提取接口
+- **字段检测增强**：使用 `model_fields_set` 替代 `model_dump(exclude_none=True)`，提供更准确的字段存在性检测
+- **空值处理改进**：正确处理包含 `None` 值但有效字段的事件数据
+- **类型约束优化**：使用具体类型替代基类型，提升类型安全性
+
+```mermaid
+graph TD
+    A[原始消息] --> B[CapabilityEventMessage]
+    B --> C[to_typed_data()]
+    C --> D{字段集检查}
+    D -->|model_fields_set非空| E[返回具体类型数据]
+    D -->|无有效字段| F[回退到类型推断]
+    
+    F --> G{内容特征分析}
+    G -->|包含score字段| H[QualityReviewData]
+    G -->|包含ok字段| I[ConsistencyCheckData]
+    G -->|其他情况| J[GenerationData]
+    
+    E --> K[类型安全的事件处理]
+    H --> K
+    I --> K
+    J --> K
+```
 
 #### 智能类型转换和字段检测 ✨
 
