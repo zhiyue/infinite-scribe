@@ -56,10 +56,13 @@ def test_command_to_character_requested_and_task(monkeypatch):
     test_character_name = "Hero"
 
     evt = {
-        "event_type": "Genesis.Session.Command.Received",
-        "aggregate_id": test_session_id,
-        "payload": {"command_type": "Character.Request", "payload": {"name": test_character_name}},
-        "metadata": {"correlation_id": test_correlation_id},
+        "system": {
+            "event_type": "Genesis.Session.Command.Received",
+            "aggregate_id": test_session_id,
+            "metadata": {"correlation_id": test_correlation_id},
+        },
+        "data": {"command_type": "Character.Request", "payload": {"name": test_character_name}},
+        "schema_version": "v1"
     }
 
     result = asyncio.run(agent.process_message(evt))

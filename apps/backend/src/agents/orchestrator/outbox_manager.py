@@ -13,7 +13,7 @@ from sqlalchemy import and_, select
 
 from src.agents.message import encode_message
 from src.agents.orchestrator.outbox_payload import OutboxPayloadBuilder
-from src.agents.orchestrator.types import UnifiedEventMetadata, EventOutboxHeaders, OutboxPayload
+from src.agents.orchestrator.types import EventOutboxHeaders, EventMetadata
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
@@ -169,7 +169,7 @@ class DomainEventCreator:
             payload=payload,
             correlation_id=safe_correlation_id,
             causation_id=safe_causation_id,
-            event_metadata=UnifiedEventMetadata(source="orchestrator").model_dump(),
+            event_metadata=EventMetadata(source="orchestrator").model_dump(),
         )
         db_session.add(domain_event)
         await db_session.flush()
@@ -253,14 +253,20 @@ class OutboxEntryCreator:
             headers=EventOutboxHeaders(
                 event_type=domain_event.event_type,
                 correlation_id=str(correlation_id) if correlation_id else None,
-                causation_id=str(domain_event.causation_id) if hasattr(domain_event, "causation_id") and domain_event.causation_id else None,
+                causation_id=str(domain_event.causation_id)
+                if hasattr(domain_event, "causation_id") and domain_event.causation_id
+                else None,
                 aggregate_id=domain_event.aggregate_id,
                 aggregate_type=domain_event.aggregate_type,
                 content_type="application/json",
                 schema_version="v1",
-                timestamp=domain_event.created_at.isoformat() if hasattr(domain_event, "created_at") and domain_event.created_at else None,
+                timestamp=domain_event.created_at.isoformat()
+                if hasattr(domain_event, "created_at") and domain_event.created_at
+                else None,
                 user_id=getattr(domain_event, "user_id", None),
-                source=domain_event.event_metadata.get("source", "orchestrator") if domain_event.event_metadata else "orchestrator",
+                source=domain_event.event_metadata.get("source", "orchestrator")
+                if domain_event.event_metadata
+                else "orchestrator",
                 trace_id=domain_event.event_metadata.get("trace_id") if domain_event.event_metadata else None,
             ).model_dump(),
             status=OutboxStatus.PENDING,
@@ -289,45 +295,31 @@ class OutboxEntryCreator:
         return await db_session.scalar(select(EventOutbox).where(EventOutbox.id == event_id))
 
     def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
-        """构建outbox有效负载，保持扁平化结构以确保向后兼容性。
+        """使用Builder模式构建outbox有效负载，确保字段隔离。
 
-        为了不破坏现有的下游消费者（如OrchestratorAgent.process_message和EventBridge.EventFilter），
-        我们保持原有的扁平化schema，但使用Builder模式确保字段冲突检测和类型安全。
+        采用LLD规范的命名空间隔离设计：
+        - system: 系统元数据（event_id, event_type, aggregate_*, metadata等）
+        - data: 业务数据（原domain_event.payload内容）
+        - schema_version: 版本标识（支持演进）
 
         Args:
             domain_event: 领域事件对象
 
         Returns:
-            扁平化的payload字典，兼容现有消费者
+            分层结构的payload字典
         """
         try:
-            # 使用Builder模式构建结构化payload（用于验证和字段冲突检测）
             payload_envelope = OutboxPayloadBuilder.from_domain_event(domain_event).build()
 
-            # 扁平化为向后兼容的结构
-            flat_payload = {}
-            
-            # 添加系统元数据到顶层（保持现有消费者期望的字段）
-            system_data = payload_envelope.system.model_dump(exclude_none=True)
-            flat_payload.update(system_data)
-            
-            # 添加业务数据到顶层（保持原有的payload字段）
-            if payload_envelope.data:
-                flat_payload["payload"] = payload_envelope.data
-            
-            # 可选：添加schema版本用于未来迁移追踪
-            flat_payload["_schema_version"] = payload_envelope.schema_version
-
             self.log.debug(
-                "outbox_payload_built_flat_compatible",
+                "outbox_payload_built_with_builder",
                 event_id=str(domain_event.event_id),
                 event_type=domain_event.event_type,
                 schema_version=payload_envelope.schema_version,
                 has_business_data=bool(payload_envelope.data),
-                flat_keys=list(flat_payload.keys()),
             )
 
-            return flat_payload
+            return payload_envelope.model_dump(exclude_none=True)
 
         except Exception as e:
             self.log.error(

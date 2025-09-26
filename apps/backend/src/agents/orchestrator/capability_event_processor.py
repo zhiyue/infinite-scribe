@@ -17,12 +17,7 @@ from src.agents.orchestrator.types import (
     ProcessingResult,
     QualityReviewData,
     ScopeInfo,
-    create_capability_event_message_from_dict,
-    create_consistency_check_data_from_dict,
-    create_generation_data_from_dict,
-    create_message_context_from_dict,
     create_processing_result,
-    create_quality_review_data_from_dict,
 )
 from src.agents.orchestrator.workflows import EventAction
 from src.common.events.config import DEFAULT_VALUES
@@ -42,7 +37,7 @@ class EventDataExtractor:
             提取出的事件数据对象
         """
         # 使用 Pydantic 进行类型安全的数据提取和转换
-        event_msg: CapabilityEventMessage = create_capability_event_message_from_dict(message)
+        event_msg: CapabilityEventMessage = CapabilityEventMessage(**message)
         typed_data = event_msg.to_typed_data()
         # 检查是否有任何有效字段（包括空值字段）
         if hasattr(typed_data, "model_fields_set") and typed_data.model_fields_set:
@@ -55,10 +50,10 @@ class EventDataExtractor:
         payload = {} if not isinstance(potential_payload, dict) else potential_payload
 
         if "score" in payload or "quality_score" in payload:
-            return create_quality_review_data_from_dict(payload)
+            return QualityReviewData(**payload)
         if "ok" in payload or "passed" in payload:
-            return create_consistency_check_data_from_dict(payload)
-        return create_generation_data_from_dict(payload)
+            return ConsistencyCheckData(**payload)
+        return GenerationData(**payload)
 
     @staticmethod
     def extract_session_and_scope(
@@ -234,7 +229,7 @@ class CapabilityEventProcessor:
         """
         # 使用 Pydantic 进行类型安全的数据处理
         data = self.data_extractor.extract_event_data(message)
-        context_model = create_message_context_from_dict(context)
+        context_model = MessageContext(**context)
         session_id, scope_info = self.data_extractor.extract_session_and_scope(data, context_model)
         correlation_id = self.data_extractor.extract_correlation_id(context_model, data)
         causation_id = self.data_extractor.extract_causation_id(context_model, data)

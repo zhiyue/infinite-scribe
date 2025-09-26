@@ -45,24 +45,15 @@ class EventFilter:
         r"^Genesis\.Session\.BranchCreated$",
     ]
 
-    # Required envelope fields
-    REQUIRED_ENVELOPE_FIELDS = [
-        "event_id",
-        "event_type",
-        "aggregate_id",
-        "correlation_id",
-        "payload",
-    ]
-
-    # Required payload fields
-    REQUIRED_PAYLOAD_FIELDS = [
+    # Required data fields (business payload)
+    REQUIRED_DATA_FIELDS = [
         "user_id",
         "session_id",
         "timestamp",
     ]
 
-    # Optional payload fields that are validated if present
-    OPTIONAL_PAYLOAD_FIELDS = [
+    # Optional data fields that are validated if present
+    OPTIONAL_DATA_FIELDS = [
         "novel_id",
     ]
 
@@ -74,6 +65,9 @@ class EventFilter:
         """
         Validate domain event envelope.
 
+        Only supports new nested structure:
+        {system: {event_id, event_type, ...}, data: {...}, schema_version}
+
         Args:
             envelope: Event envelope from Kafka
 
@@ -81,13 +75,22 @@ class EventFilter:
             Tuple of (is_valid, reason). reason is None if valid.
         """
         try:
-            # Check required envelope fields
-            validation_result = self._validate_envelope_fields(envelope)
+            # Check required top-level fields for new structure
+            required_top_fields = ["system", "data", "schema_version"]
+            for field in required_top_fields:
+                if field not in envelope:
+                    return False, f"Missing required field: {field}"
+
+            system = envelope["system"]
+            data = envelope["data"]
+
+            # Validate system metadata
+            validation_result = self._validate_system_metadata(system)
             if validation_result is not None:
                 return False, validation_result
 
             # Validate event type naming convention
-            event_type = envelope["event_type"]
+            event_type = system["event_type"]
             if not self._validate_event_type(event_type):
                 return False, f"event_type must start with 'Genesis.Session', got: {event_type}"
 
@@ -95,14 +98,13 @@ class EventFilter:
             if not self._validate_event_pattern(event_type):
                 return False, f"event_type '{event_type}' not in allowed patterns"
 
-            # Validate payload
-            payload = envelope["payload"]
-            validation_result = self._validate_payload(payload)
+            # Validate business data (equivalent to old payload)
+            validation_result = self._validate_payload(data)
             if validation_result is not None:
                 return False, validation_result
 
-            # Validate UUID fields
-            validation_result = self._validate_uuid_fields(envelope)
+            # Validate UUID fields in system metadata
+            validation_result = self._validate_uuid_fields_in_system(system)
             if validation_result is not None:
                 return False, validation_result
 
@@ -112,17 +114,28 @@ class EventFilter:
             logger.error(f"Unexpected error during validation: {e}")
             return False, f"Validation error: {e!s}"
 
-    def _validate_envelope_fields(self, envelope: dict[str, Any]) -> str | None:
-        """Validate required envelope fields are present."""
-        for field in self.REQUIRED_ENVELOPE_FIELDS:
-            if field not in envelope:
-                return f"Missing required field: {field}"
 
-        # Validate payload is a dictionary
-        if not isinstance(envelope["payload"], dict):
-            return "payload must be a dictionary"
+    def _validate_system_metadata(self, system: dict[str, Any]) -> str | None:
+        """Validate required system metadata fields are present."""
+        required_system_fields = ["event_id", "event_type", "aggregate_id"]
+        for field in required_system_fields:
+            if field not in system:
+                return f"Missing required system field: {field}"
+        return None
+
+    def _validate_uuid_fields_in_system(self, system: dict[str, Any]) -> str | None:
+        """Validate UUID format for UUID fields in system metadata."""
+        uuid_fields = ["event_id", "aggregate_id", "correlation_id"]
+
+        for field in uuid_fields:
+            if field in system and system[field] is not None:
+                try:
+                    UUID(system[field])
+                except (ValueError, TypeError):
+                    return f"system.{field} must be a valid UUID"
 
         return None
+
 
     def _validate_event_type(self, event_type: str) -> bool:
         """Validate event type follows Genesis.Session.* convention."""
@@ -132,50 +145,26 @@ class EventFilter:
         """Check if event type matches any allowed pattern."""
         return any(pattern.match(event_type) for pattern in self.compiled_patterns)
 
-    def _validate_payload(self, payload: dict[str, Any]) -> str | None:
-        """Validate required payload fields are present and valid."""
-        # Check required payload fields
-        for field in self.REQUIRED_PAYLOAD_FIELDS:
-            if field not in payload:
-                return f"Missing required payload field: {field}"
+    def _validate_payload(self, data: dict[str, Any]) -> str | None:
+        """Validate required data fields are present and valid."""
+        # Check required data fields
+        for field in self.REQUIRED_DATA_FIELDS:
+            if field not in data:
+                return f"Missing required data field: {field}"
 
         # Validate timestamp format
         try:
-            datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+            datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             return "timestamp must be a valid ISO format"
 
         # Validate optional UUID fields if present
-        for field in self.OPTIONAL_PAYLOAD_FIELDS:
-            if field in payload:
+        for field in self.OPTIONAL_DATA_FIELDS:
+            if field in data:
                 try:
-                    UUID(payload[field])
+                    UUID(data[field])
                 except (ValueError, TypeError):
                     return f"{field} must be a valid UUID"
 
         return None
 
-    def _validate_uuid_fields(self, envelope: dict[str, Any]) -> str | None:
-        """Validate UUID format for UUID fields."""
-        uuid_fields = ["event_id", "aggregate_id", "correlation_id"]
-        payload = envelope["payload"]
-        # user_id 在系统中为数字（或可序列化字符串），不强制 UUID 格式
-        payload_uuid_fields = ["session_id"]
-
-        # Validate envelope UUID fields
-        for field in uuid_fields:
-            if field in envelope:
-                try:
-                    UUID(envelope[field])
-                except (ValueError, TypeError):
-                    return f"{field} must be a valid UUID"
-
-        # Validate payload UUID fields
-        for field in payload_uuid_fields:
-            if field in payload:
-                try:
-                    UUID(payload[field])
-                except (ValueError, TypeError):
-                    return f"{field} must be a valid UUID"
-
-        return None

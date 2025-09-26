@@ -89,7 +89,7 @@ class TestCorrelationIdExtractor:
         """Test extracting correlation_id from event metadata."""
         # Arrange
         correlation_id = str(uuid4())
-        evt = {"metadata": {"correlation_id": correlation_id}}
+        evt = {"system": {"metadata": {"correlation_id": correlation_id}}}
         context = {}
 
         # Act
@@ -102,7 +102,7 @@ class TestCorrelationIdExtractor:
         """Test extracting correlation_id directly from event."""
         # Arrange
         correlation_id = str(uuid4())
-        evt = {"correlation_id": correlation_id}
+        evt = {"system": {"correlation_id": correlation_id}}
         context = {}
 
         # Act
@@ -116,7 +116,7 @@ class TestCorrelationIdExtractor:
         # Arrange
         preferred_id = str(uuid4())
         other_id = str(uuid4())
-        evt = {"correlation_id": other_id, "metadata": {"correlation_id": other_id}}
+        evt = {"system": {"correlation_id": other_id, "metadata": {"correlation_id": other_id}}}
         context = {"meta": {"correlation_id": preferred_id}, "headers": {"correlation_id": other_id}}
 
         # Act
@@ -129,7 +129,7 @@ class TestCorrelationIdExtractor:
         """Test handling of exceptions during extraction."""
         # Arrange
         correlation_id = str(uuid4())
-        evt = {"correlation_id": correlation_id}
+        evt = {"system": {"correlation_id": correlation_id}}
         context = {"meta": "invalid"}  # This will cause an exception
 
         # Act
@@ -185,7 +185,7 @@ class TestEventValidator:
     def test_extract_command_type_success(self):
         """Test extracting command_type from event."""
         # Arrange
-        evt = {"command_type": "Character.Request"}
+        evt = {"data": {"command_type": "Character.Request"}}
 
         # Act
         result = EventValidator.extract_command_type(evt)
@@ -196,7 +196,7 @@ class TestEventValidator:
     def test_extract_command_type_missing(self):
         """Test handling missing command_type."""
         # Arrange
-        evt = {}
+        evt = {"data": {}}
 
         # Act
         result = EventValidator.extract_command_type(evt)
@@ -362,14 +362,20 @@ class TestDomainEventProcessor:
         """Test successful domain event processing."""
         # Arrange
         correlation_id = str(uuid4())
+        event_id = str(uuid4())
         evt = {
-            "event_type": "Genesis.Command.Received",
-            "aggregate_id": "session-123",
-            "payload": {"character_type": "hero"},
-            "metadata": {"source": "user"},
-            "command_type": "Character.Request",
+            "system": {
+                "event_type": "Genesis.Command.Received",
+                "aggregate_id": "session-123",
+                "metadata": {"source": "user"},
+                "event_id": event_id,
+            },
+            "data": {
+                "command_type": "Character.Request",
+                "payload": {"character_type": "hero"},
+            },
             "user_id": "user-456",
-            "event_id": str(uuid4()),
+            "schema_version": "v1",
         }
         context = {"meta": {"correlation_id": correlation_id}}
 
@@ -393,7 +399,7 @@ class TestDomainEventProcessor:
             assert result["scope_type"] == "GENESIS"
             assert result["aggregate_id"] == "session-123"
             assert result["mapping"] == mock_mapping
-            assert result["causation_id"] == evt["event_id"]
+            assert result["causation_id"] == event_id
 
             # Verify enriched payload
             enriched_payload = result["enriched_payload"]
@@ -406,9 +412,12 @@ class TestDomainEventProcessor:
         """Test handling of non-command events."""
         # Arrange
         evt = {
-            "event_type": "Genesis.Character.Requested",
-            "aggregate_id": "session-123",
-            "payload": {"character_type": "hero"},
+            "system": {
+                "event_type": "Genesis.Character.Requested",
+                "aggregate_id": "session-123",
+            },
+            "data": {"payload": {"character_type": "hero"}},
+            "schema_version": "v1",
         }
         context = {}
 
@@ -423,10 +432,13 @@ class TestDomainEventProcessor:
         """Test handling of events missing command_type."""
         # Arrange
         evt = {
-            "event_type": "Genesis.Command.Received",
-            "aggregate_id": "session-123",
-            "payload": {"character_type": "hero"},
-            # Missing command_type
+            "system": {
+                "event_type": "Genesis.Command.Received",
+                "aggregate_id": "session-123",
+            },
+            "data": {"payload": {"character_type": "hero"}},
+            "schema_version": "v1",
+            # Missing command_type on purpose
         }
         context = {}
 
@@ -442,10 +454,15 @@ class TestDomainEventProcessor:
         """Test handling when command mapping fails."""
         # Arrange
         evt = {
-            "event_type": "Genesis.Command.Received",
-            "aggregate_id": "session-123",
-            "payload": {"character_type": "hero"},
-            "command_type": "Unknown.Request",
+            "system": {
+                "event_type": "Genesis.Command.Received",
+                "aggregate_id": "session-123",
+            },
+            "data": {
+                "payload": {"character_type": "hero"},
+                "command_type": "Unknown.Request",
+            },
+            "schema_version": "v1",
         }
         context = {}
 
@@ -464,10 +481,15 @@ class TestDomainEventProcessor:
         """Test correct extraction of scope information."""
         # Arrange
         evt = {
-            "event_type": "Character.Command.Received",
-            "aggregate_id": "session-123",
-            "payload": {"character_type": "hero"},
-            "command_type": "Character.Request",
+            "system": {
+                "event_type": "Character.Command.Received",
+                "aggregate_id": "session-123",
+            },
+            "data": {
+                "payload": {"character_type": "hero"},
+                "command_type": "Character.Request",
+            },
+            "schema_version": "v1",
         }
         context = {}
 

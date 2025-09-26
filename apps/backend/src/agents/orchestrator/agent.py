@@ -59,7 +59,7 @@ class OrchestratorAgent(BaseAgent):
         """通过路由到适当的处理器来处理消息。
 
         Args:
-            message: 要处理的消息字典
+            message: 要处理的消息字典（新嵌套结构）
             context: 可选的上下文信息字典
 
         Returns:
@@ -72,13 +72,18 @@ class OrchestratorAgent(BaseAgent):
             context_keys=list(context.keys()) if context else [],
         )
 
-        # 领域事件形状识别
-        if "event_type" in message and "aggregate_id" in message:
+        # 领域事件形状识别 - 新嵌套结构
+        system_data = message.get("system", {})
+        event_type = system_data.get("event_type")
+        aggregate_id = system_data.get("aggregate_id")
+
+        if event_type and aggregate_id:
             self.log.info(
                 "orchestrator_processing_domain_event",
-                event_type=message.get("event_type"),
-                aggregate_id=message.get("aggregate_id"),
-                has_payload=bool(message.get("payload")),
+                event_type=event_type,
+                aggregate_id=aggregate_id,
+                has_payload=bool(message.get("data")),
+                schema_version=message.get("schema_version", "v1"),
             )
             return await self._handle_domain_event(message, context or {})
 

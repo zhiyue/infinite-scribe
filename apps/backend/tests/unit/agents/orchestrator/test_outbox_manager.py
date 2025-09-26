@@ -248,7 +248,7 @@ class TestOutboxEntryCreator:
         assert result.partition_key == session_id
         assert result.status == OutboxStatus.PENDING
 
-        # Verify payload structure - new envelope format
+        # Verify payload structure - new nested format
         assert "system" in result.payload
         assert "data" in result.payload
         assert "schema_version" in result.payload
@@ -399,6 +399,9 @@ class TestOutboxEntryCreator:
         # 新的Builder设计不会产生冲突警告，因为完全命名空间隔离
         # 不再检查warning调用
 
+        # 新的Builder设计不会产生冲突警告，因为完全命名空间隔离
+        # 不再检查warning调用
+
     def test_build_outbox_payload_all_protected_fields(self):
         """Test _build_outbox_payload when all protected fields are in payload."""
         # Arrange
@@ -451,6 +454,9 @@ class TestOutboxEntryCreator:
         assert data["aggregate_id"] == "malicious-aggregate-id"
         assert data["metadata"] == {"malicious": "data"}
         assert data["created_at"] == "2020-01-01T00:00:00Z"
+
+        # 新的Builder设计不会产生冲突警告，因为业务数据完全隔离在data层
+        # 不再检查warning调用
 
         # 新的Builder设计不会产生冲突警告，因为业务数据完全隔离在data层
         # 不再检查warning调用

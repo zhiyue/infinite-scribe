@@ -18,8 +18,10 @@ class CorrelationIdExtractor:
     def extract_correlation_id(evt: dict[str, Any], context: dict[str, Any] | None) -> str | None:
         """从context.meta、headers或事件元数据中提取correlation_id。
 
+        使用新嵌套结构：system.correlation_id
+
         Args:
-            evt: 事件字典
+            evt: 事件字典（新嵌套结构）
             context: 可选的上下文信息字典
 
         Returns:
@@ -52,8 +54,13 @@ class CorrelationIdExtractor:
             # 解析失败不影响下游逻辑，使用回退策略
             pass
 
-        # 回退到事件元数据或直接事件字段
-        correlation_id = correlation_id or evt.get("metadata", {}).get("correlation_id") or evt.get("correlation_id")
+        # 回退到事件元数据 - 新嵌套结构
+        system = evt.get("system", {})
+        correlation_id = correlation_id or system.get("correlation_id")
+        
+        # 也检查system.metadata中是否有correlation_id
+        if not correlation_id and isinstance(system.get("metadata"), dict):
+            correlation_id = system["metadata"].get("correlation_id")
 
         return correlation_id
 
@@ -77,22 +84,19 @@ class EventValidator:
 
     @staticmethod
     def extract_command_type(evt: dict[str, Any]) -> str | None:
-        """从事件payload中提取command_type。
+        """从事件data中提取command_type。
+
+        使用新嵌套结构：data.command_type
 
         Args:
-            evt: 事件字典
+            evt: 事件字典（新嵌套结构）
 
         Returns:
             提取到的命令类型字符串或None
         """
-        # 首先尝试从根级别获取（向后兼容）
-        cmd_type = evt.get("command_type")
-        if cmd_type:
-            return str(cmd_type)
-
-        # 然后从payload中获取（当前实际结构）
-        payload = evt.get("payload") or {}
-        return payload.get("command_type")
+        # 从新嵌套结构的data字段中获取
+        data = evt.get("data") or {}
+        return data.get("command_type")
 
     @staticmethod
     def extract_scope_info(event_type: str) -> tuple[str, str]:
@@ -190,6 +194,11 @@ class DomainEventProcessor:
     ) -> dict[str, Any] | None:
         """处理领域事件，进行完整的编排流程。
 
+        使用新的嵌套payload结构：
+        - system: {event_type, aggregate_id, ...}
+        - data: {...}
+        - schema_version
+
         Args:
             evt: 领域事件字典
             context: 可选的上下文信息字典
@@ -197,11 +206,30 @@ class DomainEventProcessor:
         Returns:
             包含处理指令的结果字典，如果无法处理则返回None
         """
-        # 提取基本事件信息
-        event_type = str(evt.get("event_type"))
-        aggregate_id = str(evt.get("aggregate_id"))
-        payload = evt.get("payload") or {}
-        metadata = evt.get("metadata") or {}
+        # 提取新嵌套结构的字段
+        system = evt.get("system")
+        if not isinstance(system, dict):
+            self.log.warning(
+                "orchestrator_domain_event_missing_system_layer",
+                evt_keys=list(evt.keys()),
+            )
+            return None
+
+        event_type = str(system.get("event_type") or "")
+        aggregate_id = str(system.get("aggregate_id") or "")
+        metadata = system.get("metadata") or {}
+        event_id = system.get("event_id")
+
+        data_layer = evt.get("data")
+        if isinstance(data_layer, dict):
+            raw_payload = data_layer.get("payload")
+            if isinstance(raw_payload, dict):
+                payload = raw_payload
+            else:
+                # 兼容未显式嵌套payload的情况，移除命令元数据
+                payload = {k: v for k, v in data_layer.items() if k != "command_type"}
+        else:
+            payload = {}
 
         # 从各种来源提取correlation_id
         correlation_id = self.correlation_extractor.extract_correlation_id(evt, context)
@@ -213,6 +241,7 @@ class DomainEventProcessor:
             correlation_id=correlation_id,
             payload_keys=list(payload.keys()) if payload else [],
             metadata_keys=list(metadata.keys()) if metadata else [],
+            schema_version=evt.get("schema_version"),
         )
 
         # 验证事件类型 - 只处理命令接收事件，过滤掉非命令事件以提高处理效率
@@ -275,5 +304,5 @@ class DomainEventProcessor:
             "aggregate_id": aggregate_id,
             "mapping": mapping,
             "enriched_payload": self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload),
-            "causation_id": evt.get("event_id"),
+            "causation_id": event_id,
         }

@@ -51,56 +51,41 @@ ScopeType = Literal["GENESIS"]
 # =============================================================================
 
 
-class UnifiedEventMetadata(BaseModel):
+# === Pydantic 模型 - 运行时类型安全 ===
+
+
+class EventMetadata(BaseModel):
     """统一的事件元数据模型 - 合并所有元数据字段并消除重复定义"""
-    
+
     # 核心标识字段
     event_id: str | None = None
     event_type: str | None = None  # 统一名称：event_type（而不是type）
     aggregate_type: str | None = None
     aggregate_id: str | None = None
-    
+
     # 关联字段
     correlation_id: str | None = None
     causation_id: str | None = None
-    
+
     # 时间字段
     created_at: str | None = None
-    
+
     # 版本字段
     event_version: int | None = None
     version: str | None = None  # 兼容现有的version字段
-    
+
     # 追踪字段
     trace_id: str | None = None
     span_id: str | None = None
     source: str | None = None
-    
+
     # 通用元数据
     metadata: dict[str, Any] = Field(default_factory=dict)
-    
+
     model_config = ConfigDict(
         extra="allow",  # 允许额外字段以保持向后兼容
-        validate_assignment=True
+        validate_assignment=True,
     )
-
-
-# 向后兼容的别名 - 逐步迁移时使用
-EventMetadata = UnifiedEventMetadata
-DomainEventMetadata = UnifiedEventMetadata
-
-
-# === Pydantic 模型 - 运行时类型安全 ===
-
-
-class EventMetadata(BaseModel):
-    """事件元数据 - 自动验证和转换"""
-
-    correlation_id: str | None = None
-    event_id: str | None = None
-    type: str | None = None
-
-    model_config = ConfigDict(extra="allow")  # 允许额外字段以保持向后兼容
 
 
 class MessageContext(BaseModel):
@@ -283,15 +268,8 @@ class ProcessingResult(BaseModel):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
 
-class DomainEventMetadata(BaseModel):
-    """领域事件元数据 - 用于替代泛型字典"""
-
-    source: str | None = None
-    version: str | None = None
-    trace_id: str | None = None
-    span_id: str | None = None
-
-    model_config = ConfigDict(extra="allow")
+# 向后兼容的别名
+DomainEventMetadata = EventMetadata
 
 
 class EventOutboxHeaders(BaseModel):
@@ -301,14 +279,14 @@ class EventOutboxHeaders(BaseModel):
     version: int = Field(default=1, ge=1)
     correlation_id: str | None = None
     causation_id: str | None = None  # 因果关系ID
-    aggregate_id: str | None = None   # 聚合ID
-    aggregate_type: str | None = None # 聚合类型
-    content_type: str = Field(default="application/json") # 内容类型
-    schema_version: str = Field(default="v1") # 架构版本
-    timestamp: str | None = None      # 时间戳
-    user_id: str | None = None       # 用户ID
-    source: str | None = None        # 事件源
-    trace_id: str | None = None      # 追踪ID
+    aggregate_id: str | None = None  # 聚合ID
+    aggregate_type: str | None = None  # 聚合类型
+    content_type: str = Field(default="application/json")  # 内容类型
+    schema_version: str = Field(default="v1")  # 架构版本
+    timestamp: str | None = None  # 时间戳
+    user_id: str | None = None  # 用户ID
+    source: str | None = None  # 事件源
+    trace_id: str | None = None  # 追踪ID
     agent: str | None = None
     type: str | None = None  # 兼容现有代码
 
@@ -339,28 +317,30 @@ class EventOutboxHeaders(BaseModel):
     model_config = ConfigDict(extra="forbid")  # 严格模式
 
 
-class OutboxPayload(BaseModel):
-    """Outbox 有效负载 - 运行时验证的结构化数据"""
+class SystemMetadata(BaseModel):
+    """系统元数据类型定义 - 使用Pydantic确保类型安全"""
 
     event_id: str
     event_type: str
     aggregate_type: str
     aggregate_id: str
     metadata: dict[str, Any] = Field(default_factory=dict)
-    domain_payload: dict[str, Any] | None = None  # 冲突字段容器
+    correlation_id: str | None = None
+    causation_id: str | None = None
     created_at: str | None = None
+    event_version: int | None = None
 
-    @field_validator("event_id")
-    @classmethod
-    def validate_event_id(cls, v: str) -> str:
-        """验证 event_id 格式"""
-        try:
-            UUID(v)  # 验证是否为有效 UUID
-            return v
-        except ValueError as err:
-            raise ValueError(f"Invalid event_id format: {v}") from err
+    model_config = ConfigDict(extra="forbid")
 
-    model_config = ConfigDict(extra="allow")  # 支持额外字段
+
+class OutboxPayloadEnvelope(BaseModel):
+    """Outbox有效负载信封结构定义 - 使用Pydantic确保类型安全"""
+
+    system: SystemMetadata
+    data: dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = "v1"
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class DomainEvent(BaseModel):
@@ -459,39 +439,5 @@ def create_processing_result(**kwargs: Any) -> ProcessingResult:
     return ProcessingResult(**kwargs)
 
 
-# === 向后兼容的工厂函数 - 接受字典参数 ===
-
-
-def create_message_context_from_dict(data: dict[str, Any]) -> MessageContext:
-    """从字典创建消息上下文（向后兼容）"""
-    return MessageContext(**data)
-
-
-def create_generation_data_from_dict(data: dict[str, Any]) -> GenerationData:
-    """从字典创建生成数据（向后兼容）"""
-    return GenerationData(**data)
-
-
-def create_quality_review_data_from_dict(data: dict[str, Any]) -> QualityReviewData:
-    """从字典创建质量审查数据（向后兼容）"""
-    return QualityReviewData(**data)
-
-
-def create_consistency_check_data_from_dict(data: dict[str, Any]) -> ConsistencyCheckData:
-    """从字典创建一致性检查数据（向后兼容）"""
-    return ConsistencyCheckData(**data)
-
-
-def create_capability_task_message_from_dict(data: dict[str, Any]) -> CapabilityTaskMessage:
-    """从字典创建能力任务消息（向后兼容）"""
-    return CapabilityTaskMessage(**data)
-
-
-def create_capability_event_message_from_dict(data: dict[str, Any]) -> CapabilityEventMessage:
-    """从字典创建能力事件消息（向后兼容）"""
-    return CapabilityEventMessage(**data)
-
-
-def create_processing_result_from_dict(data: dict[str, Any]) -> ProcessingResult:
-    """从字典创建处理结果（向后兼容）"""
-    return ProcessingResult(**data)
+# === 向后兼容的工厂函数已移除 ===
+# 直接使用类构造函数: ClassName(**data)

@@ -8,43 +8,15 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
 from src.models.event import DomainEvent
 
-
-class SystemMetadata(BaseModel):
-    """系统元数据类型定义 - 使用Pydantic确保类型安全"""
-
-    event_id: str
-    event_type: str
-    aggregate_type: str
-    aggregate_id: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    correlation_id: str | None = None
-    causation_id: str | None = None
-    created_at: str | None = None
-    event_version: int | None = None
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class OutboxPayloadEnvelope(BaseModel):
-    """Outbox有效负载信封结构定义 - 使用Pydantic确保类型安全"""
-
-    system: SystemMetadata
-    data: dict[str, Any] = Field(default_factory=dict)
-    schema_version: str = "v1"
-
-    model_config = ConfigDict(extra="forbid")
+from .types import OutboxPayloadEnvelope, SystemMetadata
 
 
 class OutboxPayloadBuilder:
     """类型安全的outbox payload构建器
 
-    优势：
-    - 彻底消除字段冲突风险
-    - 为后续演进（版本升级）提供明确边界
-    - 保持结构清晰：system层专注元数据，data层专注业务负载
+    保持结构清晰：system层专注元数据，data层专注业务负载
     """
 
     RESERVED_TOP_LEVEL_FIELDS = {"system", "data", "schema_version"}
