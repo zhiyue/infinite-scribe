@@ -358,6 +358,7 @@ class EventBridgeSettings(BaseModel):
     # Monitoring configuration
     prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics collection")
 
+
 class CommandStatusSettings(BaseModel):
     """Settings for API-embedded command status consumer."""
 

@@ -57,16 +57,20 @@ class GenericRequestStrategy(CommandStrategy):
         """
         self.strategy_key = strategy_key
         self.config = get_strategy_config(strategy_key)
-        if not self.config:
+        if self.config is None:
             raise ValueError(f"Unknown strategy key: {strategy_key}")
 
     def get_aliases(self) -> set[str]:
         """Get command aliases for this strategy's requested action."""
+        if not self.config or "requested_action" not in self.config:
+            return set()
         requested_action = self.config["requested_action"]
         return get_command_aliases_for_action(requested_action)
 
     def process(self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]) -> CommandMapping:
         """Process command using configuration data."""
+        if not self.config:
+            raise ValueError(f"Cannot process with invalid config for strategy: {self.strategy_key}")
         return CommandMapping(
             requested_action=self.config["requested_action"],
             capability_message={
