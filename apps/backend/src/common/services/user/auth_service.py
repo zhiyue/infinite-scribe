@@ -4,7 +4,8 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError
 
 from src.common.utils.datetime_utils import from_timestamp_utc, utc_now
 from src.core.config import settings
