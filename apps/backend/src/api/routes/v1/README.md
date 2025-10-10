@@ -24,13 +24,25 @@ v1/
 
 提供完整的用户认证功能，包括：
 
+```mermaid
+graph TD
+    A[用户请求] --> B{认证类型}
+    B -->|常规认证| C[JWT令牌认证]
+    B -->|SSE连接| D[SSE令牌认证]
+    C --> E[访问令牌验证]
+    D --> F[SSE令牌验证]
+    E --> G[用户身份确认]
+    F --> G
+    G --> H[返回用户信息]
+```
+
 - **用户注册** (`auth_register.py`)
 - **用户登录** (`auth_login.py`)
 - **令牌刷新** (`auth_login.py`)
 - **用户登出** (`auth_login.py`)
 - **密码管理** (`auth_password.py`)
 - **用户资料** (`auth_profile.py`)
-- **SSE 认证** (`auth_sse_token.py`)
+- **SSE 认证** (`auth_sse_token.py`) - Server-Sent Events 专用令牌认证
 
 ### 事件系统 (`events/`)
 
@@ -56,6 +68,32 @@ v1/
 
 - `GET /api/v1/auth/profile` - 获取用户资料
 - `PUT /api/v1/auth/profile` - 更新用户资料
+
+### SSE 令牌认证
+
+- `POST /api/v1/auth/sse-token` - 创建 SSE 连接专用令牌
+
+**SSE 令牌特点**:
+- 短期有效（默认1小时）
+- 专为 EventSource 连接设计
+- 通过 URL 参数传递，解决 EventSource 不支持自定义头部的问题
+- 基于用户 JWT 会话生成，确保安全性
+
+```mermaid
+sequenceDiagram
+    participant C as 客户端
+    participant A as API服务
+    participant S as SSE服务
+    
+    C->>A: POST /api/v1/auth/sse-token (JWT认证)
+    A->>A: 验证用户身份
+    A->>A: 生成SSE专用令牌
+    A-->>C: 返回SSE令牌
+    C->>S: 建立SSE连接 (携带SSE令牌)
+    S->>S: 验证SSE令牌
+    S-->>C: 建立连接成功
+    S-->>C: 实时推送数据
+```
 
 ## 技术特性
 
