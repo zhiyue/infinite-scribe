@@ -86,6 +86,7 @@ class OutboxManager(Protocol):
         payload: dict[str, Any],
         correlation_id: str | None,
         causation_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """持久化领域事件
 

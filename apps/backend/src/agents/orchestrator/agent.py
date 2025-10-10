@@ -128,6 +128,7 @@ class OrchestratorAgent(BaseAgent):
         mapping = processing_result["mapping"]
         enriched_payload = processing_result["enriched_payload"]
         causation_id = processing_result["causation_id"]
+        metadata = processing_result.get("metadata")
 
         # 1) 持久化领域事件 - 通过Outbox模式确保事件最终一致性
         try:
@@ -138,6 +139,7 @@ class OrchestratorAgent(BaseAgent):
                 payload=enriched_payload,
                 correlation_id=correlation_id,
                 causation_id=causation_id,
+                metadata=metadata,
             )
             self.log.info(
                 "orchestrator_domain_event_persisted",

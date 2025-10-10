@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.orchestrator.command_strategies import command_registry
+from src.common.utils.datetime_utils import utc_now
 
 
 class CorrelationIdExtractor:
@@ -297,12 +298,47 @@ class DomainEventProcessor:
             has_capability_input=bool(mapping.capability_message.get("input")),
         )
 
+        enriched_payload = self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload)
+
+        # Ensure downstream payload包含核心字段，避免 EventBridge 过滤掉事件
+        user_id = metadata.get("user_id")
+        if user_id:
+            enriched_payload.setdefault("user_id", user_id)
+
+        novel_id = metadata.get("novel_id")
+        if novel_id:
+            enriched_payload.setdefault("novel_id", novel_id)
+
+        timestamp = (
+            enriched_payload.get("timestamp")
+            or metadata.get("timestamp")
+            or system.get("created_at")
+        )
+        if not timestamp:
+            timestamp = utc_now().isoformat()
+        enriched_payload.setdefault("timestamp", timestamp)
+
+        derived_metadata = {
+            key: value
+            for key, value in {
+                "user_id": enriched_payload.get("user_id"),
+                "novel_id": enriched_payload.get("novel_id"),
+                "timestamp": enriched_payload.get("timestamp"),
+                "session_id": aggregate_id,
+            }.items()
+            if value is not None
+        }
+        source_value = metadata.get("source")
+        if source_value is not None:
+            derived_metadata["source"] = source_value
+
         # 返回处理指令供主编排器使用
         return {
             "correlation_id": correlation_id,
             "scope_type": scope_type,
             "aggregate_id": aggregate_id,
             "mapping": mapping,
-            "enriched_payload": self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload),
+            "enriched_payload": enriched_payload,
+            "metadata": derived_metadata,
             "causation_id": event_id,
         }
