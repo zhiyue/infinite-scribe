@@ -371,3 +371,40 @@ HANDLER_REGISTRY[ProofreadingData] = CapabilityEventHandlers.handle_proofreading
 **核心分派逻辑无需任何修改！** 🎯
 
 这个重构成功实现了开闭原则，为系统的未来扩展奠定了坚实基础。
+
+# Orchestrator 事件文档纠偏计划
+
+## Stage 1: 事实核查与差异确认
+
+**Goal**: 对照 `ConversationCommandService` 与 Orchestrator 代码，明确 Outbox payload 与 ProcessingResult 的真实结构  
+**Success Criteria**: 列出文档与实现不一致的具体段落和示例  
+**Tests**: 代码阅读、自测  
+**Status**: Complete
+
+## Stage 2: Outbox 结构章节修订
+
+**Goal**: 更新文档中 DomainEvent → Outbox 的示例和说明，反映 `system` + `data`（含嵌套 `input`）的真实格式  
+**Success Criteria**: 示例展示与现有实现一致，强调 payload 未被扁平化  
+**Tests**: 手动核对代码 (`outbox_manager.py`, `outbox_payload.py`)  
+**Status**: Complete
+
+## Stage 3: CapabilityEventProcessor 返回值说明更新
+
+**Goal**: 修正文档中处理结果的结构描述，改为 `ProcessingResult` + `EventAction` 嵌套形式  
+**Success Criteria**: 文档示例展示 NamedTuple 中的 `domain_event` / `task_completion` / `capability_message` 字段  
+**Tests**: 手动核对代码 (`capability_event_processor.py`, `types.py`)  
+**Status**: Complete
+
+## Stage 4: 终检与上下文补充
+
+**Goal**: 通读修订后的文档，补充前端命令入队流程的提示并校对语言  
+**Success Criteria**: 文档逻辑自洽、中文表述自然，无遗漏的旧格式描述  
+**Tests**: 自检  
+**Status**: Complete
+
+## Stage 5: 入队 Outbox 真实结构回访
+
+**Goal**: 依据最新事件样本核实 `event_outbox.payload` 实际内容，修正文档中命令入队阶段的结构描述  
+**Success Criteria**: 文档给出的示例与数据库记录一致，并明确区分 Conversation Outbox 与 Orchestrator Outbox 的差异  
+**Tests**: 样本比对、自测  
+**Status**: Complete

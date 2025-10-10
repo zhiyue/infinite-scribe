@@ -271,6 +271,38 @@ class CapabilityEventProcessor:
         return None
 ```
 
+处理结果始终封装在 `ProcessingResult` 中，结构如下：
+
+```json
+{
+  "action": {
+    "domain_event": {
+      "scope_type": "GENESIS",
+      "session_id": "sess-789",
+      "event_action": "Character.Proposed",
+      "payload": {...},
+      "correlation_id": "corr-abc123",
+      "causation_id": "evt-upstream-0001"
+    },
+    "task_completion": null,
+    "capability_message": {
+      "_topic": "genesis.character.tasks",
+      "_key": "sess-789",
+      "type": "Character.Design.GenerationRequested",
+      "session_id": "sess-789",
+      "input": {...}
+    }
+  },
+  "msg_type": "capability.character.generation.completed",
+  "session_id": "sess-789",
+  "correlation_id": "corr-abc123"
+}
+```
+
+> 其中 `action` 字段是 `EventAction` NamedTuple，分别携带领域事件、任务完成信息与后续能力任务。缺失的部分将以 `null` 表示，以保证调用端解码时的稳定性。
+
+> 🔁 **区分阶段**：上游 `ConversationOutboxManager` 写入的 `event_outbox.payload` 仍为扁平结构；而 Orchestrator 在生成新的领域事件时，会通过下文的 `OutboxPayloadBuilder` 转换为 `system`/`data` 信封格式。
+
 ### 2. OutboxPayloadBuilder
 
 类型安全的 outbox payload 构建器：
@@ -424,6 +456,8 @@ out = EventOutbox(
 )
 ```
 
+> 💡 注意：这里的扁平化载荷仅存在于 API 入队阶段，确保命令数据能跨进程传递。进入 Orchestrator 后会使用 `OutboxPayloadBuilder` 再次封装为 `system` + `data` 分层信封，保持系统与业务字段隔离。
+
 ### 5. 完整转换示例
 
 #### 步骤 1: 前端 Command (原始输入)
@@ -481,6 +515,8 @@ out = EventOutbox(
 }
 ```
 
+> ℹ️ 前端通过 `POST /api/v1/conversations/sessions/{session_id}/commands` 提交 `Command.Genesis.Session.Seed.Request`（示例数据如上）。`ConversationCommandService` 在事务内将 payload 原样写入 `DomainEvent.payload`，为 Orchestrator 保留完整的 stage 与 context 信息。
+
 #### 步骤 3: EventOutbox 存储格式 (扁平化结构)
 
 ```json
@@ -491,13 +527,9 @@ out = EventOutbox(
   "partition_key": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
   "payload": {
     "event_id": "evt-550e8400-e29b-41d4-a716-446655440000",
-    "event_type": "Genesis.Command.Received",
-    "aggregate_type": "Genesis",
+    "event_type": "Genesis.Session.Command.Received",
+    "aggregate_type": "GenesisFlow",
     "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-    "metadata": {
-      "source": "api-gateway",
-      "user_id": "1"
-    },
     "command_type": "Command.Genesis.Session.Seed.Request",
     "payload": {
       "stage": "INITIAL_PROMPT",
@@ -512,10 +544,14 @@ out = EventOutbox(
     },
     "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
     "user_id": "1",
+    "metadata": {
+      "source": "api-gateway",
+      "user_id": "1"
+    },
     "created_at": "2024-12-01T10:30:00.123Z"
   },
   "headers": {
-    "event_type": "Genesis.Command.Received",
+    "event_type": "Genesis.Session.Command.Received",
     "version": 1,
     "correlation_id": "cmd-12345-uuid"
   },
@@ -523,6 +559,8 @@ out = EventOutbox(
   "created_at": "2024-12-01T10:30:00.123Z"
 }
 ```
+
+> 📌 **实测对齐**：命令阶段的 `event_outbox.payload` 采用“顶层元数据 + 内嵌 `payload`”的格式。Orchestrator 消费时仍需进入 `payload.payload` 读取原始用户输入。
 
 #### 步骤 4: Orchestrator 接收的消息格式
 
@@ -534,7 +572,7 @@ Orchestrator 通过 Kafka 消费到的消息格式：
   "message": {
     "raw_data": {
       "event_id": "evt-550e8400-e29b-41d4-a716-446655440000",
-      "event_type": "Genesis.Command.Received",
+      "event_type": "Genesis.Session.Command.Received",
       "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
       "command_type": "Command.Genesis.Session.Seed.Request",
       "payload": {
@@ -549,7 +587,12 @@ Orchestrator 通过 Kafka 消费到的消息格式：
         "preferences": {}
       },
       "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-      "user_id": "1"
+      "user_id": "1",
+      "metadata": {
+        "source": "api-gateway",
+        "user_id": "1"
+      },
+      "created_at": "2024-12-01T10:30:00.123Z"
     }
   },
   "context": {
@@ -562,35 +605,54 @@ Orchestrator 通过 Kafka 消费到的消息格式：
 }
 ```
 
-#### 步骤 5: CapabilityEventProcessor 处理结果
+#### 步骤 5: DomainEventProcessor 处理结果
 
-Orchestrator 基于 `command_type` 进行命令映射，通过 `COMMAND_EVENT_MAPPING` 将 `Command.Genesis.Session.Seed.Request` 映射为 `Seed.Requested`，最终生成的处理结果：
+Orchestrator 利用 `COMMAND_EVENT_MAPPING` 将 `Command.Genesis.Session.Seed.Request` 映射为 `Seed.Requested`，并返回如下结构供上层继续处理：
 
 ```json
 {
-  "action": "genesis.seed.generate",
-  "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
   "correlation_id": "cmd-12345-uuid",
-  "task_input": {
-    "user_input": "我想写一个关于时间旅行的科幻小说",
-    "stage": "INITIAL_PROMPT",
-    "context": {
-      "iteration_number": 1,
-      "user_preferences": {},
-      "previous_attempts": 0
-    },
+  "scope_type": "GENESIS",
+  "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+  "mapping": {
+    "requested_action": "Seed.Requested",
+    "capability_message": {
+      "_topic": "genesis.seed.tasks",
+      "_key": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+      "type": "Outliner.Concept.GenerationRequested",
+      "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+      "input": {
+        "stage": "INITIAL_PROMPT",
+        "context": {
+          "iteration_number": 1,
+          "user_preferences": {},
+          "previous_attempts": 0
+        },
+        "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+        "user_input": "我想写一个关于时间旅行的科幻小说",
+        "preferences": {}
+      }
+    }
+  },
+  "enriched_payload": {
     "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-    "user_id": "1"
+    "input": {
+      "stage": "INITIAL_PROMPT",
+      "context": {
+        "iteration_number": 1,
+        "user_preferences": {},
+        "previous_attempts": 0
+      },
+      "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+      "user_input": "我想写一个关于时间旅行的科幻小说",
+      "preferences": {}
+    }
   },
-  "scope_info": {
-    "scope_type": "genesis",
-    "scope_prefix": "Genesis",
-    "topic": "genesis.seed.tasks"
-  },
-  "message_type": "genesis.command.received",
-  "mapped_event": "Seed.Requested"
+  "causation_id": "evt-550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+> 上述返回值会被 `OrchestratorAgent._handle_domain_event` 消费：`enriched_payload` 进入 `persist_domain_event()` 构建 Outbox 信封，`mapping.capability_message`（若存在）用于创建异步任务并入队下一步能力任务。
 
 ### 6. 关键转换点分析
 
@@ -708,30 +770,37 @@ graph TD
 {
   "system": {
     "event_id": "evt-uuid-12345",
-    "event_type": "Genesis.Character.Generated",
-    "aggregate_type": "Character",
-    "aggregate_id": "char-123",
+    "event_type": "Genesis.Session.Character.Proposed",
+    "aggregate_type": "GenesisFlow",
+    "aggregate_id": "sess-789",
     "correlation_id": "corr-abc123",
-    "causation_id": null,
+    "causation_id": "evt-source-0001",
     "created_at": "2024-12-01T10:30:00.123Z",
     "event_version": 1,
     "metadata": {
-      "trace_id": "trace-def456",
       "source": "orchestrator"
     }
   },
   "data": {
-    "scope_type": "genesis",
     "session_id": "sess-789",
-    "entity_id": "char-123",
-    "entity_type": "character",
-    "generation_params": {...},
-    "character_data": {...},
-    "generation_time": 1234567890
+    "content": {
+      "entity_id": "char-123",
+      "entity_type": "character",
+      "action_data": {
+        "generation_params": {...},
+        "request_id": "req-456"
+      },
+      "result": {
+        "character_data": {...},
+        "generation_time": 1234567890
+      }
+    }
   },
   "schema_version": "v1"
 }
 ```
+
+> ✅ **要点**：`data` 层直接复用了 `DomainEvent.payload`，保持嵌套结构，避免在 Orchestrator 内再次扁平化业务字段。
 
 ## 关键设计特性
 
@@ -797,7 +866,7 @@ sequenceDiagram
 
 ### 🔄 数据转换特点
 
-1. **结构重组**: 从嵌套的 Command 结构到扁平化的 Outbox 存储，再到结构化的处理结果
+1. **结构重组**: 从嵌套的 Command 结构到扁平化 Outbox（入队阶段）再到 `system`/`data` 信封（Orchestrator 持久化），最终输出结构化结果
 2. **元数据增强**: 在每个步骤添加追踪、时间戳、版本等关键信息
 3. **业务语义保持**: 用户输入和业务逻辑在整个流程中保持语义完整性
 4. **向后兼容**: 支持 schema 演进和版本管理
