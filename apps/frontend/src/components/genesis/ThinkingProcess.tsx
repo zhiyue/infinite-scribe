@@ -40,16 +40,51 @@ const THINKING_STAGES = {
 function formatTime(timestamp: string): string {
   try {
     const date = new Date(timestamp)
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+
     const now = new Date()
-    const diff = now.getTime() - date.getTime()
+    const diff = Math.max(0, now.getTime() - date.getTime())
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startOfTomorrow = new Date(startOfToday)
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
 
-    if (diff < 1000) return '刚刚'
-    if (diff < 60000) return `${Math.floor(diff / 1000)}秒前`
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+    if (date >= startOfToday && date < startOfTomorrow) {
+      if (diff < 1000) return '刚刚'
+      if (diff < 60000) return `${Math.floor(diff / 1000)}秒前`
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+      return date.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    }
 
-    return date.toLocaleTimeString('zh-CN', {
+    const startOfYesterday = new Date(startOfToday)
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1)
+
+    if (date >= startOfYesterday && date < startOfToday) {
+      return `昨天 ${date.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    }
+
+    const sameYear = date.getFullYear() === now.getFullYear()
+    const baseOptions: Intl.DateTimeFormatOptions = {
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+    }
+
+    if (sameYear) {
+      return date.toLocaleString('zh-CN', baseOptions)
+    }
+
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      ...baseOptions,
     })
   } catch {
     return ''
@@ -107,7 +142,11 @@ export function ThinkingProcess({
 
     let state: StepState = 'default'
 
-    if (['failed', 'error', 'cancel'].some((keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword))) {
+    if (
+      ['failed', 'error', 'cancel'].some(
+        (keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword),
+      )
+    ) {
       state = 'error'
     } else if (
       ['completed', 'finished', 'success', 'done'].some(
@@ -260,8 +299,8 @@ export function ThinkingProcess({
           <div className="mt-4">
             <div className="max-h-60 overflow-y-auto pr-1">
               <div className="relative pl-8">
-                <div className="absolute left-3 top-2 bottom-4 w-px bg-border/60" aria-hidden />
-                <ul className="space-y-4">
+                <div className="absolute left-3.5 top-3 bottom-4 w-px bg-border/60" aria-hidden />
+                <ul className="space-y-3">
                   {statusList.map((status, index) => {
                     const cfg = getGenesisStatusConfig(status.event_type)
                     const visual = getStepVisual(status, index)
@@ -271,16 +310,17 @@ export function ThinkingProcess({
                       <li
                         key={`${status.event_id}-${index}`}
                         className={cn(
-                      "relative pl-9 text-xs after:absolute after:left-[11px] after:top-6 after:h-[calc(100%-1.5rem)] after:w-px after:bg-border/50 after:content-[''] last:after:hidden",
+                          "relative pl-9 text-xs after:absolute after:left-3.5 after:top-5 after:h-[calc(100%-1.25rem)] after:w-px after:bg-border/50 after:content-[''] last:after:hidden",
                           isCurrentStep ? 'text-foreground' : 'text-muted-foreground',
                         )}
                         title={cfg.description}
                       >
                         <span
                           className={cn(
-                            'absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-all duration-200',
+                            'absolute left-0 top-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-all duration-200',
                             visual.circleClassName,
-                            isCurrentStep && 'ring-2 ring-offset-2 ring-offset-background ring-primary/30',
+                            isCurrentStep &&
+                              'ring-2 ring-offset-2 ring-offset-background ring-primary/30',
                           )}
                         >
                           <visual.IconComponent
@@ -292,25 +332,30 @@ export function ThinkingProcess({
                           />
                         </span>
 
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className={cn('truncate text-sm', isCurrentStep && 'font-medium')}>
-                              {visual.stageCfg.label}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={cn('text-[10px] font-medium', visual.badgeClassName)}
-                            >
-                              {visual.stateLabel}
-                            </Badge>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground/70">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-5">
+                          <span
+                            className={cn(
+                              'text-sm font-medium text-foreground',
+                              !isCurrentStep && 'text-muted-foreground',
+                            )}
+                          >
+                            {visual.stageCfg.label}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={cn('text-[9px] font-medium', visual.badgeClassName)}
+                          >
+                            {visual.stateLabel}
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground/70">
                             {formatTime(status.timestamp)}
                           </span>
+                          {cfg.description && (
+                            <span className="text-xs text-muted-foreground/80">
+                              {cfg.description}
+                            </span>
+                          )}
                         </div>
-                        {cfg.description && (
-                          <p className="mt-1 text-xs text-muted-foreground/80 leading-5">{cfg.description}</p>
-                        )}
                       </li>
                     )
                   })}

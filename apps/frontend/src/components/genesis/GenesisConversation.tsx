@@ -13,14 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSSEStatus } from '@/hooks/sse'
 import {
+  useCommandEvents,
   usePendingCommand,
   usePollCommandStatus,
   useRounds,
   useSubmitCommand,
-  useCommandEvents,
 } from '@/hooks/useConversations'
 import { cn } from '@/lib/utils'
-import type { RoundResponse } from '@/types/api'
+import type { CommandEventItem, RoundResponse } from '@/types/api'
 import { GenesisStage } from '@/types/enums'
 import { buildGenesisCommandPayload, getCommandTypeByStage } from '@/utils/genesisCommands'
 import { useQueryClient } from '@tanstack/react-query'
@@ -95,6 +95,12 @@ interface OptimisticMessage {
   id: string // 唯一标识符
   content: string
   initialRoundsLength: number // 发送时的rounds数量
+  correlationId?: string | null
+}
+
+interface PendingMessageView {
+  id: string
+  content: string
 }
 
 export function GenesisConversation({
@@ -105,7 +111,16 @@ export function GenesisConversation({
   isStageChanging = false,
   className,
 }: GenesisConversationProps) {
-  const [input, setInput] = useState('')
+  // 输入框持久化：从 localStorage 恢复草稿
+  const inputStorageKey = `genesis_input_draft_${sessionId}_${stage}`
+  const [input, setInput] = useState(() => {
+    try {
+      const saved = localStorage.getItem(inputStorageKey)
+      return saved || ''
+    } catch {
+      return ''
+    }
+  })
   const [isTyping, setIsTyping] = useState(false)
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [shouldPollCommand, setShouldPollCommand] = useState(false)
@@ -113,6 +128,92 @@ export function GenesisConversation({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
+
+  const getRoundUserInput = (round: RoundResponse): string | null => {
+    if (round.role !== 'user') return null
+    const payloadInput = round.input?.payload?.user_input
+    if (typeof payloadInput === 'string' && payloadInput.trim().length > 0) {
+      return payloadInput.trim()
+    }
+    const directInput = (round.input as any)?.user_input
+    if (typeof directInput === 'string' && directInput.trim().length > 0) {
+      return directInput.trim()
+    }
+    return null
+  }
+
+  const roundHasCorrelation = (
+    round: RoundResponse,
+    correlationId: string | null | undefined,
+  ): boolean => {
+    if (!correlationId) return false
+    const candidates = [
+      round.correlation_id,
+      (round.input as any)?.correlation_id,
+      (round.input as any)?.payload?.correlation_id,
+    ]
+    return candidates.some((value) => typeof value === 'string' && value === correlationId)
+  }
+
+  const roundMatchesPending = (
+    round: RoundResponse,
+    correlationId: string | null | undefined,
+    content: string,
+  ): boolean => {
+    if (round.role !== 'user') return false
+    if (roundHasCorrelation(round, correlationId)) return true
+    const roundInput = getRoundUserInput(round)
+    return !!roundInput && roundInput === content.trim()
+  }
+
+  const extractEventUserInput = (
+    event: CommandEventItem,
+  ): { userInput: string | null; correlationId: string | null } => {
+    const payload = event.payload ?? {}
+    const possibleInputs = [
+      payload.user_input,
+      payload.input?.user_input,
+      payload.payload?.user_input,
+      payload.command?.user_input,
+      payload.data?.user_input,
+    ]
+    const foundInput = possibleInputs.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
+    )
+
+    const possibleCorrelations = [
+      event.correlation_id,
+      payload.correlation_id,
+      payload.command_id,
+      payload.metadata?.correlation_id,
+      payload.context?.correlation_id,
+    ]
+    const foundCorrelation = possibleCorrelations.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
+    )
+
+    return {
+      userInput: foundInput ? foundInput.trim() : null,
+      correlationId: foundCorrelation ? foundCorrelation : null,
+    }
+  }
+
+  // 保存输入框内容到 localStorage
+  useEffect(() => {
+    if (input.trim()) {
+      try {
+        localStorage.setItem(inputStorageKey, input)
+      } catch {
+        // 忽略存储错误
+      }
+    } else {
+      try {
+        localStorage.removeItem(inputStorageKey)
+      } catch {
+        // 忽略删除错误
+      }
+    }
+  }, [input, inputStorageKey])
 
   // SSE连接状态管理 - 使用全局SSE Context
   const { isConnected: isSSEConnected, status: connectionState, isError } = useSSEStatus()
@@ -170,11 +271,20 @@ export function GenesisConversation({
 
   // 检测是否有待回复的用户消息（用于页面刷新后恢复思考状态）
   const hasPendingUserMessage = useMemo(() => {
-    return (
-      rounds.length > 0 &&
-      rounds[rounds.length - 1]?.role === 'user' &&
-      !rounds[rounds.length - 1]?.output
-    )
+    if (rounds.length === 0) return false
+    const lastRound = rounds[rounds.length - 1]
+    if (lastRound?.role !== 'user') return false
+
+    // 检查是否有实际的 AI 输出内容（不仅仅是 output 对象存在）
+    const hasOutput =
+      lastRound.output &&
+      typeof lastRound.output === 'object' &&
+      'content' in lastRound.output &&
+      lastRound.output.content !== null &&
+      lastRound.output.content !== undefined &&
+      String(lastRound.output.content).trim().length > 0
+
+    return !hasOutput
   }, [rounds])
 
   // 调试日志
@@ -187,8 +297,6 @@ export function GenesisConversation({
       lastRound: rounds[rounds.length - 1],
     })
   }, [roundsData, roundsError, sessionId, hasPendingUserMessage, rounds])
-
-
 
   // SSE连接状态日志
   useEffect(() => {
@@ -256,7 +364,14 @@ export function GenesisConversation({
       commandTimelineEnabled: !!inferredCommandId,
       commandTimelineData: commandTimeline.data?.length || 0,
     })
-  }, [currentCommandId, inferredCommandId, hasPendingUserMessage, pendingCommand, rounds, commandTimeline.data])
+  }, [
+    currentCommandId,
+    inferredCommandId,
+    hasPendingUserMessage,
+    pendingCommand,
+    rounds,
+    commandTimeline.data,
+  ])
 
   // 扁平化系统事件：最近若干条
   const recentFlatStatuses = useMemo(() => {
@@ -273,6 +388,29 @@ export function GenesisConversation({
     return (commandTimeline.data || []).slice(-5).map(asStatus)
   }, [commandTimeline.data])
 
+  const rehydratedPendingMessage = useMemo<PendingMessageView | null>(() => {
+    if (optimisticMessage) return null
+    const events = commandTimeline.data
+    if (!events || events.length === 0) return null
+
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index]
+      const { userInput, correlationId } = extractEventUserInput(event)
+      if (!userInput) continue
+      const alreadyExists = rounds.some((round) =>
+        roundMatchesPending(round, correlationId, userInput),
+      )
+      if (!alreadyExists) {
+        return {
+          id: `rehydrated-${event.event_id}`,
+          content: userInput,
+        }
+      }
+    }
+
+    return null
+  }, [commandTimeline.data, optimisticMessage, rounds])
+
   // 根据最新时间线事件推导思考状态
   useEffect(() => {
     const last = commandTimeline.data && commandTimeline.data[commandTimeline.data.length - 1]
@@ -288,7 +426,9 @@ export function GenesisConversation({
       setIsTyping(false)
       setShouldPollCommand(false)
       refetchPendingCommand()
-      void queryClient.invalidateQueries({ queryKey: ['conversations', 'sessions', sessionId, 'rounds'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
+      })
     } else if (['failed', 'error', 'cancelled'].includes(st)) {
       setIsWaitingForResponse(false)
       setIsTyping(false)
@@ -392,6 +532,7 @@ export function GenesisConversation({
       id: optimisticId,
       content: messageContent,
       initialRoundsLength: rounds.length, // 记录发送时的rounds数量
+      correlationId,
     })
     setIsTyping(true)
 
@@ -435,23 +576,17 @@ export function GenesisConversation({
   useEffect(() => {
     if (!optimisticMessage) return
 
-    // 检查rounds是否增加，且最新的用户round内容匹配
-    if (rounds.length > optimisticMessage.initialRoundsLength) {
-      // 查找在初始长度之后添加的用户round
-      const newRounds = rounds.slice(optimisticMessage.initialRoundsLength)
-      const matchingRound = newRounds.find(
-        (round) =>
-          round.role === 'user' && round.input?.payload?.user_input === optimisticMessage.content,
-      )
+    const matchingRoundExists = rounds.some((round) =>
+      roundMatchesPending(round, optimisticMessage.correlationId, optimisticMessage.content),
+    )
 
-      if (matchingRound) {
-        console.log(
-          '[GenesisConversation] Real user round detected for optimistic message',
-          optimisticMessage.id,
-          'clearing optimistic message',
-        )
-        setOptimisticMessage(null)
-      }
+    if (matchingRoundExists) {
+      console.log(
+        '[GenesisConversation] Real user round detected for optimistic message',
+        optimisticMessage.id,
+        'clearing optimistic message',
+      )
+      setOptimisticMessage(null)
     }
   }, [rounds, optimisticMessage])
 
@@ -692,24 +827,26 @@ export function GenesisConversation({
                 />
               )}
               {/* 加载更多历史系统事件 */}
-              {commandTimeline.data && commandTimeline.data.length > 0 && commandTimeline.hasMore && (
-                <div className="flex justify-center mt-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => commandTimeline.loadMore()}
-                    disabled={commandTimeline.isLoadingMore}
-                  >
-                    {commandTimeline.isLoadingMore ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" /> 加载中...
-                      </>
-                    ) : (
-                      <>加载更多</>
-                    )}
-                  </Button>
-                </div>
-              )}
+              {commandTimeline.data &&
+                commandTimeline.data.length > 0 &&
+                commandTimeline.hasMore && (
+                  <div className="flex justify-center mt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => commandTimeline.loadMore()}
+                      disabled={commandTimeline.isLoadingMore}
+                    >
+                      {commandTimeline.isLoadingMore ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" /> 加载中...
+                        </>
+                      ) : (
+                        <>加载更多</>
+                      )}
+                    </Button>
+                  </div>
+                )}
             </div>
           </ScrollArea>
 

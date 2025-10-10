@@ -1,3 +1,40 @@
+# 思考过程时间与图标优化计划
+
+## Stage 1: 现状分析与目标确认
+
+**Goal**: 理解 ThinkingProcess 组件的时间格式化与图标布局实现方式，明确“超过一天显示日期”和“修正图标比例”的具体需求
+**Success Criteria**: 找出需要调整的函数/样式位置，确认输出格式示例（如 05/20 18:54）
+**Tests**: 暂无（代码阅读）
+**Status**: Complete
+
+## Stage 2: 时间格式与图标样式调整
+
+**Goal**: 更新 `formatTime` 逻辑支持超过 24 小时显示日期，同时优化状态列表左侧图标的尺寸比例
+**Success Criteria**: 时间在 24 小时内维持当前表现，超过后显示日期；图标居中、大小与文本协调
+**Tests**: 前端页面手动验证（需运行前端应用）
+**Status**: Complete
+
+## Stage 3: 自检与文档更新
+
+**Goal**: 手动核验 UI 行为并同步计划状态
+**Success Criteria**: 本地检查通过，`IMPLEMENTATION_PLAN.md` 状态更新为完成
+**Tests**: 前端页面手动验证
+**Status**: Complete
+
+## Stage 4: 时间线紧凑化调优
+
+**Goal**: 收紧时间线节点的视觉占用，将状态、标签、时间与描述整理为同一行展示
+**Success Criteria**: 图标尺寸与时间线间距协调，单行可读；长文案自动换行
+**Tests**: 前端页面手动验证
+**Status**: Complete
+
+## Stage 5: 刷新态恢复补救
+
+**Goal**: 分析刷新后丢失的用户输入与停止的动画状态，给出修复策略
+**Success Criteria**: 找出导致 `isTyping` 未恢复与消息缺失的代码路径
+**Tests**: 暂无（分析阶段）
+**Status**: Not Started
+
 # 创世思考过程交互优化计划
 
 ## Stage 1: 现状梳理与需求确认
