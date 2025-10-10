@@ -59,7 +59,9 @@ async def test_enqueue_command_persists_domain_event_and_outbox(pg_session_no_tr
     out = await pg_session_no_transaction.scalar(select(EventOutbox).where(EventOutbox.id == dom_event.event_id))
     assert out is not None
     assert out.topic == get_domain_topic("GENESIS")
-    assert out.payload["event_type"] == dom_event.event_type
+    payload = out.payload
+    assert payload["system"]["event_type"] == dom_event.event_type
+    assert payload["data"]["command_type"] == dom_event.payload["command_type"]
 
 
 @pytest.mark.asyncio
@@ -102,3 +104,5 @@ async def test_create_round_persists_round_created_and_outbox(pg_session_no_tran
     assert dom_evt is not None
     out = await pg_session_no_transaction.scalar(select(EventOutbox).where(EventOutbox.id == dom_evt.event_id))
     assert out is not None and out.topic == get_domain_topic("GENESIS")
+    payload = out.payload
+    assert payload["system"]["event_type"] == dom_evt.event_type

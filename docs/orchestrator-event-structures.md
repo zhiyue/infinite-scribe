@@ -301,13 +301,15 @@ class CapabilityEventProcessor:
 
 > 其中 `action` 字段是 `EventAction` NamedTuple，分别携带领域事件、任务完成信息与后续能力任务。缺失的部分将以 `null` 表示，以保证调用端解码时的稳定性。
 
-> 🔁 **区分阶段**：上游 `ConversationOutboxManager` 写入的 `event_outbox.payload` 仍为扁平结构；而 Orchestrator 在生成新的领域事件时，会通过下文的 `OutboxPayloadBuilder` 转换为 `system`/`data` 信封格式。
+> 🔁 **统一构建**：Conversation 服务与 Orchestrator 均复用共享的 `OutboxPayloadBuilder` 写入 `system` / `data` / `schema_version` 信封结构，确保上下游格式一致。
 
 ### 2. OutboxPayloadBuilder
 
 类型安全的 outbox payload 构建器：
 
 ```python
+from src.common.outbox import OutboxPayloadBuilder
+
 class OutboxPayloadBuilder:
     def __init__(self):
         self._system_metadata: dict[str, Any] = {}
@@ -517,7 +519,7 @@ out = EventOutbox(
 
 > ℹ️ 前端通过 `POST /api/v1/conversations/sessions/{session_id}/commands` 提交 `Command.Genesis.Session.Seed.Request`（示例数据如上）。`ConversationCommandService` 在事务内将 payload 原样写入 `DomainEvent.payload`，为 Orchestrator 保留完整的 stage 与 context 信息。
 
-#### 步骤 3: EventOutbox 存储格式 (扁平化结构)
+#### 步骤 3: EventOutbox 存储格式 (信封结构)
 
 ```json
 {
@@ -526,54 +528,21 @@ out = EventOutbox(
   "key": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
   "partition_key": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
   "payload": {
-    "event_id": "evt-550e8400-e29b-41d4-a716-446655440000",
-    "event_type": "Genesis.Session.Command.Received",
-    "aggregate_type": "GenesisFlow",
-    "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-    "command_type": "Command.Genesis.Session.Seed.Request",
-    "payload": {
-      "stage": "INITIAL_PROMPT",
-      "context": {
-        "iteration_number": 1,
-        "user_preferences": {},
-        "previous_attempts": 0
-      },
-      "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-      "user_input": "我想写一个关于时间旅行的科幻小说",
-      "preferences": {}
-    },
-    "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-    "user_id": "1",
-    "metadata": {
-      "source": "api-gateway",
-      "user_id": "1"
-    },
-    "created_at": "2024-12-01T10:30:00.123Z"
-  },
-  "headers": {
-    "event_type": "Genesis.Session.Command.Received",
-    "version": 1,
-    "correlation_id": "cmd-12345-uuid"
-  },
-  "status": "PENDING",
-  "created_at": "2024-12-01T10:30:00.123Z"
-}
-```
-
-> 📌 **实测对齐**：命令阶段的 `event_outbox.payload` 采用“顶层元数据 + 内嵌 `payload`”的格式。Orchestrator 消费时仍需进入 `payload.payload` 读取原始用户输入。
-
-#### 步骤 4: Orchestrator 接收的消息格式
-
-Orchestrator 通过 Kafka 消费到的消息格式：
-
-```json
-{
-  "msg_type": "genesis.command.received",
-  "message": {
-    "raw_data": {
+    "system": {
       "event_id": "evt-550e8400-e29b-41d4-a716-446655440000",
       "event_type": "Genesis.Session.Command.Received",
+      "aggregate_type": "GenesisFlow",
       "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+      "metadata": {
+        "source": "api-gateway",
+        "user_id": "1"
+      },
+      "correlation_id": "cmd-12345-uuid",
+      "causation_id": "cmd-12345-uuid",
+      "created_at": "2024-12-01T10:30:00.123Z",
+      "event_version": 1
+    },
+    "data": {
       "command_type": "Command.Genesis.Session.Seed.Request",
       "payload": {
         "stage": "INITIAL_PROMPT",
@@ -587,12 +556,62 @@ Orchestrator 通过 Kafka 消费到的消息格式：
         "preferences": {}
       },
       "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-      "user_id": "1",
-      "metadata": {
-        "source": "api-gateway",
+      "user_id": "1"
+    },
+    "schema_version": "v1"
+  },
+  "headers": {
+    "event_type": "Genesis.Session.Command.Received",
+    "version": 1,
+    "correlation_id": "cmd-12345-uuid"
+  },
+  "status": "PENDING",
+  "created_at": "2024-12-01T10:30:00.123Z"
+}
+```
+
+> 📌 **实测对齐**：命令阶段的 `event_outbox.payload` 已统一为信封结构，系统元数据与业务数据分层存储。
+
+#### 步骤 4: Orchestrator 接收的消息格式
+
+Orchestrator 通过 Kafka 消费到的消息格式：
+
+```json
+{
+  "msg_type": "genesis.command.received",
+  "message": {
+    "raw_data": {
+      "system": {
+        "event_id": "evt-550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "Genesis.Session.Command.Received",
+        "aggregate_type": "GenesisFlow",
+        "aggregate_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+        "metadata": {
+          "source": "api-gateway",
+          "user_id": "1"
+        },
+        "correlation_id": "cmd-12345-uuid",
+        "causation_id": "cmd-12345-uuid",
+        "created_at": "2024-12-01T10:30:00.123Z",
+        "event_version": 1
+      },
+      "data": {
+        "command_type": "Command.Genesis.Session.Seed.Request",
+        "payload": {
+          "stage": "INITIAL_PROMPT",
+          "context": {
+            "iteration_number": 1,
+            "user_preferences": {},
+            "previous_attempts": 0
+          },
+          "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+          "user_input": "我想写一个关于时间旅行的科幻小说",
+          "preferences": {}
+        },
+        "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
         "user_id": "1"
       },
-      "created_at": "2024-12-01T10:30:00.123Z"
+      "schema_version": "v1"
     }
   },
   "context": {
@@ -674,7 +693,7 @@ graph TD
 
     subgraph "数据变化"
         M[前端嵌套结构] --> N[领域事件载荷]
-        N --> O[扁平化 Outbox]
+        N --> O[Outbox 信封化]
         O --> P[Kafka 消息]
     end
 

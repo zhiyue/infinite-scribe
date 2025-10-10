@@ -14,6 +14,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.common.outbox import OutboxPayloadEnvelope, SystemMetadata
+
 # === 字符串字面量类型 - 编译时和运行时都检查 ===
 
 MessageType = Literal[
@@ -369,6 +371,18 @@ class EventOutboxHeaders(BaseModel):
     agent: str | None = None
     type: str | None = None  # 兼容现有代码
 
+    @field_validator("version", mode="before")
+    @classmethod
+    def normalize_version(cls, v: Any) -> int:
+        """允许传入字符串版本（如'v1'），统一转换为整数。"""
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            digits = "".join(ch for ch in v if ch.isdigit())
+            if digits:
+                return int(digits)
+        return 1
+
     @field_validator("correlation_id")
     @classmethod
     def validate_correlation_id(cls, v: str | None) -> str | None:
@@ -394,32 +408,6 @@ class EventOutboxHeaders(BaseModel):
         return v
 
     model_config = ConfigDict(extra="forbid")  # 严格模式
-
-
-class SystemMetadata(BaseModel):
-    """系统元数据类型定义 - 使用Pydantic确保类型安全"""
-
-    event_id: str
-    event_type: str
-    aggregate_type: str
-    aggregate_id: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    correlation_id: str | None = None
-    causation_id: str | None = None
-    created_at: str | None = None
-    event_version: int | None = None
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class OutboxPayloadEnvelope(BaseModel):
-    """Outbox有效负载信封结构定义 - 使用Pydantic确保类型安全"""
-
-    system: SystemMetadata
-    data: dict[str, Any] = Field(default_factory=dict)
-    schema_version: str = "v1"
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class DomainEvent(BaseModel):

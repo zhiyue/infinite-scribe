@@ -15,6 +15,7 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
+from src.common.outbox import OutboxPayloadBuilder
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
 from src.models.workflow import CommandInbox, EventOutbox
@@ -184,34 +185,16 @@ class ConversationEventHandler:
         corr_uuid: UUID | None,
     ) -> None:
         """Create outbox entry for domain event."""
-        # 扁平化 payload：与 Orchestrator 保持一致，避免 payload.payload 的双重嵌套
-        flat_payload = {
-            "event_id": str(dom_evt.event_id),
-            "event_type": dom_evt.event_type,
-            "aggregate_type": dom_evt.aggregate_type,
-            "aggregate_id": dom_evt.aggregate_id,
-            "metadata": dom_evt.event_metadata or {},
-        }
-        # 合并领域事件的业务载荷（如有）到顶层
-        if dom_evt.payload:
-            try:
-                flat_payload.update(dom_evt.payload)
-            except Exception:
-                # 防御性：即便 payload 不是 dict，也不阻断 outbox 写入
-                flat_payload["payload"] = dom_evt.payload  # 回退保留原始
-        # 附加 created_at 以便下游填充 timestamp
-        if getattr(dom_evt, "created_at", None):
-            with contextlib.suppress(Exception):
-                flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+        payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
         out = EventOutbox(
             id=dom_evt.event_id,
             topic=get_domain_topic(session.scope_type),
             key=str(session.id),
             partition_key=str(session.id),
-            payload=flat_payload,
+            payload=payload_envelope,
             headers={
-                "event_type": dom_evt.event_type,
+                "event_type": payload_envelope["system"]["event_type"],
                 "version": 1,
                 "correlation_id": str(corr_uuid) if corr_uuid else None,
             },
@@ -260,30 +243,16 @@ class ConversationEventHandler:
             db.add(dom_evt)
             await db.flush()
 
-            flat_payload = {
-                "event_id": str(dom_evt.event_id),
-                "event_type": dom_evt.event_type,
-                "aggregate_type": dom_evt.aggregate_type,
-                "aggregate_id": dom_evt.aggregate_id,
-                "metadata": dom_evt.event_metadata or {},
-            }
-            if dom_evt.payload:
-                try:
-                    flat_payload.update(dom_evt.payload)
-                except Exception:
-                    flat_payload["payload"] = dom_evt.payload
-            if getattr(dom_evt, "created_at", None):
-                with contextlib.suppress(Exception):
-                    flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+            payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
             out = EventOutbox(
                 id=dom_evt.event_id,
                 topic=get_domain_topic(session.scope_type),
                 key=str(session.id),
                 partition_key=str(session.id),
-                payload=flat_payload,
+                payload=payload_envelope,
                 headers={
-                    "event_type": dom_evt.event_type,
+                    "event_type": payload_envelope["system"]["event_type"],
                     "version": 1,
                     "correlation_id": str(cmd.id),
                 },
@@ -356,30 +325,16 @@ class ConversationEventHandler:
         except ArgumentError:
             existing_out = None
         if not existing_out:
-            flat_payload = {
-                "event_id": str(dom_evt.event_id),
-                "event_type": dom_evt.event_type,
-                "aggregate_type": dom_evt.aggregate_type,
-                "aggregate_id": dom_evt.aggregate_id,
-                "metadata": dom_evt.event_metadata or {},
-            }
-            if dom_evt.payload:
-                try:
-                    flat_payload.update(dom_evt.payload)
-                except Exception:
-                    flat_payload["payload"] = dom_evt.payload
-            if getattr(dom_evt, "created_at", None):
-                with contextlib.suppress(Exception):
-                    flat_payload["created_at"] = dom_evt.created_at.isoformat()  # type: ignore[attr-defined]
+            payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
             out = EventOutbox(
                 id=dom_evt.event_id,
                 topic=get_domain_topic(session.scope_type),
                 key=str(session.id),
                 partition_key=str(session.id),
-                payload=flat_payload,
+                payload=payload_envelope,
                 headers={
-                    "event_type": dom_evt.event_type,
+                    "event_type": payload_envelope["system"]["event_type"],
                     "version": 1,
                     "correlation_id": str(existing_command.id),
                 },

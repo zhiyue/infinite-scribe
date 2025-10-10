@@ -12,9 +12,9 @@ from uuid import UUID
 from sqlalchemy import and_, select
 
 from src.agents.message import encode_message
-from src.agents.orchestrator.outbox_payload import OutboxPayloadBuilder
-from src.agents.orchestrator.types import EventOutboxHeaders, EventMetadata
+from src.agents.orchestrator.types import EventMetadata, EventOutboxHeaders
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
+from src.common.outbox import OutboxPayloadBuilder
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
 from src.db.sql.session import create_sql_session
@@ -169,7 +169,7 @@ class DomainEventCreator:
             payload=payload,
             correlation_id=safe_correlation_id,
             causation_id=safe_causation_id,
-            event_metadata=EventMetadata(source="orchestrator").model_dump(),
+            event_metadata=EventMetadata(source="orchestrator").model_dump(exclude_none=True),
         )
         db_session.add(domain_event)
         await db_session.flush()
