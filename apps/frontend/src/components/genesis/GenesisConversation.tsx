@@ -129,6 +129,10 @@ export function GenesisConversation({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
 
+  useEffect(() => {
+    optimisticMessageRef.current = optimisticMessage
+  }, [optimisticMessage])
+
   const getRoundUserInput = (round: RoundResponse): string | null => {
     if (round.role !== 'user') return null
     const payloadInput = round.input?.payload?.user_input
@@ -197,6 +201,57 @@ export function GenesisConversation({
       correlationId: foundCorrelation ? foundCorrelation : null,
     }
   }
+
+  const pendingMessageKeyPrefix = `genesis_pending_message_${sessionId}_`
+
+  const getPendingMessageStorageKey = (commandId: string) =>
+    `${pendingMessageKeyPrefix}${commandId}`
+
+  const savePendingMessageToStorage = (
+    commandId: string,
+    message: { content: string; correlationId?: string | null },
+  ) => {
+    if (typeof window === 'undefined' || !window.sessionStorage) return
+    try {
+      sessionStorage.setItem(getPendingMessageStorageKey(commandId), JSON.stringify(message))
+    } catch (error) {
+      console.warn('[GenesisConversation] Failed to persist pending message', error)
+    }
+  }
+
+  const loadPendingMessageFromStorage = (
+    commandId: string,
+  ): { content: string; correlationId?: string | null } | null => {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null
+    try {
+      const raw = sessionStorage.getItem(getPendingMessageStorageKey(commandId))
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed.content !== 'string') return null
+      return {
+        content: parsed.content as string,
+        correlationId:
+          typeof parsed.correlationId === 'string' && parsed.correlationId.trim().length > 0
+            ? parsed.correlationId
+            : null,
+      }
+    } catch (error) {
+      console.warn('[GenesisConversation] Failed to load pending message', error)
+      return null
+    }
+  }
+
+  const removePendingMessageFromStorage = (commandId: string | null | undefined) => {
+    if (!commandId) return
+    if (typeof window === 'undefined' || !window.sessionStorage) return
+    try {
+      sessionStorage.removeItem(getPendingMessageStorageKey(commandId))
+    } catch (error) {
+      console.warn('[GenesisConversation] Failed to remove pending message', error)
+    }
+  }
+
+  const optimisticMessageRef = useRef<OptimisticMessage | null>(null)
 
   // 保存输入框内容到 localStorage
   useEffect(() => {
@@ -431,6 +486,29 @@ export function GenesisConversation({
     return true
   }, [pendingMessageForRender, optimisticMessage, rounds])
 
+  const activeCommandId = inferredCommandId || currentCommandId
+
+  useEffect(() => {
+    if (!activeCommandId || optimisticMessage) return
+    const stored = loadPendingMessageFromStorage(activeCommandId)
+    if (!stored) return
+
+    const alreadyExists = rounds.some((round) =>
+      roundMatchesPending(round, stored.correlationId, stored.content),
+    )
+    if (alreadyExists) {
+      removePendingMessageFromStorage(activeCommandId)
+      return
+    }
+
+    setOptimisticMessage({
+      id: `restored-${activeCommandId}`,
+      content: stored.content,
+      correlationId: stored.correlationId,
+      initialRoundsLength: rounds.length,
+    })
+  }, [activeCommandId, optimisticMessage, rounds])
+
   // 根据最新时间线事件推导思考状态
   useEffect(() => {
     const events = commandTimeline.data
@@ -468,6 +546,7 @@ export function GenesisConversation({
       setIsTyping(false)
       setShouldPollCommand(false)
       setOptimisticMessage(null)
+      removePendingMessageFromStorage(inferredCommandId || currentCommandId)
       refetchPendingCommand()
       return
     }
@@ -476,6 +555,7 @@ export function GenesisConversation({
       setIsWaitingForResponse(false)
       setIsTyping(false)
       setShouldPollCommand(false)
+      removePendingMessageFromStorage(inferredCommandId || currentCommandId)
       refetchPendingCommand()
       void queryClient.invalidateQueries({
         queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
@@ -528,6 +608,12 @@ export function GenesisConversation({
   const submitCommand = useSubmitCommand(sessionId, {
     onSuccess: (data) => {
       console.log('[GenesisConversation] Command submitted successfully:', data)
+      if (data?.command_id && optimisticMessageRef.current) {
+        savePendingMessageToStorage(data.command_id, {
+          content: optimisticMessageRef.current.content,
+          correlationId: optimisticMessageRef.current.correlationId,
+        })
+      }
       // 不立即清除临时消息，等待实际round数据到达
       refetchPendingCommand() // 立即刷新pending command状态
       setIsWaitingForResponse(true) // 等待AI回复
@@ -553,6 +639,7 @@ export function GenesisConversation({
         setIsWaitingForResponse(false)
         setIsTyping(false)
         setShouldPollCommand(false)
+        removePendingMessageFromStorage(status.command_id)
         refetchPendingCommand() // 更新pending command状态
 
         // 刷新轮次数据以获取AI的回复
@@ -568,6 +655,7 @@ export function GenesisConversation({
         setIsTyping(false)
         setShouldPollCommand(false)
         setOptimisticMessage(null) // 清除乐观消息，因为命令执行失败
+        removePendingMessageFromStorage(status.command_id)
         refetchPendingCommand() // 更新pending command状态
       } else if (status.status === 'processing') {
         console.log('[GenesisConversation] Fallback polling - Command is processing')

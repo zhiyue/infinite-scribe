@@ -7,7 +7,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getGenesisStatusConfig } from '@/config/genesis-status.config'
 import { cn } from '@/lib/utils'
-import { Brain, CheckCircle, ChevronDown, ChevronUp, Loader2, XCircle, Zap } from 'lucide-react'
+import {
+  Brain,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  PlayCircle,
+  Send,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { GenesisCommandStatus } from './GenesisStatusCard'
 
@@ -33,6 +43,11 @@ const THINKING_STAGES = {
   'genesis.step-processing': { label: '分析内容', icon: Loader2 },
   'genesis.step-completed': { label: '完成思考', icon: CheckCircle },
   'genesis.step-failed': { label: '遇到问题', icon: XCircle },
+  'Genesis.Session.Command.Received': { label: '命令已接收', icon: Loader2 },
+  'Genesis.Session.Command.Started': { label: '命令执行中', icon: PlayCircle },
+  'Genesis.Session.Seed.Requested': { label: '任务派发中', icon: Send },
+  'Genesis.Session.Command.Completed': { label: '命令已完成', icon: CheckCircle },
+  'Genesis.Session.Command.Failed': { label: '命令失败', icon: XCircle },
   default: { label: '处理中', icon: Loader2 },
 }
 
@@ -155,9 +170,24 @@ export function ThinkingProcess({
     ) {
       state = 'success'
     } else if (
-      ['processing', 'running', 'queued', 'pending', 'generating'].some(
-        (keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword),
-      )
+      [
+        'processing',
+        'running',
+        'queued',
+        'pending',
+        'generating',
+        'received',
+        'started',
+        'submitted',
+        'dispatch',
+        'dispatched',
+        'request',
+        'requested',
+        'assign',
+        'assigned',
+        'accept',
+        'accepted',
+      ].some((keyword) => normalizedStatus.includes(keyword) || eventType.includes(keyword))
     ) {
       state = 'processing'
     }
