@@ -2,13 +2,9 @@
 创世流程创建相关的 Pydantic 模型
 """
 
-from typing import Any
-from uuid import UUID
-
 from pydantic import Field
 
 from src.schemas.base import BaseSchema
-from src.schemas.enums import GenesisStage, GenesisStatus
 
 
 class ConceptTemplateCreateRequest(BaseSchema):
@@ -41,10 +37,4 @@ class ConceptTemplateCreateRequest(BaseSchema):
     created_by: str | None = Field(None, max_length=50, description="创建者,如'system','admin'")
 
 
-class GenesisSessionCreateRequest(BaseSchema):
-    """创世会话创建请求"""
-
-    user_id: UUID | None = Field(None, description="用户ID")
-    status: GenesisStatus = Field(default=GenesisStatus.IN_PROGRESS, description="会话状态")
-    current_stage: GenesisStage = Field(default=GenesisStage.CONCEPT_SELECTION, description="当前阶段")
-    confirmed_data: dict[str, Any] | None = Field(None, description="存储每个阶段已确认的最终数据")
+# GenesisSessionCreateRequest removed - replaced by GenesisFlow and GenesisStageRecord schemas

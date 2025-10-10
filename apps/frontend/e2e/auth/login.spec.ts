@@ -4,11 +4,11 @@ import { DashboardPage, LoginPage } from '../pages/auth-pages'
 
 test.describe('用户登录流程', () => {
   // 使用 fixture 自动创建并验证用户
-  test.beforeEach(async ({ createAndVerifyUser }) => {
+  test.beforeEach(async ({ _createAndVerifyUser }) => {
     await createAndVerifyUser()
   })
 
-  test('成功登录', async ({ page, loginPage, dashboardPage, testUser }) => {
+  test('成功登录', async ({ _page, loginPage, dashboardPage, testUser }) => {
     // 导航到登录页面
     await loginPage.navigate()
 
@@ -26,7 +26,7 @@ test.describe('用户登录流程', () => {
     expect(isLoggedIn).toBe(true)
   })
 
-  test('登录失败 - 错误的密码', async ({ page, loginPage, testUser }) => {
+  test('登录失败 - 错误的密码', async ({ _page, loginPage, testUser }) => {
     await loginPage.navigate()
 
     // 使用错误的密码登录
@@ -41,7 +41,7 @@ test.describe('用户登录流程', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test('登录失败 - 不存在的用户', async ({ page, loginPage }) => {
+  test('登录失败 - 不存在的用户', async ({ _page, loginPage }) => {
     await loginPage.navigate()
 
     // 使用不存在的邮箱登录
@@ -53,7 +53,7 @@ test.describe('用户登录流程', () => {
     expect(errorMessage).toMatch(/认证失败|invalid credentials/i)
   })
 
-  test('登录表单验证', async ({ page, loginPage }) => {
+  test('登录表单验证', async ({ _page, loginPage }) => {
     await loginPage.navigate()
 
     // 测试空表单提交
@@ -68,7 +68,7 @@ test.describe('用户登录流程', () => {
     expect(errorMessage).toMatch(/邮箱|email/i)
   })
 
-  test('未验证邮箱的用户登录', async ({ page, loginPage, apiClient }) => {
+  test('未验证邮箱的用户登录', async ({ _page, loginPage, apiClient }) => {
     // 创建未验证的用户
     const unverifiedUser = generateTestUser()
     await apiClient.createTestUser({
@@ -87,7 +87,7 @@ test.describe('用户登录流程', () => {
     expect(errorMessage).toMatch(/验证邮箱|verify.*email/i)
   })
 
-  test('账户锁定（连续失败尝试）', async ({ page, loginPage, testUser }) => {
+  test('账户锁定（连续失败尝试）', async ({ _page, loginPage, testUser }) => {
     await loginPage.navigate()
 
     let lastErrorMessage = ''
@@ -132,7 +132,7 @@ test.describe('用户登录流程', () => {
     console.log('Account lockout test completed successfully!')
   })
 
-  test('登录后跳转到忘记密码页', async ({ page, loginPage }) => {
+  test('登录后跳转到忘记密码页', async ({ _page, loginPage }) => {
     await loginPage.navigate()
 
     // 点击忘记密码链接
@@ -142,7 +142,7 @@ test.describe('用户登录流程', () => {
     await expect(page).toHaveURL(/\/forgot-password/)
   })
 
-  test('登录后跳转到注册页', async ({ page, loginPage }) => {
+  test('登录后跳转到注册页', async ({ _page, loginPage }) => {
     await loginPage.navigate()
 
     // 点击注册链接
@@ -155,11 +155,11 @@ test.describe('用户登录流程', () => {
 
 test.describe('会话管理', () => {
   // 使用 fixture 自动创建并验证用户
-  test.beforeEach(async ({ createAndVerifyUser }) => {
+  test.beforeEach(async ({ _createAndVerifyUser }) => {
     await createAndVerifyUser()
   })
 
-  test('用户登出', async ({ page, loginPage, dashboardPage, testUser }) => {
+  test('用户登出', async ({ _page, loginPage, dashboardPage, testUser }) => {
     // 先登录
     await loginPage.navigate()
     await loginPage.login(testUser.email, testUser.password)
@@ -176,7 +176,7 @@ test.describe('会话管理', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test('会话过期处理', async ({ page, context, loginPage, testUser }) => {
+  test('会话过期处理', async ({ _page, context, loginPage, testUser }) => {
     // 登录
     await loginPage.navigate()
     await loginPage.login(testUser.email, testUser.password)
@@ -204,10 +204,10 @@ test.describe('会话管理', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 })
   })
 
-  test('令牌刷新', async ({ page, apiClient, testUser }) => {
+  test('令牌刷新', async ({ _page, apiClient, testUser }) => {
     // 通过 API 登录获取令牌
-    const loginResponse = await apiClient.login(testUser.email, testUser.password)
-    const { access_token, refresh_token } = loginResponse
+    const _loginResponse = await apiClient.login(testUser.email, testUser.password)
+    const { access_token: _access_token, refresh_token: _refresh_token } = _loginResponse
 
     // 等待 access token 接近过期
     // 在实际测试中，可能需要修改后端配置使用更短的过期时间
@@ -222,7 +222,7 @@ test.describe('会话管理', () => {
     expect(userInfo.email).toBe(testUser.email)
   })
 
-  test('多设备登录', async ({ browser, testUser }) => {
+  test('多设备登录', async ({ _browser, testUser }) => {
     // 在第一个浏览器上下文中登录
     const context1 = await browser.newContext()
     const page1 = await context1.newPage()
@@ -255,9 +255,9 @@ test.describe('会话管理', () => {
     await context2.close()
   })
 
-  test('受保护路由重定向', async ({ page }) => {
+  test('受保护路由重定向', async ({ _page }) => {
     // 未登录状态访问受保护页面
-    const protectedRoutes = ['/dashboard', '/profile', '/settings', '/change-password']
+    const _protectedRoutes = ['/dashboard', '/profile', '/settings', '/change-password']
 
     for (const route of protectedRoutes) {
       await page.goto(route)
@@ -265,7 +265,7 @@ test.describe('会话管理', () => {
     }
   })
 
-  test('登录状态持久化', async ({ page, context, loginPage, testUser }) => {
+  test('登录状态持久化', async ({ _page, context, loginPage, testUser }) => {
     // 登录
     await loginPage.navigate()
     await loginPage.login(testUser.email, testUser.password)

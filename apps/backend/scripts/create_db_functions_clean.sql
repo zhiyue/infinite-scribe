@@ -20,7 +20,7 @@ BEGIN
         WHERE schemaname = 'public' 
         AND tablename IN (
             'novels', 'chapters', 'characters', 'worldview_entries', 
-            'story_arcs', 'genesis_sessions', 'command_inbox', 
+            'story_arcs', 'conversation_sessions', 'command_inbox', 
             'async_tasks', 'flow_resume_handles'
         )
     LOOP
@@ -53,7 +53,7 @@ BEGIN
         WHERE schemaname = 'public' 
         AND tablename IN (
             'novels', 'chapters', 'characters', 'worldview_entries', 
-            'story_arcs', 'genesis_sessions'
+            'story_arcs', 'conversation_sessions'
         )
     LOOP
         EXECUTE format('

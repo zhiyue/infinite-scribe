@@ -8,8 +8,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
-from ..agents.base import BaseAgent
-from .agent_config import (
+from src.agents.agent_config import (
     AGENT_PRIORITY,
     AGENT_TOPICS,
     canonicalize_agent_id,
@@ -17,7 +16,8 @@ from .agent_config import (
     to_config_key,
     validate_agent_config,
 )
-from .registry import get_registered_agent
+from src.agents.base import BaseAgent
+from src.agents.registry import get_registered_agent
 
 
 class AgentsLoadError(Exception):
@@ -48,12 +48,16 @@ class AgentLauncher:
             # 优先使用显式注册表
             reg_cls = get_registered_agent(canonical_name)
             if reg_cls is not None and issubclass(reg_cls, BaseAgent):
-                instance = reg_cls()  # No cast needed
+                topics = AGENT_TOPICS.get(module_key, {})
+                consume_topics = topics.get("consume", [])
+                produce_topics = topics.get("produce", [])
+                instance = reg_cls(name=canonical_name, consume_topics=consume_topics, produce_topics=produce_topics)
                 logger.info(f"成功从注册表加载 agent: {canonical_name}")
                 return instance
             # 尝试从 agent 模块导入
             try:
-                module = importlib.import_module(f"..agents.{module_key}", package=__name__)
+                # Use absolute import to avoid incorrect relative resolution like 'src.agents.agents.*'
+                module = importlib.import_module(f"src.agents.{module_key}")
 
                 # 生成候选类名，兼容 snake_case 和单词形式
                 def snake_to_pascal(name: str) -> str:
@@ -82,8 +86,14 @@ class AgentLauncher:
                             continue
 
                 if agent_class and issubclass(agent_class, BaseAgent):
+                    # 获取主题配置
+                    topics = AGENT_TOPICS.get(module_key, {})
+                    consume_topics = topics.get("consume", [])
+                    produce_topics = topics.get("produce", [])
                     # 创建 agent 实例
-                    agent_instance = agent_class()
+                    agent_instance = agent_class(
+                        name=canonical_name, consume_topics=consume_topics, produce_topics=produce_topics
+                    )
                     logger.info(f"成功加载 agent: {agent_name}")
                     return agent_instance
                 elif agent_class is not None:
@@ -104,7 +114,9 @@ class AgentLauncher:
 
             # 创建一个匿名的 Agent 类
             class GenericAgent(BaseAgent):
-                async def process_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+                async def process_message(
+                    self, message: dict[str, Any], context: dict[str, Any] | None = None
+                ) -> dict[str, Any] | None:
                     logger.info(f"{agent_name} 处理消息: {message.get('type', 'unknown')}")
                     # 通用处理逻辑
                     return {
@@ -123,7 +135,7 @@ class AgentLauncher:
         """加载指定的 agents,如果未指定则加载所有 agents"""
         # Validate agent configuration at startup
         validate_agent_config()
-        
+
         if agent_names is None:
             agent_names = AVAILABLE_AGENTS
 

@@ -33,7 +33,7 @@ argument-hint: <feature-name> <task-number>
 任务编号：!`echo "$ARGUMENTS" | awk '{print $2}' | head -1`
 
 - 任务文档：!`ls -la .tasks/$FEATURE/tasks.md 2>/dev/null || echo "Tasks not found - run spec-task:tasks first"`
-- 低层设计：!`ls -la .tasks/$FEATURE/design-lld.md 2>/dev/null || echo "LLD not found"`
+- 低层设计：!`ls -la .tasks/$FEATURE/lld/ 2>/dev/null || echo "LLD directory not found"`
 - 规范元数据：!`cat .tasks/$FEATURE/spec.json 2>/dev/null | grep "tasks_approved" || echo "Tasks not approved"`
 
 ## 任务：生成单任务实施计划
@@ -44,7 +44,7 @@ argument-hint: <feature-name> <task-number>
 
 - `.tasks/{feature-name}/requirements.md` - 相关需求
 - `.tasks/$ARGUMENTS/design-hld.md` - 高层设计
-- `.tasks/{feature-name}/design-lld.md` - 详细设计
+- `.tasks/{feature-name}/lld/` - 详细设计文档集
 - `.tasks/{feature-name}/tasks.md` - 提取特定任务描述
 - `.tasks/$ARGUMENTS/adr/` - adr 决策
 

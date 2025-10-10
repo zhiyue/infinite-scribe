@@ -26,6 +26,12 @@ argument-hint: <feature-name>
 **重要**：首先验证 PRD 已经生成并批准。如果 PRD 尚未生成，提示用户先运行
 `/spec-task:prd {feature-name}`。
 
+**架构决策识别**：
+1. 必须先加载 @docs/architecture/high-level-architecture.md（如果存在）了解已有架构
+2. 检查 CLAUDE.md、README.md 了解项目规范
+3. 查看 docs/adr 目录中的现有 ADR 文档
+4. 只为尚未决策的架构点标记为 ADR 候选项
+
 在这个阶段不要专注于代码探索。相反，专注于从 PRD 推导出可验证的系统需求。
 
 ### 需求生成指南
@@ -35,6 +41,7 @@ argument-hint: <feature-name>
 3. **建立追踪性**：明确标注每个 FR/NFR 源自哪个 Story ID
 4. **定义可测阈值**：NFR 必须包含具体的度量指标和阈值
 5. **保持工程视角**：从 PRD 的业务需求转换为可验证的技术需求
+6. **检查已有决策**：识别 ADR 候选项前先检查项目已有技术选型，避免重复
 
 ### 1. EARS 格式需求
 
@@ -118,6 +125,26 @@ argument-hint: <feature-name>
 ## ADR Candidates (Placeholder)
 
 <!-- ADR 候选项将在下一步通过 /spec-task:adr-draft 命令生成 -->
+<!-- 重要：生成前必须先检查项目已有的技术选型，避免重复决策 -->
+
+### 已确定的技术选型（检查点）
+
+生成 ADR 前必须先加载并检查以下资源中的已有决策：
+
+1. **@docs/architecture/high-level-architecture.md** - 包含核心技术栈：
+   - 前端: React + Vite (SPA)
+   - 后端: Python + FastAPI
+   - 事件总线: Kafka
+   - 工作流编排: Prefect
+   - 数据存储: PostgreSQL, Milvus, Neo4j, Minio, Redis
+   - 容器化: Docker
+   - Monorepo: pnpm workspaces
+
+2. **@CLAUDE.md** - 项目特定的开发指南和架构原则
+3. **@README.md** - 项目概述和基础技术栈
+4. **@docs/adr/** 目录 - 已有的 ADR 文档（如果存在）
+
+<!-- 只为尚未决策的架构点生成新 ADR -->
 <!-- 识别的架构决策点将在此处列出，并创建对应的 ADR 草稿文件 -->
 ```
 
@@ -150,6 +177,8 @@ argument-hint: <feature-name>
 **如果需求看起来不错：**
 
 1. 运行 `/spec-task:adr-draft $ARGUMENTS` 生成 ADR 草稿
+   - 将自动检查项目已有的技术选型，避免重复决策
+   - 只为尚未决定的架构点生成新的 ADR
 2. 运行 `/spec-task:adr-review $ARGUMENTS` 评审并决策 ADR
 3. 所有关键 ADR 接受后，运行 `/spec-task:design-hld $ARGUMENTS -y`
    继续到高层设计阶段
@@ -166,7 +195,12 @@ argument-hint: <feature-name>
 4. **专注核心功能** - 从基本功能和用户工作流开始
 5. **清晰的结构** - 将相关功能分组为逻辑需求区域
 6. **使需求可测试** - 每个验收标准都应该是可验证的
-7. **更新跟踪元数据** - 完成后更新
+7. **识别 ADR 候选项前检查已有选型** - 在生成 ADR 草稿前，必须先检查：
+   - 项目中已有的 ADR 文档（通常在 docs/adr 或类似目录）
+   - CLAUDE.md 中记录的技术栈和架构决策
+   - README.md 中的技术选型说明
+   - 避免重复生成已决策的内容
+8. **更新跟踪元数据** - 完成后更新
 
 生成的需求应为设计阶段提供坚实的基础，重点关注功能想法中的核心功能。
 

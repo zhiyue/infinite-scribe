@@ -1,0 +1,93 @@
+{
+  "feature_name": "novel-genesis-stage",
+  "created_at": "2025-09-04T12:00:00Z",
+  "updated_at": "2025-09-04T12:30:00Z",
+  "language": "chinese",
+  "phase": "tasks-generated",
+  "documents": {
+    "prd": {
+      "generated": true,
+      "approved": false,
+      "story_count": 10,
+      "last_update": "重构为对话式创世流程"
+    },
+    "requirements": {
+      "generated": true,
+      "approved": false,
+      "functional_count": 10,
+      "non_functional_count": 8,
+      "version": "3.0",
+      "last_update": "集成5个已接受的ADR决策，更新技术实现细节",
+      "features": [
+        "6阶段状态机定义",
+        "详细EARS验收标准",
+        "对话引擎规范（基于ADR-001通用会话架构）",
+        "分级一致性校验（基于ADR-005知识图谱）",
+        "量化评分算法（基于ADR-002 Qwen3-Embedding）",
+        "版本控制策略（基于ADR-004快照+增量方案）",
+        "批量任务调度（基于ADR-006 Prefect+Outbox）"
+      ],
+      "adr_integration": [
+        "ADR-001: conversation_sessions/rounds表设计完成",
+        "ADR-002: Qwen3-Embedding集成（768维，Ollama API）",
+        "ADR-004: MinIO快照存储+PostgreSQL增量存储",
+        "ADR-005: Neo4j图模型（8维度角色设计）",
+        "ADR-006: Prefect编排+Redis优先级队列+Token Bucket限流"
+      ],
+      "schema_generated": [
+        "dialogue.py - 对话状态管理schemas",
+        "version.py - 内容版本控制schemas",
+        "graph.py - 知识图谱schemas",
+        "embedding.py - 向量嵌入schemas",
+        "README.md - 综合文档和数据库迁移指南"
+      ]
+    }
+  },
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "hld": {
+      "generated": true,
+      "approved": true
+    },
+    "lld": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": false
+    }
+  },
+  "adr": {
+    "total_count": 6,
+    "proposed": 1,
+    "accepted": 5,
+    "superseded": 0,
+    "accepted_list": [
+      "ADR-001: 对话状态管理方案（通用会话架构 + Redis缓存 + PostgreSQL持久化）",
+      "ADR-002: 向量嵌入模型选择（Qwen3-Embedding 0.6B自托管）",
+      "ADR-004: 内容版本控制实现（快照MinIO + 增量PostgreSQL混合方案）",
+      "ADR-005: 知识图谱Schema设计（层级+网状混合模型，8维度角色）",
+      "ADR-006: 批量任务调度策略（Prefect编排+Outbox→Kafka+Redis优先级队列）"
+    ],
+    "proposed_list": [
+      "ADR-003: 提示词模板管理（模板仓库+版本化）"
+    ],
+    "notes": "已移除流式响应相关ADR（系统已实现SSE），前端/后端/数据库等技术栈已在高层架构中确定。5个ADR已接受并生成对应schema文件。"
+  },
+  "ready_for_implementation": true,
+  "implementation_readiness": {
+    "adr_accepted": "5/6 (83%)",
+    "schemas_generated": true,
+    "database_migration_defined": true,
+    "next_steps": [
+      "生成HLD文档",
+      "生成LLD文档",
+      "创建实施任务清单",
+      "开始数据库迁移"
+    ]
+  }
+}

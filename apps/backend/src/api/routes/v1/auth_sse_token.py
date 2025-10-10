@@ -83,8 +83,18 @@ def verify_sse_token(sse_token: str) -> str:
     Raises:
         HTTPException: 401 if token is invalid or expired
     """
+    logger.debug(
+        "🔍 开始验证SSE token",
+        extra={
+            "has_token": bool(sse_token),
+            "token_length": len(sse_token) if sse_token else 0,
+            "token_prefix": sse_token[:20] + "..." if sse_token and len(sse_token) > 20 else sse_token,
+        },
+    )
+
     # Input validation
     if not sse_token or not sse_token.strip():
+        logger.warning("❌ SSE token验证失败: token为空")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is required")
 
     try:
@@ -93,16 +103,21 @@ def verify_sse_token(sse_token: str) -> str:
 
         # Verify it's an SSE token and extract user ID
         if payload.get("token_type") != "sse":
+            logger.warning(f"无效的token类型: {payload.get('token_type')}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
 
         user_id = payload.get("user_id")
         if not user_id:
+            logger.warning("SSE token缺少user_id")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+        logger.debug(f"SSE token验证成功: user_id={user_id}")
 
         return str(user_id)
 
     except ExpiredSignatureError as e:
+        logger.warning("SSE token已过期")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SSE token has expired") from e
     except JWTError as e:
-        logger.warning(f"Invalid SSE token: {e}")
+        logger.warning(f"SSE token无效: {type(e).__name__}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from e

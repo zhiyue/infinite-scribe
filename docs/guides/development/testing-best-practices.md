@@ -20,52 +20,50 @@ Configure your tests through environment variables, not through code logic:
 
 ```bash
 # Local development (uses testcontainers)
-USE_EXTERNAL_SERVICES=false pytest
+pytest
 
-# CI environment (uses service containers)
-USE_EXTERNAL_SERVICES=true pytest
-
-# Testing against staging
-USE_EXTERNAL_SERVICES=true \
-POSTGRES_HOST=staging.example.com \
-POSTGRES_PORT=5432 \
+# Remote Docker for CI/CD (uses testcontainers on remote Docker)
+USE_REMOTE_DOCKER=true \
+REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375 \
 pytest
 ```
 
 ### 2. Centralize Configuration in Fixtures
 
-Keep all environment-specific logic in `conftest.py` fixtures:
+Keep all testcontainer configuration logic in `conftest.py` fixtures:
 
 ```python
 @pytest.fixture(scope="session")
-def postgres_service(use_external_services):
-    """Provide PostgreSQL connection configuration."""
-    if use_external_services:
-        # Configuration from environment variables
+def postgres_service():
+    """Provide PostgreSQL testcontainer configuration."""
+    # Always use testcontainers for consistent test environments
+    from testcontainers.postgres import PostgresContainer
+
+    postgres = None
+    try:
+        postgres = PostgresContainer("postgres:16")
+        postgres.start()
         yield {
-            "host": os.environ.get("POSTGRES_HOST", "localhost"),
-            "port": int(os.environ.get("POSTGRES_PORT", "5432")),
-            # ... other config
+            "host": postgres.get_container_host_ip(),
+            "port": postgres.get_exposed_port(5432),
+            "user": postgres.username,
+            "password": postgres.password,
+            "database": postgres.dbname,
         }
-    else:
-        # Use testcontainers
-        with PostgresContainer("postgres:16") as postgres:
-            yield {
-                "host": postgres.get_container_host_ip(),
-                "port": postgres.get_exposed_port(5432),
-                # ... other config
-            }
+    finally:
+        if postgres:
+            postgres.stop()
 ```
 
-### 3. Write Environment-Agnostic Tests
+### 3. Write Testcontainer-Based Integration Tests
 
-Tests should only care about the service configuration, not where it comes from:
+Integration tests should use testcontainer fixtures for reliable, isolated testing:
 
 ```python
 async def test_postgres_connection(postgres_service):
-    """Test PostgreSQL connection - works in any environment."""
+    """Test PostgreSQL connection using testcontainer configuration."""
     config = postgres_service
-    # Use config without caring if it's from testcontainers or external service
+    # Use testcontainer configuration for consistent test environment
     postgres_url = f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
     # ... test logic
 ```
@@ -99,36 +97,40 @@ services:
 **Pros**: Consistent environment everywhere  
 **Cons**: Slower in CI, requires Docker-in-Docker
 
-### 2. Separate Test Suites
+### 2. Organized Test Structure
 
-Maintain separate test files for different environments:
+Maintain a clean separation between unit and integration tests:
 
 ```
 tests/
-  unit/
-  integration_local/    # Uses testcontainers
-  integration_ci/       # Uses external services
+  unit/           # Fast tests with mocked dependencies
+  integration/    # Tests with real testcontainers
 ```
 
-**Pros**: Clear separation  
-**Cons**: Code duplication, maintenance overhead
+**Benefits**: 
+- Clear separation of concerns
+- Fast unit tests for development
+- Reliable integration tests with real services
 
-### 3. Test Profiles
+### 3. Test Categories
 
-Use pytest markers and configuration files:
+Use pytest markers for different test types:
 
 ```python
-@pytest.mark.local
-async def test_with_testcontainers():
-    # ...
+@pytest.mark.unit
+async def test_business_logic():
+    # Fast test with mocked dependencies
+    pass
 
-@pytest.mark.ci
-async def test_with_external_services():
-    # ...
+@pytest.mark.integration  
+async def test_with_real_database(postgres_service):
+    # Test with real testcontainer database
+    pass
 ```
 
-**Pros**: Flexible test selection  
-**Cons**: Still has environment logic in tests
+**Benefits**: 
+- Flexible test selection (`pytest -m unit` for fast feedback)
+- Consistent testcontainer usage for integration tests
 
 ## Recommended Setup
 
@@ -152,11 +154,15 @@ async def test_with_external_services():
 
 ```yaml
 - name: Run integration tests
+  run: |
+    # Tests automatically use testcontainers
+    pytest tests/integration/
+    
+# Optional: Use remote Docker for testcontainers
+- name: Run tests with remote Docker
   env:
-    USE_EXTERNAL_SERVICES: true
-    POSTGRES_HOST: localhost
-    POSTGRES_PORT: 5432
-    # ... other config
+    USE_REMOTE_DOCKER: true
+    REMOTE_DOCKER_HOST: tcp://192.168.2.202:2375
   run: |
     pytest tests/integration/
 ```
@@ -165,11 +171,12 @@ async def test_with_external_services():
 
 ```yaml
 test:
-  variables:
-    USE_EXTERNAL_SERVICES: "true"
-    POSTGRES_HOST: postgres
+  # Tests automatically use testcontainers  
+  image: python:3.11
   services:
-    - postgres:16
+    - docker:dind  # Enable Docker-in-Docker for testcontainers
+  variables:
+    DOCKER_HOST: tcp://docker:2375
   script:
     - pytest tests/integration/
 ```

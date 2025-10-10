@@ -16,8 +16,8 @@ import argparse
 import logging
 import sys
 
-from .agent_config import AGENT_DEPENDENCIES, AGENT_PRIORITY
-from .launcher import AVAILABLE_AGENTS, run
+from src.agents.agent_config import AGENT_DEPENDENCIES, AGENT_PRIORITY
+from src.agents.launcher import AVAILABLE_AGENTS, run
 
 logger = logging.getLogger(__name__)
 

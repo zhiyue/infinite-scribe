@@ -28,7 +28,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 功能名称：!`echo "$ARGUMENTS" | awk '{print $1}' | head -1`
 
 - 任务文档：!`ls -la .tasks/$ARGUMENTS/tasks.md 2>/dev/null || echo "Tasks not found - run spec-task:tasks first"`
-- 低层设计：!`ls -la .tasks/$ARGUMENTS/design-lld.md 2>/dev/null || echo "LLD not found"`
+- 低层设计：!`ls -la .tasks/$ARGUMENTS/lld/ 2>/dev/null || echo "LLD directory not found"`
 - 规范元数据：!`cat .tasks/$ARGUMENTS/spec.json 2>/dev/null | grep "tasks_approved" || echo "Tasks not approved"`
 
 ### 现有规划检查
@@ -47,7 +47,7 @@ argument-hint: <feature-name> [-y] [--refresh]
 
 #### 1.1 扫描技术组件
 
-从 `.tasks/$ARGUMENTS/design-lld.md` 中识别：
+从 `.tasks/$ARGUMENTS/lld/` 目录中的设计文档识别：
 
 - 编程语言和版本要求
 - 框架和主要库（FastAPI、SQLAlchemy、React、Vue等）

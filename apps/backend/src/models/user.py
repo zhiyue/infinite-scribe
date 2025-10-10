@@ -11,6 +11,7 @@ from src.models.base import BaseModel  # 假设你有一个 BaseModel
 
 if TYPE_CHECKING:
     from src.models.email_verification import EmailVerification
+    from src.models.novel import Novel
     from src.models.session import Session
 
 
@@ -50,6 +51,7 @@ class User(BaseModel):
     email_verifications: Mapped[list[EmailVerification]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    novels: Mapped[list[Novel]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     # Indexes for performance
     __table_args__ = (

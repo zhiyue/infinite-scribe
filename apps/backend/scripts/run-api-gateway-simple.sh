@@ -20,4 +20,4 @@ export SERVICE_TYPE="api-gateway"
 export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 # 运行 API Gateway
-uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug

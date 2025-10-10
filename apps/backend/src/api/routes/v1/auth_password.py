@@ -13,8 +13,8 @@ from src.api.schemas import (
     PasswordStrengthResponse,
     ResetPasswordRequest,
 )
-from src.common.services.password_service import PasswordService
-from src.common.services.user_service import UserService
+from src.common.services.user.password_service import PasswordService
+from src.common.services.user.user_service import UserService
 from src.database import get_db
 from src.middleware.auth import get_current_user
 from src.models.user import User

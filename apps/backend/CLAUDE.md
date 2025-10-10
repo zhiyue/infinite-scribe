@@ -10,7 +10,7 @@ This file provides guidance for Claude Code when working with the backend codeba
 - **Database ORM**: SQLAlchemy 2.0 with typed relationships
 - **Package Manager**: `uv` for dependency management
 - **Code Quality**: Ruff (linting/formatting), mypy (type checking)
-- **Testing**: pytest with testcontainers for integration tests
+- **Testing**: pytest with **mandatory testcontainers** for all database integration tests
 
 ### Service Architecture
 
@@ -18,7 +18,8 @@ InfiniteScribe backend uses a unified service architecture with:
 
 - **API Gateway** (`src/api/`): FastAPI application with authentication and routing
 - **Agent Services** (`src/agents/`): AI agents for different novel writing tasks
-- **Shared Services** (`src/common/services/`): Business logic and external integrations
+- **Shared Services** (`src/common/services/`): Business logic services
+- **External Clients** (`src/external/clients/`): External service adapters (Clean/Hexagonal architecture)
 - **Database Layer** (`src/db/`): Multi-database connection management
 
 ### Directory Structure
@@ -54,17 +55,26 @@ apps/backend/src/
 │   └── ...               # Other domain schemas
 ├── common/
 │   ├── services/         # Business Logic Services
-│   │   ├── postgres_service.py     # PostgreSQL connection
-│   │   ├── redis_service.py        # Redis cache/sessions
-│   │   ├── neo4j_service.py        # Neo4j graph database
 │   │   ├── jwt_service.py          # JWT token management
 │   │   ├── user_service.py         # User business logic
-│   │   └── ...                     # Other services
+│   │   ├── email_service.py        # Email service
+│   │   ├── novel_service.py        # Novel business logic
+│   │   └── ...                     # Other business services
 │   └── utils/            # Shared utilities
-├── db/                   # Database Infrastructure
-│   ├── sql/              # PostgreSQL connections
-│   ├── graph/            # Neo4j connections
-│   └── vector/           # Vector database (future)
+├── external/             # External Service Clients (Clean/Hexagonal Architecture)
+│   └── clients/          # External service adapters
+│       ├── base_http.py       # Base HTTP client with retry/monitoring
+│       ├── errors.py          # Exception definitions for external services
+│       ├── embedding_client.py # Embedding API client
+│       └── __init__.py        # Unified exports
+├── db/                   # Database Infrastructure Layer
+│   ├── sql/              # PostgreSQL connections & services
+│   │   └── service.py    # PostgreSQL connection service
+│   ├── redis/            # Redis connections & services
+│   │   └── service.py    # Redis connection service
+│   ├── graph/            # Neo4j connections & services
+│   │   └── service.py    # Neo4j connection service
+│   └── vector/           # Vector database connections
 ├── middleware/           # FastAPI middleware
 └── core/                 # Core configuration
     ├── config.py         # Settings management
@@ -350,7 +360,7 @@ async def test_create_user():
 
 ### 2. Integration Tests
 
-Test with real database connections using testcontainers:
+**MANDATORY**: All integration tests involving databases MUST use testcontainers. Never use real external databases or mocked database connections for integration tests.
 
 ```python
 # tests/integration/test_user_endpoints.py
@@ -359,23 +369,52 @@ async def test_create_user_endpoint(test_client, test_db):
     response = test_client.post("/api/v1/users", json=user_data)
     assert response.status_code == 201
 
-    # Verify in database
+    # Verify in database (using testcontainer)
     user = await test_db.get_user_by_email(user_data["email"])
     assert user is not None
 ```
 
+**Why testcontainers are required**:
+- Ensures tests run against real database behavior
+- Prevents inconsistencies between mocked and actual database responses
+- Provides isolation between test runs
+- Catches database-specific issues (constraints, transactions, etc.)
+
 ### 3. Test Configuration
 
-Use `conftest.py` for shared test fixtures:
+Use `conftest.py` for shared testcontainer fixtures. **All database fixtures MUST use testcontainers**:
 
 ```python
 # tests/conftest.py
+import pytest
+from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
+
+@pytest.fixture(scope="session")
+async def postgres_container():
+    """PostgreSQL testcontainer for integration tests."""
+    with PostgresContainer("postgres:15") as postgres:
+        yield postgres
+
+@pytest.fixture(scope="session")
+async def redis_container():
+    """Redis testcontainer for integration tests."""
+    with RedisContainer("redis:7-alpine") as redis:
+        yield redis
+
 @pytest.fixture
-async def test_db():
-    # Setup test database container
-    # Return database session
-    # Cleanup after test
+async def test_db(postgres_container):
+    """Database session using testcontainer."""
+    # Setup database session from container
+    # Return session for tests
+    # Cleanup automatically handled by testcontainer
 ```
+
+**Testcontainer Requirements**:
+- Use appropriate container versions matching production
+- Clean up containers automatically after tests
+- Isolate each test with fresh database state
+- Never use real external database connections in tests
 
 ## Configuration Management
 
@@ -405,6 +444,51 @@ For complex configurations, use TOML files:
 config = load_toml_config("config.toml")
 ```
 
+## External Service Integration
+
+### External Client Pattern
+
+External service clients follow Clean/Hexagonal architecture principles:
+
+```python
+# src/external/clients/my_service_client.py
+from .base_http import BaseHttpClient
+from .errors import ServiceValidationError, handle_http_error
+
+class MyServiceClient(BaseHttpClient):
+    def __init__(self, base_url: str = None):
+        super().__init__(base_url or settings.my_service_url)
+    
+    async def call_api(self, data: dict) -> dict:
+        try:
+            response = await self.post("/api/endpoint", json_data=data)
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise handle_http_error("MyService", e) from e
+```
+
+### Best Practices
+
+- **Inherit from BaseHttpClient** for consistent retry/timeout/monitoring
+- **Use structured error handling** with service-specific exceptions
+- **Implement health checks** for service discovery
+- **Create module-level instances** for backward compatibility
+- **Follow naming convention**: `{Service}Client` class, `{service}_client` instance
+
+### Testing Strategy
+
+1. **Unit Tests**: Mock HTTP responses, test logic/error handling
+2. **Integration Tests**: Use testcontainers or real service endpoints 
+3. **Contract Tests**: Validate API contracts remain compatible
+
+### Adding New External Client
+
+1. Create client class inheriting from `BaseHttpClient`
+2. Implement service-specific methods with proper error handling
+3. Add exports to `src/external/clients/__init__.py`
+4. Write comprehensive unit tests
+5. Consider integration tests for critical services
+
 ## Common Development Tasks
 
 ### Adding New API Endpoint
@@ -412,7 +496,7 @@ config = load_toml_config("config.toml")
 1. Create route in `src/api/routes/v1/`
 2. Define schemas in `src/schemas/`
 3. Implement business logic in `src/common/services/`
-4. Add tests in `tests/unit/api/` and `tests/integration/api/`
+4. Add tests in `tests/unit/api/` and `tests/integration/api/` (**use testcontainers for integration tests**)
 5. Update API documentation
 
 ### Adding New Database Model
@@ -422,7 +506,7 @@ config = load_toml_config("config.toml")
 3. Apply migration: `alembic upgrade head`
 4. Create corresponding schemas
 5. Add service methods
-6. Write tests
+6. Write tests (**integration tests MUST use testcontainers**)
 
 ### Adding New Agent
 
@@ -451,17 +535,62 @@ config = load_toml_config("config.toml")
 2. **Database connection**: Verify services are running (`pnpm check services`)
 3. **Migration conflicts**: Use `alembic merge` for branch conflicts
 4. **Test failures**: Ensure test database is clean between runs
+5. **Backend logs**: Check `apps/backend/logs/is-launcher_YYYYMMDD.log` (e.g., `is-launcher_20250919.log` for current date)
+6. **Testcontainer issues**:
+   - Docker daemon not running: Start Docker Desktop or Docker service
+   - Permission errors: Ensure user is in docker group (Linux)
+   - Port conflicts: Let testcontainers auto-assign ports
+   - Container startup timeouts: Increase timeout in test configuration
+   - Memory issues: Ensure sufficient Docker memory allocation
 
 ### Logging
 
-```python
-import logging
-logger = logging.getLogger(__name__)
+Use the structured logging system provided in `src/core/logging`:
 
-# In service methods
-logger.info(f"Creating user: {user_data.username}")
-logger.error(f"Failed to create user: {error}")
+```python
+from src.core.logging import get_logger, bind_request_context, bind_service_context
+
+# Get structured logger
+logger = get_logger(__name__)
+
+# In API routes - bind request context
+@router.post("/users")
+async def create_user(request: Request, user_data: UserCreate):
+    bind_request_context(
+        request_id=str(uuid.uuid4()),
+        user_id=getattr(request.state, "user_id", None),
+        endpoint="/users"
+    )
+    
+    logger.info("Creating user", username=user_data.username)
+    try:
+        result = await user_service.create_user(user_data)
+        logger.info("User created successfully", user_id=result.id)
+        return result
+    except Exception as error:
+        logger.error("Failed to create user", error=str(error), username=user_data.username)
+        raise
+
+# In service classes - bind service context  
+class UserService:
+    def __init__(self):
+        bind_service_context(
+            service="api-gateway", 
+            component="user-service",
+            version="1.0.0"
+        )
+        self.logger = get_logger(__name__)
+    
+    async def create_user(self, user_data: UserCreate) -> User:
+        self.logger.info("Processing user creation", username=user_data.username)
+        # Business logic here
 ```
+
+**Key Benefits**:
+- Structured JSON logging with consistent formatting
+- Automatic context propagation (request_id, user_id, etc.)
+- Better integration with monitoring and log aggregation systems
+- Type-safe logging interface
 
 ### Performance Monitoring
 

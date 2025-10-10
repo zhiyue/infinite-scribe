@@ -21,7 +21,6 @@ Key Benefits:
 
 import asyncio
 import json
-import logging
 from collections.abc import AsyncIterator
 
 import redis.asyncio as redis
@@ -30,11 +29,12 @@ from redis.asyncio.client import PubSub
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
-from src.common.services.redis_service import RedisService
 from src.core.config import settings
+from src.core.logging import get_logger
+from src.db.redis import RedisService
 from src.schemas.sse import EventScope, SSEMessage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Constants
 SSE_TIMEOUT = 30.0
@@ -87,10 +87,15 @@ class RedisSSEService:
             try:
                 await self._pubsub_client.close()
             except Exception as e:
-                logger.warning(f"Error closing existing pubsub client: {e}")
+                logger.warning("Error closing existing pubsub client", error=str(e))
             finally:
                 self._pubsub_client = None
 
+        logger.info(
+            "Initializing Redis Pub/Sub client",
+            host=settings.database.redis_host,
+            port=settings.database.redis_port,
+        )
         self._pubsub_client = redis.from_url(
             settings.database.redis_url,
             decode_responses=True,
@@ -99,12 +104,21 @@ class RedisSSEService:
             socket_timeout=30,
             retry_on_timeout=True,
         )
+        try:
+            await self._pubsub_client.ping()
+            logger.info("Redis Pub/Sub ping successful")
+        except Exception as e:
+            logger.warning(f"Redis Pub/Sub ping failed: {e}")
 
     async def close(self) -> None:
         """Close Pub/Sub client during app shutdown."""
         if self._pubsub_client:
-            await self._pubsub_client.close()
-            self._pubsub_client = None
+            try:
+                await self._pubsub_client.close()
+            except Exception as e:
+                logger.warning("Error closing pubsub client during shutdown", error=str(e))
+            finally:
+                self._pubsub_client = None
 
     async def check_health(self) -> bool:
         """
@@ -160,29 +174,97 @@ class RedisSSEService:
 
     async def publish_event(self, user_id: str, event: SSEMessage) -> str:
         """Publish event to user channel via Streams + Pub/Sub architecture."""
-        client: Redis = self._get_pubsub_client()
+        logger.info(
+            "📤 Publishing SSE event",
+            extra={
+                "user_id": user_id,
+                "event_type": event.event,
+                "event_scope": event.scope.value if event.scope else None,
+                "event_id": event.id,
+                "has_data": bool(event.data),
+                "data_size": len(json.dumps(event.data, default=str)) if event.data else 0,
+            },
+        )
 
-        stream_key = f"events:user:{user_id}"
-        channel = f"sse:user:{user_id}"
+        try:
+            client: Redis = self._get_pubsub_client()
 
-        # Add to stream for persistence
-        async with self.redis_service.acquire() as redis_client:
-            stream_id = await redis_client.xadd(
-                stream_key,
-                {"event": event.event, "data": json.dumps(event.data, ensure_ascii=False, default=str)},
-                maxlen=settings.database.redis_sse_stream_maxlen,
-                approximate=True,
+            stream_key = f"events:user:{user_id}"
+            channel = f"sse:user:{user_id}"
+
+            logger.debug(
+                "📝 Preparing Redis operations",
+                extra={
+                    "user_id": user_id,
+                    "stream_key": stream_key,
+                    "channel": channel,
+                    "maxlen": settings.database.redis_sse_stream_maxlen,
+                },
             )
 
-        # Set event ID for consistency
-        event.id = stream_id
+            # Add to stream for persistence
+            async with self.redis_service.acquire() as redis_client:
+                logger.debug(
+                    "💾 Adding event to Redis stream",
+                    extra={"user_id": user_id, "stream_key": stream_key, "event_type": event.event},
+                )
 
-        # Publish pointer for real-time notification
-        await client.publish(channel, json.dumps({"stream_key": stream_key, "stream_id": stream_id}))
+                stream_id = await redis_client.xadd(
+                    stream_key,
+                    {"event": event.event, "data": json.dumps(event.data, ensure_ascii=False, default=str)},
+                    maxlen=settings.database.redis_sse_stream_maxlen,
+                    approximate=True,
+                )
 
-        return stream_id
+                logger.debug(
+                    "✅ Event added to stream",
+                    extra={
+                        "user_id": user_id,
+                        "stream_key": stream_key,
+                        "stream_id": stream_id,
+                        "event_type": event.event,
+                    },
+                )
 
-    async def subscribe_user_events(self, user_id: str) -> AsyncIterator[SSEMessage]:
+            # Set event ID for consistency
+            event.id = stream_id
+
+            # Publish pointer for real-time notification
+            pointer_data = {"stream_key": stream_key, "stream_id": stream_id}
+
+            logger.debug(
+                "📡 Publishing real-time notification",
+                extra={"user_id": user_id, "channel": channel, "stream_id": stream_id, "pointer_data": pointer_data},
+            )
+
+            await client.publish(channel, json.dumps(pointer_data))
+
+            logger.info(
+                "✅ SSE event published successfully",
+                extra={
+                    "user_id": user_id,
+                    "event_type": event.event,
+                    "stream_id": stream_id,
+                    "stream_key": stream_key,
+                    "channel": channel,
+                },
+            )
+
+            return stream_id
+
+        except Exception as e:
+            logger.error(
+                "❌ Failed to publish SSE event",
+                extra={"user_id": user_id, "event_type": event.event, "error": str(e), "error_type": type(e).__name__},
+            )
+            raise
+
+    async def subscribe_user_events(
+        self,
+        user_id: str,
+        last_event_id: str | None = None,
+        stop_event: asyncio.Event | None = None,
+    ) -> AsyncIterator[SSEMessage]:
         """
         Subscribe to real-time user events with connection resilience.
 
@@ -192,38 +274,112 @@ class RedisSSEService:
         - Graceful error handling
         - Proper resource cleanup to prevent memory leaks
         """
+        logger.info(f"📡 Starting subscription for user {user_id}, last_event_id={last_event_id}")
+
         max_retries = 3
         retry_delay = 1  # Initial delay in seconds
         retry_count = 0
+
+        current_last_event_id = last_event_id if last_event_id not in {None, "-"} else None
 
         while retry_count < max_retries:
             pubsub = None
             channel = f"sse:user:{user_id}"
 
+            logger.debug(f"🔔 Attempting to subscribe to channel: {channel}, retry={retry_count}")
+
             try:
                 # Get or reconnect to Pub/Sub client
                 client: Redis = self._get_pubsub_client()
+                logger.debug(f"✅ Got Pub/Sub client for user {user_id}")
+
                 pubsub = client.pubsub()
                 await pubsub.subscribe(channel)
+
+                logger.debug(f"✅ Successfully subscribed to channel {channel}")
 
                 # Reset retry count on successful connection
                 retry_count = 0
                 retry_delay = 1
 
+                # Flush any events that may have arrived after history replay but before
+                # the Pub/Sub subscription was ready. This narrows the race window where
+                # events could otherwise be missed.
+                if current_last_event_id:
+                    logger.debug(f"🔄 Checking for pending events since {current_last_event_id}")
+                    try:
+                        pending_events = await self.get_recent_events(user_id, since_id=current_last_event_id)
+                        pending_count = 0
+                    except Exception as gap_error:  # pragma: no cover - defensive logging
+                        logger.warning(
+                            "Failed to fetch catch-up events after subscribe",
+                            extra={
+                                "user_id": user_id,
+                                "last_event_id": current_last_event_id,
+                                "error": str(gap_error),
+                            },
+                        )
+                    else:
+                        for pending_event in pending_events:
+                            if pending_event.id == current_last_event_id:
+                                continue
+
+                            current_last_event_id = pending_event.id
+                            pending_count += 1
+                            logger.debug(f"📤 Yielding pending event #{pending_count}: {pending_event.event}")
+                            yield pending_event
+
+                        if pending_count > 0:
+                            logger.info(f"✅ Flushed {pending_count} pending events for user {user_id}")
+
+                restart_reason = None
                 try:
-                    # Consume messages directly from the async iterator to avoid
-                    # repeatedly timing out and cancelling __anext__(), which can
-                    # accumulate pending tasks and increase memory usage.
-                    async for message in pubsub.listen():
-                        if message.get("type") != "message":
+                    # Consume messages with cooperative stop support
+                    logger.debug(f"🎯 Starting to listen for messages on channel {channel}")
+                    message_count = 0
+
+                    # Single code path: poll via get_message to avoid cancelling __anext__ repeatedly
+
+                    while True:
+                        if stop_event is not None and stop_event.is_set():
+                            restart_reason = "stop_event"
+                            logger.info(f"🛑 Stop signal received for user {user_id}, breaking listen loop")
+                            break
+
+                        try:
+                            message = await asyncio.wait_for(
+                                pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0),
+                                timeout=1.2,
+                            )
+                            if not message:
+                                continue
+                        except TimeoutError:
                             continue
+                        except StopAsyncIteration:  # pragma: no cover - defensive
+                            restart_reason = "listen_stopped"
+                            break
+
+                        message_type = message.get("type")
+                        logger.debug(f"📥 Received message type '{message_type}' on channel {channel}")
+
+                        if message_type not in {"message", "pmessage"}:
+                            logger.debug(f"⏭️ Skipping non-message type: {message_type}")
+                            continue
+
+                        message_count += 1
+                        logger.debug(f"📨 Processing message #{message_count} for user {user_id}")
 
                         event = await self._process_pointer_message(message, user_id)
                         if event:
+                            current_last_event_id = event.id or current_last_event_id
+                            logger.debug(f"📤 Yielding event: {event.event} (id={event.id}) to user {user_id}")
                             yield event
+                        else:
+                            logger.warning(f"⚠️ Failed to process message #{message_count} for user {user_id}")
 
                 except asyncio.CancelledError:
-                    logger.debug(f"Subscription cancelled for user {user_id}")
+                    restart_reason = "cancelled"
+                    logger.debug(f"🛑 Subscription cancelled for user {user_id} after {message_count} messages")
                     raise
 
             except RedisConnectionError as e:
@@ -235,6 +391,7 @@ class RedisSSEService:
                 logger.warning(
                     f"Pub/Sub connection error for user {user_id}, retry {retry_count}/{max_retries} in {retry_delay}s: {e}"
                 )
+                restart_reason = "redis_connection_error"
 
                 # Clean up the failed pubsub connection before retry
                 if pubsub:
@@ -254,16 +411,34 @@ class RedisSSEService:
 
             except RedisError as e:
                 logger.error(f"Redis error in subscription for user {user_id}: {e}")
+                restart_reason = "redis_error"
                 raise
 
             except Exception as e:
                 logger.error(f"Unexpected error in subscription for user {user_id}: {e}")
+                restart_reason = "unexpected_error"
                 raise
 
             finally:
                 # Always clean up pubsub resources
                 if pubsub:
+                    logger.debug(f"🧹 Cleaning up Pub/Sub resources for user {user_id}")
                     await self._safe_cleanup(pubsub, channel, user_id)
+                # Diagnostic: log restart reason for subscription loop
+                logger.debug(
+                    "🔁 Subscription loop restarting",
+                    extra={
+                        "user_id": user_id,
+                        "channel": channel,
+                        "reason": restart_reason or "loop_continue",
+                        "retry_count": retry_count,
+                    },
+                )
+
+            # Check stop event outside of finally block to avoid suppressing exceptions
+            if stop_event is not None and stop_event.is_set():
+                logger.info(f"🛑 Stop signal honored for user {user_id}, exiting subscription loop")
+                break
 
     async def _process_pointer_message(self, message: dict, user_id: str) -> SSEMessage | None:
         """Process a pointer message and return the SSE event."""

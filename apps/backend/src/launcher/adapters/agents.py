@@ -48,7 +48,7 @@ class AgentsAdapter(BaseAdapter):
             self._loaded_agents = agent_names
         else:
             # Default agents
-            self._loaded_agents = ["worldsmith", "plotmaster", "director", "writer"]
+            self._loaded_agents = ["orchestrator", "worldsmith", "plotmaster", "director", "writer"]
 
         logger.info("Loaded agents", agents=self._loaded_agents)
 

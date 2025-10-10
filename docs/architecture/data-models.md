@@ -2,6 +2,15 @@
 
 以下是本系统的核心数据模型定义。前端类型定义在 `apps/frontend/src/types/` 中，后端模型在 `apps/backend/src/models/` 中实现。属性主要存储在PostgreSQL，**特定于项目的知识图谱关系主要存储在Neo4j**。
 
+### Neo4j 版本与约定（统一）
+- 版本与插件：Neo4j 5.x，启用 `apoc`、`graph-data-science` 插件（见 `deploy/docker-compose.yml`）。
+- 节点ID映射：
+  - `novel_id`：存在于 `:Novel` 节点上，唯一标识小说（即PG `novels.id`）。
+  - `app_id`：存在于除 `:Novel` 外的各类节点上，指向其在PostgreSQL中的主键ID（如 `chapters.id`、`characters.id` 等）。
+  - `novel_id`（推荐）：为提升查询性能与范围隔离，建议在所有核心节点上冗余 `novel_id` 字段（并创建索引），用于快速按小说范围过滤。
+- 查询规范：所有 Cypher 查询必须显式绑定到某个 `novel_id` 的范围（参考 `docs/architecture/coding-standards.md` 第9条）。
+- 语法：索引与约束采用 Neo4j 5.x 语法（`IF NOT EXISTS`、`REQUIRE ... IS UNIQUE`）。
+
 ## AgentActivity (活动日志) - PostgreSQL
 
 *   **目的:** 记录系统中由智能体执行的每一个有意义的事件或操作。
@@ -48,7 +57,7 @@
       updated_at: Date; // 最后更新时间
     }
     ```
-*   **Neo4j Node `:Novel` 核心属性:** `app_id: string` (对应PG的 `novels.id`), `title: string`。
+*   **Neo4j Node `:Novel` 核心属性:** `novel_id: string` (对应PG的 `novels.id`，唯一), `title: string`。
 
 ## Chapter (章节) - PostgreSQL & Neo4j Node :Chapter
 
@@ -69,8 +78,8 @@
       updated_at: Date; // 最后更新时间
     }
     ```
-*   **Neo4j Node `:Chapter` 核心属性:** `app_id: string` (对应PG的 `chapters.id`), `chapter_number: integer`, `title: string`。
-*   **Neo4j关系示例:** `(:Chapter {app_id: 'chapter_uuid'})-[:BELONGS_TO_NOVEL]->(:Novel {app_id: 'novel_uuid'})`
+*   **Neo4j Node `:Chapter` 核心属性:** `app_id: string` (对应PG的 `chapters.id`), `novel_id: string`, `chapter_number: integer`, `title: string`。
+*   **Neo4j关系示例:** `(:Chapter {app_id: 'chapter_uuid'})-[:BELONGS_TO_NOVEL]->(:Novel {novel_id: 'novel_uuid'})`
 
 ## ChapterVersion (章节版本) - PostgreSQL
 
@@ -194,7 +203,7 @@
       updated_at: Date; // 最后更新时间
     }
     ```
-*   **Neo4j Node `:StoryArc` 核心属性:** `app_id: string` (对应PG的 `story_arcs.id`), `title: string`。
+*   **Neo4j Node `:StoryArc` 核心属性:** `app_id: string` (对应PG的 `story_arcs.id`), `novel_id: string`, `title: string`。
 *   **Neo4j关系示例:** `(:StoryArc)-[:PART_OF_NOVEL_PLOT]->(:Novel)`, `(:StoryArc)-[:PRECEDES_ARC]->(:StoryArc)`
 
 ## Neo4j 关系模型概念
@@ -210,3 +219,48 @@ Neo4j将用于存储**每个小说项目内部**的实体间的复杂关系，�
 *   **世界观条目间关系:**
     *   `(:WorldviewEntry {entry_type:"ORGANIZATION", name:"光明教会"})-[:HOSTILE_TO]->(:WorldviewEntry {entry_type:"ORGANIZATION", name:"暗影兄弟会"})`
     *   `(:WorldviewEntry {entry_type:"TECHNOLOGY", name:"曲速引擎"})-[:REQUIRES_MATERIAL]->(:WorldviewEntry {entry_type:"ITEM", name:"零点水晶"})`
+
+---
+
+## Neo4j 更新与对齐说明（与 ADR-005 同步）
+
+为与知识图谱ADR（混合模型：层级+网状）与当前代码基线对齐，补充如下规范：
+
+- 统一版本与插件：Neo4j 5.x；已启用 `apoc`、`graph-data-science`。
+- 节点ID映射：
+  - `:Novel` 节点使用 `novel_id`（唯一，对应PG `novels.id`）。
+  - 其他节点使用 `app_id`（对应各PG表主键）；推荐冗余 `novel_id` 便于范围过滤与索引。
+- 关系与标签建议：
+  - 角色关系统一为 `:RELATES_TO {kind, strength, since_chapter}` 或采用多关系类型（如 `:FRIEND_OF` 等），务必固定一套标准以便查询与索引。
+  - 世界观条目优先采用子标签：`WorldviewEntry:Location`、`WorldviewEntry:Organization`、`WorldviewEntry:Event` 等，避免完全依赖 `entry_type` 字段。
+  - 场景与事件：引入 `:Scene` 与 `:Event` 节点；`(:Scene)-[:TAKES_PLACE_AT]->(:WorldviewEntry:Location)`，`(:Character)-[:PARTICIPATES_IN]->(:Scene)`；`(:Event)-[:HAPPENS_IN]->(:Scene)`，`(:Event)-[:TRIGGERS]->(:Event)`，`(:Event)-[:AFFECTS]->(:Character)`。
+
+### 查询必须绑定 novel_id（示例）
+```cypher
+MATCH (n:Novel {novel_id: $novel_id})
+MATCH (c:Character {name: $name})<-[:FEATURES_CHARACTER]-(cv:ChapterVersion)-[:VERSION_OF]->(chap:Chapter)-[:BELONGS_TO_NOVEL]->(n)
+RETURN chap.chapter_number, chap.title
+ORDER BY chap.chapter_number;
+```
+
+### 索引与约束（Neo4j 5.x 语法）
+```cypher
+// 唯一性约束
+CREATE CONSTRAINT unique_novel_id IF NOT EXISTS FOR (n:Novel) REQUIRE n.novel_id IS UNIQUE;
+CREATE CONSTRAINT unique_chapter_app_id IF NOT EXISTS FOR (c:Chapter) REQUIRE c.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_character_app_id IF NOT EXISTS FOR (c:Character) REQUIRE c.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_worldview_app_id IF NOT EXISTS FOR (w:WorldviewEntry) REQUIRE w.app_id IS UNIQUE;
+CREATE CONSTRAINT unique_storyarc_app_id IF NOT EXISTS FOR (s:StoryArc) REQUIRE s.app_id IS UNIQUE;
+
+// 推荐：范围隔离索引（基于 novel_id）
+CREATE INDEX chapter_novel_id IF NOT EXISTS FOR (c:Chapter) ON (c.novel_id);
+CREATE INDEX character_novel_id IF NOT EXISTS FOR (c:Character) ON (c.novel_id);
+CREATE INDEX worldview_novel_id IF NOT EXISTS FOR (w:WorldviewEntry) ON (w.novel_id);
+CREATE INDEX storyarc_novel_id IF NOT EXISTS FOR (s:StoryArc) ON (s.novel_id);
+
+// 常用属性索引
+CREATE INDEX character_name IF NOT EXISTS FOR (c:Character) ON (c.name);
+CREATE INDEX worldview_name_type IF NOT EXISTS FOR (w:WorldviewEntry) ON (w.name, w.entry_type);
+```
+
+> 兼容性说明：早期文档/实现中 `:Novel` 可能使用 `app_id` 表示小说ID；自本规范起统一为 `novel_id`，并在所有查询中以 `MATCH (:Novel {novel_id: $novel_id})` 作为范围入口。

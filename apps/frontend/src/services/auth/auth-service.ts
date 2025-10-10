@@ -3,29 +3,49 @@
  * 基于依赖注入实现高内聚低耦合的架构
  */
 
+import type { AxiosError, AxiosRequestConfig } from 'axios'
 import type {
-  IAuthService,
-  ITokenManager,
-  IStorageService,
-  INavigationService,
-  IHttpClient,
-  IAuthApiClient,
-  AuthServiceConfig,
-  AuthDependencies,
-} from './types'
-import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
-  User,
-  ChangePasswordRequest,
-  ForgotPasswordRequest,
+  ResendVerificationRequest,
   ResetPasswordRequest,
   UpdateProfileRequest,
-  ResendVerificationRequest,
+  User,
 } from '../../types/auth'
 import { wrapApiResponse, type ApiSuccessResponse } from '../../utils/api-response'
+import { AppError, handleError, logError } from '../../utils/errorHandler'
+import type {
+  AuthDependencies,
+  AuthServiceConfig,
+  IAuthApiClient,
+  IAuthService,
+  IHttpClient,
+  INavigationService,
+  ITokenManager,
+} from './types'
+
+/**
+ * 扩展的 Axios 配置接口，包含重试标志
+ */
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean
+}
+
+/**
+ * HTTP 错误接口 - 用于类型安全的错误处理
+ */
+interface HttpError extends Error {
+  config?: ExtendedAxiosRequestConfig
+  response?: {
+    status: number
+    data?: unknown
+  }
+  _retry?: boolean
+}
 
 /**
  * 重构后的认证服务实现
@@ -33,7 +53,6 @@ import { wrapApiResponse, type ApiSuccessResponse } from '../../utils/api-respon
  */
 export class AuthService implements IAuthService {
   private readonly tokenManager: ITokenManager
-  private readonly storageService: IStorageService
   private readonly navigationService: INavigationService
   private readonly httpClient: IHttpClient
   private readonly authApiClient: IAuthApiClient
@@ -44,7 +63,6 @@ export class AuthService implements IAuthService {
 
   constructor(dependencies: AuthDependencies) {
     this.tokenManager = dependencies.tokenManager
-    this.storageService = dependencies.storageService
     this.navigationService = dependencies.navigationService
     this.httpClient = dependencies.httpClient
     this.authApiClient = dependencies.authApiClient
@@ -69,7 +87,7 @@ export class AuthService implements IAuthService {
       }
 
       return wrapApiResponse<LoginResponse>(response, 'Login successful')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -81,7 +99,7 @@ export class AuthService implements IAuthService {
     try {
       const response = await this.authApiClient.register(data)
       return wrapApiResponse<RegisterResponse>(response, 'Registration successful')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -100,7 +118,7 @@ export class AuthService implements IAuthService {
       return wrapApiResponse<void>(undefined, 'Logged out successfully')
     } catch (error) {
       // 即使 API 调用失败，也要清理本地状态
-      console.warn('Logout API call failed:', error)
+      logError(handleError(error), 'Logout API call failed')
       return wrapApiResponse<void>(undefined, 'Logged out successfully')
     } finally {
       // 清理本地令牌和状态
@@ -115,7 +133,7 @@ export class AuthService implements IAuthService {
     try {
       const user = await this.authApiClient.getCurrentUser()
       return wrapApiResponse<User>(user, 'User profile retrieved successfully')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -127,7 +145,7 @@ export class AuthService implements IAuthService {
     try {
       const user = await this.authApiClient.updateProfile(data)
       return wrapApiResponse<User>(user, 'Profile updated successfully')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -139,7 +157,7 @@ export class AuthService implements IAuthService {
     try {
       await this.authApiClient.changePassword(data)
       return wrapApiResponse<void>(undefined, 'Password changed successfully')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -151,7 +169,7 @@ export class AuthService implements IAuthService {
     try {
       await this.authApiClient.forgotPassword(data)
       return wrapApiResponse<void>(undefined, 'Password reset email sent')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -163,7 +181,7 @@ export class AuthService implements IAuthService {
     try {
       await this.authApiClient.resetPassword(data)
       return wrapApiResponse<void>(undefined, 'Password reset successfully')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -175,7 +193,7 @@ export class AuthService implements IAuthService {
     try {
       await this.authApiClient.verifyEmail(token)
       return wrapApiResponse<void>(undefined, 'Email verified successfully')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -187,7 +205,7 @@ export class AuthService implements IAuthService {
     try {
       await this.authApiClient.resendVerification(data)
       return wrapApiResponse<void>(undefined, 'Verification email resent')
-    } catch (error: any) {
+    } catch (error) {
       throw this.handleApiError(error)
     }
   }
@@ -232,11 +250,9 @@ export class AuthService implements IAuthService {
       }
 
       this.isInitialized = true
-      if (this.config.enableDebugLogging) {
-        console.debug('AuthService initialized successfully')
-      }
+      // Debug logging handled by existing logging system
     } catch (error) {
-      console.error('Failed to initialize AuthService:', error)
+      logError(handleError(error), 'Failed to initialize AuthService')
     }
   }
 
@@ -255,25 +271,27 @@ export class AuthService implements IAuthService {
         }
         return config
       },
-      (error) => Promise.reject(error),
+      (error) => Promise.reject(error instanceof Error ? error : new Error(String(error))),
     )
 
     // 响应拦截器 - 处理 401 错误和令牌刷新
     this.httpClient.addResponseInterceptor(
       (response) => response,
-      async (error) => {
-        const originalRequest = error.config
+      async (error: AxiosError | HttpError) => {
+        // 类型安全的错误处理
+        const httpError = this.ensureHttpError(error)
+        const originalRequest = httpError.config as ExtendedAxiosRequestConfig
 
         // 如果没有配置信息，直接返回错误
         if (!originalRequest) {
-          throw error
+          return Promise.reject(new AppError('NETWORK_ERROR', httpError.message))
         }
 
         // 不要对认证端点进行令牌刷新
-        const isAuthEndpoint = this.isAuthEndpoint(originalRequest?.url)
+        const isAuthEndpoint = this.isAuthEndpoint(originalRequest.url)
 
         if (
-          error.response?.status === 401 &&
+          httpError.response?.status === 401 &&
           !originalRequest._retry &&
           !isAuthEndpoint &&
           this.isAuthenticated()
@@ -285,20 +303,65 @@ export class AuthService implements IAuthService {
 
             // 重试原始请求
             const token = this.tokenManager.getAccessToken()
-            if (token) {
+            if (token && originalRequest.headers && originalRequest.url) {
               originalRequest.headers.Authorization = `Bearer ${token}`
               return this.httpClient.get(originalRequest.url, originalRequest)
             }
           } catch (refreshError) {
             // 刷新失败，清理状态并重定向到登录页
             this.handleRefreshFailure()
-            return Promise.reject(refreshError)
+            return Promise.reject(handleError(refreshError))
           }
         }
 
-        return Promise.reject(error)
+        return Promise.reject(handleError(httpError))
       },
     )
+  }
+
+  /**
+   * 确保错误对象为 HttpError 类型
+   * @private
+   */
+  private ensureHttpError(error: unknown): HttpError {
+    if (this.isAxiosError(error)) {
+      return {
+        name: error.name || 'HttpError',
+        message: error.message,
+        config: error.config,
+        response: error.response
+          ? {
+              status: error.response.status,
+              data: error.response.data,
+            }
+          : undefined,
+        _retry: (error.config as ExtendedAxiosRequestConfig)?._retry,
+      }
+    }
+
+    if (error instanceof Error) {
+      return {
+        name: 'HttpError',
+        message: error.message,
+        config: undefined,
+        response: undefined,
+      }
+    }
+
+    return {
+      name: 'HttpError',
+      message: String(error),
+      config: undefined,
+      response: undefined,
+    }
+  }
+
+  /**
+   * 类型守卫：判断是否为 AxiosError
+   * @private
+   */
+  private isAxiosError(error: unknown): error is AxiosError {
+    return typeof error === 'object' && error !== null && 'config' in error && 'response' in error
   }
 
   /**
@@ -345,9 +408,7 @@ export class AuthService implements IAuthService {
    */
   private async executeTokenRefresh(): Promise<void> {
     try {
-      if (this.config.enableDebugLogging) {
-        console.debug('Refreshing access token...')
-      }
+      // Debug logging handled by existing logging system
 
       const refreshToken = this.tokenManager.getRefreshToken()
       const response = await this.authApiClient.refreshToken(refreshToken || undefined)
@@ -355,11 +416,9 @@ export class AuthService implements IAuthService {
       // 更新令牌
       this.tokenManager.setTokens(response.access_token, response.refresh_token)
 
-      if (this.config.enableDebugLogging) {
-        console.debug('Token refresh successful')
-      }
+      // Debug logging handled by existing logging system
     } catch (error) {
-      console.error('Token refresh failed:', error)
+      logError(handleError(error), 'Token refresh failed')
       this.handleRefreshFailure()
       throw error
     }
@@ -381,9 +440,9 @@ export class AuthService implements IAuthService {
    * 统一 API 错误处理
    * @private
    */
-  private handleApiError(error: any): Error {
+  private handleApiError(error: unknown): AppError {
     // 保持与原 AuthService 的错误格式兼容
-    return error
+    return handleError(error)
   }
 
   /**
@@ -419,9 +478,7 @@ export class AuthService implements IAuthService {
     }
 
     this.isInitialized = false
-    if (this.config.enableDebugLogging) {
-      console.debug('AuthService destroyed')
-    }
+    // Debug logging handled by existing logging system
   }
 
   /**
@@ -438,5 +495,13 @@ export class AuthService implements IAuthService {
    */
   getExtendedApi(): IAuthApiClient {
     return this.authApiClient
+  }
+
+  /**
+   * 获取内部HTTP客户端（用于其他服务）
+   * 该客户端已配置认证拦截器，可以用于其他API调用
+   */
+  getHttpClient(): IHttpClient {
+    return this.httpClient
   }
 }

@@ -57,12 +57,28 @@ class GenesisStatus(str, Enum):
 class GenesisStage(str, Enum):
     """创世业务阶段枚举"""
 
-    CONCEPT_SELECTION = "CONCEPT_SELECTION"
-    STORY_CONCEPTION = "STORY_CONCEPTION"
+    INITIAL_PROMPT = "INITIAL_PROMPT"
     WORLDVIEW = "WORLDVIEW"
     CHARACTERS = "CHARACTERS"
     PLOT_OUTLINE = "PLOT_OUTLINE"
     FINISHED = "FINISHED"
+
+
+class StageStatus(str, Enum):
+    """阶段状态枚举"""
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    PAUSED = "PAUSED"
+
+
+class StageSessionStatus(str, Enum):
+    """阶段会话关联状态枚举"""
+
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    CLOSED = "CLOSED"
 
 
 class GenesisEventType(str, Enum):
@@ -108,9 +124,6 @@ class GenesisCommandType(str, Enum):
     SELECT_CONCEPT = "SELECT_CONCEPT"
     GENERATE_INSPIRATION = "GENERATE_INSPIRATION"
     PROVIDE_FEEDBACK = "PROVIDE_FEEDBACK"
-    CONFIRM_STAGE = "CONFIRM_STAGE"
-    NAVIGATE_TO_STAGE = "NAVIGATE_TO_STAGE"
-    FINISH_GENESIS = "FINISH_GENESIS"
     ABANDON_GENESIS = "ABANDON_GENESIS"
     PAUSE_GENESIS = "PAUSE_GENESIS"
     RESUME_GENESIS = "RESUME_GENESIS"
@@ -140,7 +153,9 @@ class OutboxStatus(str, Enum):
     """事件发件箱状态枚举"""
 
     PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
     SENT = "SENT"
+    FAILED = "FAILED"
 
 
 class HandleStatus(str, Enum):

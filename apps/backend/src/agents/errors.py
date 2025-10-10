@@ -7,4 +7,3 @@ class RetriableError(Exception):
 
 class NonRetriableError(Exception):
     """Errors that should not be retried and go directly to DLT."""
-

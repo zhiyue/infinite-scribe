@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from .adapters import AgentsAdapter, ApiAdapter, BaseAdapter
+from .adapters import AgentsAdapter, ApiAdapter, BaseAdapter, EventBridgeAdapter, RelayAdapter
 from .config import LauncherConfigModel
 from .errors import OrchestrationError
 from .types import ComponentType, ServiceStatus
@@ -132,6 +132,7 @@ class Orchestrator:
             graph = {
                 "agents": {"api"},  # agents depend on api
                 "api": set(),  # api has no dependencies
+                "relay": set(),  # relay runs independent of api
             }
         return graph
 
@@ -351,6 +352,8 @@ class Orchestrator:
                 "mode": self.config.default_mode,
                 # Pass launcher timeout down so adapter can show better errors within same window
                 "startup_timeout": getattr(self.config, "startup_timeout", 30),
+                # Align uvicorn graceful shutdown timeout with orchestrator stop_grace
+                "timeout_graceful_shutdown": getattr(self.config, "stop_grace", 10),
             }
             return ApiAdapter(cfg)
         if name == ComponentType.AGENTS.value:
@@ -360,6 +363,18 @@ class Orchestrator:
                 "ready_timeout": getattr(self.config.agents, "ready_timeout", None),
             }
             return AgentsAdapter(cfg)
+        if name == ComponentType.RELAY.value:
+            cfg = {
+                # For now no extra runtime parameters; relay reads Settings.relay
+                "ready_timeout": getattr(self.config, "startup_timeout", 0),
+            }
+            return RelayAdapter(cfg)
+        if name == ComponentType.EVENTBRIDGE.value:
+            cfg = {
+                # EventBridge reads configuration from Settings.eventbridge
+                "ready_timeout": getattr(self.config, "startup_timeout", 0),
+            }
+            return EventBridgeAdapter(cfg)
         return None
 
     async def update_service_health(self, service_name: str) -> None:

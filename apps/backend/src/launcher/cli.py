@@ -19,6 +19,8 @@ def main() -> None:
         level="INFO",
         output_format="auto",  # development uses console, production uses json
         enable_stdlib_bridge=True,
+        enable_file_logging=True,  # Enable file logging for shared logs
+        file_log_format="structured",  # Use structured format for better readability
     )
 
     # Bind service context for CLI component

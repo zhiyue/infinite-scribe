@@ -14,7 +14,7 @@ test.describe('密码重置流程', () => {
   let testUser: ReturnType<typeof generateTestUser>
   let apiClient: TestApiClient
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ _page, request }) => {
     loginPage = new LoginPage(page)
     forgotPasswordPage = new ForgotPasswordPage(page)
     resetPasswordPage = new ResetPasswordPage(page)
@@ -35,7 +35,7 @@ test.describe('密码重置流程', () => {
     }
   })
 
-  test('请求密码重置', async ({ page }) => {
+  test('请求密码重置', async ({ _page }) => {
     // 导航到忘记密码页面
     await forgotPasswordPage.navigate()
 
@@ -62,7 +62,7 @@ test.describe('密码重置流程', () => {
     expect(pageContent).toMatch(/Check your email|检查.*邮箱/i)
   })
 
-  test('请求密码重置 - 不存在的邮箱', async ({ page }) => {
+  test('请求密码重置 - 不存在的邮箱', async ({ _page }) => {
     await forgotPasswordPage.navigate()
 
     // 使用不存在的邮箱
@@ -75,7 +75,7 @@ test.describe('密码重置流程', () => {
     expect(message).toBeTruthy()
   })
 
-  test('密码重置表单验证', async ({ page }) => {
+  test('密码重置表单验证', async ({ _page }) => {
     await forgotPasswordPage.navigate()
 
     // 测试空邮箱 - 尝试提交空表单
@@ -99,8 +99,8 @@ test.describe('密码重置流程', () => {
     // 测试无效邮箱格式
     await forgotPasswordPage.requestPasswordReset('invalid-email')
     // 等待验证消息出现
-    const errorLocator = page.locator('.text-destructive, [role="alert"]')
-    await errorLocator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+    const _errorLocator = page.locator('.text-destructive, [role="alert"]')
+    await errorLocator.waitFor({ _state: 'visible', timeout: 2000 }).catch(() => {})
     // 检查错误消息或验证状态
     const emailError = await errorLocator.textContent().catch(() => null)
     if (emailError) {
@@ -112,7 +112,7 @@ test.describe('密码重置流程', () => {
     }
   })
 
-  test('重置密码 - 有效令牌', async ({ page, request }) => {
+  test('重置密码 - 有效令牌', async ({ _page, request }) => {
     // 请求密码重置
     await apiClient.requestPasswordReset(testUser.email)
 
@@ -150,7 +150,7 @@ test.describe('密码重置流程', () => {
     expect(pageContent).toMatch(/Password Reset Successful|密码重置成功/i)
 
     // 查找并点击登录按钮
-    const loginButton = page.locator('a:has-text("Sign in"), a:has-text("登录")')
+    const _loginButton = page.locator('a:has-text("Sign in"), a:has-text("登录")')
     await expect(loginButton).toBeVisible()
     await loginButton.click()
 
@@ -162,7 +162,7 @@ test.describe('密码重置流程', () => {
     await expect(page).toHaveURL(/\/(dashboard|home)/, { timeout: 15000 })
   })
 
-  test('重置密码 - 无效令牌', async ({ page }) => {
+  test('重置密码 - 无效令牌', async ({ _page }) => {
     // 使用无效令牌访问重置页面
     await resetPasswordPage.navigate('invalid-reset-token')
 
@@ -177,7 +177,7 @@ test.describe('密码重置流程', () => {
     )
   })
 
-  test('重置密码 - 过期令牌', async ({ page }) => {
+  test('重置密码 - 过期令牌', async ({ _page }) => {
     // 使用过期令牌访问重置页面
     await resetPasswordPage.navigate('expired-reset-token')
 
@@ -190,7 +190,7 @@ test.describe('密码重置流程', () => {
     expect(errorMessage).toMatch(/过期|expired|Invalid or expired|unexpected error|reset failed/i)
   })
 
-  test('重置密码 - 已使用的令牌', async ({ page }) => {
+  test('重置密码 - 已使用的令牌', async ({ _page }) => {
     // 使用已使用的令牌访问重置页面
     await resetPasswordPage.navigate('used-reset-token')
 
@@ -203,7 +203,7 @@ test.describe('密码重置流程', () => {
     expect(errorMessage).toMatch(/已使用|already used|Invalid or expired/i)
   })
 
-  test('新密码验证', async ({ page, request }) => {
+  test('新密码验证', async ({ _page, request }) => {
     // 请求密码重置
     await apiClient.requestPasswordReset(testUser.email)
 
@@ -237,7 +237,7 @@ test.describe('密码重置流程', () => {
     }
   })
 
-  test('密码确认验证', async ({ page, request }) => {
+  test('密码确认验证', async ({ _page, request }) => {
     // 请求密码重置
     await apiClient.requestPasswordReset(testUser.email)
 
@@ -263,7 +263,7 @@ test.describe('密码重置流程', () => {
     expect(errorMessage).toMatch(/密码.*不匹配|Passwords don't match/i)
   })
 
-  test('返回登录页链接', async ({ page }) => {
+  test('返回登录页链接', async ({ _page }) => {
     await forgotPasswordPage.navigate()
 
     // 等待页面加载完成
@@ -284,7 +284,7 @@ test.describe('密码重置流程', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test('密码重置后所有会话失效', async ({ page, browser, request }) => {
+  test('密码重置后所有会话失效', async ({ _page, browser, request }) => {
     // 在第一个浏览器上下文中登录
     const context1 = await browser.newContext()
     const page1 = await context1.newPage()
@@ -336,7 +336,7 @@ test.describe('密码重置流程', () => {
     await context1.close()
   })
 
-  test('密码重置邮件通知', async ({ page, request }) => {
+  test('密码重置邮件通知', async ({ _page, request }) => {
     // 请求密码重置
     await apiClient.requestPasswordReset(testUser.email)
 

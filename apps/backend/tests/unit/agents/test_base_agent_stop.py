@@ -13,7 +13,7 @@ class DummyAgent(BaseAgent):
         self.stop_calls = 0
 
     async def process_message(
-        self, message: dict[str, Any]
+        self, message: dict[str, Any], context: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:  # pragma: no cover - not used here
         return None
 

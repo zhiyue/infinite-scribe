@@ -1,7 +1,15 @@
 import { QueryClient } from '@tanstack/react-query'
 
 // 重试延迟策略
-function getRetryDelay(retryAttempt: number): number {
+function getRetryDelay(retryAttempt: number, error?: any): number {
+  // 对于限流错误，检查 Retry-After 头
+  if (error?.status === 429 && error?.headers?.['retry-after']) {
+    const retryAfter = parseInt(error.headers['retry-after'], 10)
+    if (!isNaN(retryAfter)) {
+      return retryAfter * 1000 // 转换为毫秒
+    }
+  }
+
   // 指数退避：1秒、2秒、4秒...
   return Math.min(1000 * 2 ** retryAttempt, 30000)
 }
@@ -46,17 +54,6 @@ export const queryClient = new QueryClient({
         // 检查是否应该重试
         if (!shouldRetryError(error)) {
           return false
-        }
-
-        // 对于限流错误，检查 Retry-After 头
-        if (error?.status === 429 && error?.headers?.['retry-after']) {
-          const retryAfter = parseInt(error.headers['retry-after'], 10)
-          if (!isNaN(retryAfter)) {
-            // 等待指定的时间后重试
-            return new Promise((resolve) => {
-              setTimeout(() => resolve(true), retryAfter * 1000)
-            })
-          }
         }
 
         // 普通错误：最多重试 3 次

@@ -1,0 +1,199 @@
+from __future__ import annotations
+
+import os
+from collections.abc import AsyncGenerator, Generator, Iterable, Iterator
+from typing import Any
+
+import pytest
+import sqlalchemy as sa
+from sqlalchemy import create_engine as create_sync_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio.engine import AsyncConnection
+from testcontainers.postgres import PostgresContainer
+
+
+# ---------- 1) 会话级容器 ----------
+@pytest.fixture(scope="session")
+def postgres_container() -> Generator[dict[str, str], Any, None]:
+    """
+    启动 Postgres testcontainer 并导出连接信息（host/port/user/password/db）。
+    """
+    image = os.getenv("TEST_PG_IMAGE", "postgres:16-alpine")
+    container = PostgresContainer(image=image)
+    # 如需自定义编码/时区/参数可用 with_env / with_command
+    # container = container.with_env("TZ", "UTC")
+
+    with container as c:
+        yield {
+            "host": c.get_container_host_ip(),
+            "port": c.get_exposed_port(5432),
+            "user": c.username,
+            "password": c.password,
+            "database": c.dbname,
+        }
+
+
+# ---------- 2) 运行 Alembic 迁移（会话一次） ----------
+def _build_urls(info: dict[str, str]) -> tuple[str, str]:
+    # async URL 供应用/测试使用；sync URL 供 Alembic 使用
+    async_url = (
+        f"postgresql+asyncpg://{info['user']}:{info['password']}" f"@{info['host']}:{info['port']}/{info['database']}"
+    )
+    sync_url = async_url.replace("+asyncpg", "")
+    return async_url, sync_url
+
+
+def _run_alembic_upgrade_head(sync_db_url: str) -> None:
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    # 假设项目根有 alembic.ini，脚本在 alembic/ 目录
+    project_root = Path(__file__).resolve().parents[3]
+    alembic_ini = project_root / "alembic.ini"
+
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("sqlalchemy.url", sync_db_url)
+
+    # Test database connection before running migrations
+    engine = create_sync_engine(sync_db_url, future=True)
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    engine.dispose()
+
+    # Run Alembic migrations to head
+    command.upgrade(cfg, "head")
+
+
+@pytest.fixture(scope="session")
+def migrated_database(postgres_container) -> Iterator[dict[str, str]]:
+    """
+    会话开始时对空库执行 Alembic 迁移到 head。
+    """
+    async_url, sync_url = _build_urls(postgres_container)
+    _run_alembic_upgrade_head(sync_url)
+    yield {"async_url": async_url, "sync_url": sync_url}
+
+
+# ---------- 3) 会话级 AsyncEngine ----------
+@pytest.fixture(scope="session")
+async def pg_engine(migrated_database) -> AsyncGenerator[AsyncEngine, None]:
+    engine = create_async_engine(
+        migrated_database["async_url"],
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+    )
+    try:
+        # 验证可用
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+# ---------- 4) 用例级会话 + 简单可靠的 TRUNCATE 隔离 ----------
+@pytest.fixture
+async def pg_session(pg_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """
+    每个用例一个 AsyncSession；用例前后 TRUNCATE 所有业务表，确保隔离。
+    注意：如果你有很多表，TRUNCATE 一样很快（且事务安全）。
+    """
+    async_session_maker = async_sessionmaker(
+        pg_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async with async_session_maker() as session:
+        # 用例前清理
+        await _truncate_all_tables(session)
+        yield session
+        # 用例后清理（双保险）
+        await _truncate_all_tables(session)
+
+
+async def _truncate_all_tables(session: AsyncSession) -> None:
+    # 查询所有 public 模式下的业务表（排除 alembic_version）
+    res = await session.execute(
+        text("""
+            SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename <> 'alembic_version'
+        """)
+    )
+    tables: list[str] = [r[0] for r in res.fetchall()]
+    if tables:
+        names = ", ".join(f'"{t}"' for t in tables)  # 引号避免大小写/关键字冲突
+        # RESTART IDENTITY 重置自增；CASCADE 处理外键
+        await session.execute(text(f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE"))
+    await session.commit()
+
+
+async def _truncate_all_tables_via_conn(conn: AsyncConnection, schemas: Iterable[str] = ("public",)) -> None:
+    """
+    用 engine/connection 层完成 TRUNCATE，避免占用 Session 的事务。
+    只要在 yield 前后调用即可。
+    """
+    # 收集需要清理的表
+    table_names: list[str] = []
+    for schema in schemas:
+        result = await conn.execute(
+            sa.text("SELECT tablename FROM pg_tables WHERE schemaname = :schema"),
+            {"schema": schema},
+        )
+        table_names.extend([f'{schema}."{row.tablename}"' for row in result])
+
+    if table_names:
+        # TRUNCATE + RESTART IDENTITY + CASCADE 基本满足测试环境清理诉求
+        stmt = "TRUNCATE " + ", ".join(table_names) + " RESTART IDENTITY CASCADE"
+        await conn.execute(sa.text(stmt))
+
+
+# ---------- 5) Non-transacted session for services that manage their own transactions ----------
+@pytest.fixture
+async def pg_session_no_transaction(pg_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """
+    1) 前置清理：用 engine 级连接（可设 AUTOCOMMIT）清理，不占用 Session 事务
+    2) 提供一个“干净且不持有外层事务”的 AsyncSession，让被测服务自行 session.begin()
+    3) 后置清理：同样用 engine 级连接清理
+    """
+    # —— 前置清理（不占用会话事务）——
+    async with pg_engine.connect() as conn:
+        # 对 TRUNCATE 这类 DDL/批量清理，常用做法是用 AUTOCOMMIT
+        autocommit_conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+        await _truncate_all_tables_via_conn(autocommit_conn)
+
+    # —— 创建全新会话（此时没有任何活动事务）——
+    async_session_maker = async_sessionmaker(
+        pg_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    session = async_session_maker()
+
+    try:
+        # 直接把“干净的会话”交给你的服务，由服务自行决定何时 session.begin()/commit()/rollback()
+        yield session
+    finally:
+        # 如果被测代码里还有“悬挂”的事务，这里兜底回滚，避免阻塞连接归还
+        if session.in_transaction():
+            await session.rollback()
+        await session.close()
+
+        # —— 后置清理（同样不占用会话事务）——
+        async with pg_engine.connect() as conn:
+            autocommit_conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+            await _truncate_all_tables_via_conn(autocommit_conn)
+
+
+# ---------- 6) Alias for backwards compatibility ----------
+@pytest.fixture
+async def postgres_test_session(pg_session: AsyncSession) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Alias for pg_session fixture for backwards compatibility with existing tests.
+    """
+    yield pg_session

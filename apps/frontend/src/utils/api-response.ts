@@ -4,8 +4,6 @@
  * 处理后端返回的不同格式，确保前端获得一致的响应结构
  */
 
-import type { ApiError } from '../types/auth'
-
 // 通用成功响应接口
 export interface ApiSuccessResponse<T = unknown> {
   success: true

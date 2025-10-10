@@ -25,6 +25,16 @@ class ChapterResponse(BaseSchema, TimestampMixin):
     version: int = Field(..., description="乐观锁版本号")
 
 
+class ChapterSummary(BaseSchema, TimestampMixin):
+    """章节摘要模型 - 用于列表展示"""
+
+    id: UUID = Field(..., description="章节唯一标识符")
+    novel_id: UUID = Field(..., description="所属小说的ID")
+    chapter_number: int = Field(..., description="章节序号")
+    title: str | None = Field(None, description="章节标题")
+    status: ChapterStatus = Field(..., description="章节当前状态")
+
+
 class ChapterVersionResponse(BaseSchema):
     """章节版本响应模型"""
 

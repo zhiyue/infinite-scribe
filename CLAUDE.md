@@ -163,6 +163,7 @@ When multiple valid approaches exist, choose based on:
 - Disable tests instead of fixing them
 - Commit code that doesn't compile
 - Make assumptions - verify with existing code
+- **Run backend processes proactively** - If you need to check backend status or debug issues, read the log files directly at `apps/backend/logs/is-launcher_YYYYMMDD.log` instead of starting processes
 
 **ALWAYS**:
 
@@ -170,6 +171,7 @@ When multiple valid approaches exist, choose based on:
 - Update plan documentation as you go
 - Learn from existing implementations
 - Stop after 3 failed attempts and reassess
+- **Check existing log files** when debugging backend issues rather than starting new processes
 
 # Project-Specific Information
 
@@ -338,6 +340,7 @@ pnpm check services:full --remote    # 完整健康检查 (开发服务器)
 - **Service connectivity**: Run `pnpm check services` (本地) 或 `pnpm check services --remote` (开发服务器)
 - **Build failures**: Try `pnpm infra down` then `pnpm infra up` to rebuild
 - **Test failures**: Use Docker containers (`pnpm test all`)
+- **Backend logs**: Check `apps/backend/logs/is-launcher_YYYYMMDD.log` (e.g., `is-launcher_20250919.log` for current date)
 - **Command not found**: Use `pnpm run` to see all available commands or `pnpm <target>` for specific help
 
 ### Getting Help
@@ -358,15 +361,6 @@ The file-analyzer agent is an expert in extracting and summarizing critical info
 
 The code-analyzer agent is an expert in code analysis, logic tracing, and vulnerability detection. It provides concise, actionable summaries that preserve essential information while dramatically reducing context usage.
 
-### 3. Always use the test-runner sub-agent to run tests and analyze the test results.
-
-Using the test-runner agent ensures:
-
-- Full test output is captured for debugging
-- Main conversation stays clean and focused
-- Context usage is optimized
-- All issues are properly surfaced
-- No approval dialogs interrupt the workflow
 
 ## Philosophy
 
@@ -379,7 +373,6 @@ Using the test-runner agent ensures:
 
 ### Testing
 
-- Always use the test-runner agent to execute tests.
 - Do not use mock services for anything ever.
 - Do not move on to the next test until the current test is complete.
 - If the test fails, consider checking if the test is structured correctly before deciding we need to refactor the codebase.

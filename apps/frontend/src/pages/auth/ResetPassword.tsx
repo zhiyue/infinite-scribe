@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 import { useResetPassword } from '../../hooks/useAuthMutations'
 import type { ResetPasswordFormData } from '../../types/auth'
@@ -35,7 +35,6 @@ const resetPasswordSchema = z
   })
 
 const ResetPasswordPage: React.FC = () => {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const resetPasswordMutation = useResetPassword()
   const [showPassword, setShowPassword] = useState(false)

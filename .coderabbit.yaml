@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# 参考：配置参考 & 工具清单（支持 ESLint、Ruff、Gitleaks、Yamllint、Hadolint、Actionlint 等）:contentReference[oaicite:1]{index=1}
+
+# —— 全局设置 —— #
+language: zh-CN # 让审查意见用中文输出  :contentReference[oaicite:2]{index=2}
+tone_instructions: '' # 可留空；需要更“严谨/克制”的语气可写一两句风格提示
+
+# —— 代码审查主配置 —— #
+reviews:
+  profile: assertive # 更积极、更“抠细节”的审查；嫌吵可改为 chill  :contentReference[oaicite:3]{index=3}
+  high_level_summary: true
+  commit_status: true
+  review_status: true
+  auto_title_placeholder: '@coderabbitai'
+
+  # 过滤无关/生成物，提升速度与信噪比  :contentReference[oaicite:4]{index=4}
+  path_filters:
+    - '!**/node_modules/**'
+    - '!**/dist/**'
+    - '!**/build/**'
+    - '!**/.next/**'
+    - '!**/.nuxt/**'
+    - '!**/storybook-static/**'
+    - '!**/coverage/**'
+    - '!**/.cache/**'
+    - '!**/__pycache__/**'
+    - '!**/.pytest_cache/**'
+    - '!**/.mypy_cache/**'
+    - '!**/.ruff_cache/**'
+    - '!**/*.min.*'
+    - '!**/*.map'
+
+  # 按路径追加“审查指南”，给 TS/前端与 Python/后端差异化标准  :contentReference[oaicite:5]{index=5}
+  path_instructions:
+    - path: 'apps/frontend/**'
+      instructions: |
+        【TypeScript/前端审查要点】
+        - 避免 `any`；尽量用精确类型与 `unknown` + 守卫；开启/遵守严格模式（strictNullChecks 等）。
+        - 组件/Hook 注意副作用与依赖数组；无依赖的 `useEffect` 谨慎使用；优先无状态/纯渲染。
+        - API/IO 层使用 schema 校验（如 zod）；类型与运行时校验并存；边界处做错误兜底与超时。
+        - 保持 `type-only` import；公共类型放 `@types`/`packages/*`，避免循环依赖。
+        - UI/状态：倾向可预测状态流；避免深层 prop drilling（用 Context/Store）；删除死代码与 console。
+        - 性能：列表用 key 稳定；避免不必要 re-render；长列表/重组件用 memoization/虚拟化。
+    - path: 'apps/backend/**'
+      instructions: |
+        【Python/后端审查要点】
+        - 统一类型标注、遵守 PEP 8/PEP 484；公共模型放独立模块，严防循环依赖。
+        - I/O 与边界：对外部依赖（DB/缓存/HTTP/Kafka）做超时、重试与熔断；异常要分层封装并打点。
+        - 数据模型建议 pydantic v2（校验/序列化分层）；DTO/ORM/领域对象分离；避免胖 Service。
+        - 并发：异步路径遵循“不可阻塞”原则；协程里禁止阻塞式 I/O；线程/进程池合理隔离。
+        - 测试：优先单元+组件；对集成边界用 Testcontainers；pytest 标注清晰（unit/integration/e2e）。
+        - 安全：避免字符串拼接 SQL；Secrets 不落日志；对外暴露接口做速率限制与鉴权。
+
+  # 自动审查策略
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    ignore_title_keywords: ['WIP', 'Draft']
+
+  # 生成“收尾增强”产物（可在 MR/PR 里附带补充）
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+
+  # 预合并检查（轻提醒为主）
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 60
+
+  # 常用三方工具（按需增减）  :contentReference[oaicite:6]{index=6}
+  tools:
+    # —— 语言类 —— #
+    eslint:
+      enabled: true # JS/TS/TSX/JSX 等都会覆盖  :contentReference[oaicite:7]{index=7}
+    # 如你喜欢超快的 Oxlint（OXC）可改用/并用：
+    # oxc:
+    #   enabled: true
+
+    ruff:
+      enabled: true # Python linter/formatter 一体  :contentReference[oaicite:8]{index=8}
+    # 如团队已有 pylint/flake8 也可开启，但不建议与 ruff 全量重复启用以免噪音：
+    # pylint: { enabled: true }
+    # flake8: { enabled: true }
+
+    # —— 安全/保密 —— #
+    gitleaks:
+      enabled: true # 提前拦截密钥泄露  :contentReference[oaicite:9]{index=9}
+    semgrep:
+      enabled: false # 如安全基线较高可开启
+
+    # —— 基建与配置文件 —— #
+    hadolint:
+      enabled: true # Dockerfile 规范  :contentReference[oaicite:10]{index=10}
+    yamllint:
+      enabled: true # YAML 配置规范  :contentReference[oaicite:11]{index=11}
+    actionlint:
+      enabled: true # GitHub Actions 工作流检查  :contentReference[oaicite:12]{index=12}
+    markdownlint:
+      enabled: true # 文档质量  :contentReference[oaicite:13]{index=13}

@@ -91,7 +91,16 @@ class ApiAdapter(BaseAdapter):
 
     async def _start_single_process(self, reload: bool) -> None:
         """Start API Gateway in single-process mode using asyncio task"""
-        config = uvicorn.Config("src.api.main:app", host=self._host, port=self._port, reload=reload, log_level="info")
+        # Allow configuring graceful shutdown timeout via adapter config (default 10s as fallback)
+        graceful = int(self.config.get("timeout_graceful_shutdown", 10))
+        config = uvicorn.Config(
+            "src.api.main:app",
+            host=self._host,
+            port=self._port,
+            reload=reload,
+            log_level="info",
+            timeout_graceful_shutdown=graceful,
+        )
         self._server = uvicorn.Server(config)
         self._task = asyncio.create_task(self._server.serve())
 
@@ -138,7 +147,8 @@ class ApiAdapter(BaseAdapter):
 
     async def _start_multi_process(self, reload: bool) -> None:
         """Start API Gateway in multi-process mode using subprocess"""
-        args = ProcessManager.build_uvicorn_command(self._host, self._port, reload)
+        graceful = int(self.config.get("timeout_graceful_shutdown", 10))
+        args = ProcessManager.build_uvicorn_command(self._host, self._port, reload, timeout_graceful_shutdown=graceful)
         kwargs = ProcessManager.create_subprocess_args(args)
 
         # Reuse BaseAdapter.process slot
@@ -157,7 +167,9 @@ class ApiAdapter(BaseAdapter):
 
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"http://{self._host}:{self._port}/health", timeout=1.0)
+                    # Use 127.0.0.1 for health checks when host is 0.0.0.0
+                    health_check_host = "127.0.0.1" if self._host == "0.0.0.0" else self._host
+                    response = await client.get(f"http://{health_check_host}:{self._port}/health", timeout=1.0)
                     if response.status_code == 200:
                         break
             except (httpx.RequestError, httpx.TimeoutException):
@@ -233,7 +245,9 @@ class ApiAdapter(BaseAdapter):
 
     def get_url(self) -> str:
         """Get the API Gateway URL"""
-        return f"http://{self._host}:{self._port}"
+        # Use 127.0.0.1 for URLs when host is 0.0.0.0 (bind all interfaces)
+        url_host = "127.0.0.1" if self._host == "0.0.0.0" else self._host
+        return f"http://{url_host}:{self._port}"
 
     def _is_port_available(self, host: str, port: int) -> bool:
         """Return True if the TCP port is available to bind on the given host.

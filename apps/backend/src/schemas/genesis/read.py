@@ -2,13 +2,11 @@
 创世流程查询响应相关的 Pydantic 模型
 """
 
-from typing import Any
 from uuid import UUID
 
 from pydantic import Field
 
 from src.schemas.base import BaseSchema, TimestampMixin
-from src.schemas.enums import GenesisStage, GenesisStatus
 
 
 class ConceptTemplateResponse(BaseSchema, TimestampMixin):
@@ -36,13 +34,4 @@ class ConceptTemplateResponse(BaseSchema, TimestampMixin):
     created_by: str | None = Field(None, description="创建者")
 
 
-class GenesisSessionResponse(BaseSchema, TimestampMixin):
-    """创世会话响应模型"""
-
-    id: UUID = Field(..., description="会话唯一标识符")
-    novel_id: UUID | None = Field(None, description="流程完成后关联的小说ID")
-    user_id: UUID | None = Field(None, description="用户ID")
-    status: GenesisStatus = Field(..., description="会话状态")
-    current_stage: GenesisStage = Field(..., description="当前阶段")
-    confirmed_data: dict[str, Any] | None = Field(None, description="存储每个阶段已确认的最终数据")
-    version: int = Field(..., description="乐观锁版本号")
+# GenesisSessionResponse removed - replaced by GenesisFlow and GenesisStageRecord schemas

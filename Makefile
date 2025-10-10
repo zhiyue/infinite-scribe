@@ -54,6 +54,11 @@ backend-test-unit: ## Run backend unit tests only (local)
 	@echo "$(GREEN)Running backend unit tests...$(NC)"
 	cd apps/backend && uv run pytest tests/unit/ -v
 
+.PHONY: event-bridge
+event-bridge: ## Run EventBridge service standalone
+	@echo "$(GREEN)Starting EventBridge service...$(NC)"
+	cd apps/backend && uv run python -m src.services.eventbridge.main
+
 ##@ Frontend Commands
 
 .PHONY: frontend-install

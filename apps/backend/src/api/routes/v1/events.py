@@ -9,8 +9,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.api.routes.v1.auth_sse_token import verify_sse_token
-from src.common.services.redis_service import redis_service
 from src.services.sse import RedisSSEService, SSEConnectionManager
+from src.services.sse.provider import SSEProvider, get_default_provider
 
 logger = logging.getLogger(__name__)
 
@@ -39,109 +39,138 @@ class SSEHealthResponse(BaseModel):
     version: str
 
 
-# Service instances - managed singleton pattern with cleanup
-_redis_sse_service: RedisSSEService | None = None
-_sse_connection_manager: SSEConnectionManager | None = None
+async def get_redis_sse_service(request: Request) -> RedisSSEService:
+    """Resolve Redis SSE service via provider.
 
-
-async def get_redis_sse_service() -> RedisSSEService:
-    """Get or create Redis SSE service instance."""
-    global _redis_sse_service
-    if _redis_sse_service is None:
-        _redis_sse_service = RedisSSEService(redis_service)
-        await _redis_sse_service.init_pubsub_client()
-    return _redis_sse_service
+    Prefers app-scoped provider (`app.state.sse_provider`),
+    falls back to process default provider for non-web contexts.
+    """
+    provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+    if provider is None:
+        provider = get_default_provider()
+    return await provider.get_redis_sse_service()
 
 
 async def get_sse_connection_manager(
+    request: Request,
     redis_sse_service: RedisSSEService = Depends(get_redis_sse_service),
 ) -> SSEConnectionManager:
-    """Get or create SSE connection manager instance."""
-    global _sse_connection_manager
-    if _sse_connection_manager is None:
-        _sse_connection_manager = SSEConnectionManager(redis_sse_service)
-    return _sse_connection_manager
-
-
-async def cleanup_sse_services():
-    """
-    Clean up SSE services during application shutdown.
-
-    This includes:
-    - Cleaning up active connections
-    - Resetting the global connection counter to prevent drift
-    - Closing Redis SSE service
-    """
-    global _redis_sse_service, _sse_connection_manager
-
-    try:
-        # First, cleanup connection manager and reset global counter
-        if _sse_connection_manager is not None:
-            logger.info("Cleaning up SSE connection manager...")
-
-            try:
-                # Clean up any stale connections first
-                stale_count = await _sse_connection_manager.cleanup_stale_connections()
-                if stale_count > 0:
-                    logger.info(f"Cleaned up {stale_count} stale connections during shutdown")
-
-                # Reset global connection counter to prevent drift after restart
-                if _sse_connection_manager.redis_sse._pubsub_client:
-                    global_key = "global:sse_connections_count"
-                    await _sse_connection_manager.redis_sse._pubsub_client.delete(global_key)
-                    logger.info("Reset global connection counter to prevent drift")
-
-            except Exception as cleanup_error:
-                logger.error(f"Error during connection manager cleanup: {cleanup_error}")
-            finally:
-                _sse_connection_manager = None
-
-        # Then close Redis SSE service
-        if _redis_sse_service is not None:
-            logger.info("Closing Redis SSE service...")
-            try:
-                await _redis_sse_service.close()
-            except Exception as redis_error:
-                logger.error(f"Error closing Redis SSE service: {redis_error}")
-            finally:
-                _redis_sse_service = None
-
-        logger.info("SSE services cleaned up successfully")
-
-    except Exception as e:
-        logger.error(f"Unexpected error during SSE services cleanup: {e}")
-        # Ensure services are still reset even if cleanup fails
-        _redis_sse_service = None
-        _sse_connection_manager = None
+    """Resolve SSE connection manager via provider."""
+    provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+    if provider is None:
+        provider = get_default_provider()
+    return await provider.get_connection_manager()
 
 
 @router.get("/stream")
 async def sse_stream(
     request: Request,
     sse_token: Annotated[str, Query(description="SSE authentication token")],
+    preflight: Annotated[bool, Query(description="Preflight check only (no stream)")] = False,
     sse_connection_manager: SSEConnectionManager = Depends(get_sse_connection_manager),
 ):
     """SSE streaming endpoint for real-time events."""
-    user_id = verify_sse_token(sse_token)
+    logger.info(
+        "🌟 SSE stream endpoint accessed",
+        extra={
+            "client_host": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "has_sse_token": bool(sse_token),
+            "last_event_id": request.headers.get("last-event-id"),
+            "endpoint": "/api/v1/events/stream",
+        },
+    )
 
     try:
-        return await sse_connection_manager.add_connection(request, user_id)
-    except HTTPException:
+        # 验证SSE token并获取用户ID
+        logger.debug("🔐 开始验证SSE token")
+        user_id = verify_sse_token(sse_token)
+        logger.info(
+            "✅ SSE token验证成功",
+            extra={"user_id": user_id, "client_host": request.client.host if request.client else "unknown"},
+        )
+
+        # 预检模式：仅进行连接数限制检查，不建立SSE流
+        if preflight:
+            from src.services.sse.config import sse_config
+
+            logger.info(
+                "🧪 SSE预检请求（不建立流）",
+                extra={
+                    "user_id": user_id,
+                    "endpoint": "/api/v1/events/stream",
+                    "preflight": True,
+                },
+            )
+
+            try:
+                # 读取当前用户的连接计数（不自增）
+                conn_count = 0
+                counter_service = getattr(sse_connection_manager, "redis_counter_service", None)
+                if counter_service and hasattr(counter_service, "get_user_connection_count"):
+                    conn_count = await counter_service.get_user_connection_count(str(user_id))
+
+                if conn_count >= sse_config.MAX_CONNECTIONS_PER_USER:
+                    logger.warning(
+                        "⛔ 预检失败：用户连接数已达上限",
+                        extra={
+                            "user_id": user_id,
+                            "conn_count": conn_count,
+                            "limit": sse_config.MAX_CONNECTIONS_PER_USER,
+                        },
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        content={
+                            "status": "too_many_connections",
+                            "message": "Too many concurrent SSE connections",
+                            "current": conn_count,
+                            "limit": sse_config.MAX_CONNECTIONS_PER_USER,
+                        },
+                        headers={"Retry-After": str(sse_config.RETRY_AFTER_SECONDS)},
+                    )
+
+                logger.info(
+                    "✅ 预检通过：可建立SSE连接",
+                    extra={"user_id": user_id, "conn_count": conn_count},
+                )
+                return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+            except Exception as e:
+                logger.error(f"SSE预检失败: {e}")
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"status": "unhealthy", "error": str(e)},
+                )
+
+        # 建立SSE连接
+        logger.info("🔗 准备建立SSE连接", extra={"user_id": user_id, "endpoint": "/api/v1/events/stream"})
+
+        response = await sse_connection_manager.add_connection(request, user_id)
+
+        logger.info("🎉 SSE连接建立成功", extra={"user_id": user_id, "response_type": type(response).__name__})
+
+        return response
+
+    except HTTPException as e:
+        logger.warning(
+            f"SSE连接被拒绝: {e.detail}",
+            extra={"status_code": e.status_code, "user_agent": request.headers.get("user-agent", "unknown")[:50]},
+        )
         raise
     except Exception as e:
-        logger.error(f"Error establishing SSE connection for user {user_id}: {e}")
+        logger.error(f"SSE连接失败: {type(e).__name__}: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to establish SSE connection"
         ) from e
 
 
 @router.get("/health", response_model=SSEHealthResponse)
-async def sse_health():
+async def sse_health(request: Request):
     """SSE service health check endpoint."""
     try:
-        # Initialize services
-        redis_sse_service = await get_redis_sse_service()
-        sse_connection_manager = await get_sse_connection_manager(redis_sse_service)
+        # Initialize services from app state (or lazy init)
+        redis_sse_service = await get_redis_sse_service(request)
+        sse_connection_manager = await get_sse_connection_manager(request, redis_sse_service)
 
         # Get connection statistics
         connection_stats = await _get_connection_stats(sse_connection_manager)
@@ -202,3 +231,36 @@ def _determine_overall_status(redis_healthy: bool, connection_stats: dict) -> st
         return "unhealthy"
 
     return "healthy"
+
+
+@router.post("/teardown")
+async def sse_teardown(
+    request: Request,
+    sse_token: Annotated[str, Query(description="SSE authentication token")],
+    tab_id: Annotated[str | None, Query(description="Browser tab id to teardown", alias="tab_id")] = None,
+):
+    """Teardown SSE connections for current user (optionally by tab).
+
+    Allows front-end to proactively release server-side resources on page unload.
+    """
+    try:
+        user_id = verify_sse_token(sse_token)
+        provider: SSEProvider | None = getattr(request.app.state, "sse_provider", None)
+        if provider is None:
+            provider = get_default_provider()
+        manager = await provider.get_connection_manager()
+
+        if tab_id:
+            existing = manager.state_manager.find_connection_by_tab(user_id, tab_id)
+            if existing:
+                conn_id, _ = existing
+                await manager.state_manager.preempt_connection(conn_id, reason="teardown", free_slot_immediately=True)
+        else:
+            # Teardown all connections for this user
+            for conn_id, _ in manager.state_manager.get_user_connections(user_id):  # type: ignore[attr-defined]
+                await manager.state_manager.preempt_connection(conn_id, reason="teardown", free_slot_immediately=True)
+
+        return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+    except Exception as e:
+        logger.warning(f"SSE teardown failed: {e}")
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})

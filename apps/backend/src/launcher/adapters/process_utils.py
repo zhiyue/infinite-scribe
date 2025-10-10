@@ -1,6 +1,7 @@
 """Process management utilities for adapters"""
 
 import asyncio
+import contextlib
 import os
 import signal
 import sys
@@ -43,20 +44,23 @@ class ProcessManager:
 
         except (TimeoutError, ProcessLookupError):
             logger.warning(f"Process {process.pid} didn't respond gracefully, force killing")
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 # Force kill
                 if os.name != "nt":
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                 else:
                     process.kill()
                 await process.wait()
-            except ProcessLookupError:
-                pass  # Already dead
+                # If ProcessLookupError occurs, process is already dead
 
     @staticmethod
-    def build_uvicorn_command(host: str, port: int, reload: bool = False) -> list[str]:
+    def build_uvicorn_command(
+        host: str, port: int, reload: bool = False, timeout_graceful_shutdown: int | None = None
+    ) -> list[str]:
         """Build uvicorn command arguments"""
         args = [sys.executable, "-m", "uvicorn", "src.api.main:app", "--host", host, "--port", str(port)]
         if reload:
             args.append("--reload")
+        if timeout_graceful_shutdown is not None:
+            args.extend(["--timeout-graceful-shutdown", str(int(timeout_graceful_shutdown))])
         return args

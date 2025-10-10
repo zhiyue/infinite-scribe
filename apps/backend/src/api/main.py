@@ -1,50 +1,153 @@
 """API Gateway main entry point."""
 
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.middleware.cancelled_error import CancelledErrorMiddleware
 from src.api.routes import docs, health, v1
 from src.core.config import settings
+from src.core.logging import get_logger
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
-    import logging
+    from src.core.logging.config import configure_logging
+    from src.core.logging.context import bind_service_context
+    from src.db.graph import neo4j_service
+    from src.db.redis import redis_service
+    from src.db.sql import postgres_service
 
-    from src.common.services.neo4j_service import neo4j_service
-    from src.common.services.postgres_service import postgres_service
-    from src.common.services.redis_service import redis_service
-
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     # Startup
     try:
+        # Ensure structured logging is configured (use console in development)
+        try:
+            configure_logging(
+                environment=getattr(settings, "environment", "development"),
+                level="INFO",
+                enable_file_logging=True,  # Enable file logging for API subprocess
+                file_log_format="structured",  # Use structured format for better readability
+            )
+            bind_service_context(service="api-gateway", component="lifespan")
+        except Exception as e:
+            # Fall back silently; uvicorn default logging will still work
+            logger.debug(f"Logging configuration skipped: {e}")
         logger.info("Initializing database connections...")
+
+        # PostgreSQL
+        t0 = time.perf_counter()
+        logger.info(
+            "Connecting to PostgreSQL...",
+            extra={
+                "host": settings.database.postgres_host,
+                "port": settings.database.postgres_port,
+                "db": settings.database.postgres_db,
+            },
+        )
         await postgres_service.connect()
-        await neo4j_service.connect()
-        await redis_service.connect()
-
         postgres_ok = await postgres_service.check_connection()
-        neo4j_ok = await neo4j_service.check_connection()
-        redis_ok = await redis_service.check_connection()
-
-        if postgres_ok:
-            logger.info("PostgreSQL connection established successfully")
-        else:
+        logger.info(
+            "PostgreSQL connection check finished",
+            extra={
+                "ok": postgres_ok,
+                "elapsed_ms": int((time.perf_counter() - t0) * 1000),
+            },
+        )
+        if not postgres_ok:
             logger.error("Failed to establish PostgreSQL connection")
 
-        if neo4j_ok:
-            logger.info("Neo4j connection established successfully")
-        else:
+        # Neo4j
+        t1 = time.perf_counter()
+        logger.info(
+            "Connecting to Neo4j...",
+            extra={
+                "host": settings.database.neo4j_host,
+                "port": settings.database.neo4j_port,
+            },
+        )
+        await neo4j_service.connect()
+        neo4j_ok = await neo4j_service.check_connection()
+        logger.info(
+            "Neo4j connection check finished",
+            extra={
+                "ok": neo4j_ok,
+                "elapsed_ms": int((time.perf_counter() - t1) * 1000),
+            },
+        )
+        if not neo4j_ok:
             logger.error("Failed to establish Neo4j connection")
 
-        if redis_ok:
-            logger.info("Redis connection established successfully")
-        else:
+        # Redis (cache)
+        t2 = time.perf_counter()
+        logger.info(
+            "Connecting to Redis...",
+            extra={
+                "host": settings.database.redis_host,
+                "port": settings.database.redis_port,
+            },
+        )
+        await redis_service.connect()
+        redis_ok = await redis_service.check_connection()
+        logger.info(
+            "Redis connection check finished",
+            extra={
+                "ok": redis_ok,
+                "elapsed_ms": int((time.perf_counter() - t2) * 1000),
+            },
+        )
+        if not redis_ok:
             logger.error("Failed to establish Redis connection")
+
+        # Initialize shutdown event for graceful SSE connection handling
+        import asyncio
+
+        app.state.shutdown_event = asyncio.Event()
+
+        # Initialize SSE provider (app-scoped) - lazy, singleflight ready
+        try:
+            from src.services.sse.provider import SSEProvider
+
+            app.state.sse_provider = SSEProvider(redis_service)
+            logger.info("SSE provider registered (lazy init, singleflight-coordinated)")
+        except Exception as e:
+            logger.error(f"Failed to register SSE provider: {e}")
+            app.state.sse_provider = None
+
+        # Start embedded CommandStatusWorker (Kafka consumer) with API if enabled
+        try:
+            if settings.command_status.enabled:
+                from src.api.background.command_status_worker import CommandStatusWorker
+                from src.db.sql.session import get_session_maker
+                from src.services.command.event_publisher import EventBridgePublisher
+                from src.services.outbox.egress import OutboxEgress
+
+                session_factory = get_session_maker()
+                # Create outbox service for reliable event publishing
+                outbox_service = OutboxEgress()
+                event_publisher = EventBridgePublisher(event_outbox_service=outbox_service)  # Publish via Outbox -> Relay -> Kafka -> EventBridge
+
+                cmd_worker = CommandStatusWorker(
+                    session_factory=session_factory,
+                    shutdown_event=app.state.shutdown_event,
+                    event_publisher=event_publisher,
+                    topics=list(settings.command_status.topics or []),
+                    batch_size=settings.command_status.batch_size,
+                    poll_timeout_ms=settings.command_status.poll_timeout_ms,
+                )
+                await cmd_worker.start()
+                app.state.command_status_worker = cmd_worker
+                logger.info("CommandStatusWorker started with API gateway")
+            else:
+                logger.info("CommandStatusWorker disabled by configuration")
+                app.state.command_status_worker = None
+        except Exception as e:
+            logger.error(f"Failed to start CommandStatusWorker: {e}")
+            app.state.command_status_worker = None
 
         # Initialize launcher components
         logger.info("Initializing launcher components...")
@@ -74,10 +177,33 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Shutting down services...")
 
-        # Clean up SSE services if initialized
-        from src.api.routes.v1.events import cleanup_sse_services
+        # Set shutdown flag for SSE connections
+        import asyncio
 
-        await cleanup_sse_services()
+        if not hasattr(app.state, "shutdown_event"):
+            app.state.shutdown_event = asyncio.Event()
+        app.state.shutdown_event.set()
+
+        # Give SSE connections a moment to detect shutdown
+        await asyncio.sleep(0.5)
+
+        # Clean up SSE provider if initialized
+        try:
+            sse_provider = getattr(app.state, "sse_provider", None)
+            if sse_provider is not None:
+                await sse_provider.close()
+                app.state.sse_provider = None
+        except Exception as e:
+            logger.error(f"Unexpected error during SSE provider cleanup: {e}")
+
+        # Stop embedded CommandStatusWorker if running
+        try:
+            worker = getattr(app.state, "command_status_worker", None)
+            if worker is not None:
+                await worker.stop()
+                app.state.command_status_worker = None
+        except Exception as e:
+            logger.error(f"Unexpected error during CommandStatusWorker cleanup: {e}")
 
         # Cleanup launcher components
         if hasattr(app.state, "orchestrator") and app.state.orchestrator:
@@ -107,6 +233,8 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Place CancelledError middleware outermost to swallow shutdown cancellations early
+app.add_middleware(CancelledErrorMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,

@@ -20,7 +20,7 @@ Launcher 配置由三个模型组成：
 
 - `LauncherConfigModel`
   - `default_mode`: 启动模式，取值 `single` 或 `multi`（预留 `auto`）。
-  - `components`: 启动组件列表，当前支持 `api`、`agents`，要求非空且去重。
+  - `components`: 启动组件列表，支持 `api`、`agents`、`relay`（Outbox Relay），要求非空且去重。
   - `health_interval`: 健康检查间隔（秒），范围 `[0.1, 60.0]`。
   - `api`: `LauncherApiConfig`（见下）。
   - `agents`: `LauncherAgentsConfig`（见下）。
@@ -51,7 +51,7 @@ Launcher 配置由三个模型组成：
 ```bash
 # .env 或系统环境变量示例
 LAUNCHER__DEFAULT_MODE=multi
-LAUNCHER__COMPONENTS='["api","agents"]'
+LAUNCHER__COMPONENTS='["api","agents","relay"]'
 LAUNCHER__HEALTH_INTERVAL=2.0
 LAUNCHER__API__HOST=127.0.0.1
 LAUNCHER__API__PORT=9001
@@ -69,7 +69,7 @@ LAUNCHER__AGENTS__NAMES='["worldsmith","plotmaster"]'
 ```toml
 [launcher]
 default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
-components = ["api", "agents"]
+components = ["api", "agents", "relay"]
 health_interval = 1.0
 
 [launcher.api]

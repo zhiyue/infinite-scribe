@@ -3,7 +3,7 @@
  * 负责 JWT Token 的生命周期管理，包括存储、验证、刷新调度等
  */
 
-import type { ITokenManager, IStorageService, TokenRefreshCallback } from './types'
+import type { IStorageService, ITokenManager, TokenRefreshCallback } from './types'
 
 /**
  * JWT Token 解析结果
@@ -305,15 +305,15 @@ export class TokenManager implements ITokenManager {
   } {
     const accessToken = this.getAccessToken()
     const refreshToken = this.getRefreshToken()
-    const accessTokenExpiry = this.getTokenExpiration(accessToken)
+    const accessTokenExpiry = this.getTokenExpiration(accessToken || undefined)
 
     return {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       accessTokenExpiry,
       isAccessTokenValid: this.hasValidAccessToken(),
-      isAccessTokenExpiringSoon: this.isTokenExpiringSoon(accessToken),
-      timeToRefresh: this.getTokenTimeToExpiry(accessToken),
+      isAccessTokenExpiringSoon: this.isTokenExpiringSoon(accessToken || undefined),
+      timeToRefresh: this.getTokenTimeToExpiry(accessToken || undefined),
     }
   }
 

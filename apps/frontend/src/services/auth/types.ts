@@ -90,6 +90,11 @@ export interface IHttpClient {
   put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>
 
   /**
+   * PATCH 请求
+   */
+  patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>
+
+  /**
    * DELETE 请求
    */
   delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>
@@ -124,6 +129,21 @@ export interface IHttpClient {
    * 移除拦截器
    */
   removeInterceptor(type: 'request' | 'response', id: number): void
+
+  /**
+   * 设置基础 URL
+   */
+  setBaseURL(baseURL: string): void
+
+  /**
+   * 设置超时时间
+   */
+  setTimeout(timeout: number): void
+
+  /**
+   * 清除所有拦截器
+   */
+  clearAllInterceptors(): void
 }
 
 /**
@@ -186,6 +206,11 @@ export interface ITokenManager {
     isAccessTokenExpiringSoon: boolean
     timeToRefresh: number | null
   }
+
+  /**
+   * 销毁令牌管理器（清理资源）
+   */
+  destroy(): void
 }
 
 /**
@@ -406,6 +431,12 @@ export interface IAuthService {
    * 手动刷新令牌
    */
   refreshTokens(): Promise<void>
+
+  /**
+   * 获取内部HTTP客户端（用于其他服务）
+   * 该客户端已配置认证拦截器，可以用于其他API调用
+   */
+  getHttpClient(): IHttpClient
 }
 
 /**

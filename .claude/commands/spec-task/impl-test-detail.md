@@ -31,7 +31,7 @@ argument-hint: <feature-name> [--task <id>] [-y]
 
 从以下文件加载信息：
 - `.tasks/{feature-name}/requirements.md` - 功能需求
-- `.tasks/{feature-name}/design-lld.md` - 技术设计（如存在）
+- `.tasks/{feature-name}/lld/` - 技术设计文档集（如存在）
 - `.tasks/{feature-name}/task-plans/test-scenarios*.md` - 测试场景
 
 ### 2. 分析测试需求
@@ -369,7 +369,7 @@ cat .tasks/user-auth/task-plans/test-details-1.1.md
 
 ## 注意事项
 
-1. **依赖真实设计**：细节应与 design-lld.md 一致
+1. **依赖真实设计**：细节应与 lld/ 文档集一致
 2. **框架适配**：使用项目实际的测试框架语法
 3. **Mock策略统一**：遵循项目的 Mock 约定
 4. **命名规范**：遵循项目的命名约定

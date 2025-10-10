@@ -131,6 +131,132 @@ class AuthSettings(BaseModel):
         return _validate_required_in_prod(v, ValidationConstants.DEFAULT_RESEND_DOMAIN, "RESEND_DOMAIN")
 
 
+class EmbeddingSettings(BaseModel):
+    """Embedding service provider settings"""
+
+    # Provider configuration
+    provider: str = Field(default="ollama", description="Embedding provider: ollama, openai, anthropic")
+
+    # Ollama settings
+    ollama_host: str = Field(default="192.168.1.191")
+    ollama_port: int = Field(default=11434)
+    ollama_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
+
+    # OpenAI settings
+    openai_api_key: str = Field(default="", description="OpenAI API key for embeddings")
+    openai_model: str = Field(default="text-embedding-ada-002", description="OpenAI embedding model")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
+
+    # Anthropic settings (future)
+    anthropic_api_key: str = Field(default="", description="Anthropic API key for embeddings")
+    anthropic_model: str = Field(default="", description="Anthropic embedding model")
+
+    # Connection settings
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    max_keepalive_connections: int = Field(default=5)
+    max_connections: int = Field(default=10)
+
+    # Retry settings
+    enable_retry: bool = Field(default=True, description="Enable retry mechanism for transient errors")
+    retry_attempts: int = Field(default=3, description="Maximum number of retry attempts")
+    retry_min_wait: float = Field(default=1.0, description="Minimum wait time between retries (seconds)")
+    retry_max_wait: float = Field(default=10.0, description="Maximum wait time between retries (seconds)")
+
+    # Batch processing settings
+    default_concurrency: int = Field(default=1, description="Default concurrency for batch operations")
+    max_concurrency: int = Field(default=10, description="Maximum allowed concurrency for batch operations")
+
+    # Computed properties
+    @property
+    def ollama_url(self) -> str:
+        """Get Ollama API URL"""
+        return f"http://{self.ollama_host}:{self.ollama_port}"
+
+    @property
+    def provider_config(self) -> dict[str, Any]:
+        """Get provider-specific configuration"""
+        # Common configuration for all providers
+        common_config = {
+            "timeout": self.timeout,
+            "max_keepalive_connections": self.max_keepalive_connections,
+            "max_connections": self.max_connections,
+            "enable_retry": self.enable_retry,
+            "retry_attempts": self.retry_attempts,
+            "retry_min_wait": self.retry_min_wait,
+            "retry_max_wait": self.retry_max_wait,
+        }
+
+        if self.provider == "ollama":
+            return {
+                "base_url": self.ollama_url,
+                "model": self.ollama_model,
+                **common_config,
+            }
+        elif self.provider == "openai":
+            return {
+                "api_key": self.openai_api_key,
+                "base_url": self.openai_base_url,
+                "model": self.openai_model,
+                **common_config,
+            }
+        elif self.provider == "anthropic":
+            return {
+                "api_key": self.anthropic_api_key,
+                "model": self.anthropic_model,
+                **common_config,
+            }
+        else:
+            raise ValueError(f"Unsupported embedding provider: {self.provider}")
+
+
+class LLMSettings(BaseModel):
+    """LLM (chat/completions) provider settings (consolidated)."""
+
+    # Default routing/provider
+    provider: str = Field(default="litellm", description="Default LLM provider id")
+    default_model: str = Field(default="", description="Default chat model")
+
+    # Connection settings
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    max_keepalive_connections: int = Field(default=5)
+    max_connections: int = Field(default=10)
+
+    # Retry settings
+    enable_retry: bool = Field(default=True, description="Enable retry for transient errors")
+    retry_attempts: int = Field(default=3, description="Maximum retry attempts")
+    retry_min_wait: float = Field(default=1.0, description="Minimum wait between retries (seconds)")
+    retry_max_wait: float = Field(default=10.0, description="Maximum wait between retries (seconds)")
+
+    # LiteLLM Proxy
+    litellm_api_host: str = Field(default="", description="LiteLLM Proxy base host, e.g. http://localhost:4000")
+    litellm_api_key: str = Field(default="", description="LiteLLM Proxy API key")
+
+    # Provider API keys / base URLs (optional, for direct adapters later)
+    openai_api_key: str = Field(default="")
+    openai_base_url: str = Field(default="https://api.openai.com/v1")
+    anthropic_api_key: str = Field(default="")
+    anthropic_base_url: str = Field(default="")
+    gemini_api_key: str = Field(default="")
+    openrouter_api_key: str = Field(default="")
+    openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
+    kimi_api_key: str = Field(default="")
+    kimi_base_url: str = Field(default="https://api.moonshot.cn/v1")
+    deepseek_api_key: str = Field(default="")
+    deepseek_base_url: str = Field(default="https://api.deepseek.com/v1")
+    zhipuai_api_key: str = Field(default="")
+    zhipuai_base_url: str = Field(default="")
+    dashscope_api_key: str = Field(default="")
+    dashscope_base_url: str = Field(default="")
+
+    # Routing map (regex -> provider id), optional and primarily from TOML
+    router_model_map: dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def litellm_api_url(self) -> str:
+        """Get LiteLLM API URL with trailing slash when configured."""
+        return f"{self.litellm_api_host.rstrip('/')}/" if self.litellm_api_host else ""
+
+
 class DatabaseSettings(BaseModel):
     """Database configuration settings"""
 
@@ -177,6 +303,77 @@ class DatabaseSettings(BaseModel):
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
 
+class RelaySettings(BaseModel):
+    """Outbox Relay settings"""
+
+    poll_interval_seconds: int = Field(default=5, description="Outbox relay poll interval in seconds")
+    batch_size: int = Field(default=100, description="Outbox relay fetch batch size")
+    retry_backoff_ms: int = Field(default=1000, description="Outbox relay base backoff (ms), exp growth")
+    max_retries_default: int = Field(default=3, description="Default max retries when row not set")
+    yield_sleep_ms: int = Field(default=100, description="Sleep between busy cycles when work found (ms)")
+    loop_error_backoff_ms: int = Field(default=1000, description="Backoff on unexpected loop errors (ms)")
+    max_backoff_ms: int = Field(default=60000, description="Max backoff cap in ms for retry schedule")
+
+
+class EventBridgeSettings(BaseModel):
+    """EventBridge service settings"""
+
+    # Kafka/Domain configuration
+    domain_topics: list[str] = Field(
+        default=["genesis.session.events"],
+        description="Domain event topics to consume from Kafka",
+    )
+
+    group_id_suffix: str = Field(
+        default="event-bridge",
+        description="Consumer group ID suffix (will be prefixed with agent name)",
+    )
+
+    # Circuit breaker configuration
+    cb_window_seconds: int = Field(
+        default=10,
+        description="Circuit breaker failure rate calculation window in seconds",
+    )
+
+    cb_fail_rate_threshold: float = Field(
+        default=0.5,
+        description="Circuit breaker failure rate threshold (0.0-1.0)",
+    )
+
+    cb_half_open_interval_seconds: int = Field(
+        default=30,
+        description="Circuit breaker half-open recovery interval in seconds",
+    )
+
+    # Processing configuration
+    commit_interval_ms: int = Field(default=5000, description="Offset commit interval in milliseconds")
+
+    commit_batch_size: int = Field(default=100, description="Batch size for offset commits")
+
+    # Logging configuration
+    log_level: str = Field(default="INFO", description="Logging level for EventBridge service")
+
+    metrics_log_interval: int = Field(default=100, description="Log metrics every N processed events")
+
+    # Monitoring configuration
+    prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics collection")
+
+
+class CommandStatusSettings(BaseModel):
+    """Settings for API-embedded command status consumer."""
+
+    enabled: bool = Field(default=True, description="Enable embedded command status consumer in API")
+    topics: list[str] = Field(default_factory=lambda: ["command.status.events"], description="Kafka topics to consume")
+    group_id_suffix: str = Field(default="command-status", description="Group ID suffix for the consumer")
+    batch_size: int = Field(default=100, description="Max records per poll batch")
+    poll_timeout_ms: int = Field(default=1000, description="Poll timeout in milliseconds")
+
+    # Prometheus configuration
+    prometheus_enabled: bool = Field(default=False, description="Enable Prometheus metrics export")
+    prometheus_port: int = Field(default=9090, description="Prometheus metrics server port")
+    prometheus_host: str = Field(default="0.0.0.0", description="Prometheus metrics server host")
+
+
 class Settings(BaseSettings):
     """应用主配置
 
@@ -213,6 +410,10 @@ class Settings(BaseSettings):
     # Nested configuration
     auth: AuthSettings = Field(default_factory=AuthSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    embedding: EmbeddingSettings = Field(
+        default_factory=EmbeddingSettings, description="Embedding provider configuration"
+    )
+    llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM provider configuration")
     launcher: LauncherConfigModel = Field(default_factory=LauncherConfigModel, description="Launcher configuration")
 
     # External services
@@ -231,6 +432,14 @@ class Settings(BaseSettings):
     agent_commit_batch_size: int = Field(default=20, description="Commit after N messages processed")
     agent_commit_interval_ms: int = Field(default=1000, description="Commit at least every T milliseconds")
 
+    # Outbox Relay (nested)
+    relay: RelaySettings = Field(default_factory=RelaySettings)
+
+    # EventBridge service (nested)
+    eventbridge: EventBridgeSettings = Field(default_factory=EventBridgeSettings)
+    # Embedded command status consumer (API background worker)
+    command_status: CommandStatusSettings = Field(default_factory=CommandStatusSettings)
+
     # MinIO
     minio_endpoint: str = Field(default="localhost:9000")
     minio_access_key: str = Field(default="minioadmin")
@@ -242,15 +451,12 @@ class Settings(BaseSettings):
     # AI Providers
     openai_api_key: str = Field(default="")
     anthropic_api_key: str = Field(default="")
+    # Gemini (AI Studio / Developer API)
+    gemini_api_key: str = Field(default="")
 
     # LiteLLM Proxy
     litellm_api_host: str = Field(default="")
     litellm_api_key: str = Field(default="")
-
-    # Embedding API
-    embedding_api_host: str = Field(default="192.168.1.191")
-    embedding_api_port: int = Field(default=11434)
-    embedding_api_model: str = Field(default="dengcao/Qwen3-Embedding-0.6B:F16")
 
     # Logging
     log_level: str = Field(default="INFO")
@@ -292,12 +498,19 @@ class Settings(BaseSettings):
 
     @property
     def embedding_api_url(self) -> str:
-        """Get embedding API URL"""
-        return f"http://{self.embedding_api_host}:{self.embedding_api_port}"
+        """Get embedding API URL (backward compatibility)"""
+        return self.embedding.ollama_url
+
+    @property
+    def embedding_api_model(self) -> str:
+        """Get embedding API model (backward compatibility)"""
+        return self.embedding.ollama_model
 
     @property
     def litellm_api_url(self) -> str:
-        """Get LiteLLM API URL"""
+        """Get LiteLLM API URL (prefer nested `llm` settings)."""
+        if self.llm and self.llm.litellm_api_host:
+            return self.llm.litellm_api_url
         return f"{self.litellm_api_host.rstrip('/')}/" if self.litellm_api_host else ""
 
     @property

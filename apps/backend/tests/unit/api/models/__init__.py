@@ -1,1 +1,0 @@
-"""API models unit tests"""

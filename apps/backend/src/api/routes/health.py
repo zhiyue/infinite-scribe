@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.common.services.embedding_service import embedding_service
-from src.common.services.neo4j_service import neo4j_service
-from src.common.services.postgres_service import postgres_service
-from src.common.services.redis_service import redis_service
+from src.db.graph import neo4j_service
+from src.db.redis import redis_service
+from src.db.sql import postgres_service
+from src.external.clients import get_embedding_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ async def health_check():
         postgres_healthy = await postgres_service.check_connection()
         neo4j_healthy = await neo4j_service.check_connection()
         redis_healthy = await redis_service.check_connection()
+        embedding_service = get_embedding_service()
         embedding_healthy = await embedding_service.check_connection()
 
         # 构建服务状态详情

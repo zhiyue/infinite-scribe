@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Error Parsing</title>
+</head>
+<body>
+    <h1>Testing Error Parsing Logic</h1>
+    <div id="output"></div>
+
+    <script>
+        // 模拟 parseApiError 函数
+        function parseApiError(response, data) {
+            const defaultErrorCode = response.status === 400 ? 'BAD_REQUEST' : 'UNKNOWN_ERROR';
+
+            console.log('parseApiError called with:', { response, data });
+
+            // 尝试从响应数据中获取错误信息
+            if (data && typeof data === 'object') {
+                // 检查是否是 Genesis 特定的结构化错误 (HTTPException with detail object)
+                if ('detail' in data && typeof data.detail === 'object' && data.detail !== null) {
+                    const detail = data.detail;
+                    console.log('Found detail object:', detail);
+
+                    // 检查是否是 Genesis 错误格式
+                    if ('type' in detail && 'user_message' in detail && 'action_required' in detail) {
+                        const genesisError = {
+                            type: detail.type,
+                            message: detail.message || '',
+                            user_message: detail.user_message,
+                            action_required: detail.action_required,
+                            missing_fields: detail.missing_fields
+                        };
+
+                        console.log('Genesis error detected:', genesisError);
+
+                        // 根据错误类型映射到适当的错误码
+                        let errorCode = defaultErrorCode;
+                        if (detail.type === 'stage_config_incomplete') {
+                            errorCode = 'STAGE_CONFIG_INCOMPLETE';
+                        } else if (detail.type === 'stage_validation_error') {
+                            errorCode = 'STAGE_VALIDATION_ERROR';
+                        }
+
+                        return {
+                            code: errorCode,
+                            message: genesisError.user_message,
+                            statusCode: response.status,
+                            details: detail,
+                            genesisError: genesisError
+                        };
+                    }
+                }
+            }
+
+            return {
+                code: defaultErrorCode,
+                message: 'Unknown error',
+                statusCode: response.status
+            };
+        }
+
+        // 测试不同的错误格式
+        const testCases = [
+            {
+                name: 'Genesis Stage Config Error',
+                response: { status: 400, statusText: 'Bad Request' },
+                data: {
+                    detail: {
+                        type: "stage_config_incomplete",
+                        message: "Cannot advance from stage INITIAL_PROMPT: Required fields are missing - style, target_word_count",
+                        user_message: "当前阶段配置不完整，请先完成必填字段的配置后再切换到下一阶段",
+                        action_required: "complete_current_stage_config",
+                        missing_fields: ["style", "target_word_count"]
+                    }
+                }
+            },
+            {
+                name: 'Simple String Error',
+                response: { status: 400, statusText: 'Bad Request' },
+                data: {
+                    detail: "Simple error message"
+                }
+            },
+            {
+                name: 'Traditional Error Format',
+                response: { status: 500, statusText: 'Internal Server Error' },
+                data: {
+                    error: {
+                        code: "INTERNAL_ERROR",
+                        message: "Something went wrong"
+                    }
+                }
+            }
+        ];
+
+        const outputDiv = document.getElementById('output');
+
+        testCases.forEach((testCase, index) => {
+            console.log(`\n--- Test Case ${index + 1}: ${testCase.name} ---`);
+
+            try {
+                const result = parseApiError(testCase.response, testCase.data);
+                console.log('Result:', result);
+
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <h3>Test ${index + 1}: ${testCase.name}</h3>
+                    <p><strong>Input:</strong> ${JSON.stringify(testCase.data, null, 2)}</p>
+                    <p><strong>Result:</strong> ${JSON.stringify(result, null, 2)}</p>
+                    <hr>
+                `;
+                outputDiv.appendChild(div);
+            } catch (error) {
+                console.error('Error in test case:', error);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,561 @@
+{
+  "consumer": {
+    "name": "infinite-scribe-backend"
+  },
+  "provider": {
+    "name": "ollama-api"
+  },
+  "interactions": [
+    {
+      "description": "a request for available models",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Ollama service is available"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/tags"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "models": [
+              {
+                "details": {
+                  "families": [
+                    "qwen3"
+                  ],
+                  "family": "qwen3",
+                  "format": "gguf",
+                  "parameter_size": "595.78M",
+                  "parent_model": "",
+                  "quantization_level": "F16"
+                },
+                "digest": "68d659a5c2ee4cdcbde61f85d292de073c977cea735c32944304469803804b6f",
+                "model": "dengcao/Qwen3-Embedding-0.6B:F16",
+                "modified_at": "2025-06-24T22:15:03.9648298+08:00",
+                "name": "dengcao/Qwen3-Embedding-0.6B:F16",
+                "size": 1197629321
+              }
+            ]
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.models": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.models[*].details": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.families": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.models[*].details.families[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.family": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.format": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.parameter_size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.parent_model": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].details.quantization_level": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].digest": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].model": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].modified_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{7})?\\+\\d{2}:\\d{2}$"
+                }
+              ]
+            },
+            "$.models[*].name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.models[*].size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for single text embedding",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Ollama embedding model is available"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "input": "Hello world",
+            "model": "dengcao/Qwen3-Embedding-0.6B:F16"
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/embed"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "embeddings": [
+              [
+                0.0
+              ]
+            ],
+            "load_duration": 63740100,
+            "model": "dengcao/Qwen3-Embedding-0.6B:F16",
+            "prompt_eval_count": 4,
+            "total_duration": 95717700
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.embeddings": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.embeddings[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1024
+                }
+              ]
+            },
+            "$.embeddings[*][*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.load_duration": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.model": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.prompt_eval_count": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.total_duration": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for batch text embeddings",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Ollama embedding model supports batch input"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "input": [
+              "First text",
+              "Second text"
+            ],
+            "model": "dengcao/Qwen3-Embedding-0.6B:F16"
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/embed"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "embeddings": [
+              [
+                0.0
+              ],
+              [
+                0.0
+              ]
+            ],
+            "load_duration": 63740100,
+            "model": "dengcao/Qwen3-Embedding-0.6B:F16",
+            "prompt_eval_count": 4,
+            "total_duration": 95717700
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.embeddings[0]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1024
+                }
+              ]
+            },
+            "$.embeddings[0][*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.embeddings[1]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1024
+                }
+              ]
+            },
+            "$.embeddings[1][*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.load_duration": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.model": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.prompt_eval_count": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.total_duration": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for embedding with non-existent model",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "Requested embedding model does not exist"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "input": "Test text",
+            "model": "non-existent-model"
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/embed"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "error": "model \"non-existent-model\" not found, try pulling it first"
+          },
+          "contentType": "application/json;charset=utf-8",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.error": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "model \\\"[^\\\"]+\\\" not found, try pulling it first"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;.*)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": {
+      "ffi": "0.4.28",
+      "models": "1.3.5"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  }
+}

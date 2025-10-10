@@ -21,7 +21,7 @@ class TestAuthMiddleware:
     @pytest.fixture
     def mock_jwt_service(self):
         """Mock JWT service."""
-        with patch("src.middleware.auth.jwt_service") as mock:
+        with patch("src.middleware.auth.auth_service") as mock:
             mock.extract_token_from_header.return_value = "valid_token"
             mock.verify_token.return_value = {
                 "sub": "123",

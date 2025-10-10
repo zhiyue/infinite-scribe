@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -55,7 +56,7 @@ class DomainEvent(Base):
     event_metadata: Mapped[dict | None] = mapped_column(
         "metadata", JSONB, comment="事件元数据，如用户ID、时间戳、来源等"
     )
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), comment="事件创建时间，不可修改"
     )
 
@@ -68,17 +69,26 @@ class DomainEvent(Base):
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
         metadata: dict[str, Any] | None = None,
+        flow_id: UUID | None = None,
+        stage_id: UUID | None = None,
     ) -> DomainEvent:
-        """Create a genesis domain event"""
+        """Create a genesis domain event with optional flow_id and stage_id in metadata"""
+
+        # Enhance metadata with flow_id and stage_id if provided
+        enhanced_metadata = metadata or {}
+        if flow_id:
+            enhanced_metadata["flow_id"] = str(flow_id)
+        if stage_id:
+            enhanced_metadata["stage_id"] = str(stage_id)
 
         return cls(
             event_type=event_type.value,
-            aggregate_type="GenesisSession",
+            aggregate_type="GenesisFlow",  # Updated from GenesisSession to GenesisFlow
             aggregate_id=str(session_id),
             payload=payload,
             correlation_id=correlation_id,
             causation_id=causation_id,
-            event_metadata=metadata or {},
+            event_metadata=enhanced_metadata,
         )
 
     def is_genesis_event(self) -> bool:
@@ -89,9 +99,9 @@ class DomainEvent(Base):
         except ValueError:
             return False
 
-    def get_session_id(self) -> UUID | None:
-        """Get session ID from genesis events"""
-        if self.aggregate_type == "GenesisSession":
+    def get_flow_id(self) -> UUID | None:
+        """Get flow ID from genesis events"""
+        if self.aggregate_type == "GenesisFlow":
             try:
                 return UUID(self.aggregate_id)
             except (ValueError, TypeError):

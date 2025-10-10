@@ -52,6 +52,9 @@ uv run python scripts/apply_db_functions.py
 
 # 验证数据库设置
 uv run python scripts/verify_tables.py
+
+# 可选：一键初始化全部数据存储（PostgreSQL/Neo4j/Milvus/Redis）
+uv run is-db-bootstrap
 ```
 
 **预期输出**：
@@ -239,7 +242,7 @@ uv run uvicorn src.api.main:app --reload --log-level debug
 
 # 查看数据库连接
 uv run python -c "
-from src.common.services.postgres_service import PostgresService
+from src.db.sql import PostgreSQLService as PostgresService
 service = PostgresService()
 print('Database connection successful')
 "

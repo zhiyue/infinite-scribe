@@ -24,20 +24,8 @@ test-unit:
 test-integration:
 	uv run pytest tests/integration/ -v
 
-# Run tests as in CI (using external services)
+# Run all tests (unit + integration) with testcontainers
 test-ci:
-	USE_EXTERNAL_SERVICES=true \
-	POSTGRES_HOST=localhost \
-	POSTGRES_PORT=5432 \
-	POSTGRES_USER=postgres \
-	POSTGRES_PASSWORD=postgres \
-	POSTGRES_DB=test_db \
-	NEO4J_HOST=localhost \
-	NEO4J_PORT=7687 \
-	NEO4J_USER=neo4j \
-	NEO4J_PASSWORD=neo4jtest \
-	REDIS_HOST=localhost \
-	REDIS_PORT=6379 \
 	uv run pytest tests/ -v
 
 # Run linting

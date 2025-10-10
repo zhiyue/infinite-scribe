@@ -1,0 +1,1136 @@
+# 高层设计 (High-Level Design)
+
+## 系统概览
+
+小说创世阶段系统是InfiniteScribe平台的核心功能模块，采用**对话式AI协作**模式，通过6个渐进式阶段（Stage
+0-5）完成小说创作前的世界观构建。系统基于**事件驱动的微服务架构**，由专门的创世Agent服务处理对话交互，通过Kafka事件总线与其他系统组件协作，使用PostgreSQL持久化对话状态，Neo4j管理知识图谱，Milvus存储向量嵌入，实现"AI主导生成、人类审核微调"的创世流程。
+
+## 需求映射
+
+### 功能需求覆盖 (FR)
+
+| 需求ID | 需求描述           | 设计方案                                                                    | 相关组件                                              |
+| ------ | ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| FR-001 | 创意种子生成与选择 | 通过Outliner Agent提供多种创作起点，生成3-6个高概念方案，支持方案融合与锁定 | Outliner Agent, Orchestrator, API Gateway, PostgreSQL |
+| FR-002 | 立意主题对话系统   | 基于ADR-001通用会话架构，实现3-5轮主题深化对话，支持多种用户操作模式        | API Conversation Service, Orchestrator, Redis缓存     |
+| FR-003 | 世界观对话式构建   | 分5个维度构建世界观，支持魔法/科技体系定义，实时一致性校验                  | World Builder Agent, Neo4j图数据库                    |
+| FR-004 | 人物对话式设计     | 8维度人物设定模板，自动生成关系网络，支持对白生成                           | Character Expert Agent, Neo4j                         |
+| FR-005 | 情节框架对话构建   | 生成10-20个节点卡，支持三幕/五幕/英雄之旅结构                               | Plot Master Agent, Outliner Agent                     |
+| FR-006 | AI批量细节生成     | 批量生成地名、人名等细节，支持风格控制，单批10-50个                         | P1: Outbox模式; P2: Prefect编排                       |
+| FR-007 | 内容审核与编辑界面 | 三键操作（接受/修改/重新生成），支持影响分析和版本管理                      | React前端, Version Control Service                    |
+| FR-008 | 创世内容知识库     | 自动整理分类，支持全文和向量搜索，多格式导出                                | Knowledge Base Service, Milvus, Neo4j                 |
+| FR-009 | 对话历史与版本管理 | 基于ADR-004实现分支管理和时间线回溯                                         | Version Control Service, MinIO                        |
+| FR-010 | 创作方法论学习系统 | 提供≥10种创作方法论，智能推荐匹配                                           | Learning Module, Recommendation Engine                |
+
+### 非功能需求满足 (NFR)
+
+| 需求ID  | 性能/安全/可用性要求          | 设计保障                                                 | 验证方法              |
+| ------- | ----------------------------- | -------------------------------------------------------- | --------------------- |
+| NFR-001 | 首token响应<3秒，批量生成<5秒 | SSE推送，滑动窗口限流（P2：Token Bucket），Redis缓存     | 负载测试，监控P95延迟 |
+| NFR-002 | 月度可用性≥99.5%              | 服务冗余，自动重启，故障转移                             | 监控告警，定期演练    |
+| NFR-003 | 水平扩展，2分钟内完成         | 容器化部署，Kubernetes编排                               | 自动扩缩容测试        |
+| NFR-004 | JWT认证，TLS加密              | P1: 基础JWT+管理员检查; P2: 完整RBAC权限控制             | 安全审计，渗透测试    |
+| NFR-005 | AI采纳率≥70%                  | 多维质量评分系统（详见质量评分体系章节），阶段差异化阈值 | 实时监控，事件分析    |
+| NFR-006 | FCP<1.5秒，TTI<3秒            | React代码分割，CDN加速                                   | Lighthouse性能测试    |
+| NFR-007 | 监控100%覆盖                  | Langfuse观测，结构化日志                                 | 监控大盘，日志分析    |
+| NFR-008 | GDPR/CCPA合规                 | 数据脱敏，审计追踪                                       | 合规审查，定期审计    |
+
+### 架构决策引用 (ADR)
+
+| ADR编号 | 决策主题       | 选择方案                        | 影响范围             |
+| ------- | -------------- | ------------------------------- | -------------------- |
+| ADR-001 | 对话状态管理   | 通用会话架构+Redis缓存          | 对话引擎，状态持久化 |
+| ADR-002 | 向量嵌入模型   | Qwen3-Embedding 0.6B            | 相似度搜索，质量评分 |
+| ADR-003 | 架构模式       | CQRS+事件溯源+Outbox            | 命令处理，事件发布   |
+| ADR-004 | 内容版本控制   | 快照+增量混合方案               | 版本管理，分支合并   |
+| ADR-005 | 知识图谱Schema | 层级+网状混合模型               | 世界观管理，人物关系 |
+| ADR-006 | 批量任务调度   | P1: Outbox模式; P2: Prefect编排 | 细节生成，任务编排   |
+
+## 系统架构
+
+### 系统边界
+
+```mermaid
+C4Context
+    title 小说创世阶段系统上下文图
+
+    Person(user, "创作者/编辑", "设定小说基础，监督创世流程")
+    System(genesis, "创世系统", "6阶段对话式创世")
+    System_Ext(llm, "LLM服务", "LiteLLM代理的大模型API")
+    System_Ext(novel, "小说创作系统", "后续章节生成")
+    System_Ext(storage, "存储服务", "MinIO对象存储")
+
+    Rel(user, genesis, "对话交互，审核确认")
+    Rel(genesis, llm, "生成创意内容")
+    Rel(genesis, storage, "存储版本快照")
+    Rel(genesis, novel, "输出创世成果")
+```
+
+### 容器视图
+
+```mermaid
+C4Container
+    title 创世系统容器架构图 (事件驱动架构)
+
+    Container(web, "Web应用", "React/Vite", "对话界面，内容审核")
+    Container(api, "API + Conversation Service", "FastAPI", "请求路由，SSE推送，会话管理")
+    Container(orchestrator, "中央协调者", "Python", "事件路由，任务分发")
+    Container(eventbridge, "EventBridge", "Python", "Kafka→SSE事件桥接")
+
+    Container_Boundary(agents, "Agent服务群") {
+        Container(outliner, "Outliner Agent", "Python", "大纲生成")
+        Container(worldbuilder, "Worldbuilder Agent", "Python", "世界观构建")
+        Container(character, "Character Agent", "Python", "人物设计")
+        Container(plot, "Plot Master Agent", "Python", "情节框架")
+        Container(writer, "Writer Agent", "Python", "内容生成")
+        Container(reviewer, "Review Agent", "Python", "质量评审")
+        Container(rewriter, "Rewriter Agent", "Python", "内容重写")
+        Container(detail_gen, "Detail Generator", "Python", "批量细节生成")
+    }
+
+    Container(knowledge, "知识库服务", "Python", "内容组织检索")
+    Container(version, "版本控制", "Python", "分支管理，快照存储")
+
+    ContainerDb(postgres, "PostgreSQL", "关系数据库", "会话、元数据、Outbox")
+    ContainerDb(neo4j, "Neo4j", "图数据库", "知识图谱")
+    ContainerDb(milvus, "Milvus", "向量数据库", "语义搜索")
+    ContainerDb(redis, "Redis", "缓存", "会话缓存")
+    ContainerQueue(kafka, "Kafka", "事件总线", "异步消息传递")
+    Container(prefect, "Prefect (P2)", "工作流引擎", "任务编排调度")
+    Container(storage, "对象存储", "MinIO/S3", "快照与大文件存储")
+
+    Rel(web, api, "HTTPS/REST, SSE")
+    Rel(api, redis, "缓存读写")
+    Rel(api, postgres, "持久化+Outbox")
+
+    Rel(postgres, kafka, "Outbox发送")
+    Rel(orchestrator, kafka, "消费领域事件")
+    Rel(orchestrator, prefect, "任务调度 (P2)")
+    Rel(prefect, kafka, "发布能力任务 (P2)")
+
+    Rel(outliner, kafka, "消费/发布事件")
+    Rel(worldbuilder, kafka, "消费/发布事件")
+    Rel(character, kafka, "消费/发布事件")
+    Rel(plot, kafka, "消费/发布事件")
+    Rel(writer, kafka, "消费/发布事件")
+    Rel(reviewer, kafka, "消费/发布事件")
+    Rel(rewriter, kafka, "消费/发布事件")
+    Rel(detail_gen, kafka, "消费/发布事件")
+
+    Rel(outliner, knowledge, "查询知识")
+    Rel(worldbuilder, knowledge, "查询知识")
+    Rel(character, knowledge, "查询知识")
+    Rel(plot, knowledge, "查询知识")
+    Rel(writer, knowledge, "查询知识")
+    Rel(reviewer, knowledge, "查询知识")
+    Rel(rewriter, knowledge, "查询知识")
+    Rel(detail_gen, knowledge, "查询知识")
+
+    Rel(knowledge, neo4j, "图查询")
+    Rel(knowledge, milvus, "向量检索")
+    Rel(version, postgres, "元数据")
+    Rel(version, storage, "快照存储")
+
+    Rel(eventbridge, kafka, "消费领域事件")
+    Rel(eventbridge, redis, "发布SSE事件")
+    Rel(api, redis, "读取SSE事件流")
+
+
+```
+
+### 事件驱动架构说明
+
+系统采用事件驱动的微服务架构，核心组件包括：
+
+1. **API网关与会话服务**：
+   - API网关内集成会话管理服务层（Conversation Service）
+   - 处理HTTP请求路由和SSE事件推送
+   - 管理对话状态的持久化（PostgreSQL）和缓存（Redis）
+   - 通过Outbox模式发布领域事件到Kafka
+
+2. **中央协调者（Orchestrator）**：
+   - 消费领域事件（`genesis.session.events`）
+   - 根据业务规则和当前阶段决定需要调用的Agent
+   - P1: 直接发布任务事件到Agent的task topic
+   - P2: 通过Prefect编排复杂工作流（暂停/恢复/分支/回调）
+
+3. **EventBridge（Kafka→SSE桥接）**：
+   - 消费 `genesis.session.events` 领域事件
+   - 过滤需要推送给用户的事件（仅Facts）
+   - 按 user_id/session_id 维度路由事件
+   - 调用 `RedisSSEService.publish_event` 推送到Redis
+   - 维护 Last-Event-ID 序列保证事件顺序
+
+   **回压与故障语义**：
+   - **Redis不可用时的策略**：
+     - 首选：继续消费Kafka但丢弃SSE推送（仅影响UI实时性）
+     - 记录丢弃计数到Prometheus指标
+     - 触发告警（阈值：连续失败超过100条或持续1分钟）
+   - **熔断条件**：
+     - Redis连接失败率 > 50%（10秒窗口）时触发熔断
+     - 熔断期间：暂停Kafka消费，避免消息堆积
+     - 半开状态：每30秒尝试恢复一次
+   - **重要说明**：
+     - **EventBridge仅影响UI实时性，不影响事务一致性**
+     - 所有业务事实已通过Outbox持久化到PostgreSQL
+     - SSE推送失败不会导致数据丢失或状态不一致
+
+4. **专门化Agent服务**：
+   - **Outliner Agent**：负责大纲和高概念生成（Stage 0, 4）
+   - **Worldbuilder Agent**：构建世界观设定（Stage 2）
+   - **Character Agent**：设计人物和关系网络（Stage 3）
+   - **Plot Master Agent**：情节框架和节点卡（Stage 4）
+   - **Writer Agent**：内容生成和润色
+   - **Review Agent**：质量评审和一致性检查
+   - **Rewriter Agent**：内容重写和优化
+   - **Detail Generator**：批量细节生成（Stage 5）
+
+5. **事件流转机制**：
+
+   **P1实现（当前）**：
+
+   ```
+   用户请求 → API网关(含会话服务) → PostgreSQL(Outbox)
+   → Kafka(领域事件) → 中央协调者 → Kafka(能力任务)
+   → 专门Agent → Kafka(结果事件) → 中央协调者
+   → Kafka(领域事件) → EventBridge → Redis(SSE事件)
+   → API(SSE推送) → 用户
+   ```
+
+   **P2扩展（规划）**：
+
+   ```
+   在P1基础上，中央协调者通过Prefect实现：
+   - 复杂工作流编排
+   - 任务暂停/恢复
+   - 条件分支处理
+   - 失败补偿回调
+   ```
+
+6. **优势**：
+   - 各Agent独立部署和扩展
+   - 失败隔离，单个Agent故障不影响其他服务
+   - 灵活的工作流编排
+   - 完整的事件追踪和审计
+
+## CQRS架构模式
+
+系统采用CQRS（命令查询责任分离）模式，严格分离写操作和读操作，优化性能和复杂性管理。
+
+### 命令侧（Command Side）
+
+#### CommandInbox机制
+
+**目的**：提供可靠的命令接收和幂等性保证，防止重复处理。
+
+> 详细的表结构和索引设计请参见
+> [design-lld.md](design-lld.md#数据库模式设计postgresql-完整实现)。
+
+#### 命令处理流程
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant DB
+    participant Outbox
+    participant Kafka
+    participant Agent
+
+    Client->>API: POST /commands
+    API->>API: 生成idempotency_key
+
+    Note over API,DB: 开始数据库事务
+    API->>DB: 1. INSERT INTO command_inbox
+    alt 幂等键冲突
+        DB-->>API: UniqueViolationError
+        API-->>Client: 409 Conflict (命令已存在)
+    else 成功插入
+        API->>DB: 2. INSERT INTO domain_events
+        API->>DB: 3. INSERT INTO event_outbox
+        Note over API,DB: 提交事务
+        API-->>Client: 202 Accepted
+
+        Outbox->>Kafka: 发布命令事件
+        Kafka->>Agent: 异步处理命令
+    end
+```
+
+### 查询侧（Query Side）
+
+#### 读模型设计
+
+```yaml
+查询模式:
+  直接查询:
+    - 来源: PostgreSQL读模型表
+    - 内容: conversation_sessions, conversation_rounds, novels
+    - 特点: 强一致性读取
+
+  缓存查询:
+    - 来源: Redis缓存层
+    - 内容: 活跃会话状态、热点数据
+    - 特点: 高性能、最终一致性
+
+  向量搜索:
+    - 来源: Milvus向量数据库
+    - 内容: 语义相似内容
+    - 特点: AI驱动的智能检索
+
+  图查询:
+    - 来源: Neo4j图数据库
+    - 内容: 关系网络、知识图谱
+    - 特点: 复杂关系遍历
+```
+
+### 命令与查询分离的优势
+
+1. **性能优化**：
+   - 写操作通过命令异步处理，不阻塞用户
+   - 读操作可以独立优化，使用缓存和专门的读模型
+2. **扩展性**：
+   - 命令处理和查询处理可以独立扩展
+   - 不同的读模型可以针对特定查询模式优化
+3. **复杂性管理**：
+   - 业务逻辑集中在命令处理
+   - 查询侧专注于数据展示和检索
+
+### 事务性保证
+
+通过CommandInbox + DomainEvents + EventOutbox的原子写入，确保：
+
+- **幂等性**：相同命令不会被重复处理
+- **可靠性**：命令与事件的原子性保证
+- **可追溯性**：完整的命令处理历史
+
+## 数据流设计
+
+### 主要数据流
+
+#### 命令处理数据流
+
+```mermaid
+graph LR
+    A[用户命令] --> B[API网关]
+    B --> C[CommandInbox<br/>幂等性检查]
+    C --> D[DomainEvents<br/>事件记录]
+    D --> E[EventOutbox<br/>待发送队列]
+    E --> F[Message Relay<br/>轮询发送]
+    F --> G[Kafka事件总线]
+    G --> H[中央协调者]
+    H --> I[Agent处理]
+    I --> J[结果事件]
+    J --> G
+    G --> K[SSE推送]
+    K --> L[用户界面]
+```
+
+#### AI生成处理流
+
+```mermaid
+graph LR
+    A[用户输入] --> B[API/会话服务]
+    B --> C[Outbox/Kafka]
+    C --> D[中央协调者]
+    D --> E[分发任务到Agent]
+    E --> F[对应Agent处理]
+    F --> G[LLM生成]
+    G --> H[质量评分<br/>详见质量评分体系]
+    H --> I{分数判断}
+    I -->|≥8.0| J[一致性检查]
+    I -->|6.0-7.9| K[添加建议]
+    I -->|4.0-5.9| L[生成修正建议]
+    I -->|<4.0| M[调整策略重试]
+
+    J --> N{一致性通过?}
+    N -->|是| O[发布Proposed事件]
+    N -->|否| L
+
+    K --> O
+    L --> F
+    M --> P{重试次数}
+    P -->|<3| F
+    P -->|≥3| Q[DLT队列]
+
+    O --> R[知识库更新]
+    R --> S[版本存储]
+    S --> T[SSE推送用户]
+```
+
+说明（对齐 core-workflows 与 ADR）：
+
+- 创世开始（Genesis.Session.Started）即创建 Novel 记录（status=GENESIS）以获取 novel_id；conversation_sessions.scope_type=GENESIS，scope_id=novel_id。
+- 所有领域事件（请求/结果）统一落地 Outbox 并发布到 Kafka。
+- P1阶段：Orchestrator直接消费事件并分发任务，无需Prefect。
+- P2阶段：引入Prefect编排暂停/恢复驱动后续步骤（详见 docs/architecture/core-workflows.md）。
+- Agent 处理遵循"至少一次 + 指数退避 + DLT"策略；分区 key 统一使用 `session_id`
+  保序。
+
+### 控制流设计
+
+```mermaid
+stateDiagram-v2
+    [*] --> 未开始
+    未开始 --> Stage0_进行中: 开始创世
+
+    Stage0_进行中 --> Stage0_待审核: 生成高概念
+    Stage0_待审核 --> Stage0_已锁定: 用户确认
+    Stage0_待审核 --> Stage0_进行中: 用户修改
+
+    Stage0_已锁定 --> Stage1_进行中: 进入主题阶段
+    Stage1_进行中 --> Stage1_待审核: 主题生成
+    Stage1_待审核 --> Stage1_已锁定: 确认主题
+
+    Stage1_已锁定 --> Stage2_进行中: 构建世界观
+    Stage2_进行中 --> Stage2_待审核: 世界观完成
+    Stage2_待审核 --> Stage2_已锁定: 确认世界观
+
+    Stage2_已锁定 --> Stage3_进行中: 设计人物
+    Stage3_进行中 --> Stage3_待审核: 人物完成
+    Stage3_待审核 --> Stage3_已锁定: 确认人物
+
+    Stage3_已锁定 --> Stage4_进行中: 构建情节
+    Stage4_进行中 --> Stage4_待审核: 情节完成
+    Stage4_待审核 --> Stage4_已锁定: 确认情节
+
+    Stage4_已锁定 --> Stage5_进行中: 完善细节
+    Stage5_进行中 --> Stage5_待审核: 细节完成
+    Stage5_待审核 --> Stage5_已锁定: 确认细节
+
+    Stage5_已锁定 --> 创世完成
+    创世完成 --> [*]
+```
+
+## 接口设计（高层）
+
+### 外部接口
+
+| 接口类型 | 协议  | 用途       | SLA要求       |
+| -------- | ----- | ---------- | ------------- |
+| REST API | HTTPS | 客户端交互 | 99.9% 可用性  |
+| SSE      | HTTPS | 事件推送   | 首token < 3秒 |
+
+说明：当前阶段（P1）仅支持 REST +
+SSE；WebSocket 与 gRPC 暂未使用（如需双向低延迟或强契约跨服务通信，P2 再评估）。
+
+### 内部接口
+
+| 组件间接口         | 通信方式      | 数据格式      | 频率估算            |
+| ------------------ | ------------- | ------------- | ------------------- |
+| API→Redis          | 同步调用      | JSON          | 500 QPS             |
+| API→PostgreSQL     | 事务写入      | JSON          | 100 QPS             |
+| Orchestrator→Kafka | 事件消费/发布 | JSON Envelope | 200 msgs/s          |
+| EventBridge→Kafka  | 事件消费      | JSON Envelope | 100 msgs/s          |
+| EventBridge→Redis  | SSE发布       | JSON          | 100 msgs/s          |
+| Agents→Kafka       | 事件消费/发布 | JSON Envelope | 50 msgs/s per agent |
+| Agents→LLM         | HTTPS         | JSON          | 50 QPS total        |
+| Agents→Knowledge   | 同步调用      | JSON          | 200 QPS             |
+| Prefect→Kafka (P2) | 任务编排      | JSON          | 100 msgs/s          |
+
+### SSE 细节（实现对齐）
+
+详细的 SSE 实现规范，包括连接管理、令牌管理、事件格式和推送策略等，请参见：
+[design-lld.md](design-lld.md#sse-详细实现规范)
+
+## 容量规划
+
+### 容量估算
+
+| 指标          | 当前需求 | 峰值需求 | 增长预测   |
+| ------------- | -------- | -------- | ---------- |
+| 并发会话      | 100      | 500      | 每月30%    |
+| 对话轮次/会话 | 20       | 50       | -          |
+| 存储容量      | 10GB     | 100GB    | 每月5GB    |
+| 向量数据      | 100万条  | 1000万条 | 每月10万条 |
+| 图节点        | 10万个   | 100万个  | 每月1万个  |
+
+### 扩展策略
+
+- **水平扩展**：所有Agent服务无状态设计，支持Kubernetes HPA独立扩展
+- **缓存策略**：Redis写透缓存
+- **数据分片**：按novel_id分片，支持多租户隔离
+- **异步处理**：
+  - P1: 通过Outbox+Kafka解耦
+  - P2: 增加Prefect编排复杂工作流
+- **Agent扩展**：每个Agent可根据负载独立扩展副本数
+
+## 质量评分体系
+
+### 评分框架（P1版本）
+
+#### 评分维度与权重
+
+| 维度       | 权重 | 评分方法                              | 阈值范围 |
+| ---------- | ---- | ------------------------------------- | -------- |
+| LLM自评分  | 30%  | GPT-4评估相关性、创意性、完整性       | 0-10分   |
+| 规则校验   | 20%  | 长度、格式、必填字段验证              | 0/1二值  |
+| 语义相似度 | 25%  | Qwen3-Embedding与上下文对比           | 0.6-1.0  |
+| 一致性检查 | 25%  | Neo4j五维校验（详见一致性校验规则集） | 0-10分   |
+
+#### 阶段特定权重调整
+
+```yaml
+Stage_0_创意种子:
+  创意性: +10% # 提高创意权重
+  一致性: -10% # 降低一致性要求
+
+Stage_1_立意主题:
+  语义相似度: +15% # 强调与种子的关联
+  规则校验: -15% # 放宽格式要求
+
+Stage_2_世界观:
+  一致性: +20% # 强调内部一致性
+  创意性: -20% # 降低创意要求
+
+Stage_3_人物:
+  完整性: +15% # 8维度完整性
+  一致性: +10% # 与世界观一致
+
+Stage_4_情节:
+  结构性: +20% # 情节逻辑
+  相似度: -20% # 允许创新
+
+Stage_5_细节:
+  规则校验: +30% # 格式规范性
+  创意性: -30% # 批量生成规范化
+```
+
+#### 评分计算模型
+
+质量评分采用**多维度加权模型**，整合以下维度：
+
+| 维度           | 权重范围 | 数据源            | 评分标准                   |
+| -------------- | -------- | ----------------- | -------------------------- |
+| **LLM 评分**   | 0.4-0.6  | GPT-4/Claude 评估 | 内容质量、创意度、连贯性   |
+| **规则校验**   | 0.1-0.2  | 硬编码规则引擎    | 格式正确性、必填项完整性   |
+| **相似度检测** | 0.1-0.2  | Milvus 向量检索   | 避免重复、保持新颖性       |
+| **一致性校验** | 0.2-0.3  | Neo4j 图数据分析  | 角色关系、世界规则、时间线 |
+
+**评分流程**：
+
+1. 各维度独立打分（0-10分制）
+2. 按阶段动态调整权重
+3. 加权求和得出最终评分
+4. 根据阈值触发不同处理策略
+
+> 具体计算实现和阶段权重配置参见：[design-lld.md](design-lld.md#质量评分计算实现)
+
+### 评分阈值与处理策略
+
+#### 通用阈值
+
+| 分数区间 | 处理策略                 | 事件类型                  |
+| -------- | ------------------------ | ------------------------- |
+| ≥ 8.0    | 直接通过，推送用户确认   | `*.Proposed`              |
+| 6.0-7.9  | 带建议通过，标记可优化点 | `*.Proposed` + 建议       |
+| 4.0-5.9  | 需要修正，生成改进建议   | `*.RevisionRequested`     |
+| < 4.0    | 重新生成，调整prompt     | `*.RegenerationRequested` |
+
+#### 失败处理流程
+
+```mermaid
+stateDiagram-v2
+    [*] --> 生成内容
+    生成内容 --> 质量评分
+
+    质量评分 --> 高分通过: ≥8.0
+    质量评分 --> 中分修正: 6.0-7.9
+    质量评分 --> 低分重试: <6.0
+
+    高分通过 --> 推送用户
+    中分修正 --> 添加建议
+    添加建议 --> 推送用户
+
+    低分重试 --> 重试计数
+    重试计数 --> 调整Prompt: 重试<3
+    重试计数 --> 人工介入: 重试≥3
+
+    调整Prompt --> 生成内容
+    人工介入 --> DLT队列
+```
+
+### 重试与DLT策略
+
+详细的重试策略实现、采纳率监控配置和质量反馈循环机制，请参见：
+[design-lld.md](design-lld.md#重试与dlt策略)
+
+## 一致性校验框架（Neo4j）
+
+### 校验规则类型
+
+系统实现**5类核心校验规则**，确保小说世界的内在逻辑一致性：
+
+| 校验类型           | 检测目标                   | 严重程度 | 自动修复 | 触发时机        |
+| ------------------ | -------------------------- | -------- | -------- | --------------- |
+| **角色关系闭包**   | 社交关系传递性、对称性缺失 | Warning  | 是       | 角色关系变更时  |
+| **世界规则冲突**   | 矛盾的设定规则共存         | Error    | 否       | 规则新增/修改时 |
+| **时间线一致性**   | 因果关系时序错误           | Error    | 是       | 事件时间变更时  |
+| **人物属性连续性** | 角色属性异常突变           | Warning  | 是       | 属性更新时      |
+| **地理空间合理性** | 不可能的移动速度/距离      | Warning  | 是       | 位置变更时      |
+
+### 校验架构设计
+
+**触发机制**：
+
+- **实时校验**：关键操作触发即时检查
+- **批量校验**：阶段完成时全面检查
+- **后台校验**：定期巡检发现潜在问题
+
+**处理策略**：
+
+- **Error级别**：阻止操作，要求用户解决
+- **Warning级别**：记录问题，允许继续，可自动修复
+- **Info级别**：提示建议，不影响流程
+
+> 详细校验查询和Python实现参见：[design-lld.md](design-lld.md#一致性校验规则集neo4j实现)
+
+**核心校验规则类型**：
+
+1. **角色关系闭包**：检测关系传递性和对称性缺失
+2. **世界规则冲突**：检测矛盾的设定规则共存
+3. **时间线一致性**：检测因果关系时序错误
+4. **人物属性连续性**：检测角色属性异常突变
+5. **地理空间合理性**：检测不可能的移动速度/距离
+
+**修正策略**：
+
+- **自动修复**：关系闭包、时间线调整、属性插值
+- **用户确认**：规则冲突需要人工决策
+- **智能建议**：提供修复选项和解释
+
+### 批量校验执行
+
+校验器执行流程：
+
+1. **规则配置**：定义校验查询、严重程度、自动修复能力
+2. **批量执行**：并行执行所有校验规则
+3. **结果聚合**：统计违规数量和类型
+4. **评分计算**：基于违规严重程度计算一致性分数（0-10分）
+
+> 完整的校验器实现和评分算法参见：[design-lld.md](design-lld.md#一致性校验规则集neo4j实现)
+
+### 自动修复策略
+
+详细的自动修复策略配置和一致性报告示例，请参见：
+[design-lld.md](design-lld.md#自动修复策略)
+
+## 性能与可扩展性
+
+### 性能目标
+
+| 指标              | 目标    | 测量方法        |
+| ----------------- | ------- | --------------- |
+| 首token延迟 (p95) | < 3秒   | SSE事件监控     |
+| 完整响应 (p95)    | < 30秒  | API端点监控     |
+| 批量生成          | < 5秒   | Prefect任务监控 |
+| 向量检索          | < 400ms | Milvus查询监控  |
+| 图查询            | < 200ms | Neo4j查询监控   |
+
+### 缓存策略
+
+- **会话缓存**：Redis存储活跃会话，写透更新
+- **结果缓存**：LRU缓存最近生成内容
+- **向量缓存**：热点embedding本地缓存
+- **查询缓存**：频繁查询结果缓存
+
+### 可扩展性方法
+
+- 所有Agent服务水平扩展（无状态）
+  - Outliner/Worldbuilder/Character/Plot等Agent独立扩展
+  - 基于Kafka消费组实现负载均衡
+- EventBridge水平扩展
+  - 多实例消费同一消费组
+  - 按session_id分区保证顺序
+  - Redis发布无状态操作
+- PostgreSQL读写分离
+- Neo4j集群部署
+- Milvus分片索引
+- Kafka分区并行消费
+- Orchestrator多实例部署，分区消费
+
+## 技术栈选择
+
+### 核心技术决策
+
+| 层级     | 技术选择                                                  | 选择理由           | ADR引用 |
+| -------- | --------------------------------------------------------- | ------------------ | ------- |
+| 前端     | React + Vite                                              | 快速开发，丰富生态 | 已确定  |
+| 后端     | Python + FastAPI                                          | 异步性能，AI生态   | 已确定  |
+| 对话管理 | Redis + PostgreSQL(conversation_sessions/rounds) + Outbox | 缓存+写通持久化    | ADR-001 |
+| 向量搜索 | Milvus + Qwen3                                            | 自托管，低成本     | ADR-002 |
+| 知识图谱 | Neo4j                                                     | 复杂关系管理       | ADR-005 |
+| 版本控制 | MinIO + PostgreSQL                                        | 快照+增量          | ADR-004 |
+| 任务调度 | P1: Outbox+Kafka; P2: Prefect                             | 可靠编排           | ADR-006 |
+| 事件总线 | Kafka                                                     | 高吞吐，持久化     | 已确定  |
+
+### 架构决策依据
+
+- **为什么选择SSE而非WebSocket**：创世对话主要是单向推送，SSE更简单可靠
+- **为什么选择Qwen3-Embedding**：本地部署，无API费用，768维足够表达语义
+- **为什么选择Neo4j**：原生图数据库，支持复杂关系查询和约束
+- **为什么选择Prefect**：Python原生，支持动态工作流，易于调试
+
+### 核心库文档（必需）
+
+- **LiteLLM** (v1.0+)
+  - 统一的LLM接口，支持多模型切换
+  - 自动重试和负载均衡
+  - 成本追踪和限流
+  - 与FastAPI无缝集成
+
+- **Pydantic** (v2.0+)
+  - 数据验证和序列化
+  - OpenAPI schema生成
+  - 类型安全保证
+  - 与SQLAlchemy集成
+
+- **Redis-py** (v5.0+)
+  - 异步支持
+  - 连接池管理
+  - Lua脚本支持（Token Bucket，P2）
+  - 发布订阅功能
+
+- **Neo4j Python Driver** (v5.0+)
+  - 异步查询支持
+  - 事务管理
+  - 连接池优化
+  - Cypher查询构建器
+
+## 安全考虑
+
+### 安全架构
+
+- **认证与授权**：
+  - P1：基础JWT令牌（24小时）+ 管理员检查
+  - P2：完整RBAC权限模型 + 刷新令牌（30天）
+- **数据保护**：
+  - 传输加密：TLS 1.3
+  - 存储加密：字段级加密（敏感数据）
+  - 服务端解密：受控域内处理
+- **内容安全**（P1 基线，P2 强化）：
+  - 违法与风险内容拦截（高覆盖率策略 + 人审闭环；不承诺 100%）
+  - 暴力/色情标记（模型 + 规则）
+  - 版权相似度检测（向量相似度 + 阈值，示例阈值 <30% 视业务调整）
+- **API安全**：
+  - 速率限制（P1：滑动窗口；P2：Redis Lua Token Bucket）
+  - API密钥管理（LiteLLM）
+  - 请求签名验证（P2）
+
+### 安全合规
+
+- **合规标准**：GDPR（欧盟）、CCPA（加州）、个人信息保护法（中国）
+- **数据权利**：访问权、更正权、删除权、导出权
+- **审计追踪**：所有关键操作记录，90天保留期
+- **安全审计**：定期渗透测试，漏洞扫描
+
+## 风险评估
+
+### 技术风险
+
+| 风险项        | 影响等级 | 概率 | 缓解措施                       |
+| ------------- | -------- | ---- | ------------------------------ |
+| LLM API不稳定 | 高       | 中   | 多模型备份，本地缓存，降级策略 |
+| 上下文超限    | 中       | 高   | 自动摘要，分段处理，滑动窗口   |
+| 一致性冲突    | 高       | 中   | 实时校验，图约束，版本回滚     |
+| 质量评分偏差  | 高       | 中   | 多维评分，动态权重，人工复核   |
+| 重试风暴      | 中       | 中   | 指数退避，DLT队列，熔断机制    |
+| Redis故障     | 中       | 低   | 主从复制，持久化，降级到DB     |
+
+### 业务风险
+
+| 风险项     | 影响     | 应对策略                      |
+| ---------- | -------- | ----------------------------- |
+| 生成质量低 | 用户流失 | 质量评分，人工审核，持续优化  |
+| 对话疲劳   | 完成率低 | 智能跳过，预设模板，批量操作  |
+| 成本失控   | 利润下降 | Token限额，成本监控，模型选择 |
+
+## 部署架构
+
+### 部署拓扑
+
+```mermaid
+graph TB
+    subgraph "生产环境"
+        LB[负载均衡器<br/>192.168.2.201:80]
+
+        subgraph "应用层"
+            API1[API Gateway #1<br/>:8000]
+            API2[API Gateway #2<br/>:8001]
+            EB[EventBridge<br/>:8050]
+            ORC[Orchestrator<br/>:8090]
+        end
+
+        subgraph "Agent服务"
+            OUTLINER[Outliner<br/>:8100]
+            WORLD[Worldbuilder<br/>:8101]
+            CHAR[Character<br/>:8102]
+            PLOT[Plot<br/>:8103]
+            WRITER[Writer<br/>:8104]
+            REVIEW[Review<br/>:8105]
+        end
+
+        subgraph "数据层"
+            PG[(PostgreSQL<br/>:5432)]
+            NEO4J[(Neo4j<br/>:7687)]
+            MILVUS[(Milvus<br/>:19530)]
+            REDIS[(Redis<br/>:6379)]
+        end
+
+        subgraph "基础设施"
+            KAFKA[Kafka<br/>:9092]
+            MINIO[MinIO<br/>:9000]
+            PREFECT[Prefect (P2)<br/>:4200]
+        end
+    end
+
+    LB --> API1
+    LB --> API2
+    API1 --> REDIS
+    API2 --> REDIS
+    EB --> KAFKA
+    EB --> REDIS
+    ORC --> KAFKA
+    ORC --> PREFECT
+    OUTLINER --> KAFKA
+    WORLD --> KAFKA
+    CHAR --> KAFKA
+    PLOT --> KAFKA
+    WRITER --> KAFKA
+    REVIEW --> KAFKA
+    OUTLINER --> NEO4J
+    WORLD --> NEO4J
+    CHAR --> NEO4J
+    PLOT --> MILVUS
+```
+
+### 环境规划
+
+| 环境   | 用途     | 配置规格       | 高可用要求 |
+| ------ | -------- | -------------- | ---------- |
+| 开发   | 本地开发 | Docker Compose | 无         |
+| 测试   | 集成测试 | 192.168.2.202  | 基本       |
+| 预生产 | 验证发布 | 192.168.2.201  | 同生产     |
+| 生产   | 线上服务 | Kubernetes集群 | 99.9%      |
+
+## 回滚策略
+
+### 回滚触发条件
+
+- 质量评分急剧下降（<6分持续10分钟）
+- 一致性错误率>10%
+- API响应时间>10秒（P95）
+- 内存/CPU使用率>90%持续5分钟
+
+### 回滚方案
+
+1. **应用层回滚**：
+   - Blue-Green部署，快速切换
+   - 保留最近3个版本镜像
+   - 回滚时间<2分钟
+
+2. **数据库回滚**：
+   - 基于ADR-004版本控制
+   - 支持分支切换和合并
+   - 保留30天历史快照
+
+3. **配置回滚**：
+   - 环境变量版本化
+   - ConfigMap版本管理
+   - 即时生效无需重启
+
+4. **内容回滚**：
+   - 支持阶段级回滚
+   - 保留所有对话历史
+   - 分支管理避免数据丢失
+
+## 监控与可观测性
+
+### 关键指标（含 SSE/Kafka/Outbox）
+
+| 层级   | 监控指标                       | 告警阈值     | 响应级别 |
+| ------ | ------------------------------ | ------------ | -------- |
+| 系统   | CPU/内存/磁盘                  | >80%         | P2       |
+| 应用   | 响应时间 (P95)                 | >5秒         | P1       |
+| SSE    | 活跃连接数/重连次数/历史补发量 | 异常跃迁     | P1       |
+| Kafka  | 消费/生产速率、分区滞后        | 滞后持续上升 | P1       |
+| Outbox | 待发送队列深度、失败重试率     | 深度>阈值    | P1       |
+| 业务   | 生成成功率                     | <90%         | P0       |
+| 质量   | AI采纳率                       | <60%         | P1       |
+
+### 观测体系
+
+- **日志**：
+  - 结构化JSON日志
+  - ELK Stack收集分析
+  - 日志级别动态调整
+
+- **指标**：
+  - Prometheus采集
+  - Grafana可视化
+  - 自定义业务指标（首 Token/完整响应时延、Kafka 滞后、Outbox 深度、Neo4j/Milvus 查询分位）
+
+- **追踪**：
+  - Langfuse LLM观测
+  - 分布式追踪（Jaeger，P2）
+  - 会话级追踪（请求级 trace_id + Envelope.correlation_id 透传）
+
+- **告警**：
+  - 分级告警策略
+  - PagerDuty集成
+  - 自动升级机制
+
+## 事件设计（基于事件命名规范）
+
+### 事件命名契约
+
+**统一标准**：所有事件名称使用点式命名（dot notation），遵循
+`docs/architecture/event-naming-conventions.md` 规范。
+
+详细的事件设计实现，包括核心领域事件、能力事件命名、Topic映射、路由职责和示例映射等，请参见：
+[design-lld.md](design-lld.md#事件设计详细实现基于事件命名规范)
+
+## 数据模型设计
+
+### PostgreSQL表结构（对齐 ADR-001）
+
+采用通用对话表 conversation_sessions +
+conversation_rounds（PostgreSQL 持久化）与 Redis 写通缓存；并保留事务性 Outbox。
+
+### PostgreSQL 核心表设计
+
+| 表名                    | 用途       | 关键字段                                                              | 索引策略                         |
+| ----------------------- | ---------- | --------------------------------------------------------------------- | -------------------------------- |
+| `conversation_sessions` | 会话管理   | id, scope_type, scope_id, status, stage, state, version               | scope复合索引、更新时间索引      |
+| `conversation_rounds`   | 对话轮次   | session_id, round_path, role, input, output, correlation_id           | 会话+时间索引、关联ID索引        |
+| `command_inbox`         | CQRS命令侧 | command_type, idempotency_key, status, retry_count                    | 唯一待处理命令索引、状态索引     |
+| `domain_events`         | 事件溯源   | sequence_id, event_type, aggregate_type, aggregate_id, correlation_id | 聚合索引、事件类型索引、时序索引 |
+| `event_outbox`          | 事务发件箱 | topic, status, partition_key, retry_count                             | 状态索引、主题+状态组合索引      |
+
+**设计要点**：
+
+- 使用 UUID 作为主键，支持分布式环境
+- JSONB 字段支持灵活的业务状态存储
+- 复合索引优化查询性能，避免全表扫描
+- 事务性发件箱模式确保事件可靠投递
+
+> 详细SQL实现参见：[design-lld.md](design-lld.md#数据库模式设计postgresql-完整实现)
+
+说明：
+
+- **conversation_sessions/rounds**：通用对话持久化表；Redis 作为缓存，采用"写通 PG→回填 Redis、读优先 Redis"的策略（详见 ADR-001）。
+- **command_inbox**：CQRS架构的命令侧实现，通过唯一约束保证命令幂等性，防止重复处理。所有需要异步处理的用户命令都通过此表接收。
+- **domain_events**：事件溯源的核心存储，记录系统中所有业务事实的不可变历史。采用自增主键确保严格的事件顺序。
+- **event_outbox**：事务性发件箱模式实现，保证数据库状态变更与事件发布的原子性。通过Message
+  Relay服务轮询并发布到Kafka。
+- 已删除未使用的 `genesis_sessions`
+  表与模型；创世阶段改以 conversation_sessions 聚合，并以 novel_id 作为 scope_id 绑定。
+- 章节内容版本采用现有 `chapter_versions`（含 MinIO URL），不再使用通用
+  `content_versions`。
+- headers 示例：`{"event_type": "Genesis.Session.Theme.Proposed", "version": 1, "trace_id": "uuid"}`，注意 event_type 使用点式命名。
+
+### Neo4j图模型（ADR-005）
+
+实现细节已迁移至 LLD，见：design-lld.md#neo4j-图模型数据库实现（本节保留概览与上下文）。
+
+要点（概览）：
+
+- 节点：Novel、Character、CharacterState、WorldRule、Event、Location、Transportation
+- 关系：BELONGS_TO、HAS_STATE、LOCATED_AT、USES、GOVERNS、CONFLICTS_WITH、CAUSES、INVOLVES、RELATES_TO
+- 约束：主键唯一；CharacterState 使用 Node Key(character_id, chapter)
+- 索引：novel_id、timestamp、坐标等高频字段索引
+- 校验：关系闭包、规则冲突、时间/空间一致性
+
+<!-- Neo4j detailed implementation moved to design-lld.md -->
+
+### Milvus向量集合（ADR-002）
+
+实现细节已迁移至 LLD，见：design-lld.md#milvus-向量数据库实现 与 design-lld.md#模型变更策略（本节保留概览与上下文）。
+
+要点（概览）：
+
+- 集合：`novel_embeddings_v{n}`，字段含
+  `novel_id/content_type/embedding/version/metadata`，默认 HNSW(COSINE)
+- 分区：按 `novel_id` 分区
+- 封装：集合初始化、批量 upsert、相似检索、模型迁移
+- 策略：模型迁移（重建索引、双写、灰度切流、别名切换）
+
+**技术特性**：
+
+- **集合版本化**：`novel_embeddings_v{n}`命名策略，支持平滑迁移
+- **字段设计**：novel_id、content_type、embedding(768维)、version、metadata
+- **索引策略**：HNSW+COSINE，M=32、efConstruction=200
+- **分区管理**：按novel_id分区
+- **模型迁移**：双写→灰度→别名切换策略
+
+> 详细的集合定义、VectorService封装和迁移策略参见：[design-lld.md](design-lld.md#milvus-向量数据库实现)
+
+<!-- Milvus detailed implementation moved to design-lld.md -->
+
+## 批量任务调度架构（基于ADR-006）
+
+### 调度策略设计
+
+| 采用**分阶段实现**的批量处理架构：      | 实现阶段                                | 调度方式                     | 能力特性 | 适用场景 |
+| --------------------------------------- | --------------------------------------- | ---------------------------- | -------- | -------- |
+| --------------------------------------- | --------------------                    |                              |
+| **P1: 简单调度**                        | 基于 Outbox 的事件驱动                  | 任务分发、状态跟踪、基础重试 |
+| MVP阶段、单用户场景                     |                                         | **P2: 工作流编排**           |
+| Prefect 流程引擎                        | 暂停/恢复、条件分支、并行处理、失败补偿 | 多用户、复杂业务逻辑         |
+
+### 任务生命周期管理
+
+**任务分类**：
+
+- **细节生成任务**：地名、人名、道具等批量创建
+- **内容校验任务**：一致性检查、质量评估
+- **优化任务**：向量索引更新、缓存刷新
+
+**状态流转**：
+
+```
+待调度 → 执行中 → 完成/失败 → 清理
+   ↓        ↓        ↓        ↓
+  入队 → 分发给Agent → 结果回收 → 资源回收
+```
+
+**容错机制**：
+
+- **重试策略**：指数退避，最多3次
+- **超时处理**：任务超时自动取消并重新调度
+- **死信队列**：多次失败任务进入DLT处理
+
+> 具体实现代码和限流策略参见：[design-lld.md](design-lld.md#批量任务调度实现)
+
+### 限流实现
+
+- 当前（P1）：滑动窗口限流（Redis 存储请求时间戳窗口），已通过中间件应用于关键端点。
+- 规划（P2）：迁移至 Redis Lua 令牌桶（Token
+  Bucket）以获得更平滑的限速与更好的峰值控制。
+
+## 版本控制策略
+
+实现细节已迁移至 LLD，见：design-lld.md#版本控制实现（本节保留概览与上下文）。
+
+要点（概览）：
+
+- 范围：章节内容（MinIO 快照）、世界规则（Neo4j 属性版）、角色卡（关系版）、状态（时间序列）、情节节点（对象存储）、对话历史（PostgreSQL 增量）、向量嵌入（Milvus 版本字段）
+- 能力：生成版本、恢复、对比、合并（含冲突检测）
+
+> 详细的版本化策略和合并算法参见：[design-lld.md](design-lld.md#版本控制实现)
+
+## P1/P2实施边界说明
+
+### P1阶段（当前实施）
+
+- **核心功能**：API + Agents + Kafka + Outbox
+- **认证授权**：基础JWT + 管理员检查
+- **任务调度**：Outbox + Kafka直接分发
+- **限流策略**：滑动窗口
+- **事件流程**：Orchestrator直接消费和分发
+
+### P2阶段（规划扩展）
+
+- **工作流编排**：引入Prefect（暂停/恢复/分支/回调）
+- **认证授权**：完整RBAC权限模型
+- **任务调度**：Prefect复杂工作流
+- **限流策略**：Redis Lua Token Bucket
+- **请求签名**：API请求签名验证
+
+### 实施优先级
+
+1. **立即实施（P1）**：
+   - 基于Outbox的事件驱动
+   - Agent直接消费Kafka任务
+   - 基础JWT认证
+   - 滑动窗口限流
+
+2. **后续扩展（P2）**：
+   - Prefect工作流编排
+   - RBAC权限体系
+   - Token Bucket限流
+   - 复杂的失败补偿机制
+
+## 交付物
+
+生成的HLD文档包含：
+
+- ✅ 系统架构图（C4模型）
+- ✅ 数据流和控制流图
+- ✅ 需求映射矩阵（FR/NFR/ADR）
+- ✅ 容量规划表
+- ✅ 风险评估矩阵
+- ✅ 部署拓扑图
+- ✅ 回滚策略说明
+- ✅ 事件设计规范
+- ✅ 数据模型定义
+- ✅ 监控指标体系
+
+## 审批流程
+
+HLD完成后需要：
+
+1. **架构师审核**：验证技术方案可行性
+2. **产品负责人**：确认需求覆盖完整性
+3. **运维团队**：评估部署和运维复杂度
+4. **安全团队**：审核安全设计和合规性
+
+---
+
+**文档版本**: 1.0  
+**创建日期**: 2025-09-05  
+**状态**: 待审批  
+**下一步**: 生成低层设计（LLD）
+
+## 近期行动项（两周内）
+
+### P1优先实施
+
+- **质量评分体系**：
+  - 实现多维评分器（LLM自评+规则+相似度+一致性）
+  - 配置阶段特定权重矩阵
+  - 设置分数阈值（8.0/6.0/4.0）和处理策略
+  - 实现3次重试机制和DLT队列
+  - 部署采纳率监控指标（目标≥70%）
+
+- **Neo4j一致性校验**：
+  - 实现5个核心校验规则
+  - 部署ConsistencyValidator类
+  - 集成到质量评分系统（25%权重）
+
+- **事件系统完善**：
+  - 实施点式命名标准
+  - 实现Orchestrator事件映射
+  - EventBridge Kafka→SSE桥接
+  - Outbox发送器实现
+
+- **基础安全**：
+  - 基础JWT认证优化
+  - 滑动窗口限流实施
+  - SSE连接管理完善
+
+- **Milvus向量服务**：
+  - 实现VectorService封装层
+  - 实现模型迁移策略
+
+- **版本控制扩展**：
+  - 实现世界规则版本化（Neo4j属性版本）
+  - 实现角色卡版本化（Neo4j关系建模）
+  - 配置版本保留策略
+  - 实现三路合并算法
+
+### P2后续规划
+
+- **工作流编排**：
+  - 引入Prefect编排引擎
+  - 实现暂停/恢复机制
+  - 条件分支和失败补偿
+
+- **高级安全**：
+  - 完整RBAC权限模型
+  - Redis Lua Token Bucket限流
+  - API请求签名验证
+
+- **扩展功能**：
+  - WebSocket双向通信
+  - gRPC高性能接口
+  - 复杂的自动修复策略

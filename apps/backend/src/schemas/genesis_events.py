@@ -20,12 +20,7 @@ class GenesisEventPayload(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Event timestamp")
 
 
-class GenesisSessionStartedPayload(GenesisEventPayload):
-    """Payload for genesis session started event"""
-
-    mode: str = Field(..., description="Genesis mode: 'guided' or 'free-form'")
-    initial_stage: GenesisStage = Field(..., description="Initial stage of the session")
-    session_metadata: dict[str, Any] | None = Field(None, description="Additional session metadata")
+# GenesisSessionStartedPayload removed - replaced by GenesisFlowStartedPayload
 
 
 class StageEnteredPayload(GenesisEventPayload):
@@ -96,8 +91,7 @@ class NovelCreatedFromGenesisPayload(GenesisEventPayload):
 
 # Union type for all genesis event payloads
 GenesisEventPayloadUnion = (
-    GenesisSessionStartedPayload
-    | StageEnteredPayload
+    StageEnteredPayload
     | StageCompletedPayload
     | ConceptSelectedPayload
     | InspirationGeneratedPayload
@@ -117,8 +111,8 @@ class GenesisEventCreate(BaseSchema):
     causation_id: UUID | None = Field(None, description="ID of the event that caused this event")
     event_type: GenesisEventType = Field(..., description="Type of genesis event")
     event_version: int = Field(default=1, description="Event schema version")
-    aggregate_type: str = Field(default="GenesisSession", description="Aggregate type")
-    aggregate_id: str = Field(..., description="Genesis session ID as string")
+    aggregate_type: str = Field(default="GenesisFlow", description="Aggregate type")
+    aggregate_id: str = Field(..., description="Genesis flow ID as string")
     payload: dict[str, Any] = Field(..., description="Event payload data")
     metadata: dict[str, Any] | None = Field(None, description="Event metadata")
 
@@ -133,7 +127,7 @@ class GenesisEventResponse(BaseSchema):
     event_type: str = Field(..., description="Type of genesis event")
     event_version: int = Field(..., description="Event schema version")
     aggregate_type: str = Field(..., description="Aggregate type")
-    aggregate_id: str = Field(..., description="Genesis session ID as string")
+    aggregate_id: str = Field(..., description="Genesis flow ID as string")
     payload: dict[str, Any] | None = Field(None, description="Event payload data")
     metadata: dict[str, Any] | None = Field(None, description="Event metadata")
     created_at: datetime = Field(..., description="Event creation timestamp")
@@ -149,21 +143,10 @@ class EventSerializationUtils:
 
     @staticmethod
     def deserialize_payload(event_type: GenesisEventType, payload_data: dict[str, Any]) -> GenesisEventPayloadUnion:
-        """Deserialize payload data based on event type"""
+        """Deserialize payload data based on event type using unified mapping."""
+        from src.common.events.mapping import get_event_payload_class
 
-        payload_map = {
-            GenesisEventType.GENESIS_SESSION_STARTED: GenesisSessionStartedPayload,
-            GenesisEventType.STAGE_ENTERED: StageEnteredPayload,
-            GenesisEventType.STAGE_COMPLETED: StageCompletedPayload,
-            GenesisEventType.CONCEPT_SELECTED: ConceptSelectedPayload,
-            GenesisEventType.INSPIRATION_GENERATED: InspirationGeneratedPayload,
-            GenesisEventType.FEEDBACK_PROVIDED: FeedbackProvidedPayload,
-            GenesisEventType.AI_GENERATION_STARTED: AIGenerationStartedPayload,
-            GenesisEventType.AI_GENERATION_COMPLETED: AIGenerationCompletedPayload,
-            GenesisEventType.NOVEL_CREATED_FROM_GENESIS: NovelCreatedFromGenesisPayload,
-        }
-
-        payload_class = payload_map.get(event_type, GenesisEventPayload)
+        payload_class = get_event_payload_class(event_type)
 
         try:
             return payload_class(**payload_data)
@@ -179,8 +162,17 @@ class EventSerializationUtils:
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
         metadata: dict[str, Any] | None = None,
+        flow_id: UUID | None = None,
+        stage_id: UUID | None = None,
     ) -> GenesisEventCreate:
-        """Create a genesis event with proper structure"""
+        """Create a genesis event with proper structure and optional flow_id/stage_id metadata"""
+
+        # Enhance metadata with flow_id and stage_id if provided
+        enhanced_metadata = metadata or {}
+        if flow_id:
+            enhanced_metadata["flow_id"] = str(flow_id)
+        if stage_id:
+            enhanced_metadata["stage_id"] = str(stage_id)
 
         return GenesisEventCreate(
             event_type=event_type,
@@ -188,13 +180,13 @@ class EventSerializationUtils:
             payload=EventSerializationUtils.serialize_payload(payload),
             correlation_id=correlation_id,
             causation_id=causation_id,
-            metadata=metadata or {},
+            metadata=enhanced_metadata,
         )
 
 
 __all__ = [
     "GenesisEventPayload",
-    "GenesisSessionStartedPayload",
+    # Note: GenesisSessionStartedPayload removed - replaced by flow events
     "StageEnteredPayload",
     "StageCompletedPayload",
     "ConceptSelectedPayload",

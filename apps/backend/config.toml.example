@@ -53,10 +53,6 @@ anthropic_api_key = "${ANTHROPIC_API_KEY:-}"
 litellm_api_host = "${LITELLM_API_HOST:-}"
 litellm_api_key = "${LITELLM_API_KEY:-}"
 
-# Embedding API
-embedding_api_host = "${EMBEDDING_API_HOST:-localhost}"
-embedding_api_port = "${EMBEDDING_API_PORT:-11434}"
-embedding_api_model = "${EMBEDDING_API_MODEL:-nomic-embed-text}"
 
 # Logging
 log_level = "${LOG_LEVEL:-INFO}"
@@ -65,6 +61,74 @@ log_format = "${LOG_FORMAT:-%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # ========================================
 # 嵌套段配置 (对应 Settings 类的嵌套模型)
 # ========================================
+
+[embedding]
+# Embedding 提供商配置
+provider = "${EMBEDDING__PROVIDER:-ollama}"  # 可选: ollama, openai, anthropic
+
+# Ollama 设置 (默认提供商)
+ollama_host = "${EMBEDDING__OLLAMA_HOST:-localhost}"
+ollama_port = "${EMBEDDING__OLLAMA_PORT:-11434}"
+ollama_model = "${EMBEDDING__OLLAMA_MODEL:-nomic-embed-text}"
+
+# OpenAI 设置 (当 provider = "openai" 时使用)
+openai_api_key = "${EMBEDDING__OPENAI_API_KEY:-}"
+openai_model = "${EMBEDDING__OPENAI_MODEL:-text-embedding-ada-002}"
+openai_base_url = "${EMBEDDING__OPENAI_BASE_URL:-https://api.openai.com/v1}"
+
+# Anthropic 设置 (当 provider = "anthropic" 时使用 - 未来支持)
+anthropic_api_key = "${EMBEDDING__ANTHROPIC_API_KEY:-}"
+anthropic_model = "${EMBEDDING__ANTHROPIC_MODEL:-}"
+
+# 连接设置
+timeout = "${EMBEDDING__TIMEOUT:-30.0}"
+max_keepalive_connections = "${EMBEDDING__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${EMBEDDING__MAX_CONNECTIONS:-10}"
+
+# LLM（Chat/Completions）统一配置（对齐 EmbeddingSettings 的集中式结构）
+[llm]
+# 默认提供商与模型
+provider = "${LLM__PROVIDER:-litellm}"
+default_model = "${LLM__DEFAULT_MODEL:-}"
+
+# 连接/重试
+timeout = "${LLM__TIMEOUT:-30.0}"
+max_keepalive_connections = "${LLM__MAX_KEEPALIVE_CONNECTIONS:-5}"
+max_connections = "${LLM__MAX_CONNECTIONS:-10}"
+enable_retry = "${LLM__ENABLE_RETRY:-true}"
+retry_attempts = "${LLM__RETRY_ATTEMPTS:-3}"
+retry_min_wait = "${LLM__RETRY_MIN_WAIT:-1.0}"
+retry_max_wait = "${LLM__RETRY_MAX_WAIT:-10.0}"
+
+# LiteLLM Proxy（优先使用嵌套变量，回退到顶层以兼容现有环境）
+litellm_api_host = "${LLM__LITELLM_API_HOST:-${LITELLM_API_HOST:-}}"
+litellm_api_key = "${LLM__LITELLM_API_KEY:-${LITELLM_API_KEY:-}}"
+
+# 各供应商（直连可选，当前阶段优先 LiteLLM）
+openai_api_key = "${LLM__OPENAI_API_KEY:-${OPENAI_API_KEY:-}}"
+openai_base_url = "${LLM__OPENAI_BASE_URL:-https://api.openai.com/v1}"
+anthropic_api_key = "${LLM__ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}"
+anthropic_base_url = "${LLM__ANTHROPIC_BASE_URL:-}"
+gemini_api_key = "${LLM__GEMINI_API_KEY:-${GEMINI_API_KEY:-}}"
+openrouter_api_key = "${LLM__OPENROUTER_API_KEY:-}"
+openrouter_base_url = "${LLM__OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
+kimi_api_key = "${LLM__KIMI_API_KEY:-}"
+kimi_base_url = "${LLM__KIMI_BASE_URL:-https://api.moonshot.cn/v1}"
+deepseek_api_key = "${LLM__DEEPSEEK_API_KEY:-}"
+deepseek_base_url = "${LLM__DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+zhipuai_api_key = "${LLM__ZHIPUAI_API_KEY:-}"
+zhipuai_base_url = "${LLM__ZHIPUAI_BASE_URL:-}"
+dashscope_api_key = "${LLM__DASHSCOPE_API_KEY:-}"
+dashscope_base_url = "${LLM__DASHSCOPE_BASE_URL:-}"
+
+# 路由映射（正则 → provider id），示例：
+[llm.router_model_map]
+"^gpt-" = "litellm"
+"^claude-" = "litellm"
+"^gemini" = "litellm"  # 如后续直连 Gemini，可改为 "gemini"
+"^glm-" = "litellm"
+"^qwen-" = "litellm"
+"^deepseek-" = "litellm"
 
 [auth]
 # JWT 配置 - 生产环境必须设置安全的密钥！
@@ -132,8 +196,8 @@ redis_password = "${DATABASE__REDIS_PASSWORD:-}"
 [launcher]
 # 运行模式：single|multi（P3 可选 auto）
 default_mode = "${LAUNCHER__DEFAULT_MODE:-single}"
-# 启动组件：可选 api、agents（逗号分隔数组）
-components = ["api", "agents"]
+# 启动组件：可选 api、agents、relay、eventbridge（逗号分隔数组）
+components = ["api", "agents", "relay", "eventbridge"]
 # 健康检查间隔（秒）：默认 1Hz
 health_interval = 1.0
 # 管理端点开关：生产环境默认关闭，仅限本地调试时开启
@@ -161,3 +225,47 @@ reload = true
 # [launcher.capacity.concurrency]
 # max_concurrent_startups = 5
 # max_concurrent_health_checks = 10
+
+[relay]
+# Outbox Relay 配置（可用环境变量覆盖）
+poll_interval_seconds = "${RELAY__POLL_INTERVAL_SECONDS:-5}"
+batch_size = "${RELAY__BATCH_SIZE:-100}"
+retry_backoff_ms = "${RELAY__RETRY_BACKOFF_MS:-1000}"
+max_retries_default = "${RELAY__MAX_RETRIES_DEFAULT:-3}"
+yield_sleep_ms = "${RELAY__YIELD_SLEEP_MS:-100}"
+loop_error_backoff_ms = "${RELAY__LOOP_ERROR_BACKOFF_MS:-1000}"
+max_backoff_ms = "${RELAY__MAX_BACKOFF_MS:-60000}"
+
+[eventbridge]
+# EventBridge (Kafka -> SSE) 配置
+# 消费的领域事件主题列表
+domain_topics = ["${EVENTBRIDGE__DOMAIN_TOPICS:-genesis.session.events}"]
+# 或者使用 JSON 数组格式支持多主题：
+# domain_topics = ["genesis.session.events", "chapter.session.events", "review.session.events"]
+
+# Kafka 消费组配置
+group_id_suffix = "${EVENTBRIDGE__GROUP_ID_SUFFIX:-event-bridge}"
+
+# 熔断器配置
+cb_window_seconds = "${EVENTBRIDGE__CB_WINDOW_SECONDS:-10}"
+cb_fail_rate_threshold = "${EVENTBRIDGE__CB_FAIL_RATE_THRESHOLD:-0.5}"
+cb_half_open_interval_seconds = "${EVENTBRIDGE__CB_HALF_OPEN_INTERVAL_SECONDS:-30}"
+
+# 偏移量提交配置
+commit_interval_ms = "${EVENTBRIDGE__COMMIT_INTERVAL_MS:-5000}"
+commit_batch_size = "${EVENTBRIDGE__COMMIT_BATCH_SIZE:-100}"
+
+# 日志配置
+log_level = "${EVENTBRIDGE__LOG_LEVEL:-INFO}"
+metrics_log_interval = "${EVENTBRIDGE__METRICS_LOG_INTERVAL:-100}"
+
+[command_status]
+# API 内嵌命令状态消费者（Kafka -> DB -> 域事件）
+enabled = "${COMMAND_STATUS__ENABLED:-true}"
+# 命令状态事件主题列表（逗号分隔可通过 JSON 数组覆盖）
+topics = ["${COMMAND_STATUS__TOPICS:-command.status.events}"]
+# 消费组后缀（完整 group id = <KAFKA_GROUP_ID_PREFIX>-<suffix>-group）
+group_id_suffix = "${COMMAND_STATUS__GROUP_ID_SUFFIX:-command-status}"
+# 批处理与 poll 配置
+batch_size = "${COMMAND_STATUS__BATCH_SIZE:-100}"
+poll_timeout_ms = "${COMMAND_STATUS__POLL_TIMEOUT_MS:-1000}"

@@ -5,7 +5,7 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.common.services.jwt_service import jwt_service
+from src.common.services.user.auth_service import auth_service
 from src.database import get_db
 from src.models.user import User
 
@@ -33,7 +33,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         )
 
     # Extract token
-    token = jwt_service.extract_token_from_header(authorization)
+    token = auth_service.extract_token_from_header(authorization)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,7 +43,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
     # Verify token
     try:
-        payload = jwt_service.verify_token(token, "access")
+        payload = await auth_service.verify_token(token, "access")
         user_id = payload.get("sub")
         jti = payload.get("jti")
 

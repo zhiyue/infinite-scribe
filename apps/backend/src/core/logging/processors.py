@@ -8,15 +8,9 @@ class SerializationFallbackProcessor:
 
     def __call__(self, logger, name, event_dict: dict[str, Any]) -> dict[str, Any]:
         """Process event dict and handle non-serializable objects"""
-        has_fallback = False
-
         for key, value in event_dict.items():
             if not self._is_serializable(value):
                 event_dict[key] = str(value)
-                has_fallback = True
-
-        if has_fallback:
-            event_dict["serialization_fallback"] = True
 
         return event_dict
 

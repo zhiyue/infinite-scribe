@@ -1,0 +1,799 @@
+# 序列化实现
+
+本文档定义了命令和事件的序列化实现，包括Python枚举定义、序列化器和工具函数。
+
+## 枚举定义
+
+### 命令类型枚举
+
+```python
+from enum import Enum
+from typing import Optional
+
+class CommandType(Enum):
+    """命令类型枚举，value使用点式命名"""
+
+    # Stage 0 - 创意种子
+    SESSION_START = "Command.Genesis.Session.Start"
+    SEED_REQUEST = "Command.Genesis.Session.Seed.Request"
+    CONCEPT_CONFIRM = "Command.Genesis.Session.Concept.Confirm"
+    STAGE_COMPLETE = "Command.Genesis.Session.Stage.Complete"
+
+    # Stage 1 - 立意主题
+    THEME_REQUEST = "Command.Genesis.Session.Theme.Request"
+    THEME_REVISE = "Command.Genesis.Session.Theme.Revise"
+    THEME_CONFIRM = "Command.Genesis.Session.Theme.Confirm"
+
+    # Stage 2 - 世界观
+    WORLD_REQUEST = "Command.Genesis.Session.World.Request"
+    WORLD_UPDATE = "Command.Genesis.Session.World.Update"
+    WORLD_CONFIRM = "Command.Genesis.Session.World.Confirm"
+
+    # Stage 3 - 人物
+    CHARACTER_REQUEST = "Command.Genesis.Session.Character.Request"
+    CHARACTER_UPDATE = "Command.Genesis.Session.Character.Update"
+    CHARACTER_CONFIRM = "Command.Genesis.Session.Character.Confirm"
+    CHARACTER_NETWORK_CREATE = "Command.Genesis.Session.CharacterNetwork.Create"
+
+    # Stage 4 - 情节
+    PLOT_REQUEST = "Command.Genesis.Session.Plot.Request"
+    PLOT_UPDATE = "Command.Genesis.Session.Plot.Update"
+    PLOT_CONFIRM = "Command.Genesis.Session.Plot.Confirm"
+
+    # Stage 5 - 细节
+    DETAILS_REQUEST = "Command.Genesis.Session.Details.Request"
+    DETAILS_CONFIRM = "Command.Genesis.Session.Details.Confirm"
+
+    # 通用命令
+    SESSION_FINISH = "Command.Genesis.Session.Finish"
+    SESSION_FAIL = "Command.Genesis.Session.Fail"
+    BRANCH_CREATE = "Command.Genesis.Session.Branch.Create"
+
+    @classmethod
+    def from_string(cls, value: str) -> 'CommandType':
+        """从字符串获取枚举值"""
+        for item in cls:
+            if item.value == value:
+                return item
+        raise ValueError(f"Unknown CommandType value: {value}")
+
+    @classmethod
+    def get_stage_commands(cls, stage: str) -> list['CommandType']:
+        """获取指定阶段的命令类型"""
+        stage_mapping = {
+            "Stage_0": [cls.SESSION_START, cls.SEED_REQUEST, cls.CONCEPT_CONFIRM, cls.STAGE_COMPLETE],
+            "Stage_1": [cls.THEME_REQUEST, cls.THEME_REVISE, cls.THEME_CONFIRM],
+            "Stage_2": [cls.WORLD_REQUEST, cls.WORLD_UPDATE, cls.WORLD_CONFIRM],
+            "Stage_3": [cls.CHARACTER_REQUEST, cls.CHARACTER_UPDATE, cls.CHARACTER_CONFIRM, cls.CHARACTER_NETWORK_CREATE],
+            "Stage_4": [cls.PLOT_REQUEST, cls.PLOT_UPDATE, cls.PLOT_CONFIRM],
+            "Stage_5": [cls.DETAILS_REQUEST, cls.DETAILS_CONFIRM]
+        }
+        return stage_mapping.get(stage, [])
+
+    def get_expected_result_event(self) -> Optional['GenesisEventType']:
+        """获取该命令预期产生的结果事件"""
+        from .event_types import GenesisEventType, COMMAND_EVENT_MAPPING
+        event_type_str = COMMAND_EVENT_MAPPING.get(self.value)
+        if event_type_str:
+            return GenesisEventType.from_string(event_type_str)
+        return None
+```
+
+### 事件类型枚举
+
+```python
+class GenesisEventType(Enum):
+    """创世事件类型枚举，value使用点式命名"""
+
+    # Stage 0 - 创意种子
+    SESSION_STARTED = "Genesis.Session.Started"
+    SEED_REQUESTED = "Genesis.Session.SeedRequested"
+    CONCEPT_PROPOSED = "Genesis.Session.ConceptProposed"
+    CONCEPT_CONFIRMED = "Genesis.Session.ConceptConfirmed"
+    STAGE_COMPLETED = "Genesis.Session.StageCompleted"
+
+    # Stage 1 - 立意主题
+    THEME_REQUESTED = "Genesis.Session.Theme.Requested"
+    THEME_PROPOSED = "Genesis.Session.Theme.Proposed"
+    THEME_REVISED = "Genesis.Session.Theme.Revised"
+    THEME_CONFIRMED = "Genesis.Session.Theme.Confirmed"
+
+    # Stage 2 - 世界观
+    WORLD_REQUESTED = "Genesis.Session.World.Requested"
+    WORLD_PROPOSED = "Genesis.Session.World.Proposed"
+    WORLD_UPDATED = "Genesis.Session.World.Updated"
+    WORLD_CONFIRMED = "Genesis.Session.World.Confirmed"
+
+    # Stage 3 - 人物
+    CHARACTER_REQUESTED = "Genesis.Session.Character.Requested"
+    CHARACTER_PROPOSED = "Genesis.Session.Character.Proposed"
+    CHARACTER_UPDATED = "Genesis.Session.Character.Updated"
+    CHARACTER_CONFIRMED = "Genesis.Session.Character.Confirmed"
+    CHARACTER_NETWORK_CREATED = "Genesis.Session.CharacterNetwork.Created"
+
+    # Stage 4 - 情节
+    PLOT_REQUESTED = "Genesis.Session.Plot.Requested"
+    PLOT_PROPOSED = "Genesis.Session.Plot.Proposed"
+    PLOT_UPDATED = "Genesis.Session.Plot.Updated"
+    PLOT_CONFIRMED = "Genesis.Session.Plot.Confirmed"
+
+    # Stage 5 - 细节
+    DETAILS_REQUESTED = "Genesis.Session.Details.Requested"
+    DETAILS_GENERATED = "Genesis.Session.Details.Generated"
+    DETAILS_CONFIRMED = "Genesis.Session.Details.Confirmed"
+
+    # 通用事件
+    SESSION_FINISHED = "Genesis.Session.Finished"
+    SESSION_FAILED = "Genesis.Session.Failed"
+    BRANCH_CREATED = "Genesis.Session.BranchCreated"
+
+    @classmethod
+    def from_string(cls, value: str) -> 'GenesisEventType':
+        """从字符串获取枚举值"""
+        for item in cls:
+            if item.value == value:
+                return item
+        raise ValueError(f"Unknown GenesisEventType value: {value}")
+
+    @classmethod
+    def get_stage_events(cls, stage: str) -> list['GenesisEventType']:
+        """获取指定阶段的事件类型"""
+        stage_mapping = {
+            "Stage_0": [cls.SESSION_STARTED, cls.SEED_REQUESTED, cls.CONCEPT_PROPOSED, cls.CONCEPT_CONFIRMED, cls.STAGE_COMPLETED],
+            "Stage_1": [cls.THEME_REQUESTED, cls.THEME_PROPOSED, cls.THEME_REVISED, cls.THEME_CONFIRMED],
+            "Stage_2": [cls.WORLD_REQUESTED, cls.WORLD_PROPOSED, cls.WORLD_UPDATED, cls.WORLD_CONFIRMED],
+            "Stage_3": [cls.CHARACTER_REQUESTED, cls.CHARACTER_PROPOSED, cls.CHARACTER_UPDATED, cls.CHARACTER_CONFIRMED, cls.CHARACTER_NETWORK_CREATED],
+            "Stage_4": [cls.PLOT_REQUESTED, cls.PLOT_PROPOSED, cls.PLOT_UPDATED, cls.PLOT_CONFIRMED],
+            "Stage_5": [cls.DETAILS_REQUESTED, cls.DETAILS_GENERATED, cls.DETAILS_CONFIRMED]
+        }
+        return stage_mapping.get(stage, [])
+
+    def is_request_event(self) -> bool:
+        """判断是否为请求类事件"""
+        return self.value.endswith('.Requested')
+
+    def is_proposal_event(self) -> bool:
+        """判断是否为提议类事件"""
+        return self.value.endswith('.Proposed')
+
+    def is_confirmation_event(self) -> bool:
+        """判断是否为确认类事件"""
+        return self.value.endswith('.Confirmed')
+
+    def get_stage(self) -> Optional[str]:
+        """获取事件所属阶段"""
+        if 'Theme' in self.value:
+            return 'Stage_1'
+        elif 'World' in self.value:
+            return 'Stage_2'
+        elif 'Character' in self.value:
+            return 'Stage_3'
+        elif 'Plot' in self.value:
+            return 'Stage_4'
+        elif 'Details' in self.value:
+            return 'Stage_5'
+        elif self in [self.SESSION_STARTED, self.SEED_REQUESTED, self.CONCEPT_PROPOSED, self.CONCEPT_CONFIRMED]:
+            return 'Stage_0'
+        return None
+```
+
+### 命令事件映射
+
+```python
+# 完整的命令→事件映射表
+COMMAND_EVENT_MAPPING = {
+    # Stage 0 - 创意种子
+    "Command.Genesis.Session.Start": "Genesis.Session.Started",
+    "Command.Genesis.Session.Seed.Request": "Genesis.Session.SeedRequested",
+    "Command.Genesis.Session.Concept.Confirm": "Genesis.Session.ConceptConfirmed",
+    "Command.Genesis.Session.Stage.Complete": "Genesis.Session.StageCompleted",
+
+    # Stage 1 - 立意主题
+    "Command.Genesis.Session.Theme.Request": "Genesis.Session.Theme.Requested",
+    "Command.Genesis.Session.Theme.Revise": "Genesis.Session.Theme.Revised",
+    "Command.Genesis.Session.Theme.Confirm": "Genesis.Session.Theme.Confirmed",
+
+    # Stage 2 - 世界观
+    "Command.Genesis.Session.World.Request": "Genesis.Session.World.Requested",
+    "Command.Genesis.Session.World.Update": "Genesis.Session.World.Updated",
+    "Command.Genesis.Session.World.Confirm": "Genesis.Session.World.Confirmed",
+
+    # Stage 3 - 人物
+    "Command.Genesis.Session.Character.Request": "Genesis.Session.Character.Requested",
+    "Command.Genesis.Session.Character.Update": "Genesis.Session.Character.Updated",
+    "Command.Genesis.Session.Character.Confirm": "Genesis.Session.Character.Confirmed",
+    "Command.Genesis.Session.CharacterNetwork.Create": "Genesis.Session.CharacterNetwork.Created",
+
+    # Stage 4 - 情节
+    "Command.Genesis.Session.Plot.Request": "Genesis.Session.Plot.Requested",
+    "Command.Genesis.Session.Plot.Update": "Genesis.Session.Plot.Updated",
+    "Command.Genesis.Session.Plot.Confirm": "Genesis.Session.Plot.Confirmed",
+
+    # Stage 5 - 细节
+    "Command.Genesis.Session.Details.Request": "Genesis.Session.Details.Requested",
+    "Command.Genesis.Session.Details.Confirm": "Genesis.Session.Details.Confirmed",
+
+    # 通用映射
+    "Command.Genesis.Session.Finish": "Genesis.Session.Finished",
+    "Command.Genesis.Session.Fail": "Genesis.Session.Failed",
+    "Command.Genesis.Session.Branch.Create": "Genesis.Session.BranchCreated"
+}
+
+def get_result_event_type(command_type: str) -> Optional[str]:
+    """根据命令类型获取对应的结果事件类型"""
+    return COMMAND_EVENT_MAPPING.get(command_type)
+
+def get_command_for_event(event_type: str) -> Optional[str]:
+    """根据事件类型获取对应的命令类型（反向查找）"""
+    for cmd_type, evt_type in COMMAND_EVENT_MAPPING.items():
+        if evt_type == event_type:
+            return cmd_type
+    return None
+```
+
+## 领域对象定义
+
+### Pydantic 模型使用说明
+
+本项目统一使用 Pydantic 进行数据验证和序列化，具有以下优势：
+
+- **类型安全**：编译时和运行时的类型检查
+- **数据验证**：自动验证字段格式和约束
+- **序列化支持**：内置 JSON 序列化/反序列化
+- **IDE 支持**：良好的代码提示和类型推断
+- **生态一致**：与项目现有的 FastAPI 和 schemas 模块保持一致
+
+### 命令对象
+
+```python
+from datetime import datetime
+from typing import Dict, Any, Optional
+import uuid
+from pydantic import BaseModel, Field, ConfigDict
+
+class DomainCommand(BaseModel):
+    """领域命令基类"""
+    command_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    command_type: CommandType
+    aggregate_id: str
+    aggregate_type: str
+    payload: Dict[str, Any]
+    user_id: str
+    correlation_id: Optional[str] = None
+    causation_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        extra="forbid",  # 禁止额外字段
+        use_enum_values=True,  # 序列化时使用枚举值
+        validate_assignment=True,  # 赋值时验证
+    )
+```
+
+### 事件对象
+
+```python
+class DomainEvent(BaseModel):
+    """领域事件基类"""
+    event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event_type: GenesisEventType
+    aggregate_id: str
+    aggregate_type: str
+    aggregate_version: int
+    payload: Dict[str, Any]
+    user_id: Optional[str] = None
+    correlation_id: Optional[str] = None
+    causation_id: Optional[str] = None
+    occurred_at: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(
+        extra="forbid",
+        use_enum_values=True,
+        validate_assignment=True,
+    )
+```
+
+## 序列化器实现
+
+### 命令序列化器
+
+```python
+from typing import Union, Dict, Any
+import json
+from datetime import datetime
+
+class CommandSerializer:
+    """命令序列化器"""
+
+    @staticmethod
+    def serialize_for_storage(command: DomainCommand) -> Dict[str, Any]:
+        """序列化命令到数据库存储格式"""
+        return {
+            "command_id": command.command_id,
+            "command_type": command.command_type.value,  # 点式字符串
+            "aggregate_id": command.aggregate_id,
+            "aggregate_type": command.aggregate_type,
+            "payload": command.payload,
+            "correlation_id": command.correlation_id,
+            "causation_id": command.causation_id,
+            "user_id": command.user_id,
+            "metadata": command.metadata or {}
+        }
+
+    @staticmethod
+    def deserialize_from_storage(data: Dict[str, Any]) -> DomainCommand:
+        """从数据库存储格式反序列化命令"""
+        return DomainCommand(
+            command_id=data["command_id"],
+            command_type=CommandType.from_string(data["command_type"]),
+            aggregate_id=data["aggregate_id"],
+            aggregate_type=data["aggregate_type"],
+            payload=data["payload"],
+            user_id=data["user_id"],
+            correlation_id=data.get("correlation_id"),
+            causation_id=data.get("causation_id"),
+            metadata=data.get("metadata", {})
+        )
+
+    @staticmethod
+    def serialize_for_api(command: DomainCommand) -> Dict[str, Any]:
+        """序列化命令到API响应格式"""
+        result = CommandSerializer.serialize_for_storage(command)
+        result["created_at"] = command.created_at.isoformat() if command.created_at else None
+        return result
+
+    @staticmethod
+    def validate_payload(command_type: CommandType, payload: Dict[str, Any]) -> bool:
+        """验证命令负载的格式是否正确"""
+        # 根据命令类型验证必需字段
+        required_fields = {
+            CommandType.SESSION_START: ["user_id", "initial_input"],
+            CommandType.SEED_REQUEST: ["session_id", "user_id", "user_input"],
+            CommandType.CONCEPT_CONFIRM: ["session_id", "novel_id", "concept_id"],
+            CommandType.THEME_REQUEST: ["session_id", "novel_id", "concept_context"],
+            # 添加其他命令类型的验证规则...
+        }
+
+        required = required_fields.get(command_type, [])
+        return all(field in payload for field in required)
+```
+
+### 事件序列化器
+
+```python
+class EventSerializer:
+    """事件序列化器"""
+
+    @staticmethod
+    def serialize_for_storage(event: DomainEvent) -> Dict[str, Any]:
+        """序列化事件到数据库存储格式"""
+        return {
+            "event_id": event.event_id,
+            "event_type": event.event_type.value,  # 点式字符串
+            "aggregate_id": event.aggregate_id,
+            "aggregate_type": event.aggregate_type,
+            "aggregate_version": event.aggregate_version,
+            "payload": event.payload,
+            "correlation_id": event.correlation_id,
+            "causation_id": event.causation_id,
+            "user_id": event.user_id,
+            "metadata": event.metadata or {}
+        }
+
+    @staticmethod
+    def deserialize_from_storage(data: Dict[str, Any]) -> DomainEvent:
+        """从数据库存储格式反序列化事件"""
+        return DomainEvent(
+            event_id=data["event_id"],
+            event_type=GenesisEventType.from_string(data["event_type"]),
+            aggregate_id=data["aggregate_id"],
+            aggregate_type=data["aggregate_type"],
+            aggregate_version=data["aggregate_version"],
+            payload=data["payload"],
+            user_id=data.get("user_id"),
+            correlation_id=data.get("correlation_id"),
+            causation_id=data.get("causation_id"),
+            metadata=data.get("metadata", {})
+        )
+
+    @staticmethod
+    def serialize_for_kafka(event: DomainEvent, topic: str, partition_key: str) -> Dict[str, Any]:
+        """序列化事件到Kafka Outbox格式"""
+        # Headers 包含路由和元数据信息
+        headers = {
+            "event_type": event.event_type.value,
+            "content_type": "application/json",
+            "correlation_id": event.correlation_id,
+            "causation_id": event.causation_id,
+            "aggregate_id": event.aggregate_id,
+            "aggregate_type": event.aggregate_type,
+            "user_id": event.user_id,
+            "source": event.metadata.get("source", "unknown"),
+            "trace_id": event.metadata.get("trace_id"),
+            "timestamp": event.occurred_at.isoformat() if event.occurred_at else None,
+            "schema_version": "1.0"
+        }
+
+        # Payload 包含完整的领域事件数据
+        payload = EventSerializer.serialize_for_storage(event)
+        payload["occurred_at"] = event.occurred_at.isoformat() if event.occurred_at else None
+
+        return {
+            "event_id": event.event_id,
+            "topic": topic,
+            "partition_key": partition_key,
+            "headers": headers,
+            "payload": payload
+        }
+
+    @staticmethod
+    def serialize_for_sse(event: DomainEvent) -> Dict[str, Any]:
+        """序列化事件到SSE格式"""
+        return {
+            "id": event.event_id,
+            "event": event.event_type.value,
+            "data": {
+                "aggregate_id": event.aggregate_id,
+                "payload": event.payload,
+                "timestamp": event.occurred_at.isoformat() if event.occurred_at else None,
+                "correlation_id": event.correlation_id
+            }
+        }
+```
+
+## 工具函数
+
+### 类型转换工具
+
+```python
+class TypeConverter:
+    """类型转换工具"""
+
+    @staticmethod
+    def string_to_uuid(value: str) -> str:
+        """验证并返回UUID字符串"""
+        try:
+            uuid.UUID(value)  # 验证格式
+            return value
+        except ValueError:
+            raise ValueError(f"Invalid UUID format: {value}")
+
+    @staticmethod
+    def ensure_string(value: Any) -> str:
+        """确保值为字符串类型"""
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+    @staticmethod
+    def safe_json_loads(value: str) -> Dict[str, Any]:
+        """安全的JSON解析"""
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @staticmethod
+    def safe_json_dumps(value: Any) -> str:
+        """安全的JSON序列化"""
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return "{}"
+```
+
+### 验证工具
+
+```python
+class ValidationUtils:
+    """验证工具"""
+
+    @staticmethod
+    def validate_command_structure(data: Dict[str, Any]) -> bool:
+        """验证命令数据结构"""
+        required_fields = ["command_id", "command_type", "aggregate_id", "aggregate_type", "payload", "user_id"]
+        return all(field in data for field in required_fields)
+
+    @staticmethod
+    def validate_event_structure(data: Dict[str, Any]) -> bool:
+        """验证事件数据结构"""
+        required_fields = ["event_id", "event_type", "aggregate_id", "aggregate_type", "aggregate_version", "payload"]
+        return all(field in data for field in required_fields)
+
+    @staticmethod
+    def validate_genesis_stage(stage: str) -> bool:
+        """验证创世阶段值"""
+        valid_stages = ["Stage_0", "Stage_1", "Stage_2", "Stage_3", "Stage_4", "Stage_5"]
+        return stage in valid_stages
+
+    @staticmethod
+    def validate_correlation_chain(commands: list, events: list) -> bool:
+        """验证命令事件链的一致性"""
+        # 检查 correlation_id 是否一致
+        correlation_ids = set()
+        for cmd in commands:
+            if cmd.get("correlation_id"):
+                correlation_ids.add(cmd["correlation_id"])
+        for evt in events:
+            if evt.get("correlation_id"):
+                correlation_ids.add(evt["correlation_id"])
+
+        return len(correlation_ids) <= 1  # 应该只有一个或零个correlation_id
+```
+
+## 使用示例
+
+### 创建和序列化命令
+
+```python
+# 创建开始会话命令
+command = DomainCommand(
+    command_id=str(uuid.uuid4()),
+    command_type=CommandType.SESSION_START,
+    aggregate_id="session-456",
+    aggregate_type="GenesisSession",
+    payload={
+        "user_id": "user-789",
+        "initial_input": "我想写一个关于时间旅行的科幻小说",
+        "preferences": {"genre": "sci-fi", "length": "medium"}
+    },
+    user_id="user-789",
+    correlation_id="flow-001"
+)
+
+# 序列化到数据库
+db_data = CommandSerializer.serialize_for_storage(command)
+
+# 从数据库反序列化
+restored_command = CommandSerializer.deserialize_from_storage(db_data)
+```
+
+### 创建和序列化事件
+
+```python
+# 创建会话开始事件
+event = DomainEvent(
+    event_id=str(uuid.uuid4()),
+    event_type=GenesisEventType.SESSION_STARTED,
+    aggregate_id="session-456",
+    aggregate_type="GenesisSession",
+    aggregate_version=1,
+    payload={
+        "session_id": "session-456",
+        "novel_id": "novel-789",
+        "stage": "Stage_0",
+        "user_id": "user-789",
+        "content": {"initial_input": "我想写一个关于时间旅行的科幻小说"}
+    },
+    user_id="user-789",
+    correlation_id="flow-001",
+    causation_id="cmd-123"
+)
+
+# 序列化到Kafka
+kafka_data = EventSerializer.serialize_for_kafka(event, "genesis.session.events", "session-456")
+
+# 序列化到SSE
+sse_data = EventSerializer.serialize_for_sse(event)
+```
+
+这套序列化实现确保了命令和事件在不同存储和传输层之间的一致性和正确性。
+
+## Outbox Payload 构建最佳实践
+
+### 问题背景
+
+当前outbox payload构建方式存在安全风险：直接将领域事件的`payload`字段merge到顶层，可能导致业务数据覆盖系统关键字段（如`event_id`、`event_type`、`metadata`等）。
+
+### Builder模式解决方案（推荐）
+
+#### 核心设计思路
+
+采用命名空间隔离的Builder模式，将系统元数据与业务数据完全分离：
+
+```python
+from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
+
+class SystemMetadata(BaseModel):
+    """系统元数据类型定义 - 使用 Pydantic 进行类型安全和验证"""
+    event_id: str
+    event_type: str
+    aggregate_type: str
+    aggregate_id: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    correlation_id: Optional[str] = None
+    causation_id: Optional[str] = None
+    created_at: Optional[str] = None
+    event_version: Optional[int] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+class OutboxPayloadEnvelope(BaseModel):
+    """Outbox有效负载信封结构定义"""
+    system: SystemMetadata
+    data: Dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = "v1"
+
+    model_config = ConfigDict(extra="forbid")
+```
+
+#### Builder实现
+
+```python
+from src.models.event import DomainEvent
+
+class OutboxPayloadBuilder:
+    """类型安全的outbox payload构建器
+
+    优势：
+    - 彻底消除字段冲突风险
+    - 为后续演进（版本升级）提供明确边界
+    - 保持结构清晰：system层专注元数据，data层专注业务负载
+    """
+
+    RESERVED_TOP_LEVEL_FIELDS = {"system", "data", "schema_version"}
+
+    def __init__(self):
+        self._system_metadata: dict[str, Any] = {}
+        self._business_data: dict[str, Any] = {}
+        self._schema_version: str = "v1"
+
+    def with_domain_event(self, event: DomainEvent) -> 'OutboxPayloadBuilder':
+        """从领域事件提取系统元数据"""
+        self._system_metadata = {
+            "event_id": str(event.event_id),
+            "event_type": event.event_type,
+            "aggregate_type": event.aggregate_type,
+            "aggregate_id": event.aggregate_id,
+            "metadata": event.event_metadata or {},
+        }
+
+        # 添加可选字段
+        if hasattr(event, "correlation_id") and event.correlation_id:
+            self._system_metadata["correlation_id"] = str(event.correlation_id)
+
+        if hasattr(event, "causation_id") and event.causation_id:
+            self._system_metadata["causation_id"] = str(event.causation_id)
+
+        if hasattr(event, "created_at") and event.created_at:
+            try:
+                self._system_metadata["created_at"] = event.created_at.isoformat()
+            except Exception:
+                # 静默处理时间格式化异常
+                pass
+
+        return self
+
+    def with_business_data(self, data: dict[str, Any]) -> 'OutboxPayloadBuilder':
+        """设置业务数据，防御性检查顶层保留字段冲突"""
+        if not data:
+            return self
+
+        # 检查业务数据是否包含顶层保留字段
+        conflicts = set(data.keys()) & self.RESERVED_TOP_LEVEL_FIELDS
+        if conflicts:
+            raise ValueError(
+                f"Business data contains reserved top-level fields: {conflicts}. "
+                f"These fields conflict with the envelope structure."
+            )
+
+        self._business_data = data
+        return self
+
+    def with_schema_version(self, version: str) -> 'OutboxPayloadBuilder':
+        """设置Schema版本（支持灰度迁移）"""
+        self._schema_version = version
+        return self
+
+    def build(self) -> OutboxPayloadEnvelope:
+        """构建最终的outbox payload"""
+        # 完整性校验：必需的系统字段
+        required_fields = ["event_id", "event_type", "aggregate_type", "aggregate_id"]
+        missing_fields = [field for field in required_fields if field not in self._system_metadata]
+
+        if missing_fields:
+            raise ValueError(f"Missing required system metadata fields: {missing_fields}")
+
+        return OutboxPayloadEnvelope(
+            system=SystemMetadata(**self._system_metadata),
+            data=self._business_data,
+            schema_version=self._schema_version
+        )
+
+    @classmethod
+    def from_domain_event(cls, domain_event: DomainEvent) -> 'OutboxPayloadBuilder':
+        """便捷工厂方法"""
+        return cls().with_domain_event(domain_event).with_business_data(domain_event.payload or {})
+```
+
+#### 集成到现有代码
+
+修改 `OutboxEntryCreator._build_outbox_payload` 方法（位于 `apps/backend/src/agents/orchestrator/outbox_manager.py:281`）：
+
+```python
+def _build_outbox_payload(self, domain_event: DomainEvent) -> dict:
+    """使用Builder模式构建outbox有效负载，确保字段隔离"""
+    try:
+        payload = OutboxPayloadBuilder.from_domain_event(domain_event).build()
+
+        self.log.debug(
+            "outbox_payload_built_with_builder",
+            event_id=str(domain_event.event_id),
+            event_type=domain_event.event_type,
+            schema_version=payload["schema_version"],
+            has_business_data=bool(payload["data"]),
+        )
+
+        return payload
+
+    except Exception as e:
+        self.log.error(
+            "outbox_payload_build_failed",
+            event_id=str(domain_event.event_id),
+            event_type=domain_event.event_type,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+```
+
+#### 配套更新
+
+1. **Headers增强**：在EventOutbox的headers中增加schema版本
+```python
+headers={
+    "event_type": domain_event.event_type,
+    "version": 1,
+    "correlation_id": str(correlation_id) if correlation_id else None,
+    "schema_version": "v1",  # 与payload版本对齐
+}
+```
+
+2. **测试更新**：现有测试需要适配新的payload结构
+```python
+# 旧断言（平铺结构）
+assert result.payload["character_type"] == "hero"
+
+# 新断言（分层结构）
+assert result.payload["system"]["event_id"] == str(domain_event.event_id)
+assert result.payload["data"]["character_type"] == "hero"
+assert result.payload["schema_version"] == "v1"
+```
+
+### 迁移策略
+
+#### 阶段1：并行运行（兼容性保证）
+- 保持当前实现作为fallback
+- 新增Builder实现，通过配置开关控制
+- 下游消费者同时支持两种格式
+
+#### 阶段2：逐步切换
+- 消费者优先识别新格式
+- 生产者逐步切换到Builder模式
+- 监控和日志跟踪切换进度
+
+#### 阶段3：完全迁移
+- 移除旧实现
+- 统一使用Builder模式
+- 清理兼容性代码
+
+### 优势总结
+
+1. **安全性**：彻底消除字段冲突风险，系统元数据不会被业务数据覆盖
+2. **可维护性**：清晰的分层结构，system和data职责明确
+3. **可扩展性**：通过schema_version支持平滑演进和向后兼容
+4. **可观测性**：Builder过程可以加入详细的日志和监控
+5. **类型安全**：TypedDict提供编译时类型检查
+
+### 对比现有方案
+
+| 方案 | 安全性 | 性能 | 兼容性 | 复杂度 | 推荐度 |
+|------|--------|------|--------|--------|--------|
+| 当前修复（运行时检测） | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | 过渡方案 |
+| **Builder模式（命名空间隔离）** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | **长期推荐** |
+
+Builder模式通过结构化设计从根本上解决了字段冲突问题，同时为系统演进提供了清晰的架构基础。

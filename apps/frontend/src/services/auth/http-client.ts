@@ -82,6 +82,21 @@ export class AxiosHttpClient implements IHttpClient {
   }
 
   /**
+   * PATCH 请求
+   */
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    try {
+      return await this.axiosInstance.patch<T>(url, data, config)
+    } catch (error) {
+      throw this.handleError(error as AxiosError)
+    }
+  }
+
+  /**
    * DELETE 请求
    */
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
@@ -262,6 +277,14 @@ export class FetchHttpClient implements IHttpClient {
     return this.request<T>('PUT', url, data, config)
   }
 
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    return this.request<T>('PATCH', url, data, config)
+  }
+
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.request<T>('DELETE', url, undefined, config)
   }
@@ -288,6 +311,18 @@ export class FetchHttpClient implements IHttpClient {
     console.warn('Interceptors not supported in FetchHttpClient')
   }
 
+  setBaseURL(baseURL: string): void {
+    this.baseURL = baseURL
+  }
+
+  setTimeout(timeout: number): void {
+    this.timeout = timeout
+  }
+
+  clearAllInterceptors(): void {
+    console.warn('Interceptors not supported in FetchHttpClient')
+  }
+
   /**
    * 执行 HTTP 请求
    * @private
@@ -299,12 +334,26 @@ export class FetchHttpClient implements IHttpClient {
     config?: AxiosRequestConfig,
   ): Promise<AxiosResponse<T>> {
     const fullUrl = this.buildUrl(url)
-    const headers = { ...this.defaultHeaders, ...config?.headers }
+
+    // Convert axios headers to fetch headers format
+    const headers: Record<string, string> = {
+      ...this.defaultHeaders,
+    }
+
+    if (config?.headers) {
+      // Handle both AxiosHeaders and plain object formats
+      if (typeof config.headers === 'object') {
+        Object.entries(config.headers).forEach(([key, value]) => {
+          if (typeof value === 'string') {
+            headers[key] = value
+          }
+        })
+      }
+    }
 
     const requestConfig: RequestInit = {
       method,
       headers,
-      ...config,
     }
 
     if (data) {
@@ -426,6 +475,14 @@ export class MockHttpClient implements IHttpClient {
     return this.mockRequest<T>('PUT', url, data, config)
   }
 
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<T>> {
+    return this.mockRequest<T>('PATCH', url, data, config)
+  }
+
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.mockRequest<T>('DELETE', url, undefined, config)
   }
@@ -447,6 +504,18 @@ export class MockHttpClient implements IHttpClient {
   }
 
   removeInterceptor(): void {
+    // Mock implementation
+  }
+
+  setBaseURL(_baseURL: string): void {
+    // Mock implementation - not actually used in mock client
+  }
+
+  setTimeout(timeout: number): void {
+    this.delay = timeout
+  }
+
+  clearAllInterceptors(): void {
     // Mock implementation
   }
 
@@ -514,15 +583,20 @@ export class MockHttpClient implements IHttpClient {
  */
 export function createHttpClient(
   type: 'axios' | 'fetch' | 'mock' = 'axios',
-  config?: any,
+  config?:
+    | AxiosRequestConfig
+    | { baseURL?: string; timeout?: number; headers?: Record<string, string> }
+    | { delay?: number },
 ): IHttpClient {
   switch (type) {
     case 'axios':
-      return new AxiosHttpClient(config)
+      return new AxiosHttpClient(config as AxiosRequestConfig)
     case 'fetch':
-      return new FetchHttpClient(config)
+      return new FetchHttpClient(
+        config as { baseURL?: string; timeout?: number; headers?: Record<string, string> },
+      )
     case 'mock':
-      return new MockHttpClient(config)
+      return new MockHttpClient(config as { delay?: number })
     default:
       throw new Error(`Unsupported HTTP client type: ${type}`)
   }
@@ -536,7 +610,14 @@ export function createAutoHttpClient(config?: AxiosRequestConfig): IHttpClient {
   try {
     return new AxiosHttpClient(config)
   } catch {
-    // 降级到 fetch
-    return new FetchHttpClient(config)
+    // 降级到 fetch - 转换配置格式
+    const fetchConfig = config
+      ? {
+          baseURL: config.baseURL,
+          timeout: config.timeout,
+          headers: config.headers as Record<string, string>,
+        }
+      : undefined
+    return new FetchHttpClient(fetchConfig)
   }
 }

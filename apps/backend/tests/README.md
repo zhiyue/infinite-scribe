@@ -7,7 +7,7 @@ This directory contains tests for the backend application.
 ```
 tests/
 ├── unit/              # Unit tests (no external dependencies)
-├── integration/       # Integration tests (may use external services)
+├── integration/       # Integration tests (use testcontainers)
 ├── conftest.py        # Shared fixtures and configuration
 └── README.md          # This file
 ```
@@ -24,75 +24,72 @@ pytest
 # Run only unit tests
 pytest tests/unit/
 
-# Run integration tests
+# Run integration tests (requires Docker)
 pytest tests/integration/
 ```
 
-### Using External Services
+### Remote Docker Support
 
-You can run tests against external services (e.g., in CI or against remote databases):
+For CI/CD environments, you can use remote Docker:
 
 ```bash
-# Set environment variable to use external services
-USE_EXTERNAL_SERVICES=true \
-POSTGRES_HOST=localhost \
-POSTGRES_PORT=5432 \
-POSTGRES_USER=postgres \
-POSTGRES_PASSWORD=postgres \
-POSTGRES_DB=test_db \
-NEO4J_HOST=localhost \
-NEO4J_PORT=7687 \
-NEO4J_USER=neo4j \
-NEO4J_PASSWORD=neo4jtest \
-REDIS_HOST=localhost \
-REDIS_PORT=6379 \
+# Use remote Docker host for testcontainers
+USE_REMOTE_DOCKER=true \
+REMOTE_DOCKER_HOST=tcp://192.168.2.202:2375 \
 pytest tests/integration/
 ```
 
 ### Environment Configuration
 
 - `.env.test` - Default test configuration (uses testcontainers)
-- `.env.ci` - CI environment configuration (uses service containers)
 - `.env.test.local` - Local overrides (gitignored)
 
 ## Test Architecture
 
-Tests follow a clean architecture pattern:
+Tests follow a clean testcontainer architecture:
 
-1. **Tests are environment-agnostic**: They don't contain environment detection logic
+1. **Testcontainers for all integration tests**: All external services use Docker containers
 2. **Configuration via fixtures**: All service configurations come from `conftest.py` fixtures
-3. **Dependency injection**: Services receive configuration as parameters
+3. **Dependency injection**: Services receive testcontainer configuration as parameters
 
 Example:
 
 ```python
 async def test_postgres_connection(postgres_service):
-    """Test uses postgres_service fixture for configuration."""
-    config = postgres_service
-    # Test logic uses config without knowing the source
+    """Test uses postgres_service fixture for testcontainer configuration."""
+    config = postgres_service  # Contains testcontainer host/port/credentials
+    # Test logic uses testcontainer without environment-specific logic
 ```
 
 ## Fixtures
 
 Key fixtures defined in `conftest.py`:
 
-- `postgres_service` - PostgreSQL connection configuration
-- `neo4j_service` - Neo4j connection configuration  
-- `redis_service` - Redis connection configuration
-- `use_external_services` - Determines whether to use testcontainers or external services
+- `postgres_service` - PostgreSQL testcontainer configuration
+- `neo4j_service` - Neo4j testcontainer configuration  
+- `redis_service` - Redis testcontainer configuration
+- `kafka_service` - Kafka testcontainer configuration
+- `milvus_service` - Milvus testcontainer configuration
 
 ## CI/CD Integration
 
-GitHub Actions automatically runs tests with service containers:
+CI/CD environments can use remote Docker for testcontainers:
 
-1. Sets `USE_EXTERNAL_SERVICES=true`
-2. Provides service containers (PostgreSQL, Neo4j, Redis)
-3. Tests use these services instead of testcontainers
+1. Set `USE_REMOTE_DOCKER=true`
+2. Configure `REMOTE_DOCKER_HOST` to point to Docker daemon
+3. All tests use testcontainers via remote Docker
 
 ## Best Practices
 
-1. Keep tests focused on behavior, not environment
-2. Use fixtures for all external dependencies
+1. Keep tests focused on behavior, not infrastructure
+2. Use testcontainer fixtures for all external dependencies
 3. Mock at the service boundary, not deep in the code
-4. Write tests that work in all environments
+4. Ensure Docker is available for integration tests
 5. Use clear, descriptive test names
+6. Clean up containers after tests (handled automatically by testcontainers)
+
+## Requirements
+
+- Docker daemon running (local or remote)
+- `testcontainers` Python package
+- Sufficient Docker resources for parallel containers
