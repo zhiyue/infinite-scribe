@@ -411,17 +411,68 @@ export function GenesisConversation({
     return null
   }, [commandTimeline.data, optimisticMessage, rounds])
 
+  const pendingMessageForRender = useMemo<PendingMessageView | null>(() => {
+    if (optimisticMessage) {
+      return {
+        id: optimisticMessage.id,
+        content: optimisticMessage.content,
+      }
+    }
+    return rehydratedPendingMessage
+  }, [optimisticMessage, rehydratedPendingMessage])
+
+  const shouldRenderPendingMessage = useMemo(() => {
+    if (!pendingMessageForRender) return false
+    if (optimisticMessage) {
+      return !rounds.some((round) =>
+        roundMatchesPending(round, optimisticMessage.correlationId, optimisticMessage.content),
+      )
+    }
+    return true
+  }, [pendingMessageForRender, optimisticMessage, rounds])
+
   // 根据最新时间线事件推导思考状态
   useEffect(() => {
-    const last = commandTimeline.data && commandTimeline.data[commandTimeline.data.length - 1]
-    const st = (last?.status || '').toLowerCase()
-    if (!st) return
-    if (['processing', 'generating', 'running', 'queued'].includes(st)) {
-      setIsTyping(true)
-      setIsWaitingForResponse(true)
+    const events = commandTimeline.data
+    const lastEvent = events && events[events.length - 1]
+
+    const normalize = (value?: string | null) =>
+      typeof value === 'string' ? value.toLowerCase() : ''
+
+    const combinedStatus = [
+      normalize(lastEvent?.status),
+      normalize(
+        typeof lastEvent?.payload?.status === 'string' ? lastEvent.payload.status : null,
+      ),
+      normalize(lastEvent?.event_type),
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    const includesAny = (keywords: string[]) =>
+      keywords.some((keyword) => combinedStatus.includes(keyword))
+
+    if (!lastEvent) {
+      if (
+        pendingCommand?.command_id &&
+        (pendingCommand.command_id === (inferredCommandId || currentCommandId))
+      ) {
+        setIsTyping(true)
+        setIsWaitingForResponse(true)
+      }
+      return
+    }
+
+    if (includesAny(['failed', 'error', 'cancel'])) {
+      setIsWaitingForResponse(false)
+      setIsTyping(false)
       setShouldPollCommand(false)
+      setOptimisticMessage(null)
       refetchPendingCommand()
-    } else if (['completed', 'finished'].includes(st)) {
+      return
+    }
+
+    if (includesAny(['complete', 'finish', 'success', 'done', 'resolved'])) {
       setIsWaitingForResponse(false)
       setIsTyping(false)
       setShouldPollCommand(false)
@@ -429,14 +480,49 @@ export function GenesisConversation({
       void queryClient.invalidateQueries({
         queryKey: ['conversations', 'sessions', sessionId, 'rounds'],
       })
-    } else if (['failed', 'error', 'cancelled'].includes(st)) {
-      setIsWaitingForResponse(false)
-      setIsTyping(false)
-      setShouldPollCommand(false)
-      setOptimisticMessage(null)
-      refetchPendingCommand()
+      return
     }
-  }, [commandTimeline.data])
+
+    if (
+      includesAny([
+        'processing',
+        'running',
+        'queued',
+        'pending',
+        'generating',
+        'submitted',
+        'dispatch',
+        'dispatched',
+        'start',
+        'started',
+        'accept',
+        'accepted',
+      ])
+    ) {
+      setIsTyping(true)
+      setIsWaitingForResponse(true)
+      setShouldPollCommand(false)
+      refetchPendingCommand()
+      return
+    }
+
+    if (
+      pendingCommand?.command_id &&
+      (pendingCommand.command_id === (inferredCommandId || currentCommandId))
+    ) {
+      setIsTyping(true)
+      setIsWaitingForResponse(true)
+    }
+  }, [
+    commandTimeline.data,
+    currentCommandId,
+    inferredCommandId,
+    pendingCommand?.command_id,
+    pendingCommand?.status,
+    refetchPendingCommand,
+    queryClient,
+    sessionId,
+  ])
 
   // 提交对话命令
   const submitCommand = useSubmitCommand(sessionId, {
@@ -788,33 +874,26 @@ export function GenesisConversation({
 
               {/* 不再在顶部显示系统状态条；系统事件转移到“思考中”区域的扁平列表 */}
 
-              {/* 临时用户消息 - 只在没有匹配的真实round时显示 */}
-              {optimisticMessage &&
-                !(
-                  rounds.length > optimisticMessage.initialRoundsLength &&
-                  rounds
-                    .slice(optimisticMessage.initialRoundsLength)
-                    .some(
-                      (round) =>
-                        round.role === 'user' &&
-                        round.input?.payload?.user_input === optimisticMessage.content,
-                    )
-                ) && (
-                  <div className="flex gap-3 flex-row-reverse opacity-80">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary/10">
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col gap-1 max-w-[70%]">
-                      <div className="rounded-lg px-4 py-2.5 bg-primary text-primary-foreground">
-                        <div className="whitespace-pre-wrap break-words text-sm">
-                          {optimisticMessage.content}
-                        </div>
+              {/* 临时 / 恢复的用户消息 - 只要尚未进入 round 列表就显示 */}
+              {shouldRenderPendingMessage && pendingMessageForRender && (
+                <div
+                  key={pendingMessageForRender.id}
+                  className="flex gap-3 flex-row-reverse opacity-80"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/10">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col gap-1 max-w-[70%]">
+                    <div className="rounded-lg px-4 py-2.5 bg-primary text-primary-foreground">
+                      <div className="whitespace-pre-wrap break-words text-sm">
+                        {pendingMessageForRender.content}
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
               {/* 输入中提示（ChatGPT风格，紧凑气泡）+ 扁平化系统事件列表 */}
               {/* AI 思考过程 - 使用新的 ThinkingProcess 组件 */}

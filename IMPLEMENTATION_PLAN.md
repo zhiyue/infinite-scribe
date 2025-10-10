@@ -33,7 +33,7 @@
 **Goal**: 分析刷新后丢失的用户输入与停止的动画状态，给出修复策略
 **Success Criteria**: 找出导致 `isTyping` 未恢复与消息缺失的代码路径
 **Tests**: 暂无（分析阶段）
-**Status**: Not Started
+**Status**: In Progress
 
 # 创世思考过程交互优化计划
 
