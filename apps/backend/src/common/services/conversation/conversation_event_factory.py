@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type
 from src.models.event import DomainEvent
+from src.common.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,13 @@ class ConversationEventFactory:
         )
 
         if not dom_evt:
-            # Enrich payload for downstream routing (SSE needs user_id/session_id)
+            timestamp = utc_now().isoformat()
+            # Enrich payload for downstream routing (SSE needs user_id/session_id/timestamp)
             enriched_payload: dict[str, Any] = {
                 "command_type": command_type,
                 "payload": payload or {},
                 "session_id": str(session.id),
+                "timestamp": timestamp,
             }
             if user_id is not None:
                 enriched_payload["user_id"] = str(user_id)
@@ -56,7 +59,11 @@ class ConversationEventFactory:
                 correlation_id=cmd.id,
                 # 初始命令投递的首个领域事件：将命令ID同时作为 causation_id 建立因果链起点
                 causation_id=cmd.id,
-                event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
+                event_metadata={
+                    "source": "api-gateway",
+                    "timestamp": timestamp,
+                    **({"user_id": str(user_id)} if user_id is not None else {}),
+                },
             )
             db.add(dom_evt)
             await db.flush()  # Get event_id

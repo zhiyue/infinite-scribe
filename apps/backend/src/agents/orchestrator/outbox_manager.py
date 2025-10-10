@@ -90,6 +90,7 @@ class DomainEventCreator:
         correlation_id: str | None,
         causation_id: str | None,
         db_session,
+        metadata: dict[str, Any] | None = None,
     ) -> DomainEvent:
         """创建新的领域事件，或如果通过correlation_id + 事件类型找到现有事件则返回现有事件。
 
@@ -101,6 +102,7 @@ class DomainEventCreator:
             correlation_id: 关联ID
             causation_id: 因果ID
             db_session: 数据库会话对象
+            metadata: 额外的元数据（如user_id、novel_id等）
 
         Returns:
             创建或获取的DomainEvent对象
@@ -162,6 +164,30 @@ class DomainEventCreator:
                 message="将使用None替代非法UUID格式的causation_id",
             )
 
+        # 构建事件元数据，包含必要的上下文信息
+        event_metadata = EventMetadata(source="orchestrator").model_dump(exclude_none=True)
+
+        # 从payload中提取并添加关键字段到metadata
+        if metadata:
+            event_metadata.update(metadata)
+
+        # 从payload中提取user_id、novel_id、timestamp等字段到metadata
+        if isinstance(payload, dict):
+            # 提取user_id
+            user_id = payload.get("user_id")
+            if user_id:
+                event_metadata["user_id"] = user_id
+
+            # 提取novel_id
+            novel_id = payload.get("novel_id")
+            if novel_id:
+                event_metadata["novel_id"] = novel_id
+
+            # 提取timestamp
+            timestamp = payload.get("timestamp")
+            if timestamp:
+                event_metadata["timestamp"] = timestamp
+
         domain_event = DomainEvent(
             event_type=evt_type,
             aggregate_type=aggregate_type,
@@ -169,7 +195,7 @@ class DomainEventCreator:
             payload=payload,
             correlation_id=safe_correlation_id,
             causation_id=safe_causation_id,
-            event_metadata=EventMetadata(source="orchestrator").model_dump(exclude_none=True),
+            event_metadata=event_metadata,
         )
         db_session.add(domain_event)
         await db_session.flush()
@@ -179,6 +205,7 @@ class DomainEventCreator:
             event_id=str(domain_event.event_id),
             evt_type=evt_type,
             aggregate_id=session_id,
+            metadata_keys=list(event_metadata.keys()),
         )
 
         return domain_event
@@ -244,6 +271,13 @@ class OutboxEntryCreator:
 
         outbox_payload = self._build_outbox_payload(domain_event)
 
+        # 从event_metadata中提取user_id和其他字段
+        user_id = None
+        novel_id = None
+        if domain_event.event_metadata:
+            user_id = domain_event.event_metadata.get("user_id")
+            novel_id = domain_event.event_metadata.get("novel_id")
+
         outbox_entry = EventOutbox(
             id=domain_event.event_id,
             topic=topic,
@@ -263,7 +297,9 @@ class OutboxEntryCreator:
                 timestamp=domain_event.created_at.isoformat()
                 if hasattr(domain_event, "created_at") and domain_event.created_at
                 else None,
-                user_id=getattr(domain_event, "user_id", None),
+                user_id=user_id,
+                novel_id=novel_id,
+                session_id=str(session_id),
                 source=domain_event.event_metadata.get("source", "orchestrator")
                 if domain_event.event_metadata
                 else "orchestrator",
@@ -431,6 +467,7 @@ class OutboxManager:
         payload: dict[str, Any],
         correlation_id: str | None,
         causation_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """持久化领域事件和outbox（通过correlation_id + 事件类型保证幂等性）。
 
@@ -441,10 +478,22 @@ class OutboxManager:
             payload: 有效负载数据
             correlation_id: 关联ID
             causation_id: 因果ID
+            metadata: 额外的元数据（如user_id、novel_id等）
         """
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
         topic = get_domain_topic(scope_type)
+
+        # 从payload中提取元数据（如果没有提供）
+        if not metadata:
+            metadata = {}
+            if isinstance(payload, dict):
+                if "user_id" in payload:
+                    metadata["user_id"] = payload["user_id"]
+                if "novel_id" in payload:
+                    metadata["novel_id"] = payload["novel_id"]
+                if "timestamp" in payload:
+                    metadata["timestamp"] = payload["timestamp"]
 
         self.log.info(
             "orchestrator_persisting_domain_event",
@@ -456,12 +505,13 @@ class OutboxManager:
             aggregate_type=aggregate_type,
             topic=topic,
             payload_keys=list(payload.keys()) if payload else [],
+            metadata_keys=list(metadata.keys()) if metadata else [],
         )
 
         async with create_sql_session() as db:
             # 创建或获取领域事件（幂等性）
             domain_event = await self.domain_event_creator.create_or_get_domain_event(
-                scope_type, session_id, event_action, payload, correlation_id, causation_id, db
+                scope_type, session_id, event_action, payload, correlation_id, causation_id, db, metadata
             )
 
             # 创建或获取outbox条目（幂等性）

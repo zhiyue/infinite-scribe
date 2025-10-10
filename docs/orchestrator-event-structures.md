@@ -556,7 +556,8 @@ out = EventOutbox(
         "preferences": {}
       },
       "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
-      "user_id": "1"
+      "user_id": "1",
+      "timestamp": "2024-12-01T10:30:00.123Z"
     },
     "schema_version": "v1"
   },

@@ -62,6 +62,10 @@ async def test_enqueue_command_persists_domain_event_and_outbox(pg_session_no_tr
     payload = out.payload
     assert payload["system"]["event_type"] == dom_event.event_type
     assert payload["data"]["command_type"] == dom_event.payload["command_type"]
+    assert payload["data"]["session_id"] == str(session_id)
+    assert "timestamp" in payload["data"]
+    if "user_id" in dom_event.payload:
+        assert payload["data"]["user_id"] == dom_event.payload["user_id"]
 
 
 @pytest.mark.asyncio
@@ -106,3 +110,4 @@ async def test_create_round_persists_round_created_and_outbox(pg_session_no_tran
     assert out is not None and out.topic == get_domain_topic("GENESIS")
     payload = out.payload
     assert payload["system"]["event_type"] == dom_evt.event_type
+    assert payload["data"].get("session_id") == str(sid)

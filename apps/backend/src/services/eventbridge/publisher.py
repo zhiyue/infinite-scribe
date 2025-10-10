@@ -86,6 +86,8 @@ class Publisher:
         """
         Transform envelope to SSEMessage and publish to user channel.
 
+        Expects new nested structure (system/data/schema_version).
+
         Args:
             envelope: Domain event envelope from Kafka
 
@@ -106,24 +108,29 @@ class Publisher:
             # Publish to Redis SSE service
             stream_id = await self.redis_sse_service.publish_event(user_id, sse_message)
 
-            logger.debug(f"Published event {envelope.get('event_type')} to user {user_id}, " f"stream_id: {stream_id}")
+            system = envelope.get("system", {})
+            logger.debug(f"Published event {system.get('event_type')} to user {user_id}, " f"stream_id: {stream_id}")
 
             return stream_id
 
         except Exception as e:
+            system = envelope.get("system", {})
+            data = envelope.get("data", {})
             logger.error(
-                f"Failed to publish event {envelope.get('event_type', 'unknown')}: {e}",
+                f"Failed to publish event {system.get('event_type', 'unknown')}: {e}",
                 extra={
-                    "event_id": envelope.get("event_id"),
-                    "correlation_id": envelope.get("correlation_id"),
-                    "user_id": envelope.get("payload", {}).get("user_id"),
+                    "event_id": system.get("event_id"),
+                    "correlation_id": system.get("correlation_id"),
+                    "user_id": data.get("user_id"),
                 },
             )
             raise
 
     def _extract_user_id(self, envelope: dict[str, Any]) -> str:
         """
-        Extract user_id from envelope payload for routing.
+        Extract user_id from envelope data for routing.
+
+        Expects new nested structure (system/data).
 
         Args:
             envelope: Domain event envelope
@@ -134,19 +141,22 @@ class Publisher:
         Raises:
             ValueError: If user_id is missing
         """
-        payload = envelope.get("payload", {})
-        user_id = payload.get("user_id") or (envelope.get("metadata", {}) or {}).get("user_id")
+        data = envelope.get("data", {})
+        system = envelope.get("system", {})
+
+        # Try data first, then system metadata
+        user_id = data.get("user_id") or system.get("user_id")
 
         if not user_id:
-            raise ValueError(
-                f"user_id is required in payload for event routing, " f"event_id: {envelope.get('event_id')}"
-            )
+            raise ValueError(f"user_id is required in data for event routing, " f"event_id: {system.get('event_id')}")
 
         return user_id
 
     def _transform_to_sse_message(self, envelope: dict[str, Any]) -> SSEMessage:
         """
         Transform Kafka envelope to SSEMessage with minimal data set.
+
+        Expects new nested structure (system/data).
 
         Args:
             envelope: Domain event envelope
@@ -157,8 +167,9 @@ class Publisher:
         # Create minimal data set for efficient transmission
         minimal_data = self._create_minimal_data_set(envelope)
 
+        system = envelope.get("system", {})
         return SSEMessage(
-            event=envelope["event_type"],
+            event=system.get("event_type"),
             data=minimal_data,
             id=None,  # Will be set by Redis Streams
             retry=None,  # No retry delay for SSE messages
@@ -173,40 +184,43 @@ class Publisher:
         Includes only essential fields to minimize transmission size
         while preserving necessary information for UI updates.
 
+        Expects new nested structure (system/data).
+
         Args:
             envelope: Domain event envelope
 
         Returns:
             Minimal data dictionary
         """
-        payload = envelope.get("payload", {})
-        metadata = envelope.get("metadata", {})
+        system = envelope.get("system", {})
+        data = envelope.get("data", {})
+        metadata = system.get("metadata", {})
 
         # Start with required fields
         minimal_data = {
-            "event_id": envelope.get("event_id"),
-            "event_type": envelope.get("event_type"),
-            "session_id": payload.get("session_id"),
-            "correlation_id": envelope.get("correlation_id"),
-            "timestamp": payload.get("timestamp") or envelope.get("created_at"),
+            "event_id": system.get("event_id"),
+            "event_type": system.get("event_type"),
+            "session_id": data.get("session_id") or system.get("session_id"),
+            "correlation_id": system.get("correlation_id"),
+            "timestamp": data.get("timestamp") or system.get("created_at"),
         }
 
         # Add optional but recommended fields if present
-        if payload.get("novel_id"):
-            minimal_data["novel_id"] = payload["novel_id"]
+        if data.get("novel_id") or system.get("novel_id"):
+            minimal_data["novel_id"] = data.get("novel_id") or system.get("novel_id")
 
         if metadata.get("trace_id"):
             minimal_data["trace_id"] = metadata["trace_id"]
 
         # Include payload content, but may be summarized in future
-        if "content" in payload:
-            minimal_data["payload"] = payload["content"]
-        elif payload:
+        if "content" in data:
+            minimal_data["payload"] = data["content"]
+        elif data:
             # If no specific content field, include relevant payload data
             # Exclude internal fields that shouldn't be in SSE
             filtered_payload = {
                 k: v
-                for k, v in payload.items()
+                for k, v in data.items()
                 if k not in ["user_id", "session_id", "timestamp", "novel_id"] and not k.startswith("internal_")
             }
             if filtered_payload:

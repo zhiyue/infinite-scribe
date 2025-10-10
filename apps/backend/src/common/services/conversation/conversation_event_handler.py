@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
 from src.common.outbox import OutboxPayloadBuilder
+from src.common.utils.datetime_utils import utc_now
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
 from src.models.workflow import CommandInbox, EventOutbox
@@ -213,6 +214,7 @@ class ConversationEventHandler:
         command_type: str,
         payload: dict | None,
         idempotency_key: str | None,
+        user_id: int | None = None,
     ) -> CommandInbox:
         """Create CommandInbox + DomainEvent + EventOutbox (CQRS outbox)."""
         # Status enum import kept local to avoid circulars
@@ -230,15 +232,26 @@ class ConversationEventHandler:
             await db.flush()
 
             event_type = build_event_type(session.scope_type, "Command.Received")
+            timestamp = utc_now().isoformat()
             dom_evt = DomainEvent(
                 event_type=event_type,
                 aggregate_type=get_aggregate_type(session.scope_type),
                 aggregate_id=str(session.id),
-                payload={"command_type": command_type, "payload": payload or {}},
+                payload={
+                    "command_type": command_type,
+                    "payload": payload or {},
+                    "session_id": str(session.id),
+                    "timestamp": timestamp,
+                    **({"user_id": str(user_id)} if user_id is not None else {}),
+                },
                 correlation_id=cmd.id,
                 # 命令接收事件以命令ID作为因果链ID，后续事件可据此串联
                 causation_id=cmd.id,
-                event_metadata={"source": "api-gateway"},
+                event_metadata={
+                    "source": "api-gateway",
+                    "timestamp": timestamp,
+                    **({"user_id": str(user_id)} if user_id is not None else {}),
+                },
             )
             db.add(dom_evt)
             await db.flush()
@@ -302,6 +315,7 @@ class ConversationEventHandler:
                 await db.scalar(text("SELECT 1"))
             dom_evt = None
         if not dom_evt:
+            timestamp = utc_now().isoformat()
             dom_evt = DomainEvent(
                 event_type=event_type,
                 aggregate_type=get_aggregate_type(session.scope_type),
@@ -310,12 +324,17 @@ class ConversationEventHandler:
                     "command_type": existing_command.command_type,
                     "payload": existing_command.payload or {},
                     "session_id": str(session.id),
+                    "timestamp": timestamp,
                     **({"user_id": str(user_id)} if user_id is not None else {}),
                 },
                 correlation_id=existing_command.id,
                 # 与首个创建路径保持一致：命令接收事件以命令ID作为因果链ID
                 causation_id=existing_command.id,
-                event_metadata={"source": "api-gateway", **({"user_id": str(user_id)} if user_id is not None else {})},
+                event_metadata={
+                    "source": "api-gateway",
+                    "timestamp": timestamp,
+                    **({"user_id": str(user_id)} if user_id is not None else {}),
+                },
             )
             db.add(dom_evt)
             await db.flush()

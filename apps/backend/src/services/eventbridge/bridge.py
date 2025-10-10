@@ -256,7 +256,7 @@ class DomainEventBridgeService:
         is_valid, reason = self.event_filter.validate(envelope)
         if not is_valid:
             self.metrics_collector.record_event_filtered()
-            logger.debug("Event filtered", reason=reason, event_type=envelope.get("event_type"), service="eventbridge")
+            logger.debug("Event filtered", reason=reason, event_type=envelope.get("system", {}).get("event_type"), service="eventbridge")
             return False
         return True
 
@@ -291,8 +291,8 @@ class DomainEventBridgeService:
         self.metrics_collector.record_event_dropped()
         logger.debug(
             "Event dropped due to open circuit",
-            event_id=envelope.get("event_id"),
-            event_type=envelope.get("event_type"),
+            event_id=envelope.get("system", {}).get("event_id"),
+            event_type=envelope.get("system", {}).get("event_type"),
             service="eventbridge",
         )
 
@@ -310,9 +310,9 @@ class DomainEventBridgeService:
         # Observability: concise INFO log for processed events
         logger.info(
             "event_processed",
-            event_type=envelope.get("event_type"),
-            event_id=envelope.get("event_id"),
-            user_id=(envelope.get("payload", {}) or {}).get("user_id"),
+            event_type=envelope.get("system", {}).get("event_type"),
+            event_id=envelope.get("system", {}).get("event_id"),
+            user_id=(envelope.get("data", {}) or {}).get("user_id"),
             stream_id=stream_id,
             service="eventbridge",
         )
@@ -330,10 +330,10 @@ class DomainEventBridgeService:
 
         logger.error(
             "Failed to publish event",
-            event_type=envelope.get("event_type"),
-            event_id=envelope.get("event_id"),
-            correlation_id=envelope.get("correlation_id"),
-            user_id=envelope.get("payload", {}).get("user_id"),
+            event_type=envelope.get("system", {}).get("event_type"),
+            event_id=envelope.get("system", {}).get("event_id"),
+            correlation_id=envelope.get("system", {}).get("correlation_id"),
+            user_id=envelope.get("data", {}).get("user_id"),
             error=str(error),
             service="eventbridge",
         )
@@ -408,23 +408,47 @@ class DomainEventBridgeService:
         """
         Extract and validate event envelope from Kafka message.
 
+        Expects new nested structure (system/data/schema_version) format only.
+
         Args:
             message: Kafka message
 
         Returns:
-            Event envelope dict or None if invalid
+            Event envelope dict with nested structure or None if invalid
         """
         try:
             if not hasattr(message, "value") or not isinstance(message.value, dict):
                 return None
 
-            envelope = message.value
+            raw_envelope = message.value
 
             # Basic envelope validation
-            if not isinstance(envelope, dict):
+            if not isinstance(raw_envelope, dict):
                 return None
 
-            # Merge selected Kafka headers into envelope for downstream validation
+            # Validate required nested structure
+            if "system" not in raw_envelope or not isinstance(raw_envelope.get("system"), dict):
+                logger.warning(
+                    "Message does not have required nested structure (system/data)",
+                    topic=message.topic,
+                    partition=message.partition,
+                    offset=message.offset,
+                    service="eventbridge"
+                )
+                return None
+
+            # Keep the nested structure intact
+            envelope = {
+                "system": raw_envelope["system"],
+                "data": raw_envelope.get("data", {}),
+                "schema_version": raw_envelope.get("schema_version", "v1")
+            }
+
+            # Ensure data is a dict
+            if envelope["data"] is None:
+                envelope["data"] = {}
+
+            # Merge selected Kafka headers into system metadata if missing
             try:
                 headers = {
                     k: (v.decode("utf-8") if isinstance(v, bytes | bytearray) else v)
@@ -433,24 +457,30 @@ class DomainEventBridgeService:
             except Exception:  # pragma: no cover - defensive
                 headers = {}
 
-            if "correlation_id" not in envelope and headers.get("correlation_id"):
-                envelope["correlation_id"] = headers.get("correlation_id")
+            system = envelope["system"]
+            data = envelope["data"]
 
-            # Ensure required payload shape with sensible fallbacks
-            payload = envelope.get("payload") if isinstance(envelope.get("payload"), dict) else {}
-            if not payload:
-                payload = {}
-                envelope["payload"] = payload
+            # Add correlation_id from headers if missing
+            if "correlation_id" not in system and headers.get("correlation_id"):
+                system["correlation_id"] = headers.get("correlation_id")
 
+            # Ensure required data fields with sensible fallbacks
             # Fill session_id from aggregate_id if missing
-            if "session_id" not in payload and envelope.get("aggregate_id"):
-                payload["session_id"] = envelope.get("aggregate_id")
-            # Migrate top-level user_id to payload if present
-            if "user_id" not in payload and envelope.get("user_id"):
-                payload["user_id"] = envelope.get("user_id")
+            if "session_id" not in data and system.get("aggregate_id"):
+                data["session_id"] = system.get("aggregate_id")
+            # Migrate system user_id to data if present
+            if "user_id" not in data and system.get("user_id"):
+                data["user_id"] = system.get("user_id")
             # Fill timestamp from created_at if missing
-            if "timestamp" not in payload and envelope.get("created_at"):
-                payload["timestamp"] = envelope.get("created_at")
+            if "timestamp" not in data and system.get("created_at"):
+                data["timestamp"] = system.get("created_at")
+
+            logger.debug(
+                "Extracted envelope with nested structure",
+                event_type=system.get("event_type"),
+                event_id=system.get("event_id"),
+                service="eventbridge"
+            )
 
             return envelope
 

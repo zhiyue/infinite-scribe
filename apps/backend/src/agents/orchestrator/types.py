@@ -366,6 +366,8 @@ class EventOutboxHeaders(BaseModel):
     schema_version: str = Field(default="v1")  # 架构版本
     timestamp: str | None = None  # 时间戳
     user_id: str | None = None  # 用户ID
+    novel_id: str | None = None  # 小说ID
+    session_id: str | None = None  # 会话ID
     source: str | None = None  # 事件源
     trace_id: str | None = None  # 追踪ID
     agent: str | None = None
