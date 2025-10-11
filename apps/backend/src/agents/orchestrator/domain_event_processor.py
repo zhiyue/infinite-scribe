@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.orchestrator.command_strategies import CommandMapping, command_registry
-from src.agents.orchestrator.intent_classifier import IntentClassifier, IntentClassification
+from src.agents.orchestrator.intent_classifier import IntentClassification, IntentClassifier
 from src.common.events.mapping import build_topic_name
 from src.common.utils.datetime_utils import utc_now
 
@@ -288,10 +288,7 @@ class DomainEventProcessor:
         intent_result: IntentClassification | None = None
         if cmd_type in self.INTENT_ROUTED_COMMANDS:
             try:
-                intent_result = await self.intent_classifier.classify(
-                    command_type=cmd_type,
-                    payload=payload
-                )
+                intent_result = await self.intent_classifier.classify(command_type=cmd_type, payload=payload)
             except Exception as exc:
                 self.log.warning("orchestrator_intent_classification_failed: %s", exc)
                 intent_result = None
@@ -309,10 +306,7 @@ class DomainEventProcessor:
         if intent_result and intent_result.intent == "inquiry":
             # 查询意图 - 路由到InquiryAgent
             mapping = self._create_inquiry_mapping(
-                scope_type=scope_type,
-                scope_prefix=scope_prefix,
-                aggregate_id=aggregate_id,
-                payload=payload
+                scope_type=scope_type, scope_prefix=scope_prefix, aggregate_id=aggregate_id, payload=payload
             )
         else:
             # 生成意图或无意图分类 - 使用原有的命令映射逻辑
@@ -332,8 +326,8 @@ class DomainEventProcessor:
             "orchestrator_command_mapped",
             cmd_type=cmd_type,
             requested_action=mapping.requested_action,
-            capability_type=mapping.capability_message.get("type"),
-            has_capability_input=bool(mapping.capability_message.get("input")),
+            capability_type=(mapping.capability_message or {}).get("type"),
+            has_capability_input=bool((mapping.capability_message or {}).get("input")),
         )
 
         enriched_payload = self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload)
@@ -356,11 +350,7 @@ class DomainEventProcessor:
         if novel_id:
             enriched_payload.setdefault("novel_id", novel_id)
 
-        timestamp = (
-            enriched_payload.get("timestamp")
-            or metadata.get("timestamp")
-            or system.get("created_at")
-        )
+        timestamp = enriched_payload.get("timestamp") or metadata.get("timestamp") or system.get("created_at")
         if not timestamp:
             timestamp = utc_now().isoformat()
         enriched_payload.setdefault("timestamp", timestamp)
@@ -391,11 +381,7 @@ class DomainEventProcessor:
         }
 
     def _create_inquiry_mapping(
-        self,
-        scope_type: str,
-        scope_prefix: str,
-        aggregate_id: str,
-        payload: dict[str, Any]
+        self, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]
     ) -> CommandMapping:
         """创建查询意图的映射，路由到InquiryAgent。
 
@@ -408,17 +394,14 @@ class DomainEventProcessor:
         Returns:
             命令映射对象
         """
-        # 构建InquiryAgent的能力消息
+        # 构建InquiryAgent的能力消息（遵循events.md点式命名规范）
         capability_message = {
-            "type": "Inquiry.Query.ProcessRequested",
+            "event_type": "Inquiry.Query.Requested",  # 使用event_type而不是type（简洁形式）
             "session_id": aggregate_id,
             "input": payload,
-            "_topic": build_topic_name("inquiry", scope_type, scope_prefix),
+            "_topic": build_topic_name("inquiry", scope_type, scope_prefix),  # genesis.inquiry.tasks
             "_key": aggregate_id,
         }
 
         # 返回映射
-        return CommandMapping(
-            requested_action="Inquiry.Requested",
-            capability_message=capability_message
-        )
+        return CommandMapping(requested_action="Inquiry.Requested", capability_message=capability_message)

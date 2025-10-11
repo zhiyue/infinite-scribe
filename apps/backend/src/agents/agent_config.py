@@ -33,6 +33,7 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
             "genesis.factcheck.events",
             "genesis.rewriter.events",
             "genesis.worldsmith.events",
+            "genesis.inquiry.events",
         ],
         "produce": [
             "genesis.outline.tasks",
@@ -44,6 +45,7 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
             "genesis.factcheck.tasks",
             "genesis.rewriter.tasks",
             "genesis.worldsmith.tasks",
+            "genesis.inquiry.tasks",
         ],
     },
     # Domain Orchestrator: 消费领域事实 + 能力结果；产出能力任务（任务总线）
@@ -62,6 +64,7 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
             "genesis.factcheck.events",
             "genesis.rewriter.events",
             "genesis.worldsmith.events",
+            "genesis.inquiry.events",
         ],
         "produce": [
             # Capability tasks (agent bus)
@@ -74,6 +77,7 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
             "genesis.factcheck.tasks",
             "genesis.rewriter.tasks",
             "genesis.worldsmith.tasks",
+            "genesis.inquiry.tasks",
         ],
     },
     # Capability agents
@@ -95,6 +99,11 @@ AGENT_TOPICS: dict[str, AgentTopicConfig] = {
         "consume": ["genesis.analyzer.events"],
         "produce": ["genesis.knowledge.events"],
     },
+    # Inquiry agent - handles user queries
+    "inquiry": {
+        "consume": ["genesis.inquiry.tasks"],
+        "produce": ["genesis.inquiry.events"],
+    },
 }
 
 # Agent 依赖关系
@@ -112,6 +121,8 @@ AGENT_DEPENDENCIES = {
     # Analyzer -> Updater chain
     "content_analyzer": ["writer"],
     "knowledge_updater": ["content_analyzer"],
+    # Inquiry is independent
+    "inquiry": [],
 }
 
 # Agent 启动优先级(数字越小优先级越高)
@@ -129,6 +140,8 @@ AGENT_PRIORITY = {
     # Analyzer/Updater run after writer output is available
     "content_analyzer": 8,
     "knowledge_updater": 9,
+    # Inquiry is independent and can start anytime
+    "inquiry": 10,
 }
 
 

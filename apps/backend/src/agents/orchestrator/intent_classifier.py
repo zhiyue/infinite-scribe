@@ -46,7 +46,7 @@ class IntentClassifier:
     """
 
     # 默认模型 - 使用快速模型以提高响应速度
-    DEFAULT_MODEL = "gpt-3.5-turbo"
+    DEFAULT_MODEL = "deepseek-chat"
 
     # 默认置信度阈值
     CONFIDENCE_THRESHOLD = 0.7
@@ -130,7 +130,7 @@ class IntentClassifier:
             return heuristic_result
 
         # 最终兜底：默认为生成意图
-        self._logger.warning("intent_classification_fallback", text=text[:100])
+        self._logger.warning("intent_classification_fallback: %s", text[:100])
         return IntentClassification(
             intent="generation",
             confidence=0.5,
@@ -292,7 +292,7 @@ class IntentClassifier:
             response = await self._llm_service.generate(request)
             return self._parse_llm_response(response)
         except Exception as exc:
-            self._logger.warning("intent_classifier_llm_failed", error=str(exc))
+            self._logger.warning("intent_classifier_llm_failed: %s", exc)
             return None
 
     def _parse_llm_response(self, response: LLMResponse) -> IntentClassification | None:

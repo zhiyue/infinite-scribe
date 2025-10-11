@@ -25,22 +25,32 @@ logger = logging.getLogger(__name__)
 class InquiryAgent(BaseAgent):
     """Query Assistant Agent - Handle all query requests"""
 
-    def __init__(self, llm_service: LLMService | None = None):
+    def __init__(
+        self,
+        name: str | None = None,
+        consume_topics: list[str] | None = None,
+        produce_topics: list[str] | None = None,
+        llm_service: LLMService | None = None,
+    ):
         """
         Initialize InquiryAgent
 
         Args:
+            name: Agent name (provided by launcher, defaults to "inquiry")
+            consume_topics: Topics to consume (provided by launcher, falls back to config)
+            produce_topics: Topics to produce (provided by launcher, falls back to config)
             llm_service: LLM service instance for understanding queries and generating responses
         """
-        # Configure consume/produce topics
-        consume_topics: list[str] = [
-            "inquiry",  # Query request topic
-            "inquiry.query",  # Specific query topic
-        ]
-        produce_topics: list[str] = [
-            "inquiry.response",  # Query response topic
-        ]
-        super().__init__(name="inquiry", consume_topics=consume_topics, produce_topics=produce_topics)
+        # Read topic mapping from centralized configuration (single source of truth)
+        from src.agents.agent_config import get_agent_topics
+
+        config_consume, config_produce = get_agent_topics("inquiry")
+        # Use provided topics if available (from launcher), otherwise use config
+        final_consume = consume_topics if consume_topics is not None else config_consume
+        final_produce = produce_topics if produce_topics is not None else config_produce
+        final_name = name or "inquiry"
+
+        super().__init__(name=final_name, consume_topics=final_consume, produce_topics=final_produce)
 
         # Initialize LLM service
         self.llm_service = llm_service or LLMServiceFactory().create_service()
@@ -93,9 +103,9 @@ class InquiryAgent(BaseAgent):
             query=query, session_id=session_id, user_id=user_id, novel_id=novel_id, context=context
         )
 
-        # Build response message
+        # Build response message using dot notation (events.md convention)
         return {
-            "type": "Inquiry.Response",
+            "event_type": "Inquiry.Response.Generated",  # 点式命名：能力.实体.动作
             "status": "success",
             "agent": self.name,
             "query_type": query_type,
@@ -315,7 +325,7 @@ Please provide accurate and helpful answers based on the query content. If speci
         try:
             # Call LLM
             request = LLMRequest(
-                model="gpt-3.5-turbo",  # Use fast model
+                model="deepseek-chat",  # Use fast model
                 messages=[
                     ChatMessage(role="system", content=system_prompt),
                     ChatMessage(role="user", content=user_message),
