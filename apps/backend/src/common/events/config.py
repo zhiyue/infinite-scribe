@@ -127,6 +127,11 @@ STRATEGY_CONFIG: Final[dict[str, dict[str, str]]] = {
         "capability_type": "Review.Consistency.CheckRequested",
         "requested_action": "Stage.LockRequested",
     },
+    "inquiry": {
+        "base_topic": "inquiry",
+        "capability_type": "Inquiry.Query.ProcessRequested",
+        "requested_action": "Inquiry.Requested",
+    },
 }
 
 # Event pattern constants

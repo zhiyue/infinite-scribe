@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.agents.orchestrator.command_strategies import command_registry
+from src.agents.orchestrator.command_strategies import CommandMapping, command_registry
+from src.agents.orchestrator.intent_classifier import IntentClassifier, IntentClassification
+from src.common.events.mapping import build_topic_name
 from src.common.utils.datetime_utils import utc_now
 
 
@@ -58,7 +60,7 @@ class CorrelationIdExtractor:
         # 回退到事件元数据 - 新嵌套结构
         system = evt.get("system", {})
         correlation_id = correlation_id or system.get("correlation_id")
-        
+
         # 也检查system.metadata中是否有correlation_id
         if not correlation_id and isinstance(system.get("metadata"), dict):
             correlation_id = system["metadata"].get("correlation_id")
@@ -178,17 +180,22 @@ class PayloadEnricher:
 class DomainEventProcessor:
     """主要的领域事件处理编排器，负责协调整个领域事件的处理流程。"""
 
-    def __init__(self, logger: Any) -> None:
+    # 需要意图路由的命令列表
+    INTENT_ROUTED_COMMANDS = {"Command.Genesis.Session.Details.Request"}
+
+    def __init__(self, logger: Any, intent_classifier: IntentClassifier | None = None) -> None:
         """初始化领域事件处理器。
 
         Args:
             logger: 日志记录器实例
+            intent_classifier: 意图分类器实例
         """
         self.log = logger
         self.correlation_extractor = CorrelationIdExtractor()
         self.event_validator = EventValidator()
         self.command_mapper = CommandMapper()
         self.payload_enricher = PayloadEnricher()
+        self.intent_classifier = intent_classifier or IntentClassifier(logger=self.log)
 
     async def handle_domain_event(
         self, evt: dict[str, Any], context: dict[str, Any] | None = None
@@ -277,8 +284,39 @@ class DomainEventProcessor:
             aggregate_id=aggregate_id,
         )
 
-        # 将命令映射到领域事件和能力任务
-        mapping = self.command_mapper.map_command(cmd_type, scope_type, scope_prefix, aggregate_id, payload)
+        # 如果命令需要意图路由，进行意图分类
+        intent_result: IntentClassification | None = None
+        if cmd_type in self.INTENT_ROUTED_COMMANDS:
+            try:
+                intent_result = await self.intent_classifier.classify(
+                    command_type=cmd_type,
+                    payload=payload
+                )
+            except Exception as exc:
+                self.log.warning("orchestrator_intent_classification_failed: %s", exc)
+                intent_result = None
+
+        if intent_result:
+            self.log.info(
+                "orchestrator_command_intent_classified",
+                cmd_type=cmd_type,
+                intent=intent_result.intent,
+                confidence=intent_result.confidence,
+                source=intent_result.source,
+            )
+
+        # 根据意图决定路由
+        if intent_result and intent_result.intent == "inquiry":
+            # 查询意图 - 路由到InquiryAgent
+            mapping = self._create_inquiry_mapping(
+                scope_type=scope_type,
+                scope_prefix=scope_prefix,
+                aggregate_id=aggregate_id,
+                payload=payload
+            )
+        else:
+            # 生成意图或无意图分类 - 使用原有的命令映射逻辑
+            mapping = self.command_mapper.map_command(cmd_type, scope_type, scope_prefix, aggregate_id, payload)
 
         if not mapping:
             self.log.warning(
@@ -299,6 +337,15 @@ class DomainEventProcessor:
         )
 
         enriched_payload = self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload)
+
+        # 如果有意图分类结果，添加到payload中
+        if intent_result:
+            enriched_payload["intent"] = intent_result.intent
+            if intent_result.confidence is not None:
+                enriched_payload["intent_confidence"] = intent_result.confidence
+            enriched_payload["intent_source"] = intent_result.source
+            if intent_result.reasoning:
+                enriched_payload["intent_reasoning"] = intent_result.reasoning
 
         # Ensure downstream payload包含核心字段，避免 EventBridge 过滤掉事件
         user_id = metadata.get("user_id")
@@ -342,3 +389,36 @@ class DomainEventProcessor:
             "metadata": derived_metadata,
             "causation_id": event_id,
         }
+
+    def _create_inquiry_mapping(
+        self,
+        scope_type: str,
+        scope_prefix: str,
+        aggregate_id: str,
+        payload: dict[str, Any]
+    ) -> CommandMapping:
+        """创建查询意图的映射，路由到InquiryAgent。
+
+        Args:
+            scope_type: 作用域类型
+            scope_prefix: 作用域前缀
+            aggregate_id: 聚合ID
+            payload: 有效负载
+
+        Returns:
+            命令映射对象
+        """
+        # 构建InquiryAgent的能力消息
+        capability_message = {
+            "type": "Inquiry.Query.ProcessRequested",
+            "session_id": aggregate_id,
+            "input": payload,
+            "_topic": build_topic_name("inquiry", scope_type, scope_prefix),
+            "_key": aggregate_id,
+        }
+
+        # 返回映射
+        return CommandMapping(
+            requested_action="Inquiry.Requested",
+            capability_message=capability_message
+        )

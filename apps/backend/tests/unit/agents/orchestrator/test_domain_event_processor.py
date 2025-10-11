@@ -349,6 +349,22 @@ class TestPayloadEnricher:
         assert result == expected
 
 
+class _StubIntentClassifier:
+    def __init__(self, result=None):
+        self.result = result
+        self.calls: list[tuple[str, dict]] = []
+
+    async def classify(self, command_type: str, payload: dict):
+        self.calls.append((command_type, payload))
+        if isinstance(self.result, Exception):
+            raise self.result
+        if self.result is None:
+            from src.agents.orchestrator.intent_classifier import IntentClassification
+
+            return IntentClassification(intent="question", source="fallback")
+        return self.result
+
+
 class TestDomainEventProcessor:
     """Tests for the main domain event processor."""
 
@@ -405,7 +421,65 @@ class TestDomainEventProcessor:
             enriched_payload = result["enriched_payload"]
             assert enriched_payload["session_id"] == "session-123"
             assert enriched_payload["input"] == {"character_type": "hero"}
-            assert enriched_payload["user_id"] == "user-456"
+        assert enriched_payload["user_id"] == "user-456"
+
+    @pytest.mark.asyncio
+    async def test_handle_domain_event_feedback_intent_routes_to_review(self):
+        """当分类为反馈生成时，应路由到 review 主题并附带 intent。"""
+        from src.agents.orchestrator.command_strategies import CommandMapping
+        from src.agents.orchestrator.intent_classifier import IntentClassification
+
+        correlation_id = str(uuid4())
+        event_id = str(uuid4())
+        evt = {
+            "system": {
+                "event_type": "Genesis.Command.Received",
+                "aggregate_id": "session-abc",
+                "metadata": {"source": "user"},
+                "event_id": event_id,
+            },
+            "data": {
+                "command_type": "Command.Genesis.Session.Details.Request",
+                "payload": {"user_input": "请对上一段内容给出反馈"},
+            },
+            "schema_version": "v1",
+        }
+        context = {"meta": {"correlation_id": correlation_id}}
+
+        intent_result = IntentClassification(
+            intent="feedback_generation", confidence=0.88, source="llm", raw_response='{"intent":"feedback_generation"}'
+        )
+        classifier = _StubIntentClassifier(result=intent_result)
+        processor = DomainEventProcessor(self.mock_logger, intent_classifier=classifier)
+
+        mapping = CommandMapping(
+            requested_action="Details.Requested",
+            capability_message={
+                "type": "Writer.Content.GenerationRequested",
+                "session_id": "session-abc",
+                "input": {"foo": "bar"},
+                "_topic": "genesis.writer.tasks",
+                "_key": "session-abc",
+            },
+        )
+
+        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
+            mock_registry.process_command.return_value = mapping
+
+            result = await processor.handle_domain_event(evt, context)
+
+        assert result is not None
+        routed_mapping = result["mapping"]
+        assert routed_mapping.requested_action == "Details.Requested"
+        assert routed_mapping.capability_message["type"] == "Review.Quality.EvaluationRequested"
+        assert routed_mapping.capability_message["_topic"] == "genesis.review.tasks"
+        assert routed_mapping.capability_message["input"]["intent"] == "feedback_generation"
+        assert routed_mapping.capability_message["input"]["intent_confidence"] == pytest.approx(0.88)
+        assert routed_mapping.capability_message["input"]["intent_source"] == "llm"
+
+        enriched_payload = result["enriched_payload"]
+        assert enriched_payload["intent"] == "feedback_generation"
+        assert enriched_payload["intent_source"] == "llm"
 
     @pytest.mark.asyncio
     async def test_handle_domain_event_not_command_received(self):
