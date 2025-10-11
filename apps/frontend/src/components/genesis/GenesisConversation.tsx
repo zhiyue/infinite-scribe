@@ -403,9 +403,10 @@ export function GenesisConversation({
   }, [currentCommandId, hasPendingUserMessage, rounds])
 
   // 使用 useCommandEvents（API+SSE）统一时间线并驱动思考状态
+  // 即使没有 commandId 也启用 SSE 事件订阅，以便接收 Genesis 系统事件
   const commandTimeline = useCommandEvents(sessionId, inferredCommandId || '', {
     limit: 20,
-    enabled: !!inferredCommandId,
+    enabled: !!sessionId, // 只要有 sessionId 就启用，即使 commandId 为空
   })
 
   // 调试命令ID推断逻辑
@@ -440,7 +441,9 @@ export function GenesisConversation({
       _scope: 'user',
       _version: '1.0',
     })
-    return (commandTimeline.data || []).slice(-5).map(asStatus)
+    const statuses = (commandTimeline.data || []).slice(-5).map(asStatus)
+    console.log('[GenesisConversation] Recent statuses for ThinkingProcess:', statuses)
+    return statuses
   }, [commandTimeline.data])
 
   const rehydratedPendingMessage = useMemo<PendingMessageView | null>(() => {
@@ -985,14 +988,24 @@ export function GenesisConversation({
 
               {/* 输入中提示（ChatGPT风格，紧凑气泡）+ 扁平化系统事件列表 */}
               {/* AI 思考过程 - 使用新的 ThinkingProcess 组件 */}
-              {(isTyping || hasPendingUserMessage || recentFlatStatuses.length > 0) && (
-                <ThinkingProcess
-                  isThinking={isTyping || hasPendingUserMessage}
-                  statusList={recentFlatStatuses}
-                  thinkingText="AI 正在思考..."
-                  compactListCount={0}
-                />
-              )}
+              {(() => {
+                const shouldRender = isTyping || hasPendingUserMessage || recentFlatStatuses.length > 0
+                console.log('[GenesisConversation] ThinkingProcess render condition:', {
+                  shouldRender,
+                  isTyping,
+                  hasPendingUserMessage,
+                  statusListLength: recentFlatStatuses.length,
+                  statusList: recentFlatStatuses
+                })
+                return shouldRender && (
+                  <ThinkingProcess
+                    isThinking={isTyping || hasPendingUserMessage}
+                    statusList={recentFlatStatuses}
+                    thinkingText="AI 正在思考..."
+                    compactListCount={0}
+                  />
+                )
+              })()}
               {/* 加载更多历史系统事件 */}
               {commandTimeline.data &&
                 commandTimeline.data.length > 0 &&

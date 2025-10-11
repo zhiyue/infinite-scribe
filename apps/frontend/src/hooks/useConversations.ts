@@ -3,12 +3,14 @@
  * 使用 TanStack Query 管理对话相关的服务器状态
  */
 
+import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
+import { useSSEEvents as useSSEEventsGeneric } from '@/hooks/sse'
 import { conversationsService } from '@/services/conversationsService'
 import type {
   CommandAcceptedResponse,
+  CommandEventItem,
   CommandRequest,
   CommandStatusResponse,
-  PendingCommandResponse,
   ContentResponse,
   ContentSearchItem,
   ContentSearchRequest,
@@ -16,6 +18,7 @@ import type {
   CreateSessionRequest,
   MessageRequest,
   PaginatedResponse,
+  PendingCommandResponse,
   QualityScoreResponse,
   RoundCreateRequest,
   RoundQueryParams,
@@ -31,10 +34,7 @@ import type {
 } from '@/types/api'
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import type { CommandEventItem } from '@/types/api'
-import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
-import { useSSEEvents as useSSEEventsGeneric } from '@/hooks/sse'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // ===== Query Keys =====
 const conversationKeys = {
@@ -115,17 +115,37 @@ export function useCommandEvents(
     }
   }
 
+  const sessionIdRef = useRef(sessionId)
+  const commandIdRef = useRef(commandId)
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId
+  }, [sessionId])
+
+  useEffect(() => {
+    commandIdRef.current = commandId
+  }, [commandId])
+
   // 订阅 SSE Genesis 事件并根据 correlation_id 合并
   const genesisEvents = useMemo(() => getSupportedGenesisEventTypes(), [])
   useSSEEventsGeneric(
     genesisEvents,
     (eventType, data: any) => {
+      console.log('[useCommandEvents] SSE event received:', { eventType, data, sessionId: sessionIdRef.current, commandId: commandIdRef.current })
+
       if (!isGenesisEvent(eventType)) return
       if (!data) return
-      if (String(data.session_id) !== String(sessionId)) return
+      if (String(data.session_id) !== String(sessionIdRef.current)) return
+
       // 优先匹配 correlation_id；部分事件也可能带 causation_id / command_id
       const corr = data.correlation_id || data.causation_id || data.command_id
-      if (String(corr || '') !== String(commandId)) return
+
+      // 如果 commandId 不为空且有效，则进行严格匹配
+      // 如果 commandId 为空，则接受所有属于该 session 的 Genesis 事件
+      const activeCommandId = commandIdRef.current
+      if (activeCommandId && activeCommandId.trim()) {
+        if (String(corr || '') !== String(activeCommandId)) return
+      }
 
       const ev: CommandEventItem = {
         event_id: String(data.event_id || `${eventType}-${data.timestamp || Date.now()}`),
@@ -141,9 +161,15 @@ export function useCommandEvents(
               : undefined,
         payload: data.payload ?? data,
       }
-      setMergedEvents((prev) => mergeUniqueEvents([...prev], [ev]))
+
+      console.log('[useCommandEvents] Adding event to merged events:', ev)
+      setMergedEvents((prev) => {
+        const updated = mergeUniqueEvents([...prev], [ev])
+        console.log('[useCommandEvents] Updated merged events:', updated.length, 'items')
+        return updated
+      })
     },
-    [sessionId, commandId],
+    [sessionId],
   )
 
   return {
