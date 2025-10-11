@@ -137,12 +137,33 @@ Genesis 阶段会话 Hook，用于管理特定阶段的会话信息。
 - SSE 事件集成
 - 命令 ID 推断和状态追踪
 
-**最新更新 (feat/genesis-stage)：**
-- **useCommandEvents**: 新增命令事件时间线 Hook，合并 API 和 SSE 事件
-- **命令 ID 推断**: 优化命令 ID 推断逻辑，支持多数据源获取
-- **事件去重**: 实现基于 event_id 的事件去重和时间排序
-- **分页加载**: 支持历史事件的分页加载
+**最新更新 (2025-01-11)：**
+- **useCommandEvents 增强**: 新增命令事件时间线 Hook，合并 API 和 SSE 事件，支持无 commandId 订阅
+- **智能事件过滤**: 优化 Genesis 事件过滤逻辑，支持更广泛的事件类型监听
+- **事件去重算法**: 实现基于 event_id 的事件去重和时间排序
+- **分页加载**: 支持历史事件的分页加载和无限滚动
 - **状态持久化**: 支持页面刷新后恢复事件时间线
+- **SSE 连接管理**: 增强连接状态管理和自动重连机制
+- **错误处理**: 完善的错误处理和恢复策略
+
+**核心 Hook - useCommandEvents：**
+```typescript
+// 命令事件时间线 - 支持无 commandId 订阅
+const commandTimeline = useCommandEvents(sessionId, inferredCommandId || '', {
+  limit: 20,
+  enabled: !!sessionId // 只要有 sessionId 就启用，即使 commandId 为空
+})
+
+// 返回值结构
+interface CommandTimelineResult {
+  data: CommandEventItem[]        // 合并后的事件列表
+  isLoading: boolean              // 初始加载状态
+  isLoadingMore: boolean          // 加载更多状态
+  hasMore: boolean                // 是否有更多历史
+  loadMore: () => void           // 加载更多历史
+  refetch: () => void            // 重新获取数据
+}
+```
 
 **使用示例：**
 ```typescript
@@ -151,15 +172,30 @@ const { data: sessions } = useListSessions(params)
 const { data: rounds } = useRounds(sessionId)
 const submitCommand = useSubmitCommand(sessionId)
 
-// 命令事件时间线
-const commandTimeline = useCommandEvents(sessionId, commandId, {
+// 命令事件时间线 - 无 commandId 也能订阅系统事件
+const commandTimeline = useCommandEvents(sessionId, inferredCommandId || '', {
   limit: 20,
-  enabled: !!commandId
+  enabled: !!sessionId
 })
 
 // 命令状态管理
 const { data: pendingCommand } = usePendingCommand(sessionId)
 const { data: commandStatus } = useCommandStatus(sessionId, commandId)
+
+// 获取扁平化的状态列表供 UI 使用
+const recentFlatStatuses = useMemo(() => {
+  const asStatus = (e: any): GenesisCommandStatus => ({
+    event_id: e.event_id,
+    event_type: e.event_type,
+    session_id: e.session_id,
+    correlation_id: e.correlation_id || '',
+    timestamp: e.timestamp,
+    status: e.status,
+    _scope: 'user',
+    _version: '1.0',
+  })
+  return (commandTimeline.data || []).slice(-5).map(asStatus)
+}, [commandTimeline.data])
 ```
 
 #### useHealthCheck
