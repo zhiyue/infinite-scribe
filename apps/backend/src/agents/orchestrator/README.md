@@ -612,6 +612,8 @@ classDiagram
 - **命令映射**：将触发类领域事件投影为领域事实
 - **任务分发**：向对应的能力主题发送能力任务
 - **结果投影**：将能力结果投影为领域事实
+- **意图分类**：智能识别用户命令意图，区分查询和生成类型
+- **关联追踪**：完整的事件链路追踪和因果关系管理
 
 ### 架构图
 
@@ -712,6 +714,77 @@ graph TB
     F --> H
     G --> H
     H --> I
+```
+
+### 🧠 意图分类器 (IntentClassifier)
+
+最新的重构引入了智能意图分类器，能够识别用户命令的核心意图：
+
+```mermaid
+classDiagram
+    class IntentClassifier {
+        -llm_service: LLMService
+        -settings: 配置
+        +classify_intent(command: str) IntentClassification
+        -_classify_with_llm(command: str) IntentClassification
+        -_classify_with_heuristic(command: str) IntentClassification
+        -_extract_keywords(command: str) set[str]
+        -_is_inquiry_intent(keywords: set[str]) bool
+        -_is_generation_intent(keywords: set[str]) bool
+    }
+    
+    class IntentClassification {
+        +intent: IntentType
+        +confidence: float
+        +source: Literal["llm", "heuristic", "fallback"]
+        +reasoning: str | None
+        +raw_response: str | None
+    }
+    
+    class IntentType {
+        <<enumeration>>
+        INQUIRY: "inquiry"
+        GENERATION: "generation"
+    }
+    
+    IntentClassifier --> IntentClassification
+    IntentClassification --> IntentType
+```
+
+#### 意图分类策略
+
+**查询意图 (inquiry) 特征**:
+- 询问信息、状态、进度
+- 查看、显示、列出内容
+- 请求解释、说明
+
+**生成意图 (generation) 特征**:
+- 创建新内容（角色、情节、世界观等）
+- 继续创作
+- 设计、构建元素
+
+#### 分类流程
+
+```mermaid
+flowchart TD
+    A[接收用户命令] --> B[提取关键词]
+    B --> C{规则匹配}
+    
+    C -->|明确查询关键词| D[Heuristic分类]
+    C -->|明确生成关键词| E[Heuristic分类]
+    C -->|模糊或复杂| F[LLM分类]
+    
+    D --> G[返回inquiry结果]
+    E --> H[返回generation结果]
+    F --> I{LLM响应有效}
+    
+    I -->|有效| J[返回LLM分类结果]
+    I -->|无效| K[Fallback到generation]
+    
+    G --> L[意图分类完成]
+    H --> L
+    J --> L
+    K --> L
 ```
 
 ### 🔄 工作流规则解耦 (WorkflowRules)
