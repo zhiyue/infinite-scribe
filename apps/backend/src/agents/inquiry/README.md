@@ -308,6 +308,197 @@ llm_config = {
 }
 ```
 
+## 📋 最新更新 (2025-01-11)
+
+### 🔧 查询代理架构优化
+
+最近对 `inquiry/agent.py` 进行了重要重构，增强了查询处理能力和系统健壮性：
+
+#### 🎯 核心改进
+
+1. **智能查询路由**: 基于 LLM 的查询类型自动识别
+2. **专业化处理器**: 针对不同查询类型的专门处理逻辑
+3. **容错机制**: 完善的错误处理和降级策略
+4. **上下文感知**: 基于会话和用户信息的个性化响应
+
+#### 🏗️ 架构增强
+
+```mermaid
+graph TD
+    subgraph "输入处理层"
+        A[原始查询] --> B[查询提取器]
+        B --> C[上下文解析器]
+        C --> D[意图分析器]
+    end
+    
+    subgraph "智能路由层"
+        D --> E{查询类型判断}
+        E -->|progress| F[进度处理器]
+        E -->|character| G[角色处理器]
+        E -->|world| H[世界观处理器]
+        E -->|system| I[系统处理器]
+        E -->|general| J[通用处理器]
+    end
+    
+    subgraph "响应生成层"
+        F --> K[专业数据查询]
+        G --> L[角色知识库]
+        H --> M[世界观知识库]
+        I --> N[系统配置库]
+        J --> O[通用知识库]
+        
+        K --> P[LLM响应生成]
+        L --> P
+        M --> P
+        N --> P
+        O --> P
+        
+        P --> Q[响应格式化]
+    end
+    
+    subgraph "输出层"
+        Q --> R[标准化响应消息]
+        R --> S[元数据丰富]
+        S --> T[最终输出]
+    end
+```
+
+#### 🔍 查询类型智能识别
+
+实现了基于关键词匹配的查询类型识别：
+
+```python
+async def _analyze_query_type(self, query: str) -> str:
+    """智能分析查询类型"""
+    query_lower = query.lower()
+    
+    # 进度查询特征
+    if any(keyword in query_lower for keyword in ["progress", "status"]):
+        return "progress"
+    
+    # 角色查询特征  
+    elif any(keyword in query_lower for keyword in ["character", "protagonist", "hero"]):
+        return "character"
+    
+    # 世界观查询特征
+    elif any(keyword in query_lower for keyword in ["world", "setting", "universe"]):
+        return "world"
+    
+    # 系统查询特征
+    elif any(keyword in query_lower for keyword in ["system", "function", "how", "work"]):
+        return "system"
+    
+    # 默认为通用查询
+    else:
+        return "general"
+```
+
+#### 🎯 专业化查询处理器
+
+每种查询类型都有专门的处理逻辑：
+
+1. **进度查询处理器**
+   - 查询当前创作阶段和完成度
+   - 返回详细的进度统计信息
+   - 支持阶段性进度分析
+
+2. **角色查询处理器**
+   - 查询角色信息和设定
+   - 提供角色关系网络分析
+   - 支持角色发展轨迹追踪
+
+3. **世界观查询处理器**
+   - 查询世界设定和背景信息
+   - 提供地理和历史信息
+   - 支持规则体系查询
+
+4. **系统查询处理器**
+   - 查询系统功能和使用方法
+   - 提供操作指南和最佳实践
+   - 支持功能特性说明
+
+5. **通用查询处理器**
+   - 处理其他类型的查询
+   - 基于通用知识库回答
+   - 支持广泛的查询范围
+
+#### 🛡️ 容错机制
+
+完善的错误处理和降级策略：
+
+```python
+async def _generate_response(self, query: str, query_type: str, context_info: dict[str, Any]) -> str:
+    """生成查询响应，包含完整的错误处理"""
+    try:
+        # 调用 LLM 生成响应
+        response = await self.llm_service.generate(request)
+        return response.content or "抱歉，我无法理解您的查询。"
+    except Exception as e:
+        logger.error(f"生成响应失败: {e}")
+        # 返回预设的降级响应
+        return self._get_fallback_response(query_type)
+
+def _get_fallback_response(self, query_type: str) -> str:
+    """获取降级响应"""
+    fallback_responses = {
+        "progress": "当前创作正在进行中，请稍后查看详细进度。",
+        "character": "角色信息正在整理中，请稍后查看。",
+        "world": "世界观设定正在构建中，请稍后查看。",
+        "system": "InfiniteScribe提供智能小说创作辅助功能。",
+        "general": "感谢您的查询，我正在处理中。"
+    }
+    return fallback_responses.get(query_type, "抱歉，目前无法回答您的问题。")
+```
+
+#### 📊 消息格式标准化
+
+使用统一的消息格式进行输入输出：
+
+```python
+# 输入消息格式
+input_message = {
+    "query": "用户查询内容",
+    "session_id": "会话标识",
+    "context": {
+        "user_id": "用户ID",
+        "novel_id": "小说ID"
+    }
+}
+
+# 输出消息格式
+output_message = {
+    "event_type": "Inquiry.Response.Generated",
+    "status": "success",
+    "agent": "inquiry",
+    "query_type": "progress|character|world|system|general",
+    "query": "原始查询内容",
+    "response": "生成的回答内容",
+    "session_id": "会话标识",
+    "metadata": {
+        "user_id": "用户ID",
+        "novel_id": "小说ID", 
+        "timestamp": "2025-01-11T00:00:00Z"
+    }
+}
+```
+
+#### 🔧 技术特性
+
+1. **异步处理**: 支持高并发查询请求
+2. **类型安全**: 完整的类型注解和验证
+3. **模块化设计**: 清晰的职责分离
+4. **可扩展性**: 易于添加新的查询类型
+5. **监控友好**: 详细的日志记录和错误追踪
+
+#### 📈 性能优化
+
+- **查询缓存**: 缓存常见问题的回答
+- **并发处理**: 异步处理多个查询请求
+- **智能路由**: 快速查询类型识别
+- **降级策略**: 确保系统稳定性
+
+这次重构大大提升了查询代理的智能化程度和系统健壮性，为用户提供了更好的问答体验。
+
 ## 🔮 未来规划
 
 ### 功能增强

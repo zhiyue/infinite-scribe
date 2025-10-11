@@ -3251,3 +3251,296 @@ graph TD
 4. **可复用性**: 通用组件可以在其他项目中复用
 
 这个编排器模块不仅是一个技术实现，更是一个展示了现代软件工程最佳实践的完整解决方案。
+
+## 📋 最新更新 (2025-01-11)
+
+### 🧠 意图分类系统集成
+
+最近在编排器中集成了智能意图分类器，实现了用户命令意图的自动识别和路由：
+
+#### 🎯 意图分类器架构
+
+```mermaid
+graph TD
+    subgraph "意图分类器 (IntentClassifier)"
+        A[用户命令输入] --> B[关键词提取]
+        B --> C{快速规则匹配}
+        
+        C -->|明确特征| D[Heuristic分类]
+        C -->|模糊复杂| E[LLM智能分类]
+        
+        D --> F[返回分类结果]
+        E --> G{LLM响应有效}
+        G -->|有效| H[返回LLM分类结果]
+        G -->|无效| I[Fallback到默认]
+        
+        F --> J[意图分类完成]
+        H --> J
+        I --> J
+    end
+    
+    subgraph "意图类型"
+        K[查询意图 inquiry]
+        L[生成意图 generation]
+    end
+    
+    J --> K
+    J --> L
+```
+
+#### 🔧 核心分类策略
+
+**查询意图 (inquiry) 特征**:
+- 询问信息、状态、进度
+- 查看、显示、列出内容
+- 请求解释、说明
+- 疑问词开头 (什么、怎么、为什么)
+
+**生成意图 (generation) 特征**:
+- 创建新内容（角色、情节、世界观等）
+- 继续创作
+- 设计、构建元素
+- 内容类型词 (角色、情节、世界)
+
+#### 📊 分类流程实现
+
+```python
+async def classify(
+    self, 
+    user_input: str | None = None, 
+    command_type: str | None = None, 
+    payload: dict[str, Any] | None = None
+) -> IntentClassification:
+    """智能识别用户意图"""
+    
+    # 1. 提取查询文本
+    text = user_input or self._extract_text(payload or {})
+    if not text:
+        return IntentClassification(intent="generation", confidence=0.5, source="fallback")
+    
+    # 2. 快速启发式规则 (优先)
+    heuristic_result = self._run_heuristics(text, payload or {})
+    if heuristic_result and heuristic_result.confidence >= 0.8:
+        return heuristic_result
+    
+    # 3. LLM智能分类 (兜底)
+    llm_result = await self._call_llm(text, command_type, payload or {})
+    if llm_result:
+        return llm_result
+    
+    # 4. 最终降级策略
+    return heuristic_result or IntentClassification(
+        intent="generation",
+        confidence=0.5,
+        source="fallback",
+        reasoning="Unable to classify, defaulting to generation"
+    )
+```
+
+#### 🎯 分类结果结构
+
+```python
+@dataclass(slots=True)
+class IntentClassification:
+    """意图分类结果"""
+    intent: IntentType  # "inquiry" | "generation"
+    confidence: float = 0.5  # 0.0 - 1.0
+    source: Literal["llm", "heuristic", "fallback"] = "fallback"
+    reasoning: str | None = None  # 分类理由
+    raw_response: str | None = None  # LLM原始响应
+```
+
+### 🔗 领域事件处理增强
+
+#### 🎯 智能路由机制
+
+在 `domain_event_processor.py` 中实现了基于意图的智能路由：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant O as Orchestrator
+    participant IC as IntentClassifier
+    participant IA as InquiryAgent
+    participant CA as CapabilityAgents
+    
+    U->>O: 发送命令
+    O->>IC: 识别意图
+    
+    alt 查询意图
+        IC-->>O: inquiry
+        O->>IA: 路由到查询代理
+        IA-->>U: 返回查询结果
+    else 生成意图
+        IC-->>O: generation
+        O->>CA: 路由到能力代理
+        CA-->>U: 返回生成结果
+    end
+```
+
+#### 🔧 实现细节
+
+```python
+# 意图路由的命令列表
+INTENT_ROUTED_COMMANDS = {"Command.Genesis.Session.Details.Request"}
+
+async def handle_domain_event(self, evt: dict[str, Any], context: dict[str, Any] | None = None):
+    """处理领域事件，支持意图路由"""
+    
+    # 提取命令信息
+    cmd_type = self.event_validator.extract_command_type(evt)
+    
+    # 意图分类 (仅对特定命令)
+    intent_result: IntentClassification | None = None
+    if cmd_type in self.INTENT_ROUTED_COMMANDS:
+        try:
+            intent_result = await self.intent_classifier.classify(
+                command_type=cmd_type, 
+                payload=payload
+            )
+        except Exception as exc:
+            self.log.warning("意图分类失败: %s", exc)
+            intent_result = None
+    
+    # 根据意图决定路由
+    if intent_result and intent_result.intent == "inquiry":
+        # 查询意图 - 路由到InquiryAgent
+        mapping = self._create_inquiry_mapping(
+            scope_type=scope_type, 
+            scope_prefix=scope_prefix, 
+            aggregate_id=aggregate_id, 
+            payload=payload
+        )
+    else:
+        # 生成意图或无意图分类 - 使用原有命令映射
+        mapping = self.command_mapper.map_command(
+            cmd_type, scope_type, scope_prefix, aggregate_id, payload
+        )
+    
+    # 继续处理...
+```
+
+#### 🎯 查询路由映射
+
+为查询意图创建专门的消息映射：
+
+```python
+def _create_inquiry_mapping(
+    self, 
+    scope_type: str, 
+    scope_prefix: str, 
+    aggregate_id: str, 
+    payload: dict[str, Any]
+) -> CommandMapping:
+    """创建查询意图的映射，路由到InquiryAgent"""
+    
+    capability_message = {
+        "event_type": "Inquiry.Query.Requested",
+        "session_id": aggregate_id,
+        "input": payload,
+        "_topic": build_topic_name("inquiry", scope_type, scope_prefix),
+        "_key": aggregate_id,
+    }
+    
+    return CommandMapping(
+        requested_action="Inquiry.Requested", 
+        capability_message=capability_message
+    )
+```
+
+### 📈 技术优势
+
+#### 1. 智能化用户体验
+- **自动识别**: 无需用户明确指定查询类型
+- **精准路由**: 根据意图自动选择合适的处理器
+- **自然交互**: 支持自然语言输入
+
+#### 2. 系统健壮性
+- **多层兜底**: 启发式规则 → LLM分类 → 默认策略
+- **容错机制**: 分类失败时不影响系统正常运行
+- **降级策略**: 确保高可用性
+
+#### 3. 可扩展性
+- **插件式设计**: 易于添加新的意图类型
+- **配置驱动**: 支持动态调整分类策略
+- **模块化架构**: 分类器可独立测试和部署
+
+#### 4. 监控友好
+- **详细日志**: 记录分类过程和结果
+- **置信度评分**: 提供分类可靠性指标
+- **推理轨迹**: 保留分类决策的完整过程
+
+### 🔍 监控和调试
+
+#### 新增日志事件
+
+- `orchestrator_command_intent_classified`: 意图分类完成
+- `orchestrator_intent_classification_failed`: 意图分类失败
+- `orchestrator_inquiry_mapping_created`: 查询映射创建
+- `orchestrator_inquiry_routed`: 查询请求路由
+
+#### 性能指标
+
+- **分类准确率**: 各种意图类型的分类准确率
+- **分类延迟**: 意图分类的平均处理时间
+- **路由成功率**: 基于意图的路由成功率
+- **降级频率**: 使用降级策略的频率
+
+### 🎯 使用示例
+
+#### 查询意图处理
+
+```python
+# 用户输入: "当前小说创作进度如何？"
+# 系统自动识别为查询意图，路由到InquiryAgent
+
+input_command = {
+    "event_type": "Genesis.Session.Command.Received",
+    "payload": {
+        "command_type": "Command.Genesis.Session.Details.Request",
+        "input": {
+            "user_input": "当前小说创作进度如何？"
+        }
+    }
+}
+
+# 编排器处理流程:
+# 1. 提取命令类型
+# 2. 意图分类 -> inquiry (置信度: 0.9)
+# 3. 创建查询映射
+# 4. 路由到 InquiryAgent
+# 5. 返回查询结果
+```
+
+#### 生成意图处理
+
+```python
+# 用户输入: "创建一个勇敢的骑士角色"
+# 系统自动识别为生成意图，路由到CharacterExpert
+
+input_command = {
+    "event_type": "Genesis.Session.Command.Received", 
+    "payload": {
+        "command_type": "Command.Genesis.Character.Request",
+        "input": {
+            "user_input": "创建一个勇敢的骑士角色"
+        }
+    }
+}
+
+# 编排器处理流程:
+# 1. 提取命令类型
+# 2. 意图分类 -> generation (置信度: 0.85)
+# 3. 使用原有命令映射
+# 4. 路由到 CharacterExpert
+# 5. 返回生成结果
+```
+
+### 🚀 未来扩展
+
+1. **更多意图类型**: 支持编辑、删除、分析等更多操作意图
+2. **上下文感知**: 基于对话历史的意图识别
+3. **个性化学习**: 根据用户习惯优化分类策略
+4. **多语言支持**: 支持多语言意图识别
+
+这次意图分类系统的集成，让编排器具备了更智能的用户意图理解能力，大大提升了用户体验和系统自动化水平。

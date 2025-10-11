@@ -516,6 +516,134 @@ tail -f logs/is-launcher_*.log | grep "process_message"
 - **配置管理**: `src.core.config` - 系统配置
 - **日志系统**: `src.core.logging` - 结构化日志
 
+## 📋 最新更新 (2025-01-11)
+
+### 🔧 Agent配置优化
+
+最近对 `agent_config.py` 进行了重要更新，增强了代理配置管理：
+
+#### 🎯 核心改进
+
+1. **配置集中化**: 所有 Agent 的 Kafka 主题映射统一管理
+2. **依赖关系明确**: 清晰定义 Agent 间的依赖关系和启动优先级
+3. **别名系统**: 支持多种命名格式的 Agent ID 映射
+4. **类型安全**: 提供 Python 类型提示和验证
+
+#### 📊 配置结构
+
+```python
+# Agent 主题配置 (单一真相源)
+AGENT_TOPICS = {
+    "inquiry": {
+        "consume": ["genesis.inquiry.tasks"],
+        "produce": ["genesis.inquiry.events"],
+    },
+    "orchestrator": {
+        "consume": [
+            "genesis.session.events",
+            "genesis.outline.events",
+            "genesis.writer.events",
+            # ... 更多能力事件
+        ],
+        "produce": [
+            "genesis.outline.tasks",
+            "genesis.writer.tasks",
+            # ... 更多能力任务
+        ],
+    },
+    # ... 其他 Agent 配置
+}
+
+# Agent 依赖关系
+AGENT_DEPENDENCIES = {
+    "inquiry": [],  # 独立运行
+    "orchestrator": [],  # 核心协调器
+    "writer": ["outliner", "characterexpert", "worldbuilder"],
+    "critic": ["writer"],
+    # ... 更多依赖关系
+}
+
+# Agent 启动优先级
+AGENT_PRIORITY = {
+    "orchestrator": 1,      # 最高优先级
+    "characterexpert": 2,   # 角色专家
+    "worldbuilder": 2,      # 世界构建
+    "plotmaster": 2,        # 情节大师
+    "outliner": 3,          # 大纲生成
+    "writer": 4,            # 写作代理
+    "critic": 5,            # 评论家
+    "inquiry": 10,          # 查询代理 (可随时启动)
+    # ... 更多优先级配置
+}
+```
+
+#### 🔧 辅助函数
+
+提供类型安全的配置访问函数：
+
+```python
+# 获取 Agent 的主题配置
+def get_agent_topics(agent: str) -> tuple[list[str], list[str]]:
+    """返回 (consume_topics, produce_topics)"""
+    
+# Agent ID 规范化
+def canonicalize_agent_id(name: str) -> str:
+    """将各种命名格式转换为标准格式"""
+    
+# 配置验证
+def validate_agent_config() -> None:
+    """验证 Agent 配置的完整性"""
+```
+
+#### 🎯 配置优势
+
+1. **单一真相源**: 所有 Agent 配置集中在一个文件中
+2. **依赖管理**: 自动处理 Agent 间的依赖关系
+3. **启动顺序**: 根据优先级自动确定启动顺序
+4. **类型安全**: 编译时类型检查和运行时验证
+5. **易于维护**: 清晰的配置结构和注释
+
+#### 📈 启动流程优化
+
+```mermaid
+graph TD
+    A[启动请求] --> B[解析 Agent 列表]
+    B --> C[加载依赖关系]
+    C --> D[按优先级排序]
+    D --> E[并行启动 Agent]
+    E --> F[监控启动状态]
+    F --> G[报告启动结果]
+    
+    C --> C1[检查依赖完整性]
+    C1 --> C2[添加缺失依赖]
+    C2 --> D
+    
+    E --> E1[Director 优先]
+    E1 --> E2[专家代理组]
+    E2 --> E3[创作代理组]
+    E3 --> E4[分析代理组]
+```
+
+#### 🔍 监控和调试
+
+增强的配置验证和日志记录：
+
+```python
+# 配置验证日志
+for agent_id, config in AGENT_TOPICS.items():
+    consume = config.get("consume", [])
+    produce = config.get("produce", [])
+    
+    if not consume and not produce:
+        logger.warning(f"Agent '{agent_id}' has no topics configured")
+    elif not consume:
+        logger.info(f"Agent '{agent_id}' has no consume topics (producer-only)")
+    elif not produce:
+        logger.info(f"Agent '{agent_id}' has no produce topics (consumer-only)")
+```
+
+这次更新大大提升了 Agent 系统的可维护性和可扩展性，为复杂的分布式代理协作提供了坚实的基础。
+
 ## 📝 最佳实践
 
 ### 1. 消息设计原则
