@@ -14,8 +14,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.common.outbox import OutboxPayloadEnvelope, SystemMetadata
-
 # === 字符串字面量类型 - 编译时和运行时都检查 ===
 
 MessageType = Literal[
@@ -198,19 +196,6 @@ class ScopeInfo(BaseModel):
 # === 基础数据模型 - 所有数据类型的共同字段 ===
 
 
-class BaseEventData(BaseModel):
-    """事件数据基类 - 纯业务数据基础模型
-
-    注意：不包含系统字段（event_id, correlation_id等）
-    系统字段现在统一放在 system 层，业务数据只包含纯业务逻辑相关字段
-    """
-
-    # 保留可能的通用业务字段，当前为空基类
-    # 如果发现真正的共同业务字段，可以在这里添加
-
-    model_config = ConfigDict(extra="allow")
-
-
 class ContentData(BaseModel):
     """内容数据 - 用于替代泛型字典"""
 
@@ -222,51 +207,10 @@ class ContentData(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class GenerationData(BaseEventData):
+class GenerationData(BaseModel):
     """生成数据 - 内容生成的标准格式"""
 
     content: ContentData | None = None
-
-    model_config = ConfigDict(extra="allow")
-
-
-class QualityReviewData(BaseEventData):
-    """质量审查数据 - 评分和阈值系统"""
-
-    score: float | None = None
-    quality_score: float | None = None
-    attempts: int = Field(default=0, ge=0)
-    max_attempts: int = Field(default=3, ge=1)
-    threshold: float = Field(default=7.5, ge=0.0, le=10.0)
-    target_type: str | None = None
-    entity: str | None = None
-
-    @field_validator("score", "quality_score", mode="before")
-    @classmethod
-    def convert_score(cls, v: Any) -> Any:
-        """确保分数是有效的浮点数"""
-        if v is not None:
-            return float(v)
-        return v
-
-    model_config = ConfigDict(extra="allow")
-
-
-class ConsistencyCheckData(BaseEventData):
-    """一致性检查数据 - 布尔和评分双重判断"""
-
-    ok: bool | None = None
-    passed: bool | None = None
-    score: float | None = None
-    threshold: float = Field(default=1.0, ge=0.0)
-
-    @field_validator("score", mode="before")
-    @classmethod
-    def convert_score(cls, v: Any) -> Any:
-        """确保分数是有效的浮点数"""
-        if v is not None:
-            return float(v)
-        return v
 
     model_config = ConfigDict(extra="allow")
 
@@ -453,19 +397,13 @@ class CapabilityEventMessage(BaseModel):
             return CapabilityEventData(processed_data=v)
         return CapabilityEventData(raw_data=v)
 
-    def to_typed_data(self) -> GenerationData | QualityReviewData | ConsistencyCheckData:
-        """智能转换为具体类型"""
+    def to_typed_data(self) -> GenerationData:
+        """转换为GenerationData类型"""
         if not self.data or not self.data.processed_data:
             return GenerationData()
 
         data_dict = self.data.processed_data
-        # 根据数据内容判断类型
-        if "score" in data_dict or "quality_score" in data_dict:
-            return QualityReviewData(**data_dict)
-        elif "ok" in data_dict or "passed" in data_dict:
-            return ConsistencyCheckData(**data_dict)
-        else:
-            return GenerationData(**data_dict)
+        return GenerationData(**data_dict)
 
     model_config = ConfigDict(extra="allow")
 
@@ -481,16 +419,6 @@ def create_message_context(**kwargs: Any) -> MessageContext:
 def create_generation_data(**kwargs: Any) -> GenerationData:
     """创建类型安全的生成数据"""
     return GenerationData(**kwargs)
-
-
-def create_quality_review_data(**kwargs: Any) -> QualityReviewData:
-    """创建类型安全的质量审查数据"""
-    return QualityReviewData(**kwargs)
-
-
-def create_consistency_check_data(**kwargs: Any) -> ConsistencyCheckData:
-    """创建类型安全的一致性检查数据"""
-    return ConsistencyCheckData(**kwargs)
 
 
 def create_capability_task_message(**kwargs: Any) -> CapabilityTaskMessage:

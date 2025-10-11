@@ -142,6 +142,7 @@ EVENT_PATTERNS: Final[dict[str, str | list[str]]] = {
         "Character.Generated",
         "Outliner.Theme.Generated",
         "Theme.Generated",
+        "Inquiry.Response.Generated",
     ],
     "quality_review_patterns": [
         "Review.Quality.Evaluated",

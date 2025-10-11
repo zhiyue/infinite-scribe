@@ -21,22 +21,26 @@ class WorkflowDefaults:
         "Character.Generated": "character",
         "Outliner.Theme.Generated": "theme",
         "Theme.Generated": "theme",
+        "Inquiry.Response.Generated": "inquiry",
     }
 
     # Action mappings
     CONFIRMATION_ACTIONS: Final[dict[str, str]] = {
         "character": "Character.Confirmed",
         "theme": "Theme.Confirmed",
+        "inquiry": "Inquiry.Confirmed",
     }
 
     FAILURE_ACTIONS: Final[dict[str, str]] = {
         "character": "Character.Failed",
         "theme": "Theme.Failed",
+        "inquiry": "Inquiry.Failed",
     }
 
     REGENERATION_ACTIONS: Final[dict[str, str]] = {
         "character": "Character.RegenerationRequested",
         "theme": "Theme.RegenerationRequested",
+        "inquiry": "Inquiry.RegenerationRequested",
     }
 
 

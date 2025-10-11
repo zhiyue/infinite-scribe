@@ -113,21 +113,25 @@ class EventHandlerConfig:
                 "Character.Generated": "character",
                 "Outliner.Theme.Generated": "theme",
                 "Theme.Generated": "theme",
+                "Inquiry.Response.Generated": "inquiry",
             },
             target_confirmation_actions={
                 "character": "Character.Confirmed",
                 "theme": "Theme.Confirmed",
                 "world": "Stage.Confirmed",
+                "inquiry": "Inquiry.Confirmed",
             },
             target_failure_actions={
                 "character": "Character.Failed",
                 "theme": "Theme.Failed",
                 "world": "Stage.Failed",
+                "inquiry": "Inquiry.Failed",
             },
             target_regeneration_actions={
                 "character": "Character.RegenerationRequested",
                 "theme": "Theme.RegenerationRequested",
                 "world": "Stage.RegenerationRequested",
+                "inquiry": "Inquiry.RegenerationRequested",
             },
             task_prefix_mapping={
                 "Character.Design": "Character.Design",

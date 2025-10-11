@@ -11,11 +11,9 @@ from typing import Any
 from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
 from src.agents.orchestrator.types import (
     CapabilityEventMessage,
-    ConsistencyCheckData,
     GenerationData,
     MessageContext,
     ProcessingResult,
-    QualityReviewData,
     ScopeInfo,
     create_processing_result,
 )
@@ -27,14 +25,14 @@ class EventDataExtractor:
     """事件数据提取器，用于从能力事件中提取和规范化数据。"""
 
     @staticmethod
-    def extract_event_data(message: dict[str, Any]) -> GenerationData | QualityReviewData | ConsistencyCheckData:
+    def extract_event_data(message: dict[str, Any]) -> GenerationData:
         """从消息中提取数据，优先使用'data'字段，如果没有则回退到消息本身。
 
         Args:
             message: 原始消息字典
 
         Returns:
-            提取出的事件数据对象
+            提取出的GenerationData事件数据对象
         """
         # 使用 Pydantic 进行类型安全的数据提取和转换
         event_msg: CapabilityEventMessage = CapabilityEventMessage(**message)
@@ -43,22 +41,16 @@ class EventDataExtractor:
         if hasattr(typed_data, "model_fields_set") and typed_data.model_fields_set:
             return typed_data
 
-        # Fallback: 如果消息没有标准 data 字段，直接根据内容猜测类型
+        # Fallback: 如果消息没有标准 data 字段，直接根据内容创建GenerationData
         potential_payload = message.get("data") if isinstance(message.get("data"), dict) else message
 
         # 确保 payload 是一个有效的字典
         payload = {} if not isinstance(potential_payload, dict) else potential_payload
 
-        if "score" in payload or "quality_score" in payload:
-            return QualityReviewData(**payload)
-        if "ok" in payload or "passed" in payload:
-            return ConsistencyCheckData(**payload)
         return GenerationData(**payload)
 
     @staticmethod
-    def extract_session_and_scope(
-        data: GenerationData | QualityReviewData | ConsistencyCheckData, context: MessageContext
-    ) -> tuple[str, ScopeInfo]:
+    def extract_session_and_scope(data: GenerationData, context: MessageContext) -> tuple[str, ScopeInfo]:
         """从数据和上下文中提取会话ID和作用域信息。
 
         Args:
@@ -78,7 +70,7 @@ class EventDataExtractor:
         # 如果 context 中没有，尝试从消息本身获取（业务层回退）
         if not session_id:
             # 某些消息可能在业务数据中包含 session_id
-            session_id = str(getattr(data, 'session_id', '') or "")
+            session_id = str(getattr(data, "session_id", "") or "")
         topic = context.topic or ""
 
         # 从主题前缀推断作用域 (例如: genesis.outline.events -> Genesis)
@@ -94,9 +86,7 @@ class EventDataExtractor:
         return session_id, scope_info
 
     @staticmethod
-    def extract_correlation_id(
-        context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData
-    ) -> str | None:
+    def extract_correlation_id(context: MessageContext, data: GenerationData) -> str | None:
         """提取关联ID，优先从context['meta']获取，否则从data中获取。
 
         Args:
@@ -116,9 +106,7 @@ class EventDataExtractor:
         return None
 
     @staticmethod
-    def extract_causation_id(
-        context: MessageContext, data: GenerationData | QualityReviewData | ConsistencyCheckData
-    ) -> str | None:
+    def extract_causation_id(context: MessageContext, data: GenerationData) -> str | None:
         """提取因果关系ID（能力事件的event_id用作下游领域事件的causation_id）。
 
         Args:
@@ -153,7 +141,7 @@ class EventHandlerMatcher:
         self,
         msg_type: str,
         session_id: str,
-        data: GenerationData | QualityReviewData | ConsistencyCheckData,
+        data: GenerationData,
         correlation_id: str | None,
         scope_info: ScopeInfo,
         causation_id: str | None,

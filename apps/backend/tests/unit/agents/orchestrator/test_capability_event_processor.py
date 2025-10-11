@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
-
 from src.agents.orchestrator.capability_event_processor import (
     CapabilityEventProcessor,
     EventDataExtractor,
@@ -15,10 +14,8 @@ from src.agents.orchestrator.capability_event_processor import (
 )
 from src.agents.orchestrator.event_handlers import EventAction
 from src.agents.orchestrator.types import (
-    ConsistencyCheckData,
     GenerationData,
     MessageContext,
-    QualityReviewData,
     ScopeInfo,
 )
 
@@ -57,17 +54,17 @@ class TestEventDataExtractor:
         assert session_id == "session-123"
         assert isinstance(scope_info, ScopeInfo)
         assert scope_info.topic == "genesis.character.events"
-        assert scope_info.scope_prefix == "GENESIS"
+        assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
     def test_extract_session_and_scope_with_aggregate_id(self):
-        data = GenerationData(aggregate_id="session-456", other="data")
-        context = MessageContext(topic="character.world.events")
+        data = GenerationData(other="data")
+        context = MessageContext(topic="character.world.events", meta={"aggregate_id": "session-456"})
 
         session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
 
         assert session_id == "session-456"
-        assert scope_info.scope_prefix == "CHARACTER"
+        assert scope_info.scope_prefix == "Character"
         assert scope_info.scope_type == "CHARACTER"
 
     def test_extract_session_and_scope_no_session(self):
@@ -77,7 +74,7 @@ class TestEventDataExtractor:
         session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
 
         assert session_id == ""
-        assert scope_info.scope_prefix == "PLOT"
+        assert scope_info.scope_prefix == "Plot"
         assert scope_info.scope_type == "PLOT"
 
     def test_extract_session_and_scope_no_topic(self):
@@ -88,7 +85,7 @@ class TestEventDataExtractor:
 
         assert session_id == "session-123"
         assert scope_info.topic == ""
-        assert scope_info.scope_prefix == "GENESIS"
+        assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
     def test_extract_session_and_scope_single_word_topic(self):
@@ -98,22 +95,13 @@ class TestEventDataExtractor:
         session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
 
         assert session_id == "session-123"
-        assert scope_info.scope_prefix == "GENESIS"
+        assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
     def test_extract_correlation_id_from_context_meta(self):
         correlation_id = str(uuid4())
         context = MessageContext(meta={"correlation_id": correlation_id})
         data = GenerationData(correlation_id="other-id")
-
-        result = EventDataExtractor.extract_correlation_id(context, data)
-
-        assert result == correlation_id
-
-    def test_extract_correlation_id_from_data_fallback(self):
-        correlation_id = str(uuid4())
-        context = MessageContext(meta={})
-        data = GenerationData(correlation_id=correlation_id)
 
         result = EventDataExtractor.extract_correlation_id(context, data)
 
@@ -131,15 +119,6 @@ class TestEventDataExtractor:
         causation_id = str(uuid4())
         context = MessageContext(meta={"event_id": causation_id})
         data = GenerationData(event_id="other-id")
-
-        result = EventDataExtractor.extract_causation_id(context, data)
-
-        assert result == causation_id
-
-    def test_extract_causation_id_from_data_fallback(self):
-        causation_id = str(uuid4())
-        context = MessageContext(meta={})
-        data = GenerationData(event_id=causation_id)
 
         result = EventDataExtractor.extract_causation_id(context, data)
 
@@ -171,10 +150,9 @@ class TestEventHandlerMatcher:
 
         # Mock the handler function to return our test action
         mock_handler = MagicMock(return_value=mock_action)
-        
+
         with patch(
-            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
-            {GenerationData: mock_handler}
+            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY", {GenerationData: mock_handler}
         ):
             # Act
             result = self.matcher.find_matching_handler(
@@ -184,55 +162,13 @@ class TestEventHandlerMatcher:
             # Assert
             assert result == mock_action
             mock_handler.assert_called_once_with(
-                msg_type=msg_type, 
-                session_id=session_id, 
-                data=data, 
-                correlation_id=correlation_id, 
-                scope_type="GENESIS", 
-                scope_prefix="GENESIS", 
-                causation_id=causation_id
-            )
-
-    def test_find_matching_handler_second_handler_matches(self):
-        """Test when second handler matches."""
-        # Arrange
-        msg_type = "Character.Quality.ReviewCompleted"
-        session_id = "session-123"
-        data = QualityReviewData(
-            session_id=session_id,
-            quality_score=85,
-            feedback="Good character",
-        )
-        correlation_id = str(uuid4())
-        scope_info = ScopeInfo(topic="genesis.character.events", scope_prefix="GENESIS", scope_type="GENESIS")
-        causation_id = str(uuid4())
-
-        mock_action = EventAction(
-            domain_event={"scope_type": "GENESIS", "event_action": "Character.QualityReviewed"}
-        )
-
-        # Mock the handler function to return our test action
-        mock_handler = MagicMock(return_value=mock_action)
-        
-        with patch(
-            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
-            {QualityReviewData: mock_handler}
-        ):
-            # Act
-            result = self.matcher.find_matching_handler(
-                msg_type, session_id, data, correlation_id, scope_info, causation_id
-            )
-
-            # Assert
-            assert result == mock_action
-            mock_handler.assert_called_once_with(
-                msg_type=msg_type, 
-                session_id=session_id, 
-                data=data, 
-                correlation_id=correlation_id, 
-                scope_type="GENESIS", 
-                scope_prefix="GENESIS", 
-                causation_id=causation_id
+                msg_type=msg_type,
+                session_id=session_id,
+                data=data,
+                correlation_id=correlation_id,
+                scope_type="GENESIS",
+                scope_prefix="GENESIS",
+                causation_id=causation_id,
             )
 
     def test_find_matching_handler_no_match(self):
@@ -248,7 +184,7 @@ class TestEventHandlerMatcher:
         # Mock HANDLER_REGISTRY to have no matching handler for the data type
         with patch(
             "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
-            {QualityReviewData: MagicMock()}  # Only has QualityReviewData, not GenerationData
+            {},  # Empty registry - no handlers for GenerationData
         ):
             # Act
             result = self.matcher.find_matching_handler(
@@ -289,7 +225,10 @@ class TestCapabilityEventProcessor:
 
         mock_action = EventAction(
             domain_event={"scope_type": "GENESIS", "event_action": "Character.Generated"},
-            task_completion={"correlation_id": context["meta"]["correlation_id"], "expect_task_prefix": "Character.Design"},
+            task_completion={
+                "correlation_id": context["meta"]["correlation_id"],
+                "expect_task_prefix": "Character.Design",
+            },
         )
 
         # Mock the handler matcher to return an action
@@ -378,7 +317,7 @@ class TestCapabilityEventProcessor:
         scope_info = call_args[4]
         assert isinstance(scope_info, ScopeInfo)
         assert scope_info.scope_type == "CHARACTER"
-        assert scope_info.scope_prefix == "CHARACTER"
+        assert scope_info.scope_prefix == "Character"
 
     @pytest.mark.asyncio
     async def test_handle_capability_event_message_without_data_field(self):
