@@ -3254,6 +3254,88 @@ graph TD
 
 ## 📋 最新更新 (2025-01-11)
 
+### 🔧 工作流常量优化 ✨
+
+最近的重构引入了工作流常量模块，实现了配置的集中管理和类型安全：
+
+```mermaid
+graph TD
+    subgraph "重构前：硬编码分散"
+        A[质量阈值 7.5] --> B[散布在多个文件中]
+        C[最大尝试次数 3] --> B
+        D[事件映射] --> B
+        E[动作映射] --> B
+        B --> F[维护困难]
+        B --> G[类型不安全]
+    end
+    
+    subgraph "重构后：集中管理"
+        H[WorkflowDefaults] --> I[统一常量定义]
+        J[验证函数] --> K[类型安全保证]
+        L[文档化配置] --> M[易于维护]
+        I --> N[WORKFLOW_DEFAULTS]
+    end
+    
+    F --> O[配置集中化]
+    G --> P[运行时验证]
+    H --> O
+    J --> P
+```
+
+#### 🎯 核心改进特性
+
+- **配置集中化**: 将所有工作流相关常量集中到 `workflow_constants.py`
+- **类型安全**: 使用 `Final` 类型注解确保编译时常量
+- **运行时验证**: 提供验证函数确保配置值的有效性
+- **文档化**: 清晰的常量分组和注释
+
+#### 📊 常量分类管理
+
+```python
+class WorkflowDefaults:
+    # 质量控制
+    QUALITY_THRESHOLD: Final[float] = 7.5
+    MAX_ATTEMPTS: Final[int] = 3
+    CONSISTENCY_THRESHOLD: Final[float] = 1.0
+    
+    # 任务前缀
+    QUALITY_REVIEW_PREFIX: Final[str] = "Review.Quality.Evaluation"
+    CONSISTENCY_CHECK_PREFIX: Final[str] = "Review.Consistency.Check"
+    
+    # 事件映射
+    EVENT_TARGET_MAPPING: Final[dict[str, str]] = {
+        "Character.Design.Generated": "character",
+        "Character.Generated": "character",
+        "Outliner.Theme.Generated": "theme",
+        "Theme.Generated": "theme",
+        "Inquiry.Response.Generated": "inquiry",
+    }
+```
+
+#### 🛡️ 验证函数设计
+
+```python
+def validate_quality_threshold(threshold: float) -> None:
+    """验证质量阈值在 0.0-10.0 范围内"""
+    if not (0.0 <= threshold <= 10.0):
+        raise WorkflowValidationError(f"Quality threshold must be between 0.0 and 10.0, got {threshold}")
+
+def validate_workflow_thresholds(
+    quality_threshold: float, 
+    max_attempts: int, 
+    consistency_threshold: float
+) -> list[str]:
+    """批量验证所有工作流阈值，返回错误列表"""
+```
+
+#### 🚀 使用优势
+
+1. **维护性提升**: 所有配置集中管理，修改更加容易
+2. **类型安全**: 编译时检查和运行时验证双重保障
+3. **可测试性**: 独立的验证函数便于单元测试
+4. **文档化**: 清晰的常量分组和类型注解
+5. **扩展性**: 易于添加新的配置项和验证规则
+
 ### 🧠 意图分类系统集成
 
 最近在编排器中集成了智能意图分类器，实现了用户命令意图的自动识别和路由：

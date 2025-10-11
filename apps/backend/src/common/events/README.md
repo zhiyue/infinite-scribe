@@ -4,6 +4,54 @@
 
 ## 🚀 最新功能增强
 
+### 聚合类型更新优化 ✨
+
+最近的配置更新优化了聚合类型映射，提升了领域事件架构的一致性：
+
+```mermaid
+graph TD
+    subgraph "更新前：聚合类型不一致"
+        A[ScopeType.GENESIS] --> B["GenesisSession"]
+        C[其他作用域] --> D["XXXSession"]
+        E[命名不规范] --> F[理解困难]
+    end
+    
+    subgraph "更新后：统一命名规范"
+        G[ScopeType.GENESIS] --> H["GenesisFlow"]
+        I[其他作用域] --> J["XXXSession"]
+        K[语义清晰] --> L[Flow代表流程状态]
+    end
+    
+    F --> M[架构优化]
+    H --> M
+```
+
+#### 🎯 核心变更
+
+- **聚合类型更新**: `GenesisSession` → `GenesisFlow`
+- **语义优化**: "Flow" 更好地表达了创作流程的状态管理
+- **架构一致性**: 与其他作用域的命名规范保持一致
+
+#### 📊 更新后的映射关系
+
+```python
+# 聚合类型映射
+SCOPE_AGGREGATE_TYPE: Final[dict[str, str]] = {
+    ScopeType.GENESIS.value: "GenesisFlow",      # 🔄 更新
+    ScopeType.CHAPTER.value: "ChapterSession",
+    ScopeType.REVIEW.value: "ReviewSession",
+    ScopeType.PLANNING.value: "PlanningSession",
+    ScopeType.WORLDBUILDING.value: "WorldbuildingSession",
+}
+```
+
+#### 🚀 优化优势
+
+1. **语义清晰**: "GenesisFlow" 更好地表达了起源创作的流程状态
+2. **架构一致**: 与整体领域驱动设计保持一致
+3. **扩展性**: 为未来的流程状态管理提供更好的基础
+4. **可理解性**: 开发者更容易理解其业务含义
+
 ### 领域事件配置统一 ✨
 
 最近的更新新增了领域事件配置模块，提供了从对话作用域到领域事件的统一映射：
