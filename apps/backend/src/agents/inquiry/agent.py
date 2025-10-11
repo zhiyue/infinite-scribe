@@ -124,6 +124,7 @@ class InquiryAgent(BaseAgent):
             "query": query,
             "response": response,
             "session_id": session_id,
+            "_key": session_id,  # Partition key for message ordering by session
             "metadata": {
                 "user_id": user_id,
                 "novel_id": novel_id,

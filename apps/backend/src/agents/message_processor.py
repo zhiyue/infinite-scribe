@@ -248,7 +248,17 @@ class MessageProcessor:
             return
 
         # Optional partitioning key support
+        # Try explicit _key first, then fallback to common fields
         key_value = result.pop("_key", None)
+        if not key_value:
+            # Intelligent fallback: use session_id or user_id for partitioning
+            key_value = result.get("session_id") or result.get("user_id")
+            if key_value:
+                self.log.debug(
+                    "using_fallback_partition_key",
+                    key=key_value,
+                    source="session_id" if "session_id" in result else "user_id",
+                )
 
         # Attach retries info if not provided by business logic
         result.setdefault("retries", retries)

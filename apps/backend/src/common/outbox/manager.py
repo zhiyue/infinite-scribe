@@ -83,9 +83,11 @@ class BaseOutboxManager:
         if not topic:
             self.log.warning(
                 "message_enqueue_skipped",
-                reason="missing_topic",
-                agent=self.agent_name,
-                payload_keys=list(payload.keys()) if payload else [],
+                extra={
+                    "reason": "missing_topic",
+                    "agent": self.agent_name,
+                    "payload_keys": list(payload.keys()) if payload else [],
+                },
             )
             raise ValueError("Topic is required for message enqueuing")
 
@@ -107,11 +109,13 @@ class BaseOutboxManager:
 
         self.log.info(
             "message_enqueued_to_outbox",
-            agent=self.agent_name,
-            outbox_id=outbox_id,
-            topic=topic,
-            key=key,
-            correlation_id=correlation_id,
+            extra={
+                "agent": self.agent_name,
+                "outbox_id": outbox_id,
+                "topic": topic,
+                "key": key,
+                "correlation_id": correlation_id,
+            },
         )
 
         return outbox_id
@@ -158,11 +162,13 @@ class BaseOutboxManager:
 
             self.log.debug(
                 "outbox_entry_created",
-                agent=self.agent_name,
-                outbox_id=outbox_id,
-                topic=topic,
-                key=key,
-                payload_size=len(str(payload)),
+                extra={
+                    "agent": self.agent_name,
+                    "outbox_id": outbox_id,
+                    "topic": topic,
+                    "key": key,
+                    "payload_size": len(str(payload)),
+                },
             )
 
             return outbox_id
@@ -207,9 +213,11 @@ class BaseOutboxManager:
 
         self.log.info(
             "batch_messages_enqueued",
-            agent=self.agent_name,
-            count=len(messages),
-            correlation_id=correlation_id,
+            extra={
+                "agent": self.agent_name,
+                "count": len(messages),
+                "correlation_id": correlation_id,
+            },
         )
 
         return outbox_ids
