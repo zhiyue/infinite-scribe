@@ -4,7 +4,7 @@
  */
 
 import { getSupportedGenesisEventTypes, isGenesisEvent } from '@/config/genesis-status.config'
-import { useSSEEvents as useSSEEventsGeneric } from '@/hooks/sse'
+import { useSSE } from '@/hooks/sse'
 import { conversationsService } from '@/services/conversationsService'
 import type {
   CommandAcceptedResponse,
@@ -34,7 +34,7 @@ import type {
 } from '@/types/api'
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 
 // ===== Query Keys =====
 const conversationKeys = {
@@ -117,6 +117,10 @@ export function useCommandEvents(
 
   const sessionIdRef = useRef(sessionId)
   const commandIdRef = useRef(commandId)
+  const handlerRef = useRef<(eventType: string, data: any) => void>(() => {})
+  const unsubscribeRef = useRef<(() => void)[]>([])
+
+  const { subscribe } = useSSE()
 
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -126,51 +130,100 @@ export function useCommandEvents(
     commandIdRef.current = commandId
   }, [commandId])
 
-  // 订阅 SSE Genesis 事件并根据 correlation_id 合并
+  const handleGenesisEvent = useCallback((eventType: string, data: any) => {
+    console.log('[useCommandEvents] SSE event received:', {
+      eventType,
+      data,
+      sessionId: sessionIdRef.current,
+      commandId: commandIdRef.current,
+    })
+
+    if (!isGenesisEvent(eventType)) return
+    if (!data) return
+    if (String(data.session_id) !== String(sessionIdRef.current)) return
+
+    const corr = data.correlation_id || data.causation_id || data.command_id
+    const activeCommandId = commandIdRef.current
+
+    if (activeCommandId && activeCommandId.trim()) {
+      if (String(corr || '') !== String(activeCommandId)) return
+    }
+
+    const ev: CommandEventItem = {
+      event_id: String(data.event_id || `${eventType}-${data.timestamp || Date.now()}`),
+      event_type: String(data.event_type || eventType),
+      session_id: String(data.session_id || sessionIdRef.current),
+      correlation_id: data.correlation_id || null,
+      timestamp: String(data.timestamp || new Date().toISOString()),
+      status:
+        typeof data.status === 'string'
+          ? data.status
+          : typeof data.payload?.status === 'string'
+            ? data.payload.status
+            : undefined,
+      payload: data.payload ?? data,
+    }
+
+    console.log('[useCommandEvents] Adding event to merged events:', ev)
+    setMergedEvents((prev) => {
+      const updated = mergeUniqueEvents([...prev], [ev])
+      console.log('[useCommandEvents] Updated merged events:', updated.length, 'items')
+      return updated
+    })
+  }, [])
+
+  useEffect(() => {
+    handlerRef.current = handleGenesisEvent
+  }, [handleGenesisEvent])
+
   const genesisEvents = useMemo(() => getSupportedGenesisEventTypes(), [])
-  useSSEEventsGeneric(
-    genesisEvents,
-    (eventType, data: any) => {
-      console.log('[useCommandEvents] SSE event received:', { eventType, data, sessionId: sessionIdRef.current, commandId: commandIdRef.current })
 
-      if (!isGenesisEvent(eventType)) return
-      if (!data) return
-      if (String(data.session_id) !== String(sessionIdRef.current)) return
-
-      // 优先匹配 correlation_id；部分事件也可能带 causation_id / command_id
-      const corr = data.correlation_id || data.causation_id || data.command_id
-
-      // 如果 commandId 不为空且有效，则进行严格匹配
-      // 如果 commandId 为空，则接受所有属于该 session 的 Genesis 事件
-      const activeCommandId = commandIdRef.current
-      if (activeCommandId && activeCommandId.trim()) {
-        if (String(corr || '') !== String(activeCommandId)) return
+  useEffect(() => {
+    // 先清理旧的订阅
+    unsubscribeRef.current.forEach((fn) => {
+      try {
+        fn()
+      } catch (error) {
+        console.error('[useCommandEvents] 清理旧订阅失败:', error)
       }
+    })
+    unsubscribeRef.current = []
 
-      const ev: CommandEventItem = {
-        event_id: String(data.event_id || `${eventType}-${data.timestamp || Date.now()}`),
-        event_type: String(data.event_type || eventType),
-        session_id: String(data.session_id || sessionId),
-        correlation_id: data.correlation_id || null,
-        timestamp: String(data.timestamp || new Date().toISOString()),
-        status:
-          typeof data.status === 'string'
-            ? data.status
-            : typeof data.payload?.status === 'string'
-              ? data.payload.status
-              : undefined,
-        payload: data.payload ?? data,
-      }
-
-      console.log('[useCommandEvents] Adding event to merged events:', ev)
-      setMergedEvents((prev) => {
-        const updated = mergeUniqueEvents([...prev], [ev])
-        console.log('[useCommandEvents] Updated merged events:', updated.length, 'items')
-        return updated
+    const enabled = options?.enabled !== false
+    if (!enabled || !sessionIdRef.current) {
+      console.log('[useCommandEvents] SSE订阅未启用', {
+        enabled,
+        sessionId: sessionIdRef.current,
       })
-    },
-    [sessionId],
-  )
+      return
+    }
+
+    console.log('[useCommandEvents] 建立Genesis事件订阅', {
+      sessionId: sessionIdRef.current,
+      events: genesisEvents,
+    })
+
+    unsubscribeRef.current = genesisEvents.map((eventType) =>
+      subscribe(eventType, (message) => {
+        try {
+          handlerRef.current(eventType, message.data)
+        } catch (error) {
+          console.error('[useCommandEvents] 处理SSE事件失败', { eventType, error })
+        }
+      }),
+    )
+
+    return () => {
+      unsubscribeRef.current.forEach((fn) => {
+        try {
+          fn()
+        } catch (error) {
+          console.error('[useCommandEvents] 清理订阅失败', error)
+        }
+      })
+      unsubscribeRef.current = []
+    }
+  }, [subscribe, genesisEvents, sessionId, options?.enabled])
 
   return {
     data: mergedEvents,

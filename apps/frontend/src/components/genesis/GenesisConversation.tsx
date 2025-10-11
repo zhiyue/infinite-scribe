@@ -919,8 +919,8 @@ export function GenesisConversation({
                 </div>
               )}
 
-              {/* 欢迎消息 */}
-              {!roundsLoading && !roundsError && rounds.length === 0 && (
+              {/* 欢迎消息 - 始终作为第一条消息显示 */}
+              {!roundsLoading && !roundsError && (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-secondary">
@@ -933,6 +933,7 @@ export function GenesisConversation({
                       <p className="text-sm mt-2">{STAGE_PROMPTS[stage]}</p>
                     </div>
 
+                    {/* 快速开始按钮 - 始终显示 */}
                     {STAGE_EXAMPLES[stage].length > 0 && (
                       <Card className="border-dashed">
                         <CardContent className="pt-4">
@@ -960,7 +961,7 @@ export function GenesisConversation({
                 </div>
               )}
 
-              {/* 对话消息 */}
+              {/* 对话消息 - 在欢迎消息后显示 */}
               {rounds.map(renderMessage).filter(Boolean)}
 
               {/* 不再在顶部显示系统状态条；系统事件转移到“思考中”区域的扁平列表 */}
