@@ -103,10 +103,24 @@ class IntentClassifier:
         Returns:
             IntentClassification: 分类结果
         """
+        # 调试：记录输入参数
+        self._logger.debug(
+            f"intent_classifier_input: user_input={user_input}, command_type={command_type}, "
+            f"payload_keys={list(payload.keys()) if payload else []}"
+        )
+
         # 提取文本
         text = user_input or self._extract_text(payload or {})
+
+        # 调试：记录提取结果
+        self._logger.debug(f"intent_classifier_extracted_text: text={repr(text)[:200] if text else None}")
+
         if not text:
             # 无输入时默认为生成意图
+            self._logger.info(
+                f"intent_classifier_no_text: defaulting to generation, user_input={user_input is not None}, "
+                f"payload_has_user_input={'user_input' in (payload or {})}"
+            )
             return IntentClassification(intent="generation", confidence=0.5, source="fallback")
 
         # 先尝试启发式规则（快速且准确）
@@ -150,16 +164,26 @@ class IntentClassifier:
             payload.get("message"),
         ]
 
+        # 调试：记录候选值的类型
+        self._logger.debug(
+            f"intent_classifier_extract_candidates: "
+            f"user_input={type(payload.get('user_input')).__name__ if 'user_input' in payload else 'missing'}, "
+            f"input={type(payload.get('input')).__name__ if 'input' in payload else 'missing'}, "
+            f"content={type(payload.get('content')).__name__ if 'content' in payload else 'missing'}"
+        )
+
         # 检查嵌套结构
         if "context" in payload and isinstance(payload["context"], dict):
             context = payload["context"]
             candidates.extend([context.get("user_input"), context.get("prompt"), context.get("message")])
 
         # 返回第一个非空字符串
-        for value in candidates:
+        for idx, value in enumerate(candidates):
             if isinstance(value, str) and value.strip():
+                self._logger.debug(f"intent_classifier_text_found_at_index: {idx}, length={len(value)}")
                 return value.strip()
 
+        self._logger.debug("intent_classifier_no_text_found: all candidates were non-string or empty")
         return None
 
     def _run_heuristics(self, text: str, payload: dict[str, Any]) -> IntentClassification | None:

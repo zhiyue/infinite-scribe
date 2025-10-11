@@ -79,7 +79,18 @@ class InquiryAgent(BaseAgent):
         Returns:
             Query result dictionary
         """
-        logger.info(f"InquiryAgent processing message: {message.get('type', 'unknown')}")
+        # Debug: log message structure
+        message_type = (context or {}).get("meta", {}).get("type") or message.get("type")
+        logger.info(
+            f"InquiryAgent processing message: {message_type}",
+            extra={
+                "message_keys": list(message.keys()),
+                "context_keys": list(context.keys()) if context else [],
+                "has_meta": "meta" in (context or {}),
+                "meta_type": (context or {}).get("meta", {}).get("type") if context else None,
+                "message_type": message.get("type"),
+            },
+        )
 
         # Extract query content
         query = self._extract_query(message)
@@ -103,9 +114,10 @@ class InquiryAgent(BaseAgent):
             query=query, session_id=session_id, user_id=user_id, novel_id=novel_id, context=context
         )
 
-        # Build response message using dot notation (events.md convention)
+        # Build response message
+        # IMPORTANT: Use "type" not "event_type" - this is the Agent system convention
         return {
-            "event_type": "Inquiry.Response.Generated",  # 点式命名：能力.实体.动作
+            "type": "Inquiry.Response.Generated",  # Agent消息类型字段
             "status": "success",
             "agent": self.name,
             "query_type": query_type,
@@ -124,15 +136,26 @@ class InquiryAgent(BaseAgent):
         # Try multiple possible fields
         candidates = [
             message.get("query"),
+            message.get("input", {}).get("user_input") if isinstance(message.get("input"), dict) else None,
             message.get("input", {}).get("query") if isinstance(message.get("input"), dict) else None,
             message.get("content"),
             message.get("text"),
+            message.get("user_input"),  # Direct user_input field
         ]
 
-        for candidate in candidates:
+        # Debug: log extraction attempt
+        logger.debug(
+            f"_extract_query: message_keys={list(message.keys())}, "
+            f"has_input={'input' in message}, "
+            f"input_keys={list(message.get('input', {}).keys()) if isinstance(message.get('input'), dict) else 'N/A'}"
+        )
+
+        for idx, candidate in enumerate(candidates):
             if isinstance(candidate, str) and candidate.strip():
+                logger.info(f"Query extracted from candidate[{idx}]: {candidate[:50]}...")
                 return candidate.strip()
 
+        logger.warning("No query content found in any candidate field")
         return None
 
     async def _analyze_query_type(self, query: str) -> str:

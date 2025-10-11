@@ -29,7 +29,7 @@ def test_command_to_character_requested_and_task(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None, metadata=None):
         capture.persisted_events.append(
             (scope_type, session_id, event_action, payload, correlation_id)
         )
@@ -123,7 +123,7 @@ def test_capability_generated_triggers_review(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None, metadata=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
     async def capture_complete(*, correlation_id, expect_task_prefix, result_data):
@@ -198,7 +198,7 @@ def test_quality_review_decision_paths(monkeypatch):
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None, metadata=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
     async def capture_complete(*, correlation_id, expect_task_prefix, result_data):
@@ -320,7 +320,7 @@ def test_consistency_checked_confirms_or_fails(monkeypatch, consistency_ok, expe
     agent = OrchestratorAgent(name="orchestrator", consume_topics=[], produce_topics=[])
     capture = EventCapture()
 
-    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None):
+    async def capture_persist(*, scope_type, session_id, event_action, payload, correlation_id, causation_id=None, metadata=None):
         capture.persisted_events.append((scope_type, session_id, event_action, payload, correlation_id))
 
     async def capture_complete(*, correlation_id, expect_task_prefix, result_data):

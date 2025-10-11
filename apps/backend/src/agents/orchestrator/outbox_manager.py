@@ -14,7 +14,7 @@ from sqlalchemy import and_, select
 from src.agents.message import encode_message
 from src.agents.orchestrator.types import EventMetadata, EventOutboxHeaders
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.common.outbox import OutboxPayloadBuilder
+from src.common.outbox import BaseOutboxManager, OutboxPayloadBuilder
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
 from src.db.sql.session import create_sql_session
@@ -369,7 +369,10 @@ class OutboxEntryCreator:
 
 
 class CapabilityTaskEnqueuer:
-    """能力任务入队器，处理能力任务的入队逻辑。"""
+    """能力任务入队器，处理能力任务的入队逻辑。
+
+    Note: 现在使用BaseOutboxManager进行消息入队，提供更可靠的消息持久化。
+    """
 
     def __init__(self, logger, agent_name: str):
         """初始化能力任务入队器。
@@ -380,6 +383,8 @@ class CapabilityTaskEnqueuer:
         """
         self.log = logger
         self.agent_name = agent_name
+        # 使用通用的BaseOutboxManager进行消息入队
+        self.base_outbox = BaseOutboxManager(agent_name)
 
     async def enqueue_capability_task(self, capability_message: dict[str, Any], correlation_id: str | None) -> None:
         """将能力任务入队到EventOutbox，供relay发布到Kafka。
@@ -400,51 +405,37 @@ class CapabilityTaskEnqueuer:
         result_payload = {k: v for k, v in capability_message.items() if k not in {"_topic", "_key"}}
         envelope = encode_message(self.agent_name, result_payload, correlation_id=correlation_id, retries=0)
 
-        await self._create_outbox_entry(envelope, correlation_id, topic, key)
+        # 构建headers
+        headers = EventOutboxHeaders(
+            type=envelope.get("type"),
+            version=envelope.get("version", 1),
+            correlation_id=correlation_id,
+            agent=self.agent_name,
+        ).model_dump()
 
-    async def _create_outbox_entry(
-        self,
-        envelope: dict,
-        correlation_id: str | None,
-        topic: str,
-        key: Any,
-    ) -> None:
-        """为能力任务创建outbox条目。
+        # 使用BaseOutboxManager进行入队
+        outbox_id = await self.base_outbox.enqueue_message(
+            topic=topic,
+            payload=envelope,
+            key=str(key) if key is not None else None,
+            correlation_id=correlation_id,
+            headers=headers,
+        )
 
-        Args:
-            envelope: 信封数据
-            correlation_id: 关联ID
-            topic: 主题名称
-            key: 分区键
-        """
-        async with create_sql_session() as db:
-            outbox_entry = EventOutbox(
-                topic=topic,
-                key=str(key) if key is not None else None,
-                partition_key=str(key) if key is not None else None,
-                payload=envelope,
-                headers=EventOutboxHeaders(
-                    type=envelope.get("type"),
-                    version=envelope.get("version", 1),
-                    correlation_id=correlation_id,
-                    agent=self.agent_name,
-                ).model_dump(),
-                status=OutboxStatus.PENDING,
-            )
-            db.add(outbox_entry)
-            # 刷新以获取日志ID
-            await db.flush()
-
-            self.log.debug(
-                "capability_task_outbox_created",
-                outbox_id=str(outbox_entry.id),
-                topic=topic,
-                key=key,
-            )
+        self.log.debug(
+            "capability_task_outbox_created",
+            outbox_id=outbox_id,
+            topic=topic,
+            key=key,
+        )
 
 
 class OutboxManager:
-    """统一的outbox管理接口，提供领域事件持久化和能力任务入队的统一操作。"""
+    """统一的outbox管理接口，提供领域事件持久化和能力任务入队的统一操作。
+
+    Note: 组合使用BaseOutboxManager提供通用的消息入队能力，
+    同时保留orchestrator特定的领域事件持久化逻辑。
+    """
 
     def __init__(self, logger, agent_name: str):
         """初始化outbox管理器。
@@ -454,9 +445,13 @@ class OutboxManager:
             agent_name: 代理名称
         """
         self.log = logger
+        self.agent_name = agent_name
+        # Orchestrator特定的领域事件处理组件
         self.domain_event_creator = DomainEventCreator(logger)
         self.outbox_entry_creator = OutboxEntryCreator(logger)
         self.capability_enqueuer = CapabilityTaskEnqueuer(logger, agent_name)
+        # 通用的消息入队能力（可用于非领域事件的消息）
+        self.base_outbox = BaseOutboxManager(agent_name)
 
     async def persist_domain_event(
         self,

@@ -180,9 +180,6 @@ class PayloadEnricher:
 class DomainEventProcessor:
     """主要的领域事件处理编排器，负责协调整个领域事件的处理流程。"""
 
-    # 需要意图路由的命令列表
-    INTENT_ROUTED_COMMANDS = {"Command.Genesis.Session.Details.Request"}
-
     def __init__(self, logger: Any, intent_classifier: IntentClassifier | None = None) -> None:
         """初始化领域事件处理器。
 
@@ -284,14 +281,25 @@ class DomainEventProcessor:
             aggregate_id=aggregate_id,
         )
 
-        # 如果命令需要意图路由，进行意图分类
+        # 对所有 Command.Received 事件进行意图分类
+        self.log.info(
+            "orchestrator_calling_intent_classifier",
+            cmd_type=cmd_type,
+            payload_keys=list(payload.keys()) if payload else [],
+        )
+
         intent_result: IntentClassification | None = None
-        if cmd_type in self.INTENT_ROUTED_COMMANDS:
-            try:
-                intent_result = await self.intent_classifier.classify(command_type=cmd_type, payload=payload)
-            except Exception as exc:
-                self.log.warning("orchestrator_intent_classification_failed: %s", exc)
-                intent_result = None
+        try:
+            intent_result = await self.intent_classifier.classify(command_type=cmd_type, payload=payload)
+            self.log.info(
+                "orchestrator_intent_classifier_returned",
+                has_result=intent_result is not None,
+                intent=intent_result.intent if intent_result else None,
+                confidence=intent_result.confidence if intent_result else None,
+            )
+        except Exception as exc:
+            self.log.warning("orchestrator_intent_classification_failed", error=str(exc), exc_info=True)
+            intent_result = None
 
         if intent_result:
             self.log.info(
@@ -300,6 +308,12 @@ class DomainEventProcessor:
                 intent=intent_result.intent,
                 confidence=intent_result.confidence,
                 source=intent_result.source,
+            )
+        else:
+            self.log.info(
+                "orchestrator_no_intent_result",
+                cmd_type=cmd_type,
+                reason="intent_classifier returned None",
             )
 
         # 根据意图决定路由
@@ -394,9 +408,10 @@ class DomainEventProcessor:
         Returns:
             命令映射对象
         """
-        # 构建InquiryAgent的能力消息（遵循events.md点式命名规范）
+        # 构建InquiryAgent的能力消息
+        # 注意：使用 "type" 字段而不是 "event_type"，因为下游代码期待 "type"
         capability_message = {
-            "event_type": "Inquiry.Query.Requested",  # 使用event_type而不是type（简洁形式）
+            "type": "Inquiry.Query.Requested",  # Agent期待的消息类型字段
             "session_id": aggregate_id,
             "input": payload,
             "_topic": build_topic_name("inquiry", scope_type, scope_prefix),  # genesis.inquiry.tasks

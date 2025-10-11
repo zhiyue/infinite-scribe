@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from aiokafka.errors import KafkaError, UnknownTopicOrPartitionError
 
@@ -12,6 +12,9 @@ from src.agents.error_handler import ErrorHandler
 from src.agents.message import decode_message, encode_message
 from src.agents.metrics import record_latency
 from src.core.logging.config import get_logger
+
+if TYPE_CHECKING:
+    from src.common.outbox import BaseOutboxManager
 
 
 class MessageProcessor:
@@ -76,10 +79,22 @@ class MessageProcessor:
         correlation_id: str | None,
         message_id: str | None,
         process_func: Callable[[dict[str, Any], dict[str, Any] | None], Any],
-        producer_func: Callable[[], Any],
+        producer_func: Callable[[], Any] | None,
         agent_metrics: AgentMetrics,
+        outbox_manager: "BaseOutboxManager | None" = None,
     ) -> dict[str, Any]:
         """Process message with retry logic and error handling.
+
+        Args:
+            msg: Original Kafka message
+            safe_message: Decoded message content
+            context: Message context
+            correlation_id: Correlation ID for tracing
+            message_id: Message ID
+            process_func: Function to process the message
+            producer_func: (Deprecated) Function to get Kafka producer. Use outbox_manager instead.
+            agent_metrics: Agent metrics instance
+            outbox_manager: (Recommended) Outbox manager for reliable message delivery
 
         Returns:
             dict with keys:
@@ -99,6 +114,7 @@ class MessageProcessor:
                         correlation_id=correlation_id,
                         message_id=message_id,
                         producer_func=producer_func,
+                        outbox_manager=outbox_manager,
                     )
 
                 # Record processing latency only - processed count由BaseAgent处理
@@ -206,26 +222,66 @@ class MessageProcessor:
         retries: int,
         correlation_id: str | None,
         message_id: str | None,
-        producer_func: Callable[[], Any],
+        producer_func: Callable[[], Any] | None,
+        outbox_manager: "BaseOutboxManager | None" = None,
     ) -> None:
-        """Send processing result to output topic."""
+        """Send processing result to output topic.
+
+        Prefers outbox_manager for reliable delivery. Falls back to producer_func
+        for backward compatibility.
+
+        Args:
+            result: Processing result with optional _topic and _key fields
+            retries: Number of retry attempts
+            correlation_id: Correlation ID for tracing
+            message_id: Message ID
+            producer_func: (Deprecated) Producer function for backward compatibility
+            outbox_manager: (Recommended) Outbox manager for reliable delivery
+        """
         # Get target topic from result or use default
         topic = result.pop("_topic", None)
         if not topic and self.produce_topics:
             topic = self.produce_topics[0]
 
-        if topic:
+        if not topic:
+            self.log.warning("no_topic_for_result", message_id=message_id)
+            return
+
+        # Optional partitioning key support
+        key_value = result.pop("_key", None)
+
+        # Attach retries info if not provided by business logic
+        result.setdefault("retries", retries)
+
+        # Encode envelope
+        encoded = encode_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
+
+        # Prefer outbox for reliable delivery
+        if outbox_manager:
+            try:
+                outbox_id = await outbox_manager.enqueue_message(
+                    topic=topic,
+                    payload=encoded,
+                    key=str(key_value) if key_value is not None else None,
+                    correlation_id=correlation_id,
+                )
+                self.log.debug(
+                    "result_enqueued_to_outbox",
+                    topic=topic,
+                    key=key_value,
+                    retries=retries,
+                    correlation_id=correlation_id,
+                    message_id=message_id,
+                    outbox_id=outbox_id,
+                )
+            except Exception as e:
+                self.log.error("outbox_enqueue_failed", error=str(e), topic=topic)
+                raise
+        elif producer_func:
+            # Fallback to direct producer (deprecated path)
             producer = await producer_func()
             try:
-                # Optional partitioning key support
-                key_value = result.pop("_key", None)
                 key_bytes = str(key_value).encode("utf-8") if key_value is not None else None
-
-                # Attach retries info if not provided by business logic
-                result.setdefault("retries", retries)
-
-                # Encode envelope
-                encoded = encode_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
 
                 # Try send with simple topic auto-creation retry like OutboxRelay
                 max_retries = 3
@@ -243,7 +299,7 @@ class MessageProcessor:
                         else:
                             raise
                 self.log.debug(
-                    "result_sent",
+                    "result_sent_via_producer",
                     topic=topic,
                     key=key_value,
                     retries=retries,
@@ -254,3 +310,11 @@ class MessageProcessor:
                 self.log.error("result_send_failed", error=str(e))
                 # Re-raise to trigger upper-level retry/DLT logic
                 raise
+        else:
+            self.log.error(
+                "no_send_method_available",
+                message="Neither outbox_manager nor producer_func provided",
+                topic=topic,
+                message_id=message_id,
+            )
+            raise ValueError("No send method available for result")

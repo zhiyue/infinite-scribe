@@ -8,6 +8,7 @@ from src.agents.agent_metrics import AgentMetrics
 from src.agents.error_handler import ErrorHandler
 from src.agents.message_processor import MessageProcessor
 from src.agents.offset_manager import OffsetManager
+from src.common.outbox import BaseOutboxManager
 from src.core.config import settings
 from src.core.kafka.client import KafkaClientManager
 from src.core.logging.config import get_logger
@@ -38,6 +39,8 @@ class BaseAgent(ABC):
         self.error_handler = ErrorHandler(
             name, self.config.agent_max_retries, self.config.agent_retry_backoff_ms, self.config.agent_dlt_suffix
         )
+        # Outbox manager for reliable message delivery (推荐使用)
+        self.outbox_manager = BaseOutboxManager(name)
         # 传入classify_error回调以保证子类重载生效
         self.message_processor = MessageProcessor(
             name, self.error_handler, produce_topics, classify_error=self.classify_error
@@ -109,11 +112,59 @@ class BaseAgent(ABC):
         return await self.kafka_client.create_producer_with_topic_check(ensure_topics=True)
 
     async def _get_or_create_producer(self) -> Any:
-        """Test-friendly wrapper for getting or creating producer. Delegates to KafkaClientManager."""
+        """Test-friendly wrapper for getting or creating producer. Delegates to KafkaClientManager.
+
+        .. deprecated::
+            Use :meth:`send_via_outbox` for reliable message delivery instead of direct producer access.
+            Direct producer access bypasses the outbox pattern and may lead to message loss.
+            This method is kept for backward compatibility and will be removed in a future version.
+        """
         # Ensure topics exist on first creation to reduce send failures in early lifecycle
         if self.kafka_client.producer is None:
             return await self.kafka_client.create_producer_with_topic_check(ensure_topics=True)
         return self.kafka_client.producer
+
+    async def send_via_outbox(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        key: str | None = None,
+        correlation_id: str | None = None,
+        headers: dict[str, Any] | None = None,
+    ) -> str:
+        """Send message via outbox pattern (推荐使用此方法).
+
+        This method provides reliable message delivery by persisting messages to the
+        EventOutbox table. The OutboxRelay service will asynchronously deliver the
+        message to Kafka, ensuring no message loss even if Kafka is temporarily unavailable.
+
+        Args:
+            topic: Kafka topic to send the message to
+            payload: Message payload dictionary
+            key: Optional partition key for Kafka
+            correlation_id: Optional correlation ID for request tracing
+            headers: Optional additional headers
+
+        Returns:
+            UUID of the created outbox entry (as string)
+
+        Example:
+            ```python
+            await self.send_via_outbox(
+                topic="agent.responses",
+                payload={"result": "success", "data": {...}},
+                key="session-123",
+                correlation_id="req-456"
+            )
+            ```
+        """
+        return await self.outbox_manager.enqueue_message(
+            topic=topic,
+            payload=payload,
+            key=key,
+            correlation_id=correlation_id,
+            headers=headers,
+        )
 
     # Test-friendly configuration properties (for backward compatibility with tests)
     @property
@@ -187,7 +238,7 @@ class BaseAgent(ABC):
                     # Update consumed counter
                     self.metrics.increment_consumed()
 
-                    # Process message with retry logic - 使用薄封装方法
+                    # Process message with retry logic - 使用outbox模式进行可靠消息传递
                     result = await self.message_processor.process_message_with_retry(
                         msg=msg,
                         safe_message=safe_message,
@@ -195,8 +246,9 @@ class BaseAgent(ABC):
                         correlation_id=correlation_id,
                         message_id=message_id,
                         process_func=self.process_message,
-                        producer_func=self._get_or_create_producer,  # 使用薄封装方法
+                        producer_func=self._get_or_create_producer,  # 保留向后兼容
                         agent_metrics=self.metrics,
+                        outbox_manager=self.outbox_manager,  # 推荐使用outbox模式
                     )
 
                     if result["handled"]:
