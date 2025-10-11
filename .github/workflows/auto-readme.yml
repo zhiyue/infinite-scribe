@@ -41,6 +41,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Auto Generate README
         uses: anthropics/claude-code-base-action@beta
@@ -126,11 +128,47 @@ jobs:
                 C --> E[返回结果]
             ```
 
-            ## ✅ 完成操作
-            使用以下步骤提交生成的 README 文件：
-            1. `git add` 添加生成/修改的 README 文件
-            2. `git commit` 提交，消息格式：`docs: auto-generate README files for changed directories [最近提交哈希前7位]`
-            3. `git push` 推送到当前分支
+            ## ✅ 完成操作 - 重要：必须推送到 GitHub
+            **严格要求**：必须按以下步骤完成所有操作，确保变更推送到 GitHub：
+
+            1. **配置 Git 用户信息**（首先执行）:
+               ```bash
+               git config --global user.name "github-actions[bot]"
+               git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+               ```
+
+            2. **添加文件**:
+               ```bash
+               # 只添加 README.md 文件
+               git add **/README.md README.md 2>/dev/null || true
+
+               # 检查是否有文件被暂存
+               if git diff --cached --exit-code; then
+                   echo "No README files were changed, skipping commit"
+                   exit 0
+               fi
+               ```
+               只添加生成/修改的 README.md 文件（不添加其他文件）
+
+            3. **提交变更**:
+               ```bash
+               git commit -m "docs: auto-generate README files for changed directories [$(git rev-parse --short HEAD)]"
+               ```
+               只在有 README 文件变更时提交
+
+            4. **推送到远程** (关键步骤 - 必须执行):
+               ```bash
+               git push origin HEAD:${{ github.ref_name }}
+               ```
+               - **必须确认推送成功**：检查命令返回值为 0
+               - **如果失败必须重试**：使用 `git push --force-with-lease origin HEAD:${{ github.ref_name }}`
+               - **验证推送完成**：输出 "Successfully pushed changes to GitHub"
+
+            **重要提醒**：
+            - **推送是必须步骤**，不可跳过或忽略
+            - 确保每个命令都执行成功
+            - 如果推送失败，查看错误信息并采取相应措施
+            - 分支名称：${{ github.ref_name }}
 
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
           allowed_tools: 'Bash(git:*),View,GlobTool,GrepTool,BatchTool,Write,Edit,MultiEdit,Bash(gh push:*),Bash(gh:*)'
