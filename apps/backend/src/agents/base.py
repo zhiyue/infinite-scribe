@@ -39,12 +39,10 @@ class BaseAgent(ABC):
         self.error_handler = ErrorHandler(
             name, self.config.agent_max_retries, self.config.agent_retry_backoff_ms, self.config.agent_dlt_suffix
         )
-        # Outbox manager for reliable message delivery (推荐使用)
+        # Outbox manager for reliable message delivery
         self.outbox_manager = BaseOutboxManager(name)
         # 传入classify_error回调以保证子类重载生效
-        self.message_processor = MessageProcessor(
-            name, self.error_handler, produce_topics, classify_error=self.classify_error
-        )
+        self.message_processor = MessageProcessor(name, self.error_handler, classify_error=self.classify_error)
         self.metrics = AgentMetrics(name)
 
         # Configuration validation
@@ -246,9 +244,8 @@ class BaseAgent(ABC):
                         correlation_id=correlation_id,
                         message_id=message_id,
                         process_func=self.process_message,
-                        producer_func=self._get_or_create_producer,  # 保留向后兼容
                         agent_metrics=self.metrics,
-                        outbox_manager=self.outbox_manager,  # 推荐使用outbox模式
+                        outbox_manager=self.outbox_manager,
                     )
 
                     if result["handled"]:

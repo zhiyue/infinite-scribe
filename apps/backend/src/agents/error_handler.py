@@ -1,16 +1,19 @@
 """Error handling and retry logic for agent message processing."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
-
-from aiokafka import AIOKafkaProducer
 
 from src.agents.errors import NonRetriableError
 from src.agents.metrics import inc_dlt, inc_error
 from src.core.logging.config import get_logger
+
+if TYPE_CHECKING:
+    from src.common.outbox import BaseOutboxManager
 
 
 class ErrorHandler:
@@ -74,7 +77,6 @@ class ErrorHandler:
 
     async def send_to_dlt(
         self,
-        producer: AIOKafkaProducer,
         msg: Any,
         payload: dict[str, Any],
         error: Exception,
@@ -82,8 +84,19 @@ class ErrorHandler:
         attempts: int,
         correlation_id: str | None,
         message_id: str | None,
+        outbox_manager: BaseOutboxManager | None = None,
     ) -> None:
-        """Send failed message to Dead Letter Topic."""
+        """Send failed message to Dead Letter Topic via outbox.
+
+        Args:
+            msg: Original Kafka message
+            payload: Message payload
+            error: Exception that caused the failure
+            attempts: Number of retry attempts
+            correlation_id: Correlation ID for tracing
+            message_id: Message ID
+            outbox_manager: Outbox manager for reliable delivery (required)
+        """
         dlt_topic = f"{msg.topic}{self.dlt_suffix}" if getattr(msg, "topic", None) else "deadletter"
 
         # 修复correlation_id覆盖逻辑：优先使用入参，如果没有才从payload获取
@@ -109,18 +122,36 @@ class ErrorHandler:
         }
 
         # Use correlation_id as key when available to keep ordering by correlation
-        key_bytes = None
-        if effective_correlation_id is not None:
-            key_bytes = str(effective_correlation_id).encode("utf-8")
+        key_value = str(effective_correlation_id) if effective_correlation_id is not None else None
 
-        await producer.send_and_wait(dlt_topic, body, key=key_bytes)
-        self.log.warning(
-            "sent_to_dlt",
-            dlt_topic=dlt_topic,
-            correlation_id=effective_correlation_id,
-            message_id=message_id,
-            retries=attempts,
-        )
+        # Send to DLT via outbox for reliable delivery
+        if outbox_manager:
+            try:
+                outbox_id = await outbox_manager.enqueue_message(
+                    topic=dlt_topic,
+                    payload=body,
+                    key=key_value,
+                    correlation_id=effective_correlation_id,
+                )
+                self.log.warning(
+                    "dlt_enqueued_to_outbox",
+                    dlt_topic=dlt_topic,
+                    correlation_id=effective_correlation_id,
+                    message_id=message_id,
+                    retries=attempts,
+                    outbox_id=outbox_id,
+                )
+            except Exception as e:
+                self.log.error("dlt_outbox_enqueue_failed", error=str(e), dlt_topic=dlt_topic)
+                raise
+        else:
+            self.log.error(
+                "no_outbox_for_dlt",
+                message="Outbox manager not provided for DLT",
+                dlt_topic=dlt_topic,
+                message_id=message_id,
+            )
+            raise ValueError("Outbox manager required for DLT")
 
     def record_error_metrics(self, error_type: str) -> None:
         """Record error metrics."""

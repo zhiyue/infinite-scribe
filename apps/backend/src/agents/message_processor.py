@@ -3,18 +3,14 @@
 import asyncio
 from collections.abc import Callable
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Literal, cast
-
-from aiokafka.errors import KafkaError, UnknownTopicOrPartitionError
+from typing import Any, Literal, cast
 
 from src.agents.agent_metrics import AgentMetrics
 from src.agents.error_handler import ErrorHandler
 from src.agents.message import decode_message, encode_message
 from src.agents.metrics import record_latency
+from src.common.outbox import BaseOutboxManager
 from src.core.logging.config import get_logger
-
-if TYPE_CHECKING:
-    from src.common.outbox import BaseOutboxManager
 
 
 class MessageProcessor:
@@ -24,12 +20,10 @@ class MessageProcessor:
         self,
         agent_name: str,
         error_handler: ErrorHandler,
-        produce_topics: list[str] | None = None,
         classify_error: Callable[[Exception, dict[str, Any]], Literal["retriable", "non_retriable"]] | None = None,
-    ):
+    ) -> None:
         self.agent_name = agent_name
         self.error_handler = error_handler
-        self.produce_topics = produce_topics or []
         self.classify_error_func = classify_error or error_handler.classify_error
 
         # Structured logger bound with agent context
@@ -79,7 +73,6 @@ class MessageProcessor:
         correlation_id: str | None,
         message_id: str | None,
         process_func: Callable[[dict[str, Any], dict[str, Any] | None], Any],
-        producer_func: Callable[[], Any] | None,
         agent_metrics: AgentMetrics,
         outbox_manager: "BaseOutboxManager | None" = None,
     ) -> dict[str, Any]:
@@ -92,9 +85,8 @@ class MessageProcessor:
             correlation_id: Correlation ID for tracing
             message_id: Message ID
             process_func: Function to process the message
-            producer_func: (Deprecated) Function to get Kafka producer. Use outbox_manager instead.
             agent_metrics: Agent metrics instance
-            outbox_manager: (Recommended) Outbox manager for reliable message delivery
+            outbox_manager: Outbox manager for reliable message delivery (required)
 
         Returns:
             dict with keys:
@@ -113,7 +105,6 @@ class MessageProcessor:
                         retries=attempt,
                         correlation_id=correlation_id,
                         message_id=message_id,
-                        producer_func=producer_func,
                         outbox_manager=outbox_manager,
                     )
 
@@ -136,7 +127,14 @@ class MessageProcessor:
 
                 if classification == "non_retriable":
                     await self._handle_non_retriable_error(
-                        msg, safe_message, e, attempt, correlation_id, message_id, producer_func, agent_metrics
+                        msg,
+                        safe_message,
+                        e,
+                        attempt,
+                        correlation_id,
+                        message_id,
+                        agent_metrics,
+                        outbox_manager,
                     )
                     return {"handled": True, "success": False}
                 else:
@@ -147,7 +145,14 @@ class MessageProcessor:
                     else:
                         # Exhausted retries
                         await self._handle_exhausted_retries(
-                            msg, safe_message, e, attempt, correlation_id, message_id, producer_func, agent_metrics
+                            msg,
+                            safe_message,
+                            e,
+                            attempt,
+                            correlation_id,
+                            message_id,
+                            agent_metrics,
+                            outbox_manager,
                         )
                         return {"handled": True, "success": False}
 
@@ -159,23 +164,25 @@ class MessageProcessor:
         attempts: int,
         correlation_id: str | None,
         message_id: str | None,
-        producer_func: Callable[[], Any],
         agent_metrics: Any,  # AgentMetrics对象
+        outbox_manager: "BaseOutboxManager | None" = None,
     ) -> None:
-        """Handle non-retriable errors by sending directly to DLT."""
-        try:
-            producer = await producer_func()
-            await self.error_handler.send_to_dlt(
-                producer,
-                msg,
-                safe_message,
-                error,
-                attempts=attempts,
-                correlation_id=correlation_id,
-                message_id=message_id,
-            )
-        except Exception:
-            self.log.error("dlt_send_failed", exc_info=True)
+        """Handle non-retriable errors by sending to DLT via outbox."""
+        if outbox_manager:
+            try:
+                await self.error_handler.send_to_dlt(
+                    msg,
+                    safe_message,
+                    error,
+                    attempts=attempts,
+                    correlation_id=correlation_id,
+                    message_id=message_id,
+                    outbox_manager=outbox_manager,
+                )
+            except Exception:
+                self.log.error("dlt_send_failed", exc_info=True)
+        else:
+            self.log.error("no_outbox_for_dlt", message_id=message_id)
 
         # 使用AgentMetrics方法更新指标
         agent_metrics.increment_failed()
@@ -191,23 +198,25 @@ class MessageProcessor:
         attempts: int,
         correlation_id: str | None,
         message_id: str | None,
-        producer_func: Callable[[], Any],
         agent_metrics: Any,  # AgentMetrics对象
+        outbox_manager: "BaseOutboxManager | None" = None,
     ) -> None:
-        """Handle exhausted retries by sending to DLT."""
-        try:
-            producer = await producer_func()
-            await self.error_handler.send_to_dlt(
-                producer,
-                msg,
-                safe_message,
-                error,
-                attempts=attempts,
-                correlation_id=correlation_id,
-                message_id=message_id,
-            )
-        except Exception:
-            self.log.error("dlt_send_failed", exc_info=True)
+        """Handle exhausted retries by sending to DLT via outbox."""
+        if outbox_manager:
+            try:
+                await self.error_handler.send_to_dlt(
+                    msg,
+                    safe_message,
+                    error,
+                    attempts=attempts,
+                    correlation_id=correlation_id,
+                    message_id=message_id,
+                    outbox_manager=outbox_manager,
+                )
+            except Exception:
+                self.log.error("dlt_send_failed", exc_info=True)
+        else:
+            self.log.error("no_outbox_for_dlt", message_id=message_id)
 
         # 使用AgentMetrics方法更新指标
         agent_metrics.increment_failed()
@@ -222,26 +231,19 @@ class MessageProcessor:
         retries: int,
         correlation_id: str | None,
         message_id: str | None,
-        producer_func: Callable[[], Any] | None,
         outbox_manager: "BaseOutboxManager | None" = None,
     ) -> None:
-        """Send processing result to output topic.
-
-        Prefers outbox_manager for reliable delivery. Falls back to producer_func
-        for backward compatibility.
+        """Send processing result to output topic via outbox.
 
         Args:
             result: Processing result with optional _topic and _key fields
             retries: Number of retry attempts
             correlation_id: Correlation ID for tracing
             message_id: Message ID
-            producer_func: (Deprecated) Producer function for backward compatibility
-            outbox_manager: (Recommended) Outbox manager for reliable delivery
+            outbox_manager: Outbox manager for reliable delivery (required)
         """
-        # Get target topic from result or use default
+        # Get target topic from result
         topic = result.pop("_topic", None)
-        if not topic and self.produce_topics:
-            topic = self.produce_topics[0]
 
         if not topic:
             self.log.warning("no_topic_for_result", message_id=message_id)
@@ -266,7 +268,7 @@ class MessageProcessor:
         # Encode envelope
         encoded = encode_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
 
-        # Prefer outbox for reliable delivery
+        # Send via outbox for reliable delivery
         if outbox_manager:
             try:
                 outbox_id = await outbox_manager.enqueue_message(
@@ -287,44 +289,11 @@ class MessageProcessor:
             except Exception as e:
                 self.log.error("outbox_enqueue_failed", error=str(e), topic=topic)
                 raise
-        elif producer_func:
-            # Fallback to direct producer (deprecated path)
-            producer = await producer_func()
-            try:
-                key_bytes = str(key_value).encode("utf-8") if key_value is not None else None
-
-                # Try send with simple topic auto-creation retry like OutboxRelay
-                max_retries = 3
-                for attempt in range(max_retries + 1):
-                    try:
-                        await producer.send_and_wait(topic, encoded, key=key_bytes)
-                        break
-                    except UnknownTopicOrPartitionError:
-                        if attempt < max_retries:
-                            # Trigger metadata refresh to auto-create topics when enabled
-                            with suppress(Exception):
-                                await producer.client.fetch_all_metadata()
-                            await asyncio.sleep(1.0)
-                            continue
-                        else:
-                            raise
-                self.log.debug(
-                    "result_sent_via_producer",
-                    topic=topic,
-                    key=key_value,
-                    retries=retries,
-                    correlation_id=correlation_id,
-                    message_id=message_id,
-                )
-            except KafkaError as e:
-                self.log.error("result_send_failed", error=str(e))
-                # Re-raise to trigger upper-level retry/DLT logic
-                raise
         else:
             self.log.error(
-                "no_send_method_available",
-                message="Neither outbox_manager nor producer_func provided",
+                "no_outbox_for_result",
+                message="Outbox manager not provided",
                 topic=topic,
                 message_id=message_id,
             )
-            raise ValueError("No send method available for result")
+            raise ValueError("Outbox manager required for sending result")
