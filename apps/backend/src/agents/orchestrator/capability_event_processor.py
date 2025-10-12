@@ -292,13 +292,34 @@ class EventHandlerMatcher:
 
 
 class CapabilityEventProcessor:
-    """主要的能力事件处理编排器，负责协调整个能力事件的处理流程。"""
+    """能力事件处理编排器，协调整个能力事件的处理流程
+
+    架构定位：
+    - 这是Orchestrator Agent的核心组件，负责处理所有入站的能力事件
+    - 采用管道模式：提取 -> 匹配 -> 执行
+    - 作为事件驱动架构的关键节点，连接能力层和领域层
+
+    职责：
+    1. 数据提取：将原始消息转换为类型安全的结构化数据
+    2. 处理器路由：根据事件类型动态匹配处理器
+    3. 结果封装：将处理器的输出封装为统一的ProcessingResult
+    4. 可观测性：记录完整的处理过程，支持问题诊断
+
+    与其他组件的协作：
+    - EventDataExtractor: 负责数据提取和规范化
+    - EventHandlerMatcher: 负责处理器的动态匹配和调用
+    - 各种Handler: 实现特定事件类型的业务逻辑
+    """
 
     def __init__(self, logger: Any) -> None:
-        """初始化能力事件处理器。
+        """初始化能力事件处理器
+
+        采用依赖注入模式：
+        - 注入logger而不是在内部创建，便于测试和日志配置
+        - 组合EventDataExtractor和EventHandlerMatcher，而不是继承
 
         Args:
-            logger: 日志记录器实例
+            logger: 结构化日志记录器，支持追踪整个处理流程
         """
         self.log = logger
         self.data_extractor = EventDataExtractor()
@@ -307,23 +328,51 @@ class CapabilityEventProcessor:
     async def handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
     ) -> ProcessingResult | None:
-        """处理能力事件，进行完整的编排流程。
+        """处理能力事件的完整编排流程
+
+        处理流程：
+        1. 数据提取阶段
+           - 提取业务数据(GenerationData)
+           - 提取系统元数据(correlation_id, causation_id)
+           - 提取会话和作用域信息
+
+        2. 处理器匹配阶段
+           - 根据数据类型查找注册的处理器
+           - 调用处理器，传入完整上下文
+           - 获取处理器返回的EventAction
+
+        3. 结果封装阶段
+           - 将EventAction封装为ProcessingResult
+           - 保留关键元数据以供后续流程使用
+
+        错误处理策略：
+        - Pydantic解析失败会抛出ValidationError，由上层捕获
+        - 找不到处理器返回None，而不是抛异常(可能是预期行为)
+        - 处理器内部错误由处理器自己负责捕获或向上传播
+
+        为什么使用async：
+        - 虽然当前实现是同步的，但为将来的异步处理器预留接口
+        - 保持与Orchestrator Agent其他方法的接口一致性
 
         Args:
-            msg_type: 消息类型
-            message: 消息内容字典
-            context: 上下文信息字典
+            msg_type: 消息类型标识符，用于日志记录和追踪
+            message: 原始消息字典，包含业务数据和可能的系统字段
+            context: 消息上下文字典，包含系统元数据和topic信息
 
         Returns:
-            包含操作信息的结果字典，如果无法处理则返回None
+            ProcessingResult对象，包含EventAction和关键元数据；
+            如果未找到匹配的处理器，返回None
         """
-        # 使用 Pydantic 进行类型安全的数据处理
+        # 阶段1：数据提取和类型转换
+        # 使用Pydantic确保数据类型安全，避免运行时类型错误
         data = self.data_extractor.extract_event_data(message)
         context_model = MessageContext(**context)
         session_id, scope_info = self.data_extractor.extract_session_and_scope(data, context_model)
         correlation_id = self.data_extractor.extract_correlation_id(context_model, data)
         causation_id = self.data_extractor.extract_causation_id(context_model, data)
 
+        # 记录详细的事件信息，便于调试和监控
+        # model_fields_set显示了消息中实际设置的字段，有助于诊断数据问题
         self.log.info(
             "orchestrator_capability_event_details",
             msg_type=msg_type,
@@ -335,15 +384,20 @@ class CapabilityEventProcessor:
             data_fields=list(data.model_fields_set),
         )
 
-        # 查找匹配的处理器
+        # 阶段2：处理器匹配和执行
+        # 将复杂的处理器查找逻辑委托给EventHandlerMatcher
         action = self.handler_matcher.find_matching_handler(
             msg_type, session_id, data, correlation_id, scope_info, causation_id
         )
 
+        # 如果没有找到匹配的处理器，返回None
+        # 这是正常流程：可能是新事件类型，或者是测试消息
         if not action:
             return None
 
-        # 使用 Pydantic 返回类型安全的处理结果
+        # 阶段3：结果封装
+        # 使用Pydantic确保返回值的类型安全性
+        # 保留msg_type、session_id、correlation_id等元数据，供后续流程使用
         return ProcessingResult(
             action=action,
             msg_type=msg_type,

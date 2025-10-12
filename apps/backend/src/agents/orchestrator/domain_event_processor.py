@@ -337,6 +337,7 @@ class DomainEventProcessor:
         )
 
         # 验证事件类型 - 只处理命令接收事件，过滤掉非命令事件以提高处理效率
+        # 编排器的职责是处理用户发起的业务命令，其他类型的事件由专门的处理器负责
         if not self.event_validator.is_command_received_event(event_type):
             self.log.debug(
                 "orchestrator_domain_event_ignored",
@@ -346,8 +347,10 @@ class DomainEventProcessor:
             return None
 
         # 提取命令类型
+        # 命令类型决定了后续的路由策略，是编排逻辑的核心依据
         cmd_type = self.event_validator.extract_command_type(evt)
         if not cmd_type:
+            # 缺少命令类型的事件无法路由，记录警告便于排查配置问题
             self.log.warning(
                 "orchestrator_domain_event_missing_command_type",
                 event_type=event_type,
@@ -358,6 +361,7 @@ class DomainEventProcessor:
             return None
 
         # 提取作用域信息
+        # 作用域确定了业务上下文（如genesis、worldbuild），影响消息路由和能力任务分配
         scope_prefix, scope_type = self.event_validator.extract_scope_info(event_type)
 
         self.log.info(
@@ -369,6 +373,8 @@ class DomainEventProcessor:
         )
 
         # 对所有 Command.Received 事件进行意图分类
+        # 意图分类用于区分查询（inquiry）和生成（generation）两类不同的业务场景
+        # 查询意图需要路由到InquiryAgent，生成意图使用标准的命令映射流程
         self.log.info(
             "orchestrator_calling_intent_classifier",
             cmd_type=cmd_type,
@@ -377,6 +383,7 @@ class DomainEventProcessor:
 
         intent_result: IntentClassification | None = None
         try:
+            # 调用意图分类器（可能使用LLM或规则引擎）
             intent_result = await self.intent_classifier.classify(command_type=cmd_type, payload=payload)
             self.log.info(
                 "orchestrator_intent_classifier_returned",
@@ -385,6 +392,7 @@ class DomainEventProcessor:
                 confidence=intent_result.confidence if intent_result else None,
             )
         except Exception as exc:
+            # 意图分类失败不应阻塞整个处理流程，降级为默认的生成意图处理
             self.log.warning("orchestrator_intent_classification_failed", error=str(exc), exc_info=True)
             intent_result = None
 
@@ -404,13 +412,16 @@ class DomainEventProcessor:
             )
 
         # 根据意图决定路由
+        # 这是核心的路由决策点，决定了命令的后续处理路径
         if intent_result and intent_result.intent == "inquiry":
             # 查询意图 - 路由到InquiryAgent
+            # InquiryAgent专门处理用户的查询请求，如"告诉我当前故事的设定"
             mapping = self._create_inquiry_mapping(
                 scope_type=scope_type, scope_prefix=scope_prefix, aggregate_id=aggregate_id, payload=payload
             )
         else:
             # 生成意图或无意图分类 - 使用原有的命令映射逻辑
+            # 生成意图如"创建新的世界观"会路由到相应的生成Agent（WorldsmithAgent等）
             mapping = self.command_mapper.map_command(cmd_type, scope_type, scope_prefix, aggregate_id, payload)
 
         if not mapping:
@@ -431,31 +442,42 @@ class DomainEventProcessor:
             has_capability_input=bool((mapping.capability_message or {}).get("input")),
         )
 
+        # 丰富有效负载，添加会话上下文和路由信息
         enriched_payload = self.payload_enricher.enrich_domain_payload(evt, aggregate_id, payload)
 
         # 如果有意图分类结果，添加到payload中
+        # 意图信息对于下游的调试、监控和审计非常重要
         if intent_result:
             enriched_payload["intent"] = intent_result.intent
             if intent_result.confidence is not None:
+                # 置信度帮助下游判断分类结果的可靠性
                 enriched_payload["intent_confidence"] = intent_result.confidence
-            enriched_payload["intent_source"] = intent_result.source
+            enriched_payload["intent_source"] = intent_result.source  # 记录分类来源（LLM、规则等）
             if intent_result.reasoning:
+                # 推理过程有助于理解分类决策，便于调试和优化
                 enriched_payload["intent_reasoning"] = intent_result.reasoning
 
         # Ensure downstream payload包含核心字段，避免 EventBridge 过滤掉事件
+        # EventBridge可能根据这些字段进行路由和过滤，必须确保它们存在
         user_id = metadata.get("user_id")
         if user_id:
+            # 使用setdefault避免覆盖已有的user_id（可能来自上层丰富）
             enriched_payload.setdefault("user_id", user_id)
 
         novel_id = metadata.get("novel_id")
         if novel_id:
+            # novel_id用于业务隔离和权限验证
             enriched_payload.setdefault("novel_id", novel_id)
 
+        # 时间戳的多级回退策略，确保始终有有效的时间信息
         timestamp = enriched_payload.get("timestamp") or metadata.get("timestamp") or system.get("created_at")
         if not timestamp:
+            # 最后的回退：使用当前UTC时间
             timestamp = utc_now().isoformat()
         enriched_payload.setdefault("timestamp", timestamp)
 
+        # 构建派生元数据，用于事件追踪和路由
+        # 这些字段会被EventBridge、监控系统和日志聚合服务使用
         derived_metadata = {
             key: value
             for key, value in {
@@ -464,21 +486,23 @@ class DomainEventProcessor:
                 "timestamp": enriched_payload.get("timestamp"),
                 "session_id": aggregate_id,
             }.items()
-            if value is not None
+            if value is not None  # 只保留非空值，减少元数据冗余
         }
+        # 传播source字段（事件来源，如"api"、"scheduler"等）
         source_value = metadata.get("source")
         if source_value is not None:
             derived_metadata["source"] = source_value
 
         # 返回处理指令供主编排器使用
+        # 返回字典而非直接发送事件，保持编排器的控制权和可测试性
         return {
-            "correlation_id": correlation_id,
-            "scope_type": scope_type,
-            "aggregate_id": aggregate_id,
-            "mapping": mapping,
-            "enriched_payload": enriched_payload,
-            "metadata": derived_metadata,
-            "causation_id": event_id,
+            "correlation_id": correlation_id,  # 用于链路追踪
+            "scope_type": scope_type,  # 业务作用域
+            "aggregate_id": aggregate_id,  # 聚合根标识符
+            "mapping": mapping,  # 命令映射结果（包含路由信息）
+            "enriched_payload": enriched_payload,  # 丰富后的业务数据
+            "metadata": derived_metadata,  # 派生元数据（用于过滤和路由）
+            "causation_id": event_id,  # 因果关系ID（事件溯源）
         }
 
     def _create_inquiry_mapping(
@@ -486,24 +510,28 @@ class DomainEventProcessor:
     ) -> CommandMapping:
         """创建查询意图的映射，路由到InquiryAgent。
 
+        InquiryAgent是处理用户查询请求的专门Agent，与生成类Agent（WorldsmithAgent等）的处理流程不同。
+        查询请求不需要修改状态，主要从现有知识库和上下文中检索信息。
+
         Args:
-            scope_type: 作用域类型
-            scope_prefix: 作用域前缀
-            aggregate_id: 聚合ID
-            payload: 有效负载
+            scope_type: 作用域类型（大写，如GENESIS）
+            scope_prefix: 作用域前缀（小写，如genesis）
+            aggregate_id: 聚合ID（会话标识符）
+            payload: 有效负载（查询参数）
 
         Returns:
-            命令映射对象
+            命令映射对象，包含查询意图的路由信息
         """
         # 构建InquiryAgent的能力消息
         # 注意：使用 "type" 字段而不是 "event_type"，因为下游代码期待 "type"
+        # 这是Agent消息协议的约定，保持与现有Agent框架的兼容性
         capability_message = {
             "type": "Inquiry.Query.Requested",  # Agent期待的消息类型字段
-            "session_id": aggregate_id,
-            "input": payload,
-            "_topic": build_topic_name("inquiry", scope_type, scope_prefix),  # genesis.inquiry.tasks
-            "_key": aggregate_id,
+            "session_id": aggregate_id,  # 关联会话上下文
+            "input": payload,  # 查询参数（用户问题、过滤条件等）
+            "_topic": build_topic_name("inquiry", scope_type, scope_prefix),  # 路由主题：genesis.inquiry.tasks
+            "_key": aggregate_id,  # 分区键，确保同一会话的消息有序处理
         }
 
-        # 返回映射
+        # 返回映射，requested_action用于编排器的日志和监控
         return CommandMapping(requested_action="Inquiry.Requested", capability_message=capability_message)

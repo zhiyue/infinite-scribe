@@ -291,9 +291,15 @@ class OutboxEntryCreator:
             key=session_id,
         )
 
+        # 使用Builder模式构建分层的outbox payload
+        # 将系统元数据和业务数据隔离，便于下游处理和版本演进
         outbox_payload = self._build_outbox_payload(domain_event)
 
-        # 从event_metadata中提取user_id和其他字段
+        # 从event_metadata中提取user_id和novel_id用于headers
+        # 目的：将关键业务标识放在headers中，支持：
+        # 1. Kafka消费者快速过滤消息（无需解析payload）
+        # 2. 消息路由和分区策略
+        # 3. 监控和追踪系统按业务维度统计
         user_id = None
         novel_id = None
         if domain_event.event_metadata:
