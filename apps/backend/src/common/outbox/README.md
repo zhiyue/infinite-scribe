@@ -230,7 +230,7 @@ print(f"Batch messages enqueued: {len(outbox_ids)}")
 #### 使用载荷构建器
 
 ```python
-from src.common.events import DomainEventBuilder
+from src.common.messaging.domain_envelope import DomainEventBuilder
 from src.models.event import DomainEvent
 
 # 从领域事件构建载荷

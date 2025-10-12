@@ -1,16 +1,13 @@
-"""Common event utilities and domain event envelope.
+"""Common event utilities.
 
 This module provides:
 - Event configuration and topic mapping
-- Domain event envelope for Event Sourcing and CQRS
-- Event builders for constructing standardized event messages
+- Event type mapping and normalization
 
-Note: Domain event envelope classes have been moved to src.common.messaging.domain_envelope
-for better organization alongside capability event envelopes.
+Note: Domain event envelope classes (DomainEventEnvelope, DomainEventBuilder, SystemMetadata)
+have been moved to src.common.messaging.domain_envelope for better organization.
+Please import directly from there.
 """
-
-# Re-export from new location for backward compatibility
-from src.common.messaging.domain_envelope import DomainEventBuilder, DomainEventEnvelope, SystemMetadata
 
 from .config import (
     build_event_type,
@@ -30,10 +27,6 @@ __all__ = [
     "get_aggregate_type",
     "get_domain_topic",
     "infer_scope_from_topic",
-    # Domain Event Envelope
-    "DomainEventBuilder",
-    "DomainEventEnvelope",
-    "SystemMetadata",
     # Mapping
     "extract_strategy_key_from_event_type",
     "is_generation_completed_event",
