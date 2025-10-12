@@ -233,7 +233,10 @@ def is_command_received_event(event_type: str) -> bool:
     Returns:
         True if it's a command received event
     """
-    return event_type.endswith(EVENT_PATTERNS["command_received_suffix"])
+    suffix = EVENT_PATTERNS["command_received_suffix"]
+    if isinstance(suffix, list):
+        return any(event_type.endswith(s) for s in suffix)
+    return event_type.endswith(suffix)
 
 
 def is_state_change_event(event_type: str) -> bool:
