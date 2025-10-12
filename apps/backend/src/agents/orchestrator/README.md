@@ -3309,89 +3309,146 @@ graph TD
 
 这个编排器模块不仅是一个技术实现，更是一个展示了现代软件工程最佳实践的完整解决方案。
 
-## 📋 最新更新 (2025-01-11)
+## 📋 最新更新 (2025-01-12)
 
-### 🔧 工作流常量优化 ✨
+### 🔧 核心模块增强与优化 ✨
 
-最近的重构引入了工作流常量模块，实现了配置的集中管理和类型安全：
+最近的重构对编排器的三个核心模块进行了重要增强，提升了系统的类型安全性、错误处理能力和可观测性：
+
+#### 📊 能力事件处理模块优化 (capability_event_processor.py)
+
+**架构优化亮点**:
+- **类型安全增强**: 全面采用Pydantic模型进行数据验证和转换
+- **智能字段检测**: 使用`model_fields_set`提供更准确的字段存在性检测
+- **空值处理改进**: 正确处理包含`None`值但有效字段的事件数据
+- **多层回退机制**: 兼容不同版本的消息生产者格式
 
 ```mermaid
 graph TD
-    subgraph "重构前：硬编码分散"
-        A[质量阈值 7.5] --> B[散布在多个文件中]
-        C[最大尝试次数 3] --> B
-        D[事件映射] --> B
-        E[动作映射] --> B
-        B --> F[维护困难]
-        B --> G[类型不安全]
+    subgraph "数据处理流程"
+        A[原始消息] --> B[Pydantic类型转换]
+        B --> C{字段集检查}
+        C -->|model_fields_set非空| D[返回具体类型数据]
+        C -->|无有效字段| E[回退到兼容模式]
+        E --> F[提取data字段或消息本身]
+        F --> G[防御性数据验证]
+        G --> H[生成GenerationData]
     end
     
-    subgraph "重构后：集中管理"
-        H[WorkflowDefaults] --> I[统一常量定义]
-        J[验证函数] --> K[类型安全保证]
-        L[文档化配置] --> M[易于维护]
-        I --> N[WORKFLOW_DEFAULTS]
+    subgraph "关联ID提取策略"
+        I[仅从context.meta提取] --> J[强制系统字段分离]
+        J --> K[提升代码可维护性]
+        K --> L[类型安全性保障]
+    end
+```
+
+**核心改进**:
+- **智能类型推断**: `CapabilityEventMessage.to_typed_data()` 自动推断数据类型
+- **严格字段分离**: 系统元数据与业务数据的完全隔离
+- **容错设计**: 优雅处理各种消息格式异常，保证系统稳定性
+
+#### 🎯 领域事件处理增强 (domain_event_processor.py)
+
+**意图分类系统集成**:
+- **智能路由**: 基于用户意图自动路由到查询或生成处理器
+- **多层兜底策略**: 启发式规则 → LLM分类 → 默认策略
+- **结构化日志**: 完整记录意图分类过程和决策链路
+
+```mermaid
+stateDiagram-v2
+    [*] --> 命令接收: 接收领域事件
+    命令接收 --> 意图分类: 提取命令信息
+    意图分类 --> 分类决策: 调用意图分类器
+    
+    分类决策 --> 查询意图: inquiry类型
+    分类决策 --> 生成意图: generation类型
+    分类决策 --> 默认处理: 分类失败
+    
+    查询意图 --> InquiryAgent: 路由到查询代理
+    生成意图 --> 能力代理: 路由到生成代理
+    默认处理 --> 能力代理: 使用原流程
+    
+    InquiryAgent --> [*]
+    能力代理 --> [*]
+```
+
+**关联ID提取增强**:
+- **多格式支持**: 支持dict和list[tuple]两种headers格式
+- **优先级策略**: context.meta → headers → event.metadata → event本体
+- **编码处理**: 自动解码bytes类型header值为UTF-8字符串
+- **容错机制**: 解析失败时回退到下一优先级
+
+#### 🛡️ Outbox管理器强化 (outbox_manager.py)
+
+**幂等性检查器增强**:
+- **可观测性提升**: 捕获数据库查询异常并记录详细警告信息
+- **优雅降级**: 数据库异常时仍保证系统正常运行
+- **UUID安全转换**: 防止无效UUID格式导致的查询失败
+
+```mermaid
+graph TD
+    subgraph "幂等性检查增强"
+        A[数据库查询] --> B{查询成功?}
+        B -->|是| C[返回现有事件]
+        B -->|否| D[记录详细警告日志]
+        D --> E[包含错误类型和消息]
+        E --> F[返回None继续处理]
+        F --> G[保证系统可用性]
     end
     
-    F --> O[配置集中化]
-    G --> P[运行时验证]
-    H --> O
-    J --> P
+    subgraph "UUID安全处理"
+        H[correlation_id输入] --> I[safe_uuid_conversion]
+        I --> J{格式有效?}
+        J -->|是| K[用于数据库查询]
+        J -->|否| L[记录警告日志]
+        L --> M[使用None替代]
+    end
 ```
 
-#### 🎯 核心改进特性
+**有效负载构建优化**:
+- **Builder模式**: 使用`OutboxPayloadBuilder`构建分层结构
+- **字段冲突检测**: 自动检测并隔离系统字段与业务字段的冲突
+- **命名空间隔离**: LLD规范的system/data分离设计
 
-- **配置集中化**: 将所有工作流相关常量集中到 `workflow_constants.py`
-- **类型安全**: 使用 `Final` 类型注解确保编译时常量
-- **运行时验证**: 提供验证函数确保配置值的有效性
-- **文档化**: 清晰的常量分组和注释
+### 🔧 核心改进特性
 
-#### 📊 常量分类管理
+#### 1. 类型系统全面升级
+- **Pydantic集成**: 所有数据模型采用Pydantic进行运行时验证
+- **智能类型推断**: 根据数据内容自动推断最合适的类型
+- **编译时安全**: 使用Literal类型确保消息类型准确性
 
-```python
-class WorkflowDefaults:
-    # 质量控制
-    QUALITY_THRESHOLD: Final[float] = 7.5
-    MAX_ATTEMPTS: Final[int] = 3
-    CONSISTENCY_THRESHOLD: Final[float] = 1.0
-    
-    # 任务前缀
-    QUALITY_REVIEW_PREFIX: Final[str] = "Review.Quality.Evaluation"
-    CONSISTENCY_CHECK_PREFIX: Final[str] = "Review.Consistency.Check"
-    
-    # 事件映射
-    EVENT_TARGET_MAPPING: Final[dict[str, str]] = {
-        "Character.Design.Generated": "character",
-        "Character.Generated": "character",
-        "Outliner.Theme.Generated": "theme",
-        "Theme.Generated": "theme",
-        "Inquiry.Response.Generated": "inquiry",
-    }
-```
+#### 2. 错误处理机制优化
+- **分层错误处理**: 不同层级的异常采用不同的处理策略
+- **详细错误日志**: 包含错误类型、消息和相关上下文信息
+- **系统可用性保障**: 关键路径错误不会中断整个业务流程
 
-#### 🛡️ 验证函数设计
+#### 3. 可观测性增强
+- **结构化日志**: 所有关键操作都有详细的结构化日志记录
+- **链路追踪**: 完整的correlation_id和causation_id追踪链
+- **性能监控**: 关键操作的处理时间和成功率统计
 
-```python
-def validate_quality_threshold(threshold: float) -> None:
-    """验证质量阈值在 0.0-10.0 范围内"""
-    if not (0.0 <= threshold <= 10.0):
-        raise WorkflowValidationError(f"Quality threshold must be between 0.0 and 10.0, got {threshold}")
+### 📈 架构演进对比
 
-def validate_workflow_thresholds(
-    quality_threshold: float, 
-    max_attempts: int, 
-    consistency_threshold: float
-) -> list[str]:
-    """批量验证所有工作流阈值，返回错误列表"""
-```
+| 维度 | 重构前 | 重构后 | 改进效果 |
+|------|--------|--------|----------|
+| **类型安全** | TypedDict基础类型 | Pydantic完整模型 | 🔧 运行时验证 + 自动类型转换 |
+| **错误处理** | 静默失败 | 详细警告日志 | 📊 提升问题诊断能力 |
+| **字段检测** | model_dump(exclude_none) | model_fields_set | 🎯 更准确的字段存在性检测 |
+| **消息格式** | 单一格式支持 | 多格式兼容 | 🔄 向后兼容性增强 |
+| **系统稳定性** | 可能产生副作用 | 优雅降级 | 🛡️ 保证系统可用性 |
+| **可观测性** | 基础日志记录 | 完整链路追踪 | 👁️ 提升系统可观测性 |
 
-#### 🚀 使用优势
+### 🚀 性能优化成果
 
-1. **维护性提升**: 所有配置集中管理，修改更加容易
-2. **类型安全**: 编译时检查和运行时验证双重保障
-3. **可测试性**: 独立的验证函数便于单元测试
-4. **文档化**: 清晰的常量分组和类型注解
-5. **扩展性**: 易于添加新的配置项和验证规则
+#### 处理效率提升
+- **减少重复处理**: 通过幂等性检查避免重复事件处理
+- **智能缓存**: 类型推断结果缓存，减少重复计算
+- **批量操作**: 支持批量事件处理以提高吞吐量
+
+#### 资源利用优化
+- **内存使用**: Pydantic模型的优化内存使用模式
+- **数据库连接**: 统一的连接池管理和会话复用
+- **网络传输**: 分层结构减少不必要的数据传输
 
 ### 🧠 意图分类系统集成
 
