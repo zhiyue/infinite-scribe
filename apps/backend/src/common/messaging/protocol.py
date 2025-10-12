@@ -68,7 +68,7 @@ def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any
         envelope = DomainEventEnvelope.model_validate(value)
         # 使用类型安全的转换方法获取元数据
         meta = envelope.to_envelope_meta()
-        payload = envelope.data
+        payload = envelope.model_dump()
         return payload, meta
 
     # 默认为 CapabilityEventEnvelope 格式

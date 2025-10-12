@@ -69,15 +69,15 @@ class OrchestratorAgent(BaseAgent):
         """通过路由到适当的处理器来处理消息。
 
         消息识别策略：
-        - 通过消息结构特征识别消息类型，而非依赖topic名称
-        - 领域事件：包含system.event_type和system.aggregate_id的嵌套结构
-        - 能力事件：包含context.meta.type或message.type的信封结构
+        - 通过消费的 topic 识别消息类型（显式路由）
+        - 领域事件：来自 genesis.session.events 等领域事件 topic
+        - 能力事件：来自能力代理的 topic，包含 type 字段
 
-        这种设计使代理能够灵活处理多种消息来源，而不受topic命名的限制。
+        这种设计使路由决策明确且可预测，便于理解和维护。
 
         Args:
-            message: 要处理的消息字典（新嵌套结构）
-            context: 可选的上下文信息字典
+            message: 要处理的消息字典
+            context: 可选的上下文信息字典，包含 topic 等元数据
 
         Returns:
             处理结果字典或None
@@ -89,16 +89,20 @@ class OrchestratorAgent(BaseAgent):
             context_keys=list(context.keys()) if context else [],
         )
 
-        # 领域事件形状识别 - 基于消息的结构特征而非topic
-        # 领域事件采用新嵌套结构：{system: {event_type, aggregate_id}, data: {...}}
-        system_data = message.get("system", {})
-        event_type = system_data.get("event_type")
-        aggregate_id = system_data.get("aggregate_id")
+        # 从上下文中获取 topic，用于路由决策
+        topic = (context or {}).get("topic", "")
 
-        # 如果同时具备event_type和aggregate_id，则识别为领域事件
-        if event_type and aggregate_id:
+        # 根据 topic 判断是否为领域事件
+        # 领域事件来自特定的领域事件 topic（如 genesis.session.events）
+        if topic == "genesis.session.events":
+            # 提取领域事件信息用于日志和可观测性
+            system_data = message.get("system", {})
+            event_type = system_data.get("event_type")
+            aggregate_id = system_data.get("aggregate_id")
+
             self.log.info(
                 "orchestrator_processing_domain_event",
+                topic=topic,
                 event_type=event_type,
                 aggregate_id=aggregate_id,
                 has_payload=bool(message.get("data")),
@@ -106,20 +110,24 @@ class OrchestratorAgent(BaseAgent):
             )
             return await self._handle_domain_event(message, context or {})
 
-        # 能力事件信封识别 - 优先从上下文元数据获取类型
-        # 能力事件可能来自不同的能力代理，通过type字段标识具体能力
+        # 能力事件识别 - 来自能力代理的消息
+        # 能力事件可能来自不同的能力代理，通过 type 字段标识具体能力
         msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
         if msg_type:
             self.log.info(
                 "orchestrator_processing_capability_event",
                 msg_type=msg_type,
-                topic=context.get("topic") if context else None,
+                topic=topic,
                 has_data=bool(message.get("data")),
             )
             return await self._handle_capability_event(msg_type, message, context or {})
 
         # 无法识别的消息类型 - 记录但不抛出异常，保持系统健壮性
-        self.log.debug("orchestrator_ignored_message", reason="unknown_shape")
+        self.log.debug(
+            "orchestrator_ignored_message",
+            reason="unknown_topic_or_missing_type",
+            topic=topic,
+        )
         return None
 
     async def _handle_domain_event(
