@@ -15,12 +15,12 @@ from typing import Any
 from src.agents.orchestrator.message_factory import MessageFactory
 from src.agents.orchestrator.types import (
     CapabilityEventMessage,
+    EventAction,
     GenerationData,
     MessageContext,
     ProcessingResult,
     ScopeInfo,
 )
-from src.agents.orchestrator.workflows import EventAction, EventActionBuilder
 from src.common.events.config import infer_scope_from_topic
 from src.common.events.mapping import (
     extract_strategy_key_from_event_type,
@@ -186,32 +186,38 @@ class CapabilityEventProcessor:
                 return None
 
             task_prefix = normalize_task_type(msg_type)
-            builder = EventActionBuilder()
 
-            builder.with_domain_event(
-                scope_type=scope_info.scope_type,
-                session_id=session_id,
-                event_action=f"{target_type.capitalize()}.Proposed",
-                payload={"session_id": session_id, "content": data.model_dump()},
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-            )
+            # 构建领域事件数据
+            domain_event = {
+                "scope_type": scope_info.scope_type,
+                "session_id": session_id,
+                "event_action": f"{target_type.capitalize()}.Proposed",
+                "payload": {"session_id": session_id, "content": data.model_dump()},
+                "correlation_id": correlation_id,
+                "causation_id": causation_id,
+            }
 
-            builder.with_task_completion(
-                correlation_id=correlation_id,
-                expect_task_prefix=task_prefix,
-                result_data=data.model_dump(),
-            )
+            # 构建任务完成数据
+            task_completion = {
+                "correlation_id": correlation_id,
+                "expect_task_prefix": task_prefix,
+                "result_data": data.model_dump(),
+            }
 
+            # 构建能力消息
             capability_message = MessageFactory.create_quality_review_message(
                 session_id=session_id,
                 target_type=target_type,
                 content=data.model_dump(),
                 scope_prefix=scope_info.scope_prefix,
             )
-            builder.with_capability_message(capability_message)
 
-            return builder.build()
+            # 直接构造 EventAction（替代 EventActionBuilder）
+            return EventAction(
+                domain_event=domain_event,
+                task_completion=task_completion,
+                capability_message=capability_message,
+            )
 
         # 质量评审类事件：此处理器不直接处理，留给领域流程
         if is_quality_review_event(msg_type):

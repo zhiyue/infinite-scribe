@@ -71,6 +71,38 @@ from src.common.types import (
 # =============================================================================
 
 
+class EventAction(BaseModel):
+    """编排器事件处理后的响应动作
+
+    该类封装了编排器处理事件后可能产生的三种动作类型。
+    使用不可变的数据结构确保在异步处理流程中的线程安全。
+
+    设计简化说明：
+    - 原先使用 NamedTuple + EventActionBuilder 构建器模式
+    - 简化为直接使用 Pydantic BaseModel，提供同样的不可变性和类型安全
+    - 删除 EventActionBuilder，直接构造更简洁：EventAction(domain_event=...)
+
+    Attributes:
+        domain_event: 领域事件数据，用于触发系统内其他模块的响应，
+                     包含事件类型、会话标识和有效载荷等关键信息
+        task_completion: 任务完成数据，用于标记编排器分配的异步任务已完成，
+                        包含关联ID和结果数据以便调用方追踪
+        capability_message: 能力消息数据，发送给特定能力代理的指令，
+                           用于执行具体的AI能力任务（如查询、生成等）
+
+    Notes:
+        - 三个字段都是可选的，支持灵活组合
+        - 通常每个动作只会设置一个字段，但架构上允许同时设置多个
+        - 使用 frozen=True 确保不可变性（Pydantic v2）
+    """
+
+    domain_event: dict[str, Any] | None = None
+    task_completion: dict[str, Any] | None = None
+    capability_message: dict[str, Any] | None = None
+
+    model_config = ConfigDict(frozen=True)  # 确保不可变性
+
+
 class ProcessingResult(BaseModel):
     """编排器处理结果的统一响应格式
 
@@ -160,6 +192,7 @@ __all__ = [
     # =========================================================================
     # Orchestrator 特有类型
     # =========================================================================
+    "EventAction",  # 事件处理后的响应动作（简化版，移除了 EventActionBuilder）
     "ProcessingResult",  # 编排器处理结果的统一响应格式
     # =========================================================================
     # 通用事件类型（重新导出以保持向后兼容）

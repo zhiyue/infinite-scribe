@@ -13,8 +13,8 @@ from src.agents.orchestrator.capability_event_processor import (
     extract_metadata_field,
     extract_session_and_scope,
 )
-from src.agents.orchestrator.workflows import EventAction
 from src.agents.orchestrator.types import (
+    EventAction,
     GenerationData,
     MessageContext,
     ScopeInfo,
