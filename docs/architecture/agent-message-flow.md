@@ -66,12 +66,13 @@ envelope = {
 }
 ```
 
-### 1.3 推荐的业务数据结构
+> ℹ️ **统一出口**：无论 Agent 直接调用 `OutboxEgress.enqueue_envelope()`，还是简单 `return {...}` 交给 `BaseAgent`，最终都会在 `encode_message()`（`apps/backend/src/agents/message.py:33`）里生成相同的 Envelope。`MessageProcessor._send_result()`（`apps/backend/src/agents/message_processor.py:266`）也会调用该函数后经 `BaseOutboxManager.enqueue_message()` 写入 Outbox，确保结构一致。
 
-虽然 `data` 字段允许任意结构（`extra="allow"`），但推荐遵循以下约定：
+### 1.3 能力事件的业务负载约定（GenerationData）
+
+`Envelope.data` 会被 Orchestrator 解析为 `GenerationData`（`apps/backend/src/agents/orchestrator/types.py:222`）。模型只显式声明了 `content` 字段，但允许附加键值。为避免后续编排失败，建议：
 
 ```python
-# ✅ 推荐：使用 content 结构化核心内容
 {
     "type": "Inquiry.Response.Generated",
     "content": {
@@ -88,9 +89,35 @@ envelope = {
 ```
 
 **注意事项**：
-- ❌ **不要**在 `data` 中包含系统字段（id, ts, correlation_id），这些由 Envelope 管理
-- ✅ **应该**将核心内容放在 `content` 下，便于 Orchestrator 统一处理
-- ✅ **可以**直接在 `data` 层添加业务特定字段（session_id, query 等）
+- ❌ **不要**在 `data` 中重复 `id/ts/correlation_id` 等系统字段，这些由 Envelope 或 `context.meta` 承担
+- ✅ **必须**确保 `session_id` 能在业务数据或 `context.meta.aggregate_id` 中取到（`apps/backend/src/agents/orchestrator/capability_event_processor.py:60`）
+- ✅ **应该**把主内容放到 `content`（`ContentData`，`types.py:199`），其余业务字段可以直接附加在根层
+
+### 1.4 领域事件结构（system/data/schema_version）
+
+领域事件通过 `DomainEventProcessor` 处理时，需要遵循分层结构（`apps/backend/src/agents/orchestrator/domain_event_processor.py:200`）：
+
+```jsonc
+{
+  "system": {
+    "event_type": "Genesis.Session.Command.Received",
+    "aggregate_id": "sess-123",
+    "event_id": "evt-uuid",
+    "metadata": {"source": "api", "user_id": "u-1"},
+    "correlation_id": "corr-456"
+  },
+  "data": {
+    "command_type": "Character.Request",
+    "payload": {
+      "character_id": "char-42",
+      "intent": "create"
+    }
+  },
+  "schema_version": "v1"
+}
+```
+
+`CorrelationIdExtractor` 会按 `context.meta` → headers → `system.correlation_id` → `system.metadata.correlation_id` 的顺序回退（同文件 `:24-69`），请确保至少一个层级提供关联 ID。
 
 ---
 
@@ -104,13 +131,10 @@ envelope = {
 ├──────────────────────────────────────────────────────────────────┤
 │ InquiryAgent.process_message()                                   │
 │   ↓                                                              │
-│ await egress.enqueue_envelope(                                   │
-│     agent="inquiry",                                             │
-│     topic="genesis.inquiry.events",                              │
-│     key="sess-123",                                              │
-│     result={"type": "...", "query": "...", ...},                 │
-│     correlation_id="corr-456"                                    │
-│ )                                                                │
+│ # 两种出站路径（二选一，最终都走 encode_message）                │
+│ await egress.enqueue_envelope(...)  # 显式调用 OutboxEgress       │
+│         或                                                           │
+│ return {"type": "...", ...}        # 交给 MessageProcessor        │
 │   ↓                                                              │
 │ encode_message() → Envelope JSON                                 │
 │   ↓                                                              │
@@ -206,7 +230,7 @@ CREATE TABLE event_outbox (
     topic VARCHAR NOT NULL,              -- "genesis.inquiry.events"
     key VARCHAR,                         -- "sess-123" (用于 Kafka 分区)
     partition_key VARCHAR,               -- 同上
-    payload JSONB NOT NULL,              -- ✅ Envelope JSON（完整业务数据）
+    payload JSONB NOT NULL,              -- ✅ 能力事件:Envelope / 领域事件:OutboxPayloadEnvelope
     headers JSONB,                       -- Kafka headers（部分冗余）
     status VARCHAR NOT NULL,             -- "PENDING" / "SENT" / "FAILED"
     created_at TIMESTAMP,
@@ -238,6 +262,8 @@ CREATE TABLE event_outbox (
   }
 }
 ```
+
+> 💡 **领域事件**：当由 Orchestrator 写入时，`payload` 会是 `OutboxPayloadEnvelope`（`system` + `data` + `schema_version`）。其 SQL 行结构与上例相同，只是 `payload` 字段的 JSON 形态不同。
 
 **特点**：
 - ✅ 支持 SQL 查询和事务
@@ -599,6 +625,62 @@ gen_data = event_msg.to_typed_data()
 # 注意：由于 extra="allow"，所有字段都被保留
 ```
 
+#### 领域事件写入 Outbox（对比参考）
+
+当 Orchestrator 或 Conversation 服务写入领域事件时，会使用 `OutboxPayloadBuilder` 构建三层结构：
+
+```jsonc
+{
+  "system": {
+    "event_id": "evt-uuid",
+    "event_type": "Genesis.Session.Theme.Proposed",
+    "aggregate_type": "GenesisSession",
+    "aggregate_id": "sess-123",
+    "metadata": {"user_id": "u-1", "source": "orchestrator"},
+    "correlation_id": "corr-456",
+    "causation_id": "cmd-uuid"
+  },
+  "data": {
+    "payload": {
+      "session_id": "sess-123",
+      "theme": {"title": "希望"}
+    }
+  },
+  "schema_version": "v1"
+}
+```
+
+> 领域事件消费者需按照 `system` / `data` 分层解析；该结构在 `docs/orchestrator-event-structures.md` 中有完整说明。
+
+### 5.4 领域事件的 `system` / `data` 层
+
+当编排器消费领域事件（通常来自 `EventBridge` 或其它协调组件）时，会使用 `DomainEventProcessor`。事件需要包含：
+
+- `system`: 核心元数据（`event_type`、`aggregate_id`、`event_id`、`metadata`、`correlation_id` 等）。
+- `data`: 业务有效负载。若包含 `payload` 子字段，则使用它；否则会自动从 `data` 中剥离 `command_type` 等系统键。
+- `schema_version`: 可选，用于迭代。
+
+示例（`apps/backend/src/agents/orchestrator/domain_event_processor.py:200`）：
+
+```jsonc
+{
+  "system": {
+    "event_type": "Genesis.Session.Command.Received",
+    "aggregate_id": "sess-123",
+    "event_id": "evt-uuid",
+    "metadata": {"source": "api", "user_id": "u-1"},
+    "correlation_id": "corr-456"
+  },
+  "data": {
+    "command_type": "Character.Request",
+    "payload": {"character_id": "char-42", "intent": "create"}
+  },
+  "schema_version": "v1"
+}
+```
+
+`CorrelationIdExtractor` 会依次尝试 `context.meta`、Kafka headers、`system.correlation_id`、`system.metadata.correlation_id`（同文件 `:24-69`），确保事件在缺省场景仍能追踪。
+
 ---
 
 ## 6. 当前设计的问题分析
@@ -937,4 +1019,98 @@ class CapabilityEventProcessor:
 
 ## 8. 实践指南
 
-### 8.1 Agent 发送消息（推荐
+### 8.1 Agent 发送消息（推荐）
+
+**目标**：通过 Outbox 模式 + Envelope 封装可靠发送能力事件。
+
+```python
+from src.services.outbox.egress import OutboxEgress
+
+
+class InquiryAgent(BaseAgent):
+    def __init__(self, ...):
+        super().__init__(name="inquiry", consume_topics=..., produce_topics=...)
+        self.egress = OutboxEgress()
+
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> None:
+        session_id = message.get("session_id")
+        query = self._extract_query(message)
+        response = await self._handle_query(query, session_id=session_id, context=context)
+
+        correlation_id = (context or {}).get("meta", {}).get("correlation_id")
+
+        await self.egress.enqueue_envelope(
+            agent=self.name,
+            topic="genesis.inquiry.events",
+            key=session_id,
+            result={
+                "type": "Inquiry.Response.Generated",    # 必填字段
+                "session_id": session_id,                  # GenerationData 关键字段
+                "content": {                              # 推荐结构
+                    "text": response.get("text"),
+                    "metadata": {
+                        "query_type": response.get("type"),
+                        "confidence": response.get("confidence"),
+                    },
+                },
+                "query": query,
+                "answer": response,                       # 额外业务字段
+            },
+            correlation_id=correlation_id,
+        )
+
+        return None  # 交由 OutboxRelay 发布
+```
+
+### 8.2 Agent 发送消息（兼容路径）
+
+在极少数场景（例如已有旧实现）可以直接 `return dict`，框架会在 `MessageProcessor._send_result()` 执行以下步骤：
+
+1. 自动从字典中提取 `_topic`/`_key`，或使用 Agent 默认的 `produce_topics`
+2. 调用 `encode_message(self.agent_name, result, correlation_id, retries)`
+3. 经 `BaseOutboxManager.enqueue_message()` 写入 `event_outbox`
+
+```python
+class LegacyAgent(BaseAgent):
+    async def process_message(self, message: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = self._do_work(message)
+        return {
+            "_topic": "genesis.legacy.events",     # 可选，未提供则 fallback
+            "_key": payload.get("session_id"),
+            "type": "Legacy.Work.Completed",       # 必填
+            "session_id": payload.get("session_id"),
+            "content": payload.get("content"),
+        }
+```
+
+> ⚠️ **注意**：若选择兼容路径，仍需确保返回的数据字段满足 `GenerationData` 约定。建议逐步迁移为 OutboxEgress 写法，以集中管理出站逻辑和指标。
+
+### 8.3 能力事件结构检查清单
+
+| 项目 | 必填 | 说明 | 参考 |
+|------|------|------|------|
+| `type` | ✅ | 能力事件类型，例如 `Character.Design.Generated` | `Envelope` (`message.py:33`)
+| `session_id` | ✅ | 允许放在 `data` 或 `context.meta.aggregate_id` | `capability_event_processor.py:60`
+| `content.text` | ✅ | 生成内容正文 | `GenerationData` / `ContentData`
+| `content.metadata` | ⚙️ | 可扩展上下文（prompt、attempt 等） | 业务自定义
+| 额外业务字段 | ⚙️ | 如 `outline_id`、`character_id` | 会透传至质量审查/领域事件
+| 系统字段（`correlation_id` 等） | ❌ | 放在 `context.meta` / Envelope 顶层 | `encode_message`
+
+### 8.4 领域事件结构检查清单
+
+| 项目 | 必填 | 说明 | 参考 |
+|------|------|------|------|
+| `system.event_type` | ✅ | 领域事件类型，例如 `Genesis.Session.Command.Received` | `domain_event_processor.py:200`
+| `system.aggregate_id` | ✅ | 会话/聚合标识 | 同上 |
+| `system.correlation_id` | ⚙️ | 如缺失，确保 `context` 或 headers 里提供 | `domain_event_processor.py:24`
+| `data.command_type` | ✅ | 命令类型，用于路由 | `domain_event_processor.py:226`
+| `data.payload` | ⚙️ | 业务负载，缺失时会继承 `data` 的其他字段 | `domain_event_processor.py:236`
+| `schema_version` | ⚙️ | 版本控制，可选 | 同上 |
+
+### 8.5 调试与排错技巧
+
+- **检查 Outbox**：查询 `event_outbox`，确认 `payload` 是否符合期望结构（能力事件=Envelope，领域事件=OutboxPayloadEnvelope）。
+- **校验结构**：能力事件可用 `Envelope.model_validate(payload)`；领域事件则使用 `OutboxPayloadEnvelope.model_validate(payload)`（位于 `src/common/outbox/payload.py`）。
+- **追踪 correlation_id**：确保请求上下游一致，便于串联日志。
+- **观察日志**：`CapabilityEventProcessor`、`DomainEventProcessor` 均在关键节点打点（搜索 `orchestrator_*` 日志）。
+- **启用测试工具**：利用 `apps/backend/tests/unit/agents/orchestrator` 下的单测了解结构期望。

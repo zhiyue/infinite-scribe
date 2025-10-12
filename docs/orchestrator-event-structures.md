@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档详细描述了从前端 Command 命令到 `apps/backend/src/agents/orchestrator` 模块的完整事件流转和转换过程。系统采用领域事件驱动架构，通过 Command → Outbox → Orchestrator 的数据管道，实现类型安全的事件处理和转换。
+本文档详细描述了从前端 Command 命令到 `apps/backend/src/agents/orchestrator` 模块的完整事件流转和转换过程。系统采用领域事件驱动架构，通过 Command → Outbox → Orchestrator 的数据管道，实现类型安全的事件处理和转换。若需能力事件（Envelope 流程）的概览，可结合《[Agent 消息流与数据存储架构](architecture/agent-message-flow.md)》与《[Agent Messaging Reference Index](architecture/messaging-reference-index.md)》一起阅读。
 
 ## 完整数据流转概览
 
