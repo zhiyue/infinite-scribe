@@ -520,45 +520,44 @@ tail -f logs/is-launcher_*.log | grep "process_message"
 
 ### 🔧 Agent 系统架构全面优化
 
-最近对 Agent 系统进行了重要更新，涉及模板系统、常量管理、错误处理和消息处理的全方位优化：
+最近对 Agent 系统进行了重要更新，涉及消息处理、代理能力、事件系统和Outbox模式的全方位优化：
 
 #### 🎯 核心组件更新
 
-1. **Agent 模板增强** (`agent_template.py`): 
-   - 完善的依赖注入支持
-   - 集中配置读取机制
-   - 结构化日志记录
-   - 标准化的最佳实践指导
+1. **消息处理器重构** (`message_processor.py`):
+   - Outbox 模式集成，确保可靠消息传递
+   - 智能分区键支持（session_id/user_id回退）
+   - 上下文感知解码，支持多种消息格式
+   - 监控指标集成，实时处理延迟追踪
+   - 错误分类策略，支持自定义错误处理逻辑
 
-2. **基础类优化** (`base.py`):
-   - 增强的初始化流程
-   - Outbox 管理器集成
-   - 组件模块化初始化
-   - 配置验证机制
+2. **专业化Agent增强**:
+   - **ContentAnalyzerAgent**: LLM驱动的内容分析，支持人物、世界观、情节等多维度分析
+   - **InquiryAgent**: 智能查询助手，支持进度、角色、世界观、系统功能等多类查询
+   - **KnowledgeUpdateAgent**: 知识图谱更新，同步更新Neo4j、Milvus向量库和关系数据库
+   - **WriterAgent**: 增强的文本生成，支持工具调用回路和预上下文构建
 
-3. **常量管理系统** (`constants.py`):
-   - 集中化常量定义
-   - 消息封装标准
-   - 状态码管理
-   - 辅助函数支持
+3. **编排器系统优化** (`orchestrator/`):
+   - **CapabilityEventProcessor**: 简化事件处理，基于msg_type直接路由
+   - **OutboxManager**: 统一的消息持久化和能力任务入队
+   - 幂等性保证，通过correlation_id确保重复请求安全处理
 
-4. **错误处理器重构** (`error_handler.py`):
-   - 智能错误分类
-   - 指数退避重试机制
-   - 死信队列路由
-   - 结构化错误日志
+4. **事件系统升级** (`common/events/`):
+   - **DomainEventEnvelope**: 标准化领域事件封装，支持事件溯源
+   - **CapabilityEventEnvelope**: 能力事件信封，支持分布式追踪
+   - **事件映射**: 智能事件类型识别和路由策略
 
-5. **消息系统增强** (`message.py`):
-   - Pydantic 模型验证
-   - Envelope 模式标准化
-   - 分布式追踪支持
-   - 版本化管理
+5. **消息传递增强** (`common/messaging/`):
+   - 统一的消息编解码接口
+   - 支持多种消息格式自动识别
+   - 版本化消息格式管理
+   - 分布式追踪集成
 
-6. **消息处理器优化** (`message_processor.py`):
-   - Outbox 模式集成
-   - 智能分区键支持
-   - 上下文感知解码
-   - 监控指标集成
+6. **Outbox模式完善** (`common/outbox/`, `services/outbox/`):
+   - **BaseOutboxManager**: 通用消息入队管理器
+   - **OutboxEgress**: 统一的消息出口接口
+   - 事务性消息持久化
+   - 支持headers和元数据路由
 
 ### 🔧 Agent配置优化
 
