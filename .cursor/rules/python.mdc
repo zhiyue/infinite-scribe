@@ -1,4 +1,5 @@
 ---
+description: Python 文件中文注释规范
 globs: *.py
 alwaysApply: false
 ---
@@ -13,32 +14,11 @@ alwaysApply: false
 - **业务规则** - 特定的业务规则和约束条件
 - **状态机转换** - 复杂的状态变化逻辑
 
-```python
-def calculate_novel_similarity(text1: str, text2: str) -> float:
-    """计算小说文本相似度"""
-    # 使用TF-IDF向量化提取文本特征
-    vectorizer = TfidfVectorizer()
-
-    # 计算余弦相似度来衡量文本相似性
-    similarity_score = cosine_similarity(vectors[0], vectors[1])
-    return similarity_score
-```
-
 ### 2. 关键配置和常量
 
 - **配置参数** - 重要的系统配置项
 - **魔法数字** - 具有特殊含义的数值
 - **业务常量** - 业务相关的常量定义
-
-```python
-# AI模型配置参数
-MAX_TOKENS = 4000  # GPT模型最大令牌数限制
-TEMPERATURE = 0.7  # 控制生成文本的随机性，0.7为创意写作最佳值
-
-# 小说章节配置
-MIN_CHAPTER_LENGTH = 800   # 最小章节字数要求
-MAX_CHAPTER_LENGTH = 3000  # 最大章节字数限制
-```
 
 ### 3. 错误处理和边界情况
 
@@ -46,52 +26,17 @@ MAX_CHAPTER_LENGTH = 3000  # 最大章节字数限制
 - **边界检查** - 输入验证和边界条件
 - **回退机制** - 失败时的降级处理
 
-```python
-try:
-    result = await llm_service.generate_content(prompt)
-except RateLimitError:
-    # API调用频率超限，使用备用模型
-    result = await fallback_service.generate_content(prompt)
-except Exception as e:
-    # 记录错误但不中断用户体验
-    logger.error(f"内容生成失败: {e}")
-    return default_response
-```
-
 ### 4. 性能优化和缓存
 
 - **缓存策略** - 缓存逻辑说明
 - **性能考虑** - 优化相关的代码
 - **资源管理** - 内存或连接管理
 
-```python
-@lru_cache(maxsize=1000)
-def get_character_profile(character_id: str) -> Dict:
-    """获取角色档案信息，使用LRU缓存提升查询性能"""
-    # 缓存热门角色信息，减少数据库查询次数
-    return character_repository.get_by_id(character_id)
-```
-
 ## 不需要中文注释的情况
 
-### 1. 自解释的代码
-
-- **简单赋值** - `user_id = request.user_id`
-- **标准CRUD操作** - `user.save()`, `user.delete()`
-- **显而易见的逻辑** - 简单的条件判断
-
-### 2. 已有清晰命名的函数
-
-- **函数名已说明用途** - `validate_email()`, `format_date()`
-- **标准库函数调用** - `len(items)`, `str.split()`
-
-### 3. 类型注解已足够说明的代码
-
-```python
-def create_user(name: str, email: str, age: int) -> User:
-    # 类型注解已清楚说明参数和返回值，无需额外注释
-    return User(name=name, email=email, age=age)
-```
+- **自解释的代码** - 简单赋值、标准操作、显而易见的逻辑
+- **已有清晰命名的函数** - 函数名已说明用途
+- **类型注解已足够说明的代码** - 参数和返回值类型明确
 
 ## 注释写作原则
 
@@ -112,9 +57,6 @@ x = x + 1  # 跳过标题行，从正文开始处理
 # 检查用户权限
 if not user.has_permission('write'):
     raise PermissionError("用户无写作权限")
-
-# ❌ 冗长啰嗦
-# 在这里我们需要检查一下当前用户是否具有进行写作操作的相关权限
 ```
 
 ### 3. 保持注释与代码同步
@@ -140,353 +82,79 @@ def generate_plot_outline(genre: str, length: int) -> PlotOutline:
 
     Raises:
         ValueError: 当genre不在支持范围内时
-
-    Example:
-        >>> outline = generate_plot_outline("科幻", 100000)
-        >>> print(outline.chapter_count)
-        20
     """
 ```
 
-### 类文档字符串
+## 避免硬编码
 
-```python
-class NovelAgent:
-    """小说创作AI代理
-
-    负责处理小说创作相关的任务，包括情节生成、角色设定、
-    文本润色等功能。支持多种文学体裁和写作风格。
-
-    Attributes:
-        model_config: AI模型配置信息
-        style_template: 写作风格模板
-
-    Example:
-        >>> agent = NovelAgent(model="gpt-4")
-        >>> content = agent.generate_chapter(prompt="第一章开头")
-    """
-```
-
-## 编码规范和最佳实践
-
-### 避免硬编码
-
-#### 禁止硬编码的场景
+### 禁止硬编码的场景
 
 - **配置参数** - 数据库连接、API密钥、服务端点
 - **业务常量** - 状态值、枚举选项、限制阈值
 - **文件路径** - 绝对路径、临时文件位置
 - **魔法数字** - 具有业务含义的数值
 
-#### ❌ 错误示例：硬编码
-
-```python
-# 错误：硬编码数据库连接
-def get_database_connection():
-    return create_connection(
-        host="192.168.1.100",
-        port=5432,
-        user="admin",
-        password="secret123"
-    )
-
-# 错误：硬编码业务逻辑
-def check_user_level(points: int) -> str:
-    if points >= 10000:  # 魔法数字
-        return "VIP"
-    elif points >= 1000:  # 魔法数字
-        return "Premium"
-    return "Basic"
-
-# 错误：硬编码文件路径
-def save_novel_content(content: str):
-    with open("/tmp/novels/draft.txt", "w") as f:
-        f.write(content)
-```
-
-#### ✅ 正确示例：使用配置和常量
+### 正确做法：使用配置和常量
 
 ```python
 from pydantic_settings import BaseSettings
 from enum import Enum
-from pathlib import Path
-from typing import Dict
 
 class Settings(BaseSettings):
     """应用配置，支持环境变量覆盖"""
-    # 数据库配置通过环境变量获取
     db_host: str = "localhost"
     db_port: int = 5432
-    db_user: str = "postgres"
-    db_password: str = ""
-
-    # API配置
     openai_api_key: str = ""
     max_tokens: int = 4000
-
-    # 文件存储配置
-    upload_dir: Path = Path("./uploads")
-    temp_dir: Path = Path("./temp")
 
     class Config:
         env_file = ".env"
         env_prefix = "APP_"
 
-# 用户等级常量定义
 class UserLevel(Enum):
     """用户等级枚举"""
     BASIC = "Basic"
     PREMIUM = "Premium"
     VIP = "VIP"
 
-# 业务规则常量
 class BusinessRules:
     """业务规则常量集中管理"""
-    # 用户等级积分阈值
-    USER_LEVEL_THRESHOLDS: Dict[UserLevel, int] = {
+    USER_LEVEL_THRESHOLDS = {
         UserLevel.VIP: 10000,
         UserLevel.PREMIUM: 1000,
         UserLevel.BASIC: 0
     }
-
-    # 小说相关限制
     MIN_CHAPTER_LENGTH = 800
     MAX_CHAPTER_LENGTH = 3000
-    MAX_DAILY_CHAPTERS = 5
-
-    # AI生成参数
-    DEFAULT_TEMPERATURE = 0.7
-    MAX_RETRY_ATTEMPTS = 3
-
-# 正确的实现方式
-settings = Settings()
-
-def get_database_connection():
-    """使用配置获取数据库连接"""
-    return create_connection(
-        host=settings.db_host,
-        port=settings.db_port,
-        user=settings.db_user,
-        password=settings.db_password
-    )
-
-def check_user_level(points: int) -> UserLevel:
-    """根据积分判断用户等级，使用配置化的阈值"""
-    thresholds = BusinessRules.USER_LEVEL_THRESHOLDS
-
-    for level, min_points in sorted(thresholds.items(),
-                                   key=lambda x: x[1],
-                                   reverse=True):
-        if points >= min_points:
-            return level
-
-    return UserLevel.BASIC
-
-def save_novel_content(content: str, filename: str = "draft.txt"):
-    """使用配置的路径保存文件"""
-    # 确保目录存在
-    settings.temp_dir.mkdir(parents=True, exist_ok=True)
-
-    file_path = settings.temp_dir / filename
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    return file_path
-```
-
-#### 配置管理最佳实践
-
-##### 1. 环境变量优先级
-
-```python
-# .env 文件示例
-APP_DB_HOST=localhost
-APP_DB_PORT=5432
-APP_OPENAI_API_KEY=sk-xxx
-APP_MAX_TOKENS=4000
-APP_UPLOAD_DIR=/var/app/uploads
-
-# 生产环境可以通过环境变量覆盖
-# export APP_DB_HOST=prod-db.example.com
-```
-
-##### 2. 分层配置管理
-
-```python
-class DatabaseConfig(BaseModel):
-    """数据库配置"""
-    host: str = "localhost"
-    port: int = 5432
-    name: str = "infinite_scribe"
-    user: str = "postgres"
-    password: str = ""
-
-    @property
-    def url(self) -> str:
-        """生成数据库连接URL"""
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-
-class AIConfig(BaseModel):
-    """AI服务配置"""
-    openai_api_key: str = ""
-    model_name: str = "gpt-4"
-    max_tokens: int = 4000
-    temperature: float = 0.7
-    timeout: int = 30
-
-class AppConfig(BaseSettings):
-    """应用总配置"""
-    debug: bool = False
-    log_level: str = "INFO"
-
-    # 嵌套配置
-    database: DatabaseConfig = DatabaseConfig()
-    ai: AIConfig = AIConfig()
-
-    class Config:
-        env_nested_delimiter = '__'  # 支持 APP_DATABASE__HOST=xxx
-```
-
-##### 3. 常量集中管理
-
-```python
-# constants.py - 集中管理所有常量
-class HTTPStatus:
-    """HTTP状态码常量"""
-    OK = 200
-    CREATED = 201
-    BAD_REQUEST = 400
-    UNAUTHORIZED = 401
-    NOT_FOUND = 404
-    INTERNAL_ERROR = 500
-
-class NovelStatus:
-    """小说状态常量"""
-    DRAFT = "draft"
-    REVIEWING = "reviewing"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
-
-class MessageTypes:
-    """消息类型常量"""
-    GENERATE_CHAPTER = "generate_chapter"
-    ANALYZE_PLOT = "analyze_plot"
-    CREATE_CHARACTER = "create_character"
-
-# 在代码中使用常量
-def update_novel_status(novel_id: int, status: str):
-    """更新小说状态，只允许预定义的状态值"""
-    allowed_statuses = [
-        NovelStatus.DRAFT,
-        NovelStatus.REVIEWING,
-        NovelStatus.PUBLISHED,
-        NovelStatus.ARCHIVED
-    ]
-
-    if status not in allowed_statuses:
-        raise ValueError(f"不支持的状态: {status}")
-
-    # 更新逻辑...
-```
-
-##### 4. 动态配置支持
-
-```python
-class ConfigManager:
-    """动态配置管理器"""
-
-    def __init__(self):
-        self._config = {}
-        self._load_config()
-
-    def _load_config(self):
-        """从多个来源加载配置：环境变量 > 配置文件 > 默认值"""
-        # 默认配置
-        self._config.update(self._get_default_config())
-
-        # 配置文件覆盖
-        config_file = Path("config.json")
-        if config_file.exists():
-            with open(config_file) as f:
-                self._config.update(json.load(f))
-
-        # 环境变量最高优先级
-        self._config.update(self._get_env_config())
-
-    def get(self, key: str, default=None):
-        """获取配置值"""
-        return self._config.get(key, default)
-
-    def refresh(self):
-        """重新加载配置，支持热更新"""
-        self._load_config()
-
-# 全局配置实例
-config = ConfigManager()
-
-# 使用示例
-def generate_content(prompt: str) -> str:
-    """使用动态配置生成内容"""
-    max_tokens = config.get("ai.max_tokens", 2000)
-    temperature = config.get("ai.temperature", 0.7)
-
-    # AI调用逻辑...
 ```
 
 ## 工具和框架规范
 
-### 代码质量工具
-
-#### Ruff 配置遵循
+### Ruff 配置遵循
 
 - **严格遵循项目Ruff配置** - 使用 `ruff check` 和 `ruff format`
 - **导入排序** - 遵循Ruff的import sorting规则
-- **代码风格** - 统一使用Ruff格式化，不使用其他格式化工具
+- **代码风格** - 统一使用Ruff格式化
 
-```python
-# ✅ 正确的导入顺序（Ruff自动处理）
-import asyncio
-import logging
-from typing import Dict, List, Optional
-
-from fastapi import HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select
-
-from src.agents.base import BaseAgent
-from src.core.config import settings
-```
-
-### 数据模型和验证
-
-#### Pydantic v2 规范
+### Pydantic v2 规范
 
 - **使用Field()配置验证** - 替代v1的Config类
 - **模型配置** - 使用model_config替代Config内部类
-- **序列化别名** - 使用alias_generator和serialization_alias
+- **v2验证器语法** - 使用 `@field_validator` 装饰器
 
 ```python
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from datetime import datetime
-from typing import Optional
 
 class NovelCreateRequest(BaseModel):
     """小说创建请求模型"""
     model_config = ConfigDict(
-        # 启用属性验证，提高数据安全性
-        validate_assignment=True,
-        # 使用枚举值而非枚举名称进行序列化
-        use_enum_values=True,
-        # 自动转换JSON字段名为snake_case
-        alias_generator=lambda field_name: field_name.replace('_', '-')
+        validate_assignment=True,  # 启用属性验证
+        use_enum_values=True      # 使用枚举值序列化
     )
 
     title: str = Field(..., min_length=1, max_length=200, description="小说标题")
     genre: str = Field(..., description="小说类型")
-    target_length: int = Field(default=50000, ge=1000, description="目标字数")
-    author_notes: Optional[str] = Field(None, max_length=1000, description="作者备注")
 
-    # 自定义验证器使用v2语法
     @field_validator('genre')
     @classmethod
     def validate_genre(cls, v: str) -> str:
@@ -497,109 +165,35 @@ class NovelCreateRequest(BaseModel):
         return v
 ```
 
-### 数据库操作
-
-#### SQLAlchemy 2.x 规范
+### SQLAlchemy 2.x 规范
 
 - **使用异步语法** - 优先使用AsyncSession和async/await
 - **新式查询语法** - 使用select()而非Query API
-- **类型注解** - 明确指定模型和查询返回类型
+- **类型注解** - 使用 `Mapped[]` 类型
 
 ```python
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, String, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from typing import List, Optional
-
-class NovelRepository:
-    """小说数据访问层"""
-
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    async def create_novel(self, novel_data: Dict) -> Novel:
-        """创建新小说记录"""
-        # 使用SQLAlchemy 2.x的新式语法创建对象
-        novel = Novel(**novel_data)
-        self.session.add(novel)
-        await self.session.commit()
-        await self.session.refresh(novel)  # 获取数据库生成的字段
-        return novel
-
-    async def get_novel_by_id(self, novel_id: int) -> Optional[Novel]:
-        """根据ID获取小说，预加载关联数据提升性能"""
-        stmt = (
-            select(Novel)
-            .where(Novel.id == novel_id)
-            .options(selectinload(Novel.chapters))  # 预加载章节数据
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def update_novel_status(self, novel_id: int, status: str) -> bool:
-        """批量更新小说状态，避免先查询再更新的性能损耗"""
-        stmt = (
-            update(Novel)
-            .where(Novel.id == novel_id)
-            .values(status=status, updated_at=datetime.utcnow())
-        )
-        result = await self.session.execute(stmt)
-        await self.session.commit()
-        return result.rowcount > 0
-
-    async def get_popular_novels(self, limit: int = 10) -> List[Novel]:
-        """获取热门小说列表，使用索引优化查询"""
-        stmt = (
-            select(Novel)
-            .where(Novel.status == 'published')
-            .order_by(Novel.popularity_score.desc())
-            .limit(limit)
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
-```
-
-#### 数据库模型定义
-
-```python
-from sqlalchemy import String, Integer, DateTime, Text, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import datetime
-from typing import List, Optional
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
-    """数据库模型基类"""
     pass
 
 class Novel(Base):
     """小说模型"""
     __tablename__ = 'novels'
 
-    # 使用Mapped类型注解，提供更好的类型支持
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
-    genre: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # 时间戳字段使用默认值
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        default_factory=datetime.utcnow
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    # 关系定义使用新式语法
-    chapters: Mapped[List["Chapter"]] = relationship(
-        "Chapter",
-        back_populates="novel",
-        cascade="all, delete-orphan"  # 删除小说时级联删除章节
-    )
+async def get_novel_by_id(session: AsyncSession, novel_id: int) -> Novel | None:
+    """根据ID获取小说"""
+    stmt = select(Novel).where(Novel.id == novel_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 ```
 
-### 异步编程规范
-
-#### FastAPI集成最佳实践
+### FastAPI集成最佳实践
 
 ```python
 from fastapi import FastAPI, Depends, HTTPException
@@ -612,11 +206,10 @@ async def create_novel(
 ) -> NovelResponse:
     """创建新小说"""
     try:
-        # 使用依赖注入获取数据库会话，便于测试和维护
-        repository = NovelRepository(session)
-        novel = await repository.create_novel(request.model_dump())
-
-        # 返回Pydantic模型，自动处理序列化
+        # 使用依赖注入获取数据库会话
+        novel = Novel(**request.model_dump())
+        session.add(novel)
+        await session.commit()
         return NovelResponse.model_validate(novel)
 
     except ValueError as e:
@@ -630,30 +223,7 @@ async def create_novel(
 
 ## 特殊情况处理
 
-### 1. 与外部系统集成
-
-```python
-# 调用第三方API时需要说明业务含义
-response = openai_client.create_completion(
-    model="gpt-4",
-    prompt=user_prompt,
-    max_tokens=2000,  # 限制输出长度避免超出成本预算
-    temperature=0.8   # 提高创造性，适合小说写作场景
-)
-```
-
-### 2. 数据库查询优化
-
-```python
-# 使用索引优化查询性能，避免全表扫描
-novels = db.session.query(Novel)\
-    .filter(Novel.status == 'published')\
-    .filter(Novel.created_at >= last_week)\
-    .order_by(Novel.popularity.desc())\
-    .limit(50)  # 限制返回数量，防止内存溢出
-```
-
-### 3. 异步处理说明
+### 异步处理说明
 
 ```python
 async def process_novel_generation(request: NovelRequest):
