@@ -2,6 +2,68 @@
 
 提供项目中事件的统一配置、映射和管理功能，确保事件驱动架构的一致性和可维护性。
 
+## 🚀 最新更新 (2025-01-12)
+
+### 导入路径优化重构 ✨
+
+最近的 `__init__.py` 重构优化了模块导入结构，提升了代码的可维护性和清晰度：
+
+```mermaid
+graph TD
+    subgraph "重构前：导入路径分散"
+        A[事件功能] --> B[多个导入路径]
+        B --> C[维护困难]
+        C --> D[代码冗余]
+    end
+    
+    subgraph "重构后：统一导出接口"
+        E[事件功能] --> F[单一导入点]
+        F --> G[清晰接口]
+        G --> H[易于维护]
+    end
+    
+    D --> I[架构优化]
+    H --> I
+```
+
+#### 🎯 核心变更
+
+- **统一导入接口**: 通过 `__init__.py` 提供清晰的模块导出
+- **功能分组**: 将配置和映射功能分别导出，便于使用
+- **文档完善**: 详细说明了域事件信封类的新位置
+- **向后兼容**: 保持现有代码的兼容性
+
+#### 📦 新的导入结构
+
+```python
+# 从 events 模块统一导入
+from src.common.events import (
+    # 配置功能
+    "build_event_type",
+    "get_aggregate_type", 
+    "get_domain_topic",
+    "infer_scope_from_topic",
+    # 映射功能
+    "extract_strategy_key_from_event_type",
+    "is_generation_completed_event",
+    "normalize_task_type",
+)
+
+# 域事件信封类已迁移到新位置
+from src.common.messaging.domain_envelope import (
+    "DomainEventEnvelope",
+    "DomainEventBuilder", 
+    "SystemMetadata"
+)
+```
+
+#### 🚀 优化优势
+
+1. **接口清晰**: 通过 `__all__` 明确定义导出接口
+2. **功能分离**: 配置和映射功能分别管理
+3. **使用便捷**: 单一导入点获取所有事件工具
+4. **文档完善**: 清晰说明了模块结构和迁移路径
+
 ## 🚀 最新功能增强
 
 ### 聚合类型更新优化 ✨
