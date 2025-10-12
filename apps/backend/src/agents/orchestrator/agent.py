@@ -27,7 +27,13 @@ from src.agents.orchestrator.interfaces import (
 
 
 class OrchestratorAgent(BaseAgent):
-    """编排器代理，负责协调领域事件和能力事件的处理流程。"""
+    """编排器代理，负责协调领域事件和能力事件的处理流程。
+
+    架构角色：
+    - 作为领域层和能力层之间的协调者
+    - 实现事件驱动架构中的编排模式（Orchestration Pattern）
+    - 确保领域事件和能力任务之间的因果关系追踪
+    """
 
     def __init__(
         self,
@@ -46,7 +52,11 @@ class OrchestratorAgent(BaseAgent):
         """
         super().__init__(name=name, consume_topics=consume_topics, produce_topics=produce_topics)
 
-        # 使用依赖注入，遵循依赖反转原则(DIP)
+        # 使用工厂模式和依赖注入，遵循依赖反转原则(DIP)
+        # 这样做的好处：
+        # 1. 便于单元测试时注入mock对象
+        # 2. 解耦组件创建逻辑，提高可维护性
+        # 3. 支持不同环境下使用不同的实现策略
         factory = component_factory or DefaultOrchestratorComponentFactory()
         self.domain_processor: DomainEventProcessor = factory.create_domain_processor(self.log)
         self.capability_processor: CapabilityEventProcessor = factory.create_capability_processor(self.log)
@@ -57,6 +67,13 @@ class OrchestratorAgent(BaseAgent):
         self, message: dict[str, Any], context: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         """通过路由到适当的处理器来处理消息。
+
+        消息识别策略：
+        - 通过消息结构特征识别消息类型，而非依赖topic名称
+        - 领域事件：包含system.event_type和system.aggregate_id的嵌套结构
+        - 能力事件：包含context.meta.type或message.type的信封结构
+
+        这种设计使代理能够灵活处理多种消息来源，而不受topic命名的限制。
 
         Args:
             message: 要处理的消息字典（新嵌套结构）
@@ -72,11 +89,13 @@ class OrchestratorAgent(BaseAgent):
             context_keys=list(context.keys()) if context else [],
         )
 
-        # 领域事件形状识别 - 新嵌套结构
+        # 领域事件形状识别 - 基于消息的结构特征而非topic
+        # 领域事件采用新嵌套结构：{system: {event_type, aggregate_id}, data: {...}}
         system_data = message.get("system", {})
         event_type = system_data.get("event_type")
         aggregate_id = system_data.get("aggregate_id")
 
+        # 如果同时具备event_type和aggregate_id，则识别为领域事件
         if event_type and aggregate_id:
             self.log.info(
                 "orchestrator_processing_domain_event",
@@ -87,7 +106,8 @@ class OrchestratorAgent(BaseAgent):
             )
             return await self._handle_domain_event(message, context or {})
 
-        # 能力事件信封 - 从上下文获取类型
+        # 能力事件信封识别 - 优先从上下文元数据获取类型
+        # 能力事件可能来自不同的能力代理，通过type字段标识具体能力
         msg_type = (context or {}).get("meta", {}).get("type") or message.get("type")
         if msg_type:
             self.log.info(
@@ -98,6 +118,7 @@ class OrchestratorAgent(BaseAgent):
             )
             return await self._handle_capability_event(msg_type, message, context or {})
 
+        # 无法识别的消息类型 - 记录但不抛出异常，保持系统健壮性
         self.log.debug("orchestrator_ignored_message", reason="unknown_shape")
         return None
 
@@ -105,6 +126,17 @@ class OrchestratorAgent(BaseAgent):
         self, evt: dict[str, Any], context: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         """使用领域事件处理器处理领域事件。
+
+        处理流程：
+        1. 将Command.Received投影为领域事实（如StoryDevelopment.Requested）
+        2. 持久化领域事件到数据库（Outbox模式确保最终一致性）
+        3. 创建异步任务记录以便追踪
+        4. 如果需要，发送能力任务到对应的能力代理
+
+        设计决策：
+        - 使用Outbox模式而非直接发布到Kafka，避免双写问题
+        - Outbox relay会异步将事件发布到Kafka，保证至少一次交付
+        - 任务创建可能失败但不影响事件持久化，通过日志记录便于排查
 
         Args:
             evt: 领域事件字典
@@ -115,13 +147,13 @@ class OrchestratorAgent(BaseAgent):
         """
         from src.common.events.mapping import normalize_task_type
 
-        # 通过领域处理器处理事件
+        # 步骤1：通过领域处理器处理事件，完成事件投影和映射
         processing_result = await self.domain_processor.handle_domain_event(evt, context)
 
         if not processing_result:
             return None
 
-        # 提取处理结果
+        # 提取处理结果中的关键信息
         correlation_id = processing_result["correlation_id"]
         scope_type = processing_result["scope_type"]
         aggregate_id = processing_result["aggregate_id"]
@@ -130,7 +162,11 @@ class OrchestratorAgent(BaseAgent):
         causation_id = processing_result["causation_id"]
         metadata = processing_result.get("metadata")
 
-        # 1) 持久化领域事件 - 通过Outbox模式确保事件最终一致性
+        # 步骤2：持久化领域事件 - 使用Outbox模式确保事件最终一致性
+        # 为什么使用Outbox而非直接发布：
+        # 1. 避免领域事件持久化和Kafka发布之间的分布式事务问题
+        # 2. 通过数据库事务保证事件持久化的原子性
+        # 3. Outbox relay负责将事件异步发布到Kafka，提供重试机制
         try:
             await self.outbox_manager.persist_domain_event(
                 scope_type=scope_type,
@@ -148,6 +184,8 @@ class OrchestratorAgent(BaseAgent):
                 aggregate_id=aggregate_id,
             )
         except Exception as e:
+            # 领域事件持久化失败是严重错误，必须抛出异常终止处理
+            # 这确保了消息会被重新投递，避免事件丢失
             self.log.error(
                 "orchestrator_domain_event_persist_failed",
                 scope_type=scope_type,
@@ -158,15 +196,19 @@ class OrchestratorAgent(BaseAgent):
             )
             raise
 
-        # 2) 创建异步任务并将能力任务入队 - 仅当需要能力任务时执行
+        # 步骤3和4：创建异步任务并将能力任务入队
+        # 注意：仅当mapping包含capability_message时才执行
+        # 某些领域命令（如状态查询）不需要触发能力任务
         if mapping.capability_message:
             try:
+                # 创建异步任务记录，用于追踪任务状态和可观测性
                 await self.task_manager.create_async_task(
                     correlation_id=correlation_id,
                     session_id=aggregate_id,
                     task_type=normalize_task_type(mapping.capability_message.get("type", "")),
                     input_data=mapping.capability_message.get("input") or {},
                 )
+                # 将能力任务入队，最终会通过BaseAgent的生产者发送到Kafka
                 await self.outbox_manager.enqueue_capability_task(
                     capability_message=mapping.capability_message,
                     correlation_id=correlation_id,
@@ -177,8 +219,11 @@ class OrchestratorAgent(BaseAgent):
                     correlation_id=correlation_id,
                 )
             except Exception as e:
+                # 任务创建失败不应阻断流程，因为领域事件已经持久化
+                # 通过日志记录便于后续人工介入或补偿处理
                 self.log.warning("async_task_create_failed", correlation_id=correlation_id, error=str(e), exc_info=True)
         else:
+            # 记录仅状态变更的命令，便于理解系统行为
             self.log.info(
                 "orchestrator_state_only_command_processed",
                 requested_action=mapping.requested_action,
@@ -193,6 +238,14 @@ class OrchestratorAgent(BaseAgent):
     ) -> dict[str, Any] | None:
         """使用能力事件处理器处理能力事件。
 
+        能力事件处理流程：
+        1. 识别能力事件类型（如意图分类结果、故事开发结果等）
+        2. 将能力结果投影为领域事实（如StoryDevelopment.Proposed）
+        3. 完成对应的异步任务
+        4. 如果需要，触发后续的能力任务（链式调用）
+
+        这种设计支持能力代理之间的协作，实现复杂的业务流程编排。
+
         Args:
             msg_type: 消息类型
             message: 消息内容字典
@@ -201,18 +254,28 @@ class OrchestratorAgent(BaseAgent):
         Returns:
             处理结果字典或None
         """
-        # 通过能力处理器处理事件
+        # 通过能力处理器处理事件，生成需要执行的操作
         processing_result = await self.capability_processor.handle_capability_event(msg_type, message, context)
 
         if not processing_result:
             return None
 
-        # 执行操作
+        # 执行处理器指定的操作（持久化领域事件、完成任务、触发后续任务等）
         action = processing_result.action
         return await self._execute_event_action(action)
 
     async def _execute_event_action(self, action: Any) -> dict[str, Any] | None:
         """使用管理器执行事件处理器指定的操作。
+
+        操作执行顺序设计：
+        1. 先持久化领域事件（状态变更）
+        2. 再完成异步任务（标记任务完成）
+        3. 最后触发后续能力任务（如果有）
+
+        这个顺序确保了：
+        - 即使后续步骤失败，状态变更也已持久化
+        - 任务完成标记在状态变更之后，保证一致性
+        - 后续任务触发失败不影响当前事件的处理
 
         Args:
             action: 要执行的事件操作对象
@@ -227,7 +290,8 @@ class OrchestratorAgent(BaseAgent):
             has_capability_message=bool(action.capability_message),
         )
 
-        # 如果指定，则持久化领域事件
+        # 操作1：持久化领域事件（如果指定）
+        # 这是最关键的操作，失败则抛出异常终止处理
         if action.domain_event:
             try:
                 await self.outbox_manager.persist_domain_event(**action.domain_event)
@@ -235,10 +299,12 @@ class OrchestratorAgent(BaseAgent):
                     "orchestrator_domain_event_persisted_success", event_action=action.domain_event.get("event_action")
                 )
             except Exception as e:
+                # 领域事件持久化失败是不可恢复的错误，必须抛出
                 self.log.error("orchestrator_domain_event_persist_failed", error=str(e), exc_info=True)
                 raise
 
-        # 如果指定，则完成异步任务
+        # 操作2：完成异步任务（如果指定）
+        # 任务完成失败记录日志但不抛出异常，避免影响后续流程
         if action.task_completion:
             try:
                 await self.task_manager.complete_async_task(**action.task_completion)
@@ -247,14 +313,18 @@ class OrchestratorAgent(BaseAgent):
                     correlation_id=action.task_completion.get("correlation_id"),
                 )
             except Exception as e:
+                # 任务完成失败不应阻断流程，因为领域事件已经持久化
+                # 可以通过定时任务补偿或人工介入处理
                 self.log.error("orchestrator_async_task_complete_failed", error=str(e), exc_info=True)
 
-        # 如果指定，则将后续能力任务入队
+        # 操作3：将后续能力任务入队（如果指定）
+        # 支持能力任务的链式调用，实现复杂业务流程的编排
         if action.capability_message:
             try:
-                # 创建异步任务以保持可观测性和一致性
+                # 为后续能力任务创建异步任务记录，保持可观测性和一致性
                 from src.common.events.mapping import normalize_task_type
 
+                # 从领域事件或能力消息中提取相关ID信息
                 correlation_id = (action.domain_event or {}).get("correlation_id")
                 session_id = action.capability_message.get("session_id") or (action.domain_event or {}).get(
                     "session_id", ""
@@ -266,12 +336,15 @@ class OrchestratorAgent(BaseAgent):
                     input_data=action.capability_message.get("input") or {},
                 )
 
+                # 将后续能力任务入队
                 await self.outbox_manager.enqueue_capability_task(
                     capability_message=action.capability_message,
                     correlation_id=correlation_id,
                 )
                 self.log.info("orchestrator_followup_task_enqueued", topic=action.capability_message.get("_topic"))
             except Exception as e:
+                # 后续任务入队失败不应阻断当前处理流程
+                # 可以通过监控告警或补偿机制处理
                 self.log.error("orchestrator_followup_task_enqueue_failed", error=str(e), exc_info=True)
 
         return None

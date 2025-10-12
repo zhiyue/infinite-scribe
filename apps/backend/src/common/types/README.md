@@ -58,12 +58,6 @@ common/types/
 - `CapabilityEventData` - 能力事件数据
 - `CapabilityEventMessage` - 能力事件消息
 
-**工厂函数：**
-- `create_message_context()`
-- `create_generation_data()`
-- `create_capability_task_message()`
-- `create_capability_event_message()`
-
 ## 使用指南
 
 ### 推荐的导入方式

@@ -33,10 +33,6 @@ from src.common.types.messages import (
     TaskCompletionPayload,
     TaskInput,
     TaskResultData,
-    create_capability_event_message,
-    create_capability_task_message,
-    create_generation_data,
-    create_message_context,
 )
 
 __all__ = [
@@ -62,9 +58,4 @@ __all__ = [
     "TaskCompletionPayload",
     "CapabilityEventData",
     "CapabilityEventMessage",
-    # 工厂函数
-    "create_message_context",
-    "create_generation_data",
-    "create_capability_task_message",
-    "create_capability_event_message",
 ]
