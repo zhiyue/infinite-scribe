@@ -15,6 +15,7 @@ from src.common.events.config import (
     get_strategy_config,
     is_command_received_event,
     is_state_change_event,
+    infer_scope_from_topic,
 )
 from src.common.events.mapping import build_topic_name, extract_strategy_key_from_event_type, get_event_by_command
 from src.common.utils.datetime_utils import utc_now
@@ -142,7 +143,7 @@ class EventValidator:
         return data.get("command_type")
 
     @staticmethod
-    def extract_scope_info(event_type: str) -> tuple[str, str]:
+    def extract_scope_info(event_type: str, context: dict[str, Any] | None = None) -> tuple[str, str]:
         """从事件类型中提取作用域前缀和作用域类型。
 
         作用域信息用于确定事件的业务上下文（如genesis、worldbuild等），
@@ -157,12 +158,14 @@ class EventValidator:
         Returns:
             (作用域前缀, 作用域类型) 元组，例如：("genesis", "GENESIS")
         """
-        # 解析作用域前缀（事件类型的第一部分，点号之前）
-        # 如果事件类型不包含点号（格式异常），使用默认值避免解析错误
+        # 优先使用 topic → scope 的集中推断
+        topic = (context or {}).get("topic") if isinstance(context, dict) else None
+        if topic:
+            return infer_scope_from_topic(topic)
+
+        # 回退：从事件类型前缀推断
         scope_prefix = event_type.split(".", 1)[0] if "." in event_type else DEFAULT_VALUES["scope_prefix"]
-        # 转换为大写作为作用域类型，用于命令注册表的键匹配
-        # 注册表使用大写的作用域类型作为命令策略的分组标识
-        scope_type = scope_prefix.upper()  # 例如: genesis -> GENESIS
+        scope_type = scope_prefix.upper()
         return scope_prefix, scope_type
 
 
@@ -416,7 +419,7 @@ class DomainEventProcessor:
 
         # 提取作用域信息
         # 作用域确定了业务上下文（如genesis、worldbuild），影响消息路由和能力任务分配
-        scope_prefix, scope_type = self.event_validator.extract_scope_info(event_type)
+        scope_prefix, scope_type = self.event_validator.extract_scope_info(event_type, context)
 
         self.log.info(
             "orchestrator_processing_command",
