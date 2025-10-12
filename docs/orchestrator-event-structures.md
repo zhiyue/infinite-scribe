@@ -352,6 +352,95 @@ class OutboxPayloadBuilder:
         )
 ```
 
+### 3. IntentClassifier - 意图分类器
+
+**架构亮点**：意图驱动的智能路由，是 Orchestrator 的战略决策层。
+
+```python
+from src.agents.orchestrator.intent_classifier import IntentClassifier, IntentClassification
+
+class IntentClassifier:
+    """
+    意图分类器，负责识别用户命令的意图类型。
+
+    支持的意图类型：
+    - "inquiry": 查询意图 - 用户想了解某些信息
+    - "generation": 生成意图 - 用户想创作内容
+    """
+
+    async def classify(
+        self, command_type: str, payload: dict[str, Any]
+    ) -> IntentClassification | None:
+        """
+        分类用户命令的意图。
+
+        Args:
+            command_type: 命令类型
+            payload: 命令载荷数据
+
+        Returns:
+            IntentClassification 对象，包含：
+            - intent: "inquiry" | "generation"
+            - confidence: 0.0-1.0 置信度
+            - source: 分类来源标识
+            - reasoning: 分类推理说明（可选）
+        """
+        # 实现细节：基于规则、关键词或ML模型进行分类
+        pass
+
+
+class IntentClassification(BaseModel):
+    """意图分类结果"""
+    intent: str                    # "inquiry" | "generation"
+    confidence: float              # 0.0-1.0
+    source: str                    # 分类来源
+    reasoning: str | None = None   # 推理说明
+```
+
+**路由决策逻辑**：
+
+```python
+# 在 DomainEventProcessor 中的应用
+intent_result = await self.intent_classifier.classify(cmd_type, payload)
+
+if intent_result and intent_result.intent == "inquiry":
+    # 查询意图 → InquiryAgent
+    mapping = self._create_inquiry_mapping(
+        scope_type, scope_prefix, aggregate_id, payload
+    )
+else:
+    # 生成意图或未分类 → 传统命令映射
+    mapping = self.command_mapper.map_command(
+        cmd_type, scope_type, scope_prefix, aggregate_id, payload
+    )
+```
+
+**核心价值**：
+- **动态路由**：根据实际意图而非硬编码规则路由
+- **可扩展性**：新增 Agent 类型时无需修改核心流程
+- **可观测性**：意图信息传播到整个处理链路
+
+### 4. CommandRegistry - 命令注册表
+
+命令到能力任务的映射注册中心：
+
+```python
+from src.agents.orchestrator.command_strategies import command_registry
+
+# 处理命令映射
+mapping = command_registry.process_command(
+    cmd_type="Command.Genesis.Session.Seed.Request",
+    scope_type="GENESIS",
+    scope_prefix="Genesis",
+    aggregate_id="session-uuid",
+    payload=payload_data
+)
+
+# 返回 CommandMapping 对象：
+# - requested_action: 领域事件名称
+# - capability_message: 能力任务消息（包含 type, input, _topic, _key）
+```
+
 ## 前端 Command 到 Orchestrator 完整转换流程
 
 ### 1. 前端 Command 结构
@@ -426,21 +515,16 @@ async def enqueue_command_atomic():
 
 ### 4. EventOutbox 数据转换
 
-`ConversationOutboxManager.create_outbox_entry` 创建扁平化的 Outbox 条目：
+`ConversationOutboxManager.create_outbox_entry` 使用 `OutboxPayloadBuilder` 创建信封结构的 Outbox 条目：
 
 ```python
-# EventOutbox 扁平化载荷构建
-flat_payload = {
-    "event_id": str(dom_evt.event_id),
-    "event_type": dom_evt.event_type,
-    "aggregate_type": dom_evt.aggregate_type,
-    "aggregate_id": dom_evt.aggregate_id,
-    "metadata": dom_evt.event_metadata or {},
-}
-
-# 合并业务数据
-if dom_evt.payload:
-    flat_payload.update(dom_evt.payload)
+# 使用 OutboxPayloadBuilder 构建信封结构
+payload_envelope = (
+    OutboxPayloadBuilder
+    .from_domain_event(dom_evt)  # 从领域事件提取系统元数据
+    .build()                      # 构建 system + data 信封
+    .model_dump(exclude_none=True) # 序列化为字典
+)
 
 # 创建 EventOutbox 条目
 out = EventOutbox(
@@ -448,9 +532,9 @@ out = EventOutbox(
     topic=get_domain_topic(session.scope_type),
     key=str(session.id),
     partition_key=str(session.id),
-    payload=flat_payload,
+    payload=payload_envelope,  # 直接使用信封结构
     headers={
-        "event_type": dom_evt.event_type,
+        "event_type": payload_envelope["system"]["event_type"],
         "version": 1,
         "correlation_id": str(cmd.id),
     },
@@ -458,7 +542,10 @@ out = EventOutbox(
 )
 ```
 
-> 💡 注意：这里的扁平化载荷仅存在于 API 入队阶段，确保命令数据能跨进程传递。进入 Orchestrator 后会使用 `OutboxPayloadBuilder` 再次封装为 `system` + `data` 分层信封，保持系统与业务字段隔离。
+> 💡 **架构统一**：从 API 入队阶段开始，系统就使用 `OutboxPayloadBuilder` 构建 `system` + `data` + `schema_version` 信封结构。这确保了：
+> - **命名空间隔离**：系统元数据与业务数据完全分离
+> - **上下游一致**：Conversation 服务与 Orchestrator 使用相同的信封格式
+> - **类型安全**：通过 Pydantic 模型验证数据完整性
 
 ### 5. 完整转换示例
 
@@ -627,7 +714,16 @@ Orchestrator 通过 Kafka 消费到的消息格式：
 
 #### 步骤 5: DomainEventProcessor 处理结果
 
-Orchestrator 利用 `COMMAND_EVENT_MAPPING` 将 `Command.Genesis.Session.Seed.Request` 映射为 `Seed.Requested`，并返回如下结构供上层继续处理：
+Orchestrator 利用 `command_registry` 和 `IntentClassifier` 处理命令：
+
+**处理流程**：
+1. **意图分类**：通过 `IntentClassifier.classify()` 识别用户意图（查询 vs. 生成）
+2. **智能路由**：
+   - 查询意图 → 路由到 `InquiryAgent`
+   - 生成意图 → 使用 `command_registry.process_command()` 映射到相应的能力任务
+3. **结果返回**：生成包含映射、enriched_payload 和意图信息的处理结果
+
+返回结构示例：
 
 ```json
 {
@@ -666,7 +762,16 @@ Orchestrator 利用 `COMMAND_EVENT_MAPPING` 将 `Command.Genesis.Session.Seed.Re
       "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
       "user_input": "我想写一个关于时间旅行的科幻小说",
       "preferences": {}
-    }
+    },
+    "intent": "generation",
+    "intent_confidence": 0.95,
+    "intent_source": "classifier",
+    "intent_reasoning": "用户明确表达了创作意图"
+  },
+  "metadata": {
+    "user_id": "1",
+    "session_id": "d4eddedd-0e3e-4011-b208-f87f7ef1d062",
+    "timestamp": "2024-12-01T10:30:00.123Z"
   },
   "causation_id": "evt-550e8400-e29b-41d4-a716-446655440000"
 }
@@ -680,15 +785,17 @@ Orchestrator 利用 `COMMAND_EVENT_MAPPING` 将 `Command.Genesis.Session.Seed.Re
 graph TD
     A[Command.Genesis.Session.Seed.Request] -->|API 处理| B[CommandInbox 创建]
     B -->|领域事件| C[Genesis.Command.Received]
-    C -->|扁平化| D[EventOutbox 存储]
+    C -->|信封化| D[EventOutbox 存储]
     D -->|OutboxRelay| E[Kafka 发布]
     E -->|消费| F[Orchestrator 处理]
-    F -->|命令映射| G[Seed.Requested]
-    G -->|任务生成| H[ProcessingResult]
+    F -->|意图分类| F1[IntentClassifier]
+    F1 -->|查询意图| G1[InquiryAgent 路由]
+    F1 -->|生成意图| G2[command_registry 映射]
+    G1 & G2 -->|任务生成| H[ProcessingResult]
 
     subgraph "原子事务"
         I[CommandInbox] --> J[DomainEvent]
-        J --> K[EventOutbox]
+        J --> K[EventOutbox 信封结构]
         K --> L[ConversationRound]
     end
 
@@ -696,12 +803,14 @@ graph TD
         M[前端嵌套结构] --> N[领域事件载荷]
         N --> O[Outbox 信封化]
         O --> P[Kafka 消息]
+        P --> Q[Orchestrator 解析]
+        Q --> R[意图识别 + 路由]
     end
 
     subgraph "关联跟踪"
-        Q[Command ID] --> R[Correlation ID]
-        R --> S[Causation ID]
-        S --> T[Event Chain]
+        S[Command ID] --> T[Correlation ID]
+        T --> U[Causation ID]
+        U --> V[Event Chain]
     end
 
     B -.-> I
@@ -712,11 +821,13 @@ graph TD
     C -.-> N
     D -.-> O
     E -.-> P
+    F -.-> Q
+    F1 -.-> R
 
-    B -.-> Q
-    C -.-> R
-    F -.-> S
-    H -.-> T
+    B -.-> S
+    C -.-> T
+    F -.-> U
+    H -.-> V
 ```
 
 ## 重要澄清：EventBridgePublisher 的实际作用
@@ -886,10 +997,14 @@ sequenceDiagram
 
 ### 🔄 数据转换特点
 
-1. **结构重组**: 从嵌套的 Command 结构到扁平化 Outbox（入队阶段）再到 `system`/`data` 信封（Orchestrator 持久化），最终输出结构化结果
-2. **元数据增强**: 在每个步骤添加追踪、时间戳、版本等关键信息
-3. **业务语义保持**: 用户输入和业务逻辑在整个流程中保持语义完整性
-4. **向后兼容**: 支持 schema 演进和版本管理
+1. **结构重组**: 从嵌套的 Command 结构到 `system`/`data`/`schema_version` 信封结构，全流程保持命名空间隔离
+   - **API层**: 使用 `OutboxPayloadBuilder` 构建信封
+   - **Orchestrator层**: 解析信封并进行意图分类
+   - **持久化**: 保持信封结构的一致性
+2. **意图驱动路由**: 通过 `IntentClassifier` 实现智能路由决策
+3. **元数据增强**: 在每个步骤添加追踪、时间戳、版本、意图信息等关键元数据
+4. **业务语义保持**: 用户输入和业务逻辑在整个流程中保持语义完整性
+5. **向后兼容**: 支持 schema 演进和版本管理
 
 ### 🚀 系统优势
 
