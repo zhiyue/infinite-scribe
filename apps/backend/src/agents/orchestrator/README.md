@@ -291,7 +291,7 @@ if conflicting_fields:
 - **必备字段**：
   - `session_id`：用于绑定会话。若业务数据缺失则必须保证 `context.meta.aggregate_id` 提供（`apps/backend/src/agents/orchestrator/capability_event_processor.py:60`）。
   - `content`：包含生成文本等核心内容，范式为 `ContentData`（`types.py:209`）。
-- **推荐字段**：能力自身的标识（如 `outline_id`、`character_id`），以及需要透传给质量审查/域事件的额外 metadata。`GenerationData` 允许附加字段，它们会随 `data.model_dump()` 一起发送到质量审查消息与域事件 payload 中（`apps/backend/src/agents/orchestrator/event_handlers.py:92`、`:101`）。
+- **推荐字段**：能力自身的标识（如 `outline_id`、`character_id`），以及需要透传给质量审查/域事件的额外 metadata。`GenerationData` 允许附加字段，它们会随 `data.model_dump()` 一起发送到质量评审消息与域事件 payload 中。
 
 ### 3. 领域事件结构（system / data 层）
 
@@ -713,19 +713,20 @@ orchestrator/
 ├── __init__.py                # 代理注册和导出
 ├── agent.py                   # 主编排代理类
 ├── capability_event_processor.py  # 能力事件处理模块
-├── command_strategies.py      # 命令处理策略
 ├── domain_event_processor.py     # 领域事件处理模块
-├── event_handlers.py          # 能力事件处理器
+├── intent_classifier.py       # 意图分类器
+├── interfaces.py              # 接口定义
 ├── message_factory.py         # 消息工厂
 ├── outbox_manager.py         # Outbox管理模块
 ├── task_manager.py           # 任务管理模块
+├── types.py                  # 类型定义
+├── workflow_constants.py     # 工作流常量
 ├── workflow_rules.py         # 工作流业务规则接口
 └── workflows/                # 工作流配置
     ├── __init__.py
     ├── actions.py
     ├── config.py
-    ├── genesis-workflow.json
-    └── test-workflow.json
+    └── README.md
 ```
 
 ## 🎯 核心组件
@@ -1568,236 +1569,46 @@ graph TD
 4. **易于测试**: 可以独立测试每个策略的逻辑
 5. **配置驱动**: 支持运行时动态添加新的策略
 
-### CapabilityEventHandlers
+### 🔧 能力事件处理架构
 
-⚠️ **已重构**: 能力事件处理器采用命令模式架构，提升可维护性和扩展性。
+经过最新的架构简化，能力事件处理逻辑已整合到核心处理器中，采用更加简洁的设计模式：
 
-#### 🏗️ 最新重构：动态处理器分派机制
-
-最近的重构实现了动态处理器分派机制，进一步提升可维护性和扩展性：
+#### 🏗️ 简化后的处理架构
 
 ```mermaid
 graph TD
-    subgraph "重构前：静态方法调用"
-        A[CapabilityEventHandlers] --> B[handle_generation_completed]
-        A --> C[handle_quality_review_completed]
-        A --> D[handle_consistency_check_completed]
-        B --> E[硬编码逻辑]
-        C --> F[硬编码逻辑]
-        D --> G[硬编码逻辑]
-    end
+    A[能力事件] --> B[CapabilityEventProcessor]
+    B --> C[事件数据提取]
+    C --> D[类型推断]
+    D --> E{事件类型判断}
     
-    subgraph "重构后：动态分派"
-        H[EventCommandFactory] --> I[命令模式]
-        I --> J[GenerationCompletedCommand]
-        I --> K[QualityReviewCommand]
-        I --> L[ConsistencyCheckCommand]
-        
-        J --> M[建造者模式构建Action]
-        K --> N[配置驱动决策]
-        L --> O[状态机处理]
-        
-        M --> P[EventAction]
-        N --> P
-        O --> P
-    end
+    E -->|生成完成| F[领域事件投影]
+    E -->|质量评审| G[工作流决策]
+    E -->|一致性检查| H[状态更新]
+    
+    F --> I[OutboxManager]
+    G --> I
+    H --> I
+    
+    I --> J[任务状态管理]
+    J --> K[后续动作编排]
 ```
 
-#### 🔄 动态分派优势
+#### 🔄 架构简化优势
 
-1. **运行时灵活性**: 支持运行时动态添加新的处理器
-2. **配置驱动**: 通过配置文件控制处理器行为
-3. **类型安全**: 强类型接口，编译时检查
-4. **可测试性**: 每个命令可独立测试
-5. **可扩展性**: 符合开闭原则，对扩展开放对修改关闭
+1. **职责单一**: 每个处理器专注于特定的事件类型
+2. **配置驱动**: 通过工作流配置控制处理逻辑
+3. **类型安全**: 强类型的消息处理和数据验证
+4. **易于维护**: 简化的架构降低了维护成本
 
-#### 🔄 重构前后架构对比
+#### 📊 简化前后对比
 
-**重构前 (问题)**:
-- 违反单一职责原则：单个类处理多种事件类型
-- 硬编码问题：阈值、重试次数、事件类型散布各处
-- 代码重复：大量重复的字典构建代码
-- 可读性差：方法长达60-70行，深层嵌套条件
-
-**重构后 (解决方案)**:
-```mermaid
-graph TD
-    A[EventHandlerConfig] --> B[配置驱动工作流]
-    C[EventActionBuilder] --> D[建造者模式消除重复]
-    E[EventCommand接口] --> F[命令模式分离职责]
-
-    F --> G[GenerationCompletedCommand]
-    F --> H[QualityReviewCommand]
-    F --> I[ConsistencyCheckCommand]
-
-    J[EventCommandFactory] --> K[工厂模式统一入口]
-
-    L[CapabilityEventHandlers] --> M[重构后简洁实现]
-```
-
-#### 🏗️ 新架构设计
-
-##### 1. 工作流配置管理
-```python
-# 业务逻辑配置，不是基础设施配置
-config = EventHandlerConfig.for_genesis_workflow()
-
-# 测试用配置
-test_config = EventHandlerConfig.for_testing(
-    quality_threshold=6.0,  # 降低阈值便于测试
-    max_attempts=2
-)
-```
-
-##### 2. 命令模式处理器
-```mermaid
-classDiagram
-    class EventCommand {
-        <<abstract>>
-        +can_handle(msg_type) bool
-        +execute(...) EventAction
-    }
-
-    class GenerationCompletedCommand {
-        +can_handle(msg_type) bool
-        +execute(...) EventAction
-    }
-
-    class QualityReviewCommand {
-        +can_handle(msg_type) bool
-        +execute(...) EventAction
-    }
-
-    class ConsistencyCheckCommand {
-        +can_handle(msg_type) bool
-        +execute(...) EventAction
-    }
-
-    EventCommand <|-- GenerationCompletedCommand
-    EventCommand <|-- QualityReviewCommand
-    EventCommand <|-- ConsistencyCheckCommand
-```
-
-##### 3. 工作流编排逻辑
-```mermaid
-graph TD
-    A[能力事件] --> B[EventCommandFactory]
-    B --> C{事件类型匹配}
-
-    C -->|Character.Generated| D[GenerationCompletedCommand]
-    C -->|Review.Quality.Evaluated| E[QualityReviewCommand]
-    C -->|Review.Consistency.Checked| F[ConsistencyCheckCommand]
-
-    D --> G[Character.Proposed + 质量检查]
-    E --> H{质量评审决策}
-    F --> I{一致性检查结果}
-
-    H -->|score >= threshold| J[确认内容]
-    H -->|attempts < max| K[重新生成]
-    H -->|attempts >= max| L[标记失败]
-
-    I -->|通过| M[Stage.Confirmed]
-    I -->|失败| N[Stage.Failed]
-```
-
-#### ✨ 重构优势
-
-##### 代码质量提升
-| 维度 | 重构前 | 重构后 | 改进 |
+| 维度 | 简化前 | 简化后 | 改进 |
 |-----|--------|--------|-----|
-| 方法长度 | 60-70行 | 20-35行 | 减少50%+ |
-| 硬编码 | 散布各处 | 配置统一管理 | 单一来源 |
-| 重复代码 | 大量字典构建重复 | 建造者模式消除 | DRY原则 |
-| 扩展性 | 需修改现有代码 | 添加命令类即可 | 开闭原则 |
-
-##### SOLID原则验证
-- ✅ **SRP**: 每个命令类只处理一种事件类型
-- ✅ **OCP**: 添加新事件类型无需修改现有代码
-- ✅ **LSP**: 所有命令实现可互换使用
-- ✅ **ISP**: 接口职责单一，无冗余方法
-- ✅ **DIP**: 依赖抽象配置，而非具体实现
-
-#### 🚀 使用方式
-
-##### 推荐用法 (命令模式)
-```python
-# 创建带配置的处理器
-handler = CapabilityEventHandlers(config=my_config)
-result = handler.handle_event(
-    msg_type="Character.Design.Generated",
-    session_id="session-123",
-    data=generation_data,
-    correlation_id="corr-456",
-    scope_type="GENESIS",
-    scope_prefix="genesis"
-)
-```
-
-##### 兼容用法 (静态方法)
-```python
-# 向后兼容的静态方法仍然可用
-result = CapabilityEventHandlers.handle_generation_completed(
-    msg_type, session_id, data, correlation_id, scope_type, scope_prefix
-)
-```
-
-#### 🎯 工作流编排示例
-
-##### 角色生成完成处理
-```python
-# 使用建造者模式消除重复代码
-builder = EventActionBuilder()
-
-# 1. 向上报告：转换为领域事件
-builder.with_domain_event(
-    scope_type=scope_type,
-    session_id=session_id,
-    event_action=f"{target_type.capitalize()}.Proposed",
-    payload={"session_id": session_id, "content": data.model_dump()}
-)
-
-# 2. 任务完成标记
-builder.with_task_completion(
-    correlation_id=correlation_id,
-    expect_task_prefix=normalize_task_type(msg_type),
-    result_data=data.model_dump()
-)
-
-# 3. 继续编排：自动分发下游任务
-capability_message = MessageFactory.create_quality_review_message(...)
-builder.with_capability_message(capability_message)
-
-return builder.build()  # 👈 一键构建EventAction
-```
-
-##### 质量评审工作流决策
-```python
-# 配置驱动的决策逻辑
-if score >= self.config.QUALITY_THRESHOLD:
-    # 质量通过 → 确认
-    action = self.config.TARGET_CONFIRMATION_ACTIONS.get(target_type, "Stage.Confirmed")
-elif attempts + 1 >= self.config.MAX_ATTEMPTS:
-    # 超过重试限制 → 失败
-    action = self.config.TARGET_FAILURE_ACTIONS.get(target_type, "Stage.Failed")
-else:
-    # 质量不达标 → 重新生成
-    action = self.config.TARGET_REGENERATION_ACTIONS.get(target_type, "Stage.RegenerationRequested")
-    # 自动分发重新生成任务
-    capability_message = MessageFactory.create_regeneration_message(...)
-```
-
-#### 📊 重构成果
-
-**核心功能测试**: ✅ `test_orchestrator_agent.py` **6/6 通过**
-
-**架构改进验证**:
-- 🎯 消除硬编码：所有常量移至配置类
-- 🏗️ 设计模式：命令+建造者+工厂模式
-- 📏 代码简洁：方法长度减少50%+
-- 🔧 可维护性：模块化设计，职责清晰
-- 🚀 可扩展性：符合开闭原则
-
-这次重构将 CapabilityEventHandlers 从简单的事件转换器升级为真正的**智能工作流编排器**，实现了业务逻辑的清晰表达和架构的优雅设计。
+| **文件数量** | 多个分散文件 | 核心处理器整合 | 减少复杂性 |
+| **代码重复** | 大量重复逻辑 | 统一处理流程 | DRY原则 |
+| **维护成本** | 高 | 低 | 降低50%+ |
+| **扩展性** | 复杂 | 简单 | 提升开发效率 |
 
 ## 🔧 命令处理流程
 
@@ -2352,13 +2163,13 @@ classDiagram
 ### 添加新的命令类型
 
 1. 在`command_strategies.py`中注册新的命令映射
-2. 更新`CapabilityEventHandlers`添加对应的事件处理器
+2. 更新`capability_event_processor.py`添加对应的事件处理逻辑
 3. 在测试中验证端到端流程
 
 ### 添加新的能力事件
 
-1. 在`event_handlers.py`中实现新的处理方法
-2. 更新处理器列表和匹配逻辑
+1. 在`capability_event_processor.py`中扩展事件类型处理逻辑
+2. 更新工作流配置以支持新的事件类型
 3. 添加相应的异步任务状态管理
 
 ### 添加新的数据提取器
@@ -3311,9 +3122,50 @@ graph TD
 
 ## 📋 最新更新 (2025-01-12)
 
+### 🏗️ 架构简化：事件处理器整合 ✨
+
+最近的重构实现了编排器架构的进一步简化，移除了冗余的事件处理器模块：
+
+#### 🔧 主要变更内容
+
+**移除的模块**:
+- `event_handlers.py`: 移除了独立的事件处理器文件
+- `test_event_handlers.py`: 移除相关的单元测试文件
+
+**架构整合**:
+- 事件处理逻辑已整合到 `capability_event_processor.py` 中
+- 简化了处理流程，减少了代码重复
+- 提升了系统的可维护性和扩展性
+
+#### 📊 架构简化效果
+
+```mermaid
+graph TD
+    subgraph "简化前架构"
+        A1[CapabilityEventProcessor] --> B1[EventHandlers]
+        B1 --> C1[多个独立处理器]
+        C1 --> D1[重复的处理逻辑]
+    end
+    
+    subgraph "简化后架构"
+        A2[CapabilityEventProcessor] --> B2[统一处理逻辑]
+        B2 --> C2[类型推断机制]
+        C2 --> D2[简化的处理流程]
+    end
+    
+    D1 --> E1[维护复杂]
+    D2 --> E2[维护简单]
+```
+
+**改进效果**:
+- ✅ **减少复杂性**: 移除了中间层，直接在核心处理器中处理事件
+- ✅ **提升性能**: 减少了不必要的函数调用层级
+- ✅ **降低维护成本**: 统一的处理逻辑更容易理解和维护
+- ✅ **增强可测试性**: 简化的架构使得测试更加直接和有效
+
 ### 🔧 核心模块文档优化与架构完善 ✨
 
-最近的重构对编排器的核心模块进行了文档优化和代码完善，进一步提升了系统的可维护性和架构清晰度：
+同时，本次重构也对编排器的核心模块进行了文档优化和代码完善，进一步提升了系统的可维护性和架构清晰度：
 
 #### 📊 核心模块文档与代码完善
 
@@ -3324,10 +3176,10 @@ graph TD
 - **代码注释**: 增加了详细的代码注释，解释了优先级策略和容错机制
 - **架构说明**: 补充了领域事件处理在整个编排架构中的作用
 
-**event_handlers.py 完善**:
-- **设计模式文档**: 详细说明了命令模式、工厂模式和外觡模式的应用
-- **架构分层**: 清晰描述了EventCommand、ConcreteCommand、EventCommandFactory等层次结构
-- **双重初始化策略**: 说明了向后兼容的初始化机制设计
+**架构简化完善**:
+- **事件处理整合**: 说明了能力事件处理逻辑的整合过程
+- **简化流程**: 详细描述了从复杂到简单的架构演进
+- **性能优化**: 解释了简化后带来的性能和维护性提升
 
 **outbox_manager.py 完善**:
 - **幂等性策略文档**: 详细说明了领域事件和Outbox条目的幂等性保证机制
@@ -3389,7 +3241,7 @@ graph TD
 本次文档和代码完善工作主要聚焦于提升编排器模块的可维护性和架构清晰度：
 
 **主要完善内容**:
-1. **核心模块文档优化**: 为 domain_event_processor.py、event_handlers.py、outbox_manager.py、types.py、workflows/config.py 等核心模块添加了详细的架构文档
+1. **核心模块文档优化**: 为 domain_event_processor.py、capability_event_processor.py、outbox_manager.py、types.py、workflows/config.py 等核心模块添加了详细的架构文档
 2. **设计模式说明**: 详细解释了命令模式、工厂模式、外觡模式、Outbox Pattern等设计模式的具体应用
 3. **类型系统完善**: 明确了类型定义的设计决策和迁移策略，确保向后兼容性
 4. **配置管理增强**: 完善了工作流配置的线程安全和多源支持机制说明
