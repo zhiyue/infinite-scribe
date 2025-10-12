@@ -41,12 +41,15 @@ class DomainEventIdempotencyChecker:
             如果存在则返回DomainEvent对象，否则返回None
         """
         try:
-            # 安全地转换correlation_id为UUID
+            # 安全地转换correlation_id为UUID，防止非法格式导致查询失败
             safe_correlation_id = safe_uuid_conversion(correlation_id)
             if safe_correlation_id is None:
                 # 如果correlation_id无法转换为UUID，视为没有现有事件
+                # 这避免了因格式错误导致查询异常，同时允许系统继续处理
                 return None
 
+            # 使用correlation_id和事件类型的组合来确保幂等性
+            # 这确保相同的业务操作不会重复创建领域事件
             return await db_session.scalar(
                 select(DomainEvent).where(
                     and_(
@@ -65,7 +68,10 @@ class DomainEventIdempotencyChecker:
                 error_type=type(e).__name__,
                 message="数据库查询失败，假定不存在现有事件以保证系统可用性",
             )
-            # 如果发生任何其他错误，视为没有现有事件以保证系统可用性
+            # 采用"假定不存在"策略而非抛出异常：
+            # 1. 避免因网络抖动或临时数据库问题导致整个流程中断
+            # 2. 最坏情况是创建重复事件，这可以通过下游的幂等性检查处理
+            # 3. 优先保证系统可用性而非绝对的数据一致性
             return None
 
 
@@ -110,7 +116,8 @@ class DomainEventCreator:
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
 
-        # 检查现有领域事件（幂等性）
+        # 检查现有领域事件（幂等性保证）
+        # 通过correlation_id确保相同的业务请求不会创建多个领域事件
         existing = None
         if correlation_id:
             self.log.debug(
@@ -122,6 +129,8 @@ class DomainEventCreator:
             existing = await self.idempotency_checker.check_existing_domain_event(correlation_id, evt_type, db_session)
 
             if existing:
+                # 找到现有事件，直接返回以避免重复创建
+                # 这是幂等性的关键：相同的correlation_id + event_type只产生一个事件
                 self.log.info(
                     "orchestrator_domain_event_already_exists",
                     correlation_id=correlation_id,
@@ -147,10 +156,12 @@ class DomainEventCreator:
         )
 
         # 安全地转换correlation_id和causation_id为UUID
+        # 使用安全转换避免因格式错误导致数据库插入失败
         safe_correlation_id = safe_uuid_conversion(correlation_id)
         safe_causation_id = safe_uuid_conversion(causation_id)
 
-        # 记录UUID转换失败的情况
+        # 记录UUID转换失败的情况，便于追踪数据质量问题
+        # 采用降级策略：使用None而非抛出异常，保证系统继续运行
         if correlation_id and safe_correlation_id is None:
             self.log.warning(
                 "orchestrator_invalid_correlation_id_format",
@@ -165,25 +176,31 @@ class DomainEventCreator:
             )
 
         # 构建事件元数据，包含必要的上下文信息
+        # 元数据用于事件追踪、过滤和监控，与业务payload分离
         event_metadata = EventMetadata(source="orchestrator").model_dump(exclude_none=True)
 
-        # 从payload中提取并添加关键字段到metadata
+        # 从显式metadata参数中提取关键字段
+        # 允许调用方直接传递额外的元数据信息
         if metadata:
             event_metadata.update(metadata)
 
-        # 从payload中提取user_id、novel_id、timestamp等字段到metadata
+        # 从payload中提取关键业务字段到metadata
+        # 目的：将常用的查询和过滤字段提升到metadata层，方便：
+        # 1. 下游系统快速过滤事件（无需解析payload）
+        # 2. 监控和告警系统按用户/小说维度统计
+        # 3. 保持payload的纯粹性（只包含业务数据）
         if isinstance(payload, dict):
-            # 提取user_id
+            # 提取用户ID，用于按用户维度的事件追踪和权限验证
             user_id = payload.get("user_id")
             if user_id:
                 event_metadata["user_id"] = user_id
 
-            # 提取novel_id
+            # 提取小说ID，用于按小说维度的事件追踪和数据隔离
             novel_id = payload.get("novel_id")
             if novel_id:
                 event_metadata["novel_id"] = novel_id
 
-            # 提取timestamp
+            # 提取时间戳，用于事件时序分析和调试
             timestamp = payload.get("timestamp")
             if timestamp:
                 event_metadata["timestamp"] = timestamp
@@ -245,6 +262,9 @@ class OutboxEntryCreator:
         topic = get_domain_topic(scope_type)
 
         # 检查现有outbox条目（通过领域事件ID进行幂等性检查）
+        # 由于outbox的ID直接使用domain_event.event_id，因此：
+        # 1. 每个领域事件最多对应一个outbox条目
+        # 2. 避免重复发布相同的事件到消息队列
         self.log.debug(
             "orchestrator_checking_outbox_entry",
             domain_event_id=str(domain_event.event_id),
@@ -252,6 +272,8 @@ class OutboxEntryCreator:
 
         existing_outbox = await self._check_existing_outbox(domain_event.event_id, db_session)
         if existing_outbox:
+            # 找到现有条目，直接返回
+            # 即使状态是FAILED，也不重新创建，而是让重试机制处理
             self.log.debug(
                 "orchestrator_outbox_entry_already_exists",
                 event_id=str(domain_event.event_id),
