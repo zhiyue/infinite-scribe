@@ -121,18 +121,18 @@ classDiagram
 3. **元数据管理**: 自动添加代理名称、时间戳等元数据
 4. **错误处理**: 完善的错误验证和日志记录
 
-### 2. OutboxPayloadEnvelope - 消息封装
+### 2. DomainEventEnvelope - 消息封装
 
 标准化的消息载荷结构，分离系统元数据和业务数据：
 
 ```mermaid
 classDiagram
-    class OutboxPayloadEnvelope {
+    class DomainEventEnvelope {
         +system: SystemMetadata
         +data: dict
         +schema_version: str
     }
-    
+
     class SystemMetadata {
         +event_id: str
         +event_type: str
@@ -144,20 +144,20 @@ classDiagram
         +created_at: str
         +event_version: int
     }
-    
-    class OutboxPayloadBuilder {
+
+    class DomainEventBuilder {
         -_system_metadata: dict
         -_business_data: dict
         -_schema_version: str
-        
-        +with_domain_event(event) OutboxPayloadBuilder
-        +with_business_data(data) OutboxPayloadBuilder
-        +with_schema_version(version) OutboxPayloadBuilder
-        +build() OutboxPayloadEnvelope
+
+        +with_domain_event(event) DomainEventBuilder
+        +with_business_data(data) DomainEventBuilder
+        +with_schema_version(version) DomainEventBuilder
+        +build() DomainEventEnvelope
     }
-    
-    OutboxPayloadEnvelope --> SystemMetadata : 包含
-    OutboxPayloadBuilder --> OutboxPayloadEnvelope : 构建
+
+    DomainEventEnvelope --> SystemMetadata : 包含
+    DomainEventBuilder --> DomainEventEnvelope : 构建
 ```
 
 #### 数据分离原则
@@ -230,7 +230,7 @@ print(f"Batch messages enqueued: {len(outbox_ids)}")
 #### 使用载荷构建器
 
 ```python
-from src.common.outbox.payload import OutboxPayloadBuilder
+from src.common.events import DomainEventBuilder
 from src.models.event import DomainEvent
 
 # 从领域事件构建载荷
@@ -243,7 +243,7 @@ domain_event = DomainEvent(
 )
 
 # 使用构建器创建标准化载荷
-envelope = (OutboxPayloadBuilder
+envelope = (DomainEventBuilder
     .from_domain_event(domain_event)
     .with_schema_version("v2")
     .build())

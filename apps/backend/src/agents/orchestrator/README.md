@@ -87,24 +87,24 @@ classDiagram
         +event_version: int | None
     }
     
-    class OutboxPayloadEnvelope {
+    class DomainEventEnvelope {
         +system: SystemMetadata
         +data: dict[str, Any]
         +schema_version: str
     }
-    
-    class OutboxPayloadBuilder {
+
+    class DomainEventBuilder {
         -_system_metadata: dict[str, Any]
         -_business_data: dict[str, Any]
         -_schema_version: str
-        +with_domain_event(event) OutboxPayloadBuilder
-        +with_business_data(data) OutboxPayloadBuilder
-        +with_schema_version(version) OutboxPayloadBuilder
-        +build() OutboxPayloadEnvelope
+        +with_domain_event(event) DomainEventBuilder
+        +with_business_data(data) DomainEventBuilder
+        +with_schema_version(version) DomainEventBuilder
+        +build() DomainEventEnvelope
     }
-    
-    OutboxPayloadBuilder --> OutboxPayloadEnvelope
-    OutboxPayloadEnvelope --> SystemMetadata
+
+    DomainEventBuilder --> DomainEventEnvelope
+    DomainEventEnvelope --> SystemMetadata
 ```
 
 **核心优势**：
@@ -119,16 +119,16 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant O as OutboxManager
-    participant B as OutboxPayloadBuilder
-    participant E as OutboxPayloadEnvelope
+    participant B as DomainEventBuilder
+    participant E as DomainEventEnvelope
     participant D as DomainEvent
-    
+
     O->>B: from_domain_event(domain_event)
     B->>B: 提取系统元数据
     B->>B: 设置业务数据
     B->>B: 冲突字段检测
     B->>E: build()
-    
+
     E->>O: 结构化信封
     O->>O: 扁平化输出（兼容现有消费者）
     
@@ -184,7 +184,7 @@ if conflicts:
 
 ### 领域事件有效负载构建逻辑增强 ✨
 
-在新的 Pydantic 类型系统和 OutboxPayloadBuilder 基础上，进一步增强了领域事件有效负载构建逻辑：
+在新的 Pydantic 类型系统和 DomainEventBuilder 基础上，进一步增强了领域事件有效负载构建逻辑：
 
 ```mermaid
 graph TD

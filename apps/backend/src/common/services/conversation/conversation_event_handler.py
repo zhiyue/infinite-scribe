@@ -15,7 +15,7 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.common.outbox import OutboxPayloadBuilder
+from src.common.events.envelope import DomainEventBuilder
 from src.common.utils.datetime_utils import utc_now
 from src.models.conversation import ConversationRound, ConversationSession
 from src.models.event import DomainEvent
@@ -186,7 +186,7 @@ class ConversationEventHandler:
         corr_uuid: UUID | None,
     ) -> None:
         """Create outbox entry for domain event."""
-        payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
+        payload_envelope = DomainEventBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
         out = EventOutbox(
             id=dom_evt.event_id,
@@ -256,7 +256,7 @@ class ConversationEventHandler:
             db.add(dom_evt)
             await db.flush()
 
-            payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
+            payload_envelope = DomainEventBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
             out = EventOutbox(
                 id=dom_evt.event_id,
@@ -344,7 +344,7 @@ class ConversationEventHandler:
         except ArgumentError:
             existing_out = None
         if not existing_out:
-            payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
+            payload_envelope = DomainEventBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
             out = EventOutbox(
                 id=dom_evt.event_id,

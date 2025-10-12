@@ -187,7 +187,7 @@ class InquiryAgent(BaseAgent):
         # - key: 分区键，用于消息有序性
         # - result: 消息负载，遵循GenerationData约定
         # - correlation_id: 链路追踪ID
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,  # 标识消息来源为inquiry智能体
             topic="genesis.inquiry.events",  # 标准的查询事件主题
             key=session_id,  # 使用session_id作为分区键，保证同一会话的消息顺序

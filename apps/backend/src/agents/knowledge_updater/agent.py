@@ -61,7 +61,7 @@ class KnowledgeUpdateAgent(BaseAgent):
         )
 
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.knowledge.events",
             key=(str(chapter_id) if chapter_id is not None else None),

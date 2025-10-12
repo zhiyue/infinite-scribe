@@ -339,6 +339,7 @@ def extract_strategy_key_from_event_type(event_type: str) -> str | None:
             "world": "world",
             "plot": "plot",
             "details": "details",
+            "inquiry": "inquiry",
         }
         return prefix_mapping.get(prefix)
     return None

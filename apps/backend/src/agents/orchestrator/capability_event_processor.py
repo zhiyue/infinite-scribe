@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.agents.orchestrator.message_factory import MessageFactory
 from src.agents.orchestrator.types import (
     CapabilityEventMessage,
     EventAction,
@@ -25,7 +24,6 @@ from src.common.events.config import infer_scope_from_topic
 from src.common.events.mapping import (
     extract_strategy_key_from_event_type,
     is_generation_completed_event,
-    is_quality_review_event,
     normalize_task_type,
 )
 
@@ -179,59 +177,115 @@ class CapabilityEventProcessor:
         if not session_id:
             return None
 
-        # 生成完成 → 发布 Proposed + 完成任务 + 触发质量评审
+        # 生成完成 → 完成任务
         if is_generation_completed_event(msg_type):
-            target_type = self._target_from_msg_type(msg_type)
-            if not target_type:
-                return None
-
-            task_prefix = normalize_task_type(msg_type)
-
-            # 构建领域事件数据
-            domain_event = {
-                "scope_type": scope_info.scope_type,
-                "session_id": session_id,
-                "event_action": f"{target_type.capitalize()}.Proposed",
-                "payload": {"session_id": session_id, "content": data.model_dump()},
-                "correlation_id": correlation_id,
-                "causation_id": causation_id,
-            }
-
-            # 构建任务完成数据
-            task_completion = {
-                "correlation_id": correlation_id,
-                "expect_task_prefix": task_prefix,
-                "result_data": data.model_dump(),
-            }
-
-            # 构建能力消息
-            capability_message = MessageFactory.create_quality_review_message(
+            return self._build_generation_completed_action(
+                msg_type=msg_type,
                 session_id=session_id,
-                target_type=target_type,
-                content=data.model_dump(),
-                scope_prefix=scope_info.scope_prefix,
+                data=data,
+                correlation_id=correlation_id,
+                scope_info=scope_info,
+                causation_id=causation_id,
             )
-
-            # 直接构造 EventAction（替代 EventActionBuilder）
-            return EventAction(
-                domain_event=domain_event,
-                task_completion=task_completion,
-                capability_message=capability_message,
-            )
-
-        # 质量评审类事件：此处理器不直接处理，留给领域流程
-        if is_quality_review_event(msg_type):
-            return None
 
         return None
+
+    def _build_generation_completed_action(
+        self,
+        *,
+        msg_type: str,
+        session_id: str,
+        data: GenerationData,
+        correlation_id: str | None,
+        scope_info: ScopeInfo,
+        causation_id: str | None,
+    ) -> EventAction | None:
+        """构建生成完成事件的 EventAction
+
+        将生成完成事件转换为：
+        - 领域事件（domain_event）：用于发布到事件总线
+        - 任务完成数据（task_completion）：用于标记任务完成
+
+        Args:
+            msg_type: 消息类型（如 "genesis.outline.completed"）
+            session_id: 会话ID
+            data: 生成数据
+            correlation_id: 关联ID，用于追踪事件链
+            scope_info: 作用域信息
+            causation_id: 因果ID，记录触发此事件的原始事件
+
+        Returns:
+            EventAction: 包含领域事件和任务完成数据
+            None: 无法提取目标类型时
+        """
+        target_or_action = self._target_from_msg_type(msg_type)
+        if not target_or_action:
+            return None
+
+        task_prefix = normalize_task_type(msg_type)
+
+        # 构建领域事件数据
+        # _target_from_msg_type 现在可能直接返回完整的事件动作（如 "Character.Proposed" 或 "Inquiry.Finished"）
+        # 若仅返回目标（如 "character"），则默认拼接 ".Proposed"
+        event_action = target_or_action if "." in target_or_action else f"{target_or_action.capitalize()}.Proposed"
+
+        domain_event = {
+            "scope_type": scope_info.scope_type,
+            "session_id": session_id,
+            "event_action": event_action,
+            "payload": {"session_id": session_id, "content": data.model_dump()},
+            "correlation_id": correlation_id,
+            "causation_id": causation_id,
+        }
+
+        # 构建任务完成数据
+        task_completion = {
+            "correlation_id": correlation_id,
+            "expect_task_prefix": task_prefix,
+            "result_data": data.model_dump(),
+        }
+
+        return EventAction(
+            domain_event=domain_event,
+            task_completion=task_completion,
+        )
 
     @staticmethod
     def _target_from_msg_type(msg_type: str) -> str | None:
-        """从 msg_type 推断目标类型（character/theme/…）。"""
-        target = extract_strategy_key_from_event_type(msg_type)
-        if target:
-            return target
-        parts = msg_type.split(".")
-        if len(parts) >= 2:
-            return parts[1].lower()
-        return None
+        """从 msg_type 推断完整事件动作后缀，以构建领域事件。
+
+        约定：
+        - 生成完成类事件（*.Generated）通常落地为领域事件的 "<Target>.Proposed"
+        - Inquiry 生成完成（Inquiry.Response.Generated）视为一次完整问答流程，落地为 "Inquiry.Finished"
+
+        返回：
+        - 完整事件动作（如 "Character.Proposed"、"Theme.Proposed"、"Inquiry.Finished"），
+          或当无法确定动作时返回目标（如 "character"），由调用方补全默认动作。
+        """
+        # 精确映射：特殊策略
+        exact_action_map = {
+            # Inquiry：回答生成完成 → 整体问答流程完成
+            "Inquiry.Response.Generated": "Inquiry.Finished",
+        }
+        if msg_type in exact_action_map:
+            return exact_action_map[msg_type]
+
+        # 通用策略：识别目标并默认投影为 Proposed（AI草案产出）
+        target_key = extract_strategy_key_from_event_type(msg_type)
+        if target_key:
+            return f"{target_key.capitalize()}.Proposed"
+
+        # 兜底：按能力事件前缀/后缀推断
+        parts = msg_type.split(".") if msg_type else []
+        if not parts:
+            return None
+
+        # 常见的“已生成”结尾 → Proposed
+        if parts[-1] == "Generated":
+            # 对于如 Character.Design.Generated / Outliner.Theme.Generated
+            # 统一回退到第一段作为目标
+            sub = parts[0]
+            return f"{sub.capitalize()}.Proposed"
+
+        # 默认返回第一段目标（调用方将按需补全动作）
+        return parts[0].lower()

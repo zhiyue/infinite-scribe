@@ -66,7 +66,7 @@ class WriterAgent(BaseAgent):
 
         # Enqueue capability event via Outbox (Relay publishes to Kafka)
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.writer.events",
             key=(str(chapter_id) if chapter_id is not None else None),
@@ -99,7 +99,7 @@ class WriterAgent(BaseAgent):
         content = await self._generate_with_tools(user_prompt)
 
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.writer.events",
             key=(str(scene_id) if scene_id is not None else None),
@@ -131,7 +131,7 @@ class WriterAgent(BaseAgent):
         rewritten_content = await self._generate_with_tools(user_prompt)
 
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.writer.events",
             key=(str(content_id) if content_id is not None else None),

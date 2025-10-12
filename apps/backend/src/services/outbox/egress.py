@@ -5,7 +5,7 @@ Provides a simple async interface for agents to enqueue messages to the
 
 Usage:
     egress = OutboxEgress()
-    await egress.enqueue_envelope(
+    await egress.enqueue_capability_envelope(
         agent="writer",
         topic="genesis.writer.events",
         key="chapter-1",
@@ -18,16 +18,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.agents.message import encode_message
+from src.common.messaging import encode_capability_message
 from src.db.sql.session import create_sql_session
 from src.models.workflow import EventOutbox
 from src.schemas.enums import OutboxStatus
 
 
 class OutboxEgress:
-    """Helper for enqueuing messages to EventOutbox with Envelope encoding."""
+    """Helper for enqueuing messages to EventOutbox with CapabilityEventEnvelope encoding."""
 
-    async def enqueue_envelope(
+    async def enqueue_capability_envelope(
         self,
         *,
         agent: str,
@@ -38,11 +38,11 @@ class OutboxEgress:
         retries: int = 0,
         headers_extra: dict[str, Any] | None = None,
     ) -> str:
-        """Encode `result` as Envelope and write to EventOutbox.
+        """Encode `result` as CapabilityEventEnvelope and write to EventOutbox.
 
         Returns: outbox row id as string
         """
-        envelope = encode_message(agent, result, correlation_id=correlation_id, retries=retries)
+        envelope = encode_capability_message(agent, result, correlation_id=correlation_id, retries=retries)
         async with create_sql_session() as db:
             out = EventOutbox(
                 topic=topic,
@@ -97,8 +97,8 @@ class OutboxEgress:
                 "timestamp": event.get("timestamp"),
             }
 
-            # Store directly to outbox without using enqueue_envelope
-            # since that would wrap it in Envelope structure
+            # Store directly to outbox without using enqueue_capability_envelope
+            # since that would wrap it in CapabilityEventEnvelope structure
             async with create_sql_session() as db:
                 out = EventOutbox(
                     topic=topic,
@@ -119,6 +119,7 @@ class OutboxEgress:
 
         except Exception as e:
             from src.core.logging import get_logger
+
             logger = get_logger(__name__)
             logger.error(f"Failed to store event in outbox: {e}", exc_info=True)
             return False

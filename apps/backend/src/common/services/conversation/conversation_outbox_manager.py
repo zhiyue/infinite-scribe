@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import get_domain_topic
-from src.common.outbox import OutboxPayloadBuilder
+from src.common.events.envelope import DomainEventBuilder
 from src.models.workflow import EventOutbox
 from src.schemas.enums import OutboxStatus
 
@@ -45,7 +45,7 @@ class ConversationOutboxManager:
         cmd: Any,  # CommandInbox
     ) -> None:
         """Create new EventOutbox entry."""
-        payload_envelope = OutboxPayloadBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
+        payload_envelope = DomainEventBuilder.from_domain_event(dom_evt).build().model_dump(exclude_none=True)
 
         out = EventOutbox(
             id=dom_evt.event_id,

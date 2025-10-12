@@ -367,7 +367,7 @@ python -m src.agents.main --with-deps writer
 
 ```python
 from src.agents.base import BaseAgent
-from src.agents.message import encode_message, decode_message
+from src.common.messaging import encode_message, decode_message
 
 class CustomAgent(BaseAgent):
     async def process_message(self, message: dict, context: dict = None) -> dict:

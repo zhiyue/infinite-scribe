@@ -63,7 +63,7 @@ class ContentAnalyzerAgent(BaseAgent):
         analysis = await self._call_llm(prompt)
 
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.analyzer.events",
             key=(str(chapter_id) if chapter_id is not None else None),
@@ -87,7 +87,7 @@ class ContentAnalyzerAgent(BaseAgent):
         analysis = await self._call_llm(prompt)
 
         corr_id = (context or {}).get("meta", {}).get("correlation_id") if context else None
-        await self.egress.enqueue_envelope(
+        await self.egress.enqueue_capability_envelope(
             agent=self.name,
             topic="genesis.analyzer.events",
             key=(str(scene_id) if scene_id is not None else None),

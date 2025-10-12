@@ -31,10 +31,11 @@ from uuid import UUID
 
 from sqlalchemy import and_, select
 
-from src.agents.message import encode_message
 from src.agents.orchestrator.types import EventMetadata, EventOutboxHeaders
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.common.outbox import BaseOutboxManager, OutboxPayloadBuilder
+from src.common.events.envelope import DomainEventBuilder
+from src.common.messaging import encode_capability_message
+from src.common.outbox import BaseOutboxManager
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger
 from src.db.sql.session import create_sql_session
@@ -292,7 +293,7 @@ class OutboxEntryCreator:
     """Outbox条目创建器，处理outbox条目的创建逻辑。
 
     职责：
-    1. 从领域事件构建outbox条目（使用OutboxPayloadBuilder）
+    1. 从领域事件构建outbox条目（使用DomainEventBuilder）
     2. 提供幂等性检查（通过event_id）
     3. 构建Kafka消息的headers（用于路由和过滤）
 
@@ -449,7 +450,7 @@ class OutboxEntryCreator:
             分层结构的payload字典
         """
         try:
-            payload_envelope = OutboxPayloadBuilder.from_domain_event(domain_event).build()
+            payload_envelope = DomainEventBuilder.from_domain_event(domain_event).build()
 
             self.log.debug(
                 "outbox_payload_built_with_builder",
@@ -522,7 +523,7 @@ class CapabilityTaskEnqueuer:
         # 移除以_开头的内部字段，保持发送到Kafka的payload纯净
         result_payload = {k: v for k, v in capability_message.items() if k not in {"_topic", "_key"}}
         # 使用标准的消息编码格式，包含type、version、data等字段
-        envelope = encode_message(self.agent_name, result_payload, correlation_id=correlation_id, retries=0)
+        envelope = encode_capability_message(self.agent_name, result_payload, correlation_id=correlation_id, retries=0)
 
         # 构建headers，用于消息追踪和路由
         # headers与payload分离，便于中间件和消费者快速过滤

@@ -7,8 +7,8 @@ from typing import Any, Literal, cast
 
 from src.agents.agent_metrics import AgentMetrics
 from src.agents.error_handler import ErrorHandler
-from src.agents.message import decode_message, encode_message
 from src.agents.metrics import record_latency
+from src.common.messaging import decode_message, encode_capability_message
 from src.common.outbox import BaseOutboxManager
 from src.core.logging.config import get_logger
 
@@ -242,7 +242,7 @@ class MessageProcessor:
         retries: int,
         correlation_id: str | None,
         message_id: str | None,
-        outbox_manager: "BaseOutboxManager | None" = None,
+        outbox_manager: BaseOutboxManager | None,
     ) -> None:
         """通过发件箱将处理结果发送到输出主题。
 
@@ -276,7 +276,7 @@ class MessageProcessor:
         result.setdefault("retries", retries)
 
         # 编码为Envelope格式
-        encoded = encode_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
+        encoded = encode_capability_message(self.agent_name, result, correlation_id=correlation_id, retries=retries)
 
         # 通过发件箱发送以确保可靠传递
         if outbox_manager:

@@ -572,7 +572,7 @@ def setup_outbox_monitoring():
 
 ## 🔗 相关模块
 
-- **消息编码**：`src.agents.message` - 信封编码和解码
+- **消息编码**：`src.common.messaging` - 信封编码和解码
 - **数据模型**：`src.models.workflow` - EventOutbox 模型定义
 - **数据库会话**：`src.db.sql.session` - 数据库会话管理
 - **中继服务**：`src.services.outbox.relay` - OutboxRelay 服务
