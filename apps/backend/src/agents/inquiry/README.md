@@ -308,217 +308,239 @@ llm_config = {
 }
 ```
 
-## 📋 最新更新 (2025-01-11)
+## 📋 最新更新 (2025-01-12)
 
-### 🔧 查询代理架构优化与分区键支持
+### 🔧 Outbox 模式集成与事件驱动架构
 
-最近对 `inquiry/agent.py` 进行了重要重构，增强了查询处理能力和系统健壮性：
+`inquiry/agent.py` 已升级为采用 Outbox 模式和事件驱动架构的现代化智能代理：
 
 #### 🎯 核心改进
 
-1. **智能查询路由**: 基于 LLM 的查询类型自动识别
-2. **专业化处理器**: 针对不同查询类型的专门处理逻辑
-3. **容错机制**: 完善的错误处理和降级策略
-4. **上下文感知**: 基于会话和用户信息的个性化响应
-5. **分区键支持**: 新增 `_key` 字段支持消息按会话分区，确保消息顺序性
+1. **Outbox 模式**: 通过 OutboxEgress 实现可靠的消息投递
+2. **事件驱动架构**: 遵循 Envelope 标准的统一消息格式
+3. **GenerationData 约定**: 响应数据遵循 content/metadata 结构
+4. **依赖注入设计**: 提高可测试性和模块化
+5. **异步处理**: 所有 IO 操作均为异步，提高并发性能
 
-#### 🔧 分区键机制实现
+#### 🏗️ Outbox 模式架构
 
-新增了基于会话ID的消息分区机制：
-
-```python
-# 响应消息中的分区键
-return {
-    "type": "Inquiry.Response.Generated",
-    "session_id": session_id,
-    "_key": session_id,  # 分区键，确保按会话有序处理
-    # ... 其他字段
-}
+```mermaid
+sequenceDiagram
+    participant U as 用户查询
+    participant IA as InquiryAgent
+    participant OB as OutboxEgress
+    participant DB as 数据库
+    participant K as Kafka
+    
+    U->>IA: 发送查询消息
+    IA->>IA: 解析查询内容
+    IA->>IA: 识别查询类型
+    IA->>IA: 路由到处理器
+    IA->>IA: 生成响应数据
+    
+    Note over IA,OB: Outbox 模式消息投递
+    IA->>OB: 入队响应消息
+    OB->>DB: 持久化到 Outbox 表
+    DB-->>OB: 确认写入成功
+    OB->>K: 异步发送到 Kafka
+    K-->>OB: 确认发送成功
+    OB->>DB: 标记消息已发送
+    
+    Note over IA: 返回 None (异步发布模式)
 ```
 
-**优势**：
-- **消息顺序性**: 确保同一会话的消息按序处理
-- **并行处理**: 不同会话的消息可以并行处理
-- **负载均衡**: 基于会话ID进行负载分散
-- **状态一致性**: 维护会话状态的一致性
-
-#### 🏗️ 架构增强
+#### 🎯 GenerationData 标准响应格式
 
 ```mermaid
 graph TD
-    subgraph "输入处理层"
-        A[原始查询] --> B[查询提取器]
-        B --> C[上下文解析器]
-        C --> D[意图分析器]
-    end
+    A[查询请求] --> B[处理器路由]
+    B --> C[数据查询]
+    C --> D[LLM 生成响应]
+    D --> E[构建 GenerationData]
     
-    subgraph "智能路由层"
-        D --> E{查询类型判断}
-        E -->|progress| F[进度处理器]
-        E -->|character| G[角色处理器]
-        E -->|world| H[世界观处理器]
-        E -->|system| I[系统处理器]
-        E -->|general| J[通用处理器]
-    end
+    E --> F[content 结构]
+    F --> F1[text: 主要响应文本]
+    F --> F2[title: 查询类型]
+    F --> F3[metadata: 结构化元数据]
     
-    subgraph "响应生成层"
-        F --> K[专业数据查询]
-        G --> L[角色知识库]
-        H --> M[世界观知识库]
-        I --> N[系统配置库]
-        J --> O[通用知识库]
-        
-        K --> P[LLM响应生成]
-        L --> P
-        M --> P
-        N --> P
-        O --> P
-        
-        P --> Q[响应格式化]
-    end
+    E --> G[业务上下文]
+    G --> G1[session_id: 会话标识]
+    G --> G2[user_id: 用户标识]
+    G --> G3[novel_id: 小说项目标识]
     
-    subgraph "输出层"
-        Q --> R[标准化响应消息]
-        R --> S[元数据丰富]
-        S --> T[最终输出]
-    end
+    E --> H[链路追踪]
+    H --> H1[correlation_id: 追踪ID]
+    H --> H2[agent: 消息来源]
+    H --> H3[topic: 目标主题]
+    
+    F --> I[标准化响应消息]
+    G --> I
+    H --> I
 ```
 
-#### 🔍 查询类型智能识别
+#### 🔄 消息流程与 Outbox 模式
 
-实现了基于关键词匹配的查询类型识别：
+InquiryAgent 实现了完整的 Outbox 模式消息处理流程：
+
+```mermaid
+flowchart TD
+    A[接收查询消息] --> B[提取查询内容]
+    B --> C[识别查询类型]
+    C --> D[路由到处理器]
+    D --> E[生成响应数据]
+    E --> F[构建 Envelope]
+    F --> G[OutboxEgress 入队]
+    G --> H[持久化到数据库]
+    H --> I[异步发送到 Kafka]
+    I --> J[标记消息已发送]
+    J --> K[返回 None]
+    
+    style G fill:#e1f5fe
+    style H fill:#f3e5f5
+    style I fill:#e8f5e8
+```
+
+#### 📝 Envelope 标准消息格式
 
 ```python
-async def _analyze_query_type(self, query: str) -> str:
-    """智能分析查询类型"""
-    query_lower = query.lower()
-    
-    # 进度查询特征
-    if any(keyword in query_lower for keyword in ["progress", "status"]):
-        return "progress"
-    
-    # 角色查询特征  
-    elif any(keyword in query_lower for keyword in ["character", "protagonist", "hero"]):
-        return "character"
-    
-    # 世界观查询特征
-    elif any(keyword in query_lower for keyword in ["world", "setting", "universe"]):
-        return "world"
-    
-    # 系统查询特征
-    elif any(keyword in query_lower for keyword in ["system", "function", "how", "work"]):
-        return "system"
-    
-    # 默认为通用查询
-    else:
-        return "general"
+await self.egress.enqueue_envelope(
+    agent=self.name,  # 消息来源标识
+    topic="genesis.inquiry.events",  # 目标 Kafka 主题
+    key=session_id,  # 分区键，保证消息顺序性
+    result={
+        "type": "Inquiry.Response.Generated",  # 事件类型
+        "session_id": session_id,  # 会话标识
+        "content": {  # GenerationData 约定
+            "text": response.get("text", ""),  # 主要响应文本
+            "title": query_type,  # 查询类型标题
+            "metadata": {  # 结构化元数据
+                "query_type": query_type,
+                "confidence": response.get("confidence"),
+                "data_summary": response.get("data", {}),
+            },
+        },
+        "query": query,  # 原始查询
+        "answer": response,  # 完整响应数据
+        "query_type": query_type,  # 查询分类
+        "user_id": user_id,  # 业务上下文
+        "novel_id": novel_id,
+    },
+    correlation_id=correlation_id,  # 链路追踪ID
+)
 ```
 
-#### 🎯 专业化查询处理器
+#### 🔧 依赖注入架构
 
-每种查询类型都有专门的处理逻辑：
+```mermaid
+classDiagram
+    class InquiryAgent {
+        -llm_service: LLMService
+        -egress: OutboxEgress
+        -query_handlers: dict
+        -name: str
+        -consume_topics: list
+        -produce_topics: list
+        
+        +__init__(llm_service, egress, ...)
+        +process_message(message, context) None
+        +_extract_query(message) str
+        +_analyze_query_type(query) str
+        +_handle_progress_query(...) dict
+        +_generate_response(query, type, context) str
+        +on_start()
+        +on_stop()
+    }
+    
+    class LLMService {
+        <<interface>>
+        +generate(request) LLMResponse
+    }
+    
+    class OutboxEgress {
+        +enqueue_envelope(agent, topic, key, result, correlation_id)
+    }
+    
+    InquiryAgent --> LLMService : 依赖注入
+    InquiryAgent --> OutboxEgress : 依赖注入
+```
 
-1. **进度查询处理器**
-   - 查询当前创作阶段和完成度
-   - 返回详细的进度统计信息
-   - 支持阶段性进度分析
+#### 🎯 核心设计原则
 
-2. **角色查询处理器**
-   - 查询角色信息和设定
-   - 提供角色关系网络分析
-   - 支持角色发展轨迹追踪
+1. **单一职责**: 专注于查询处理和响应生成
+2. **依赖倒置**: 通过接口依赖，而非具体实现
+3. **开闭原则**: 易于扩展新的查询类型
+4. **异步优先**: 所有 IO 操作均异步执行
+5. **容错设计**: 完善的错误处理和降级机制
 
-3. **世界观查询处理器**
-   - 查询世界设定和背景信息
-   - 提供地理和历史信息
-   - 支持规则体系查询
-
-4. **系统查询处理器**
-   - 查询系统功能和使用方法
-   - 提供操作指南和最佳实践
-   - 支持功能特性说明
-
-5. **通用查询处理器**
-   - 处理其他类型的查询
-   - 基于通用知识库回答
-   - 支持广泛的查询范围
-
-#### 🛡️ 容错机制
-
-完善的错误处理和降级策略：
+#### 🛡️ 容错与降级策略
 
 ```python
 async def _generate_response(self, query: str, query_type: str, context_info: dict[str, Any]) -> str:
-    """生成查询响应，包含完整的错误处理"""
+    """生成查询响应，包含完整的容错机制"""
     try:
-        # 调用 LLM 生成响应
+        # 构建 LLM 请求
+        request = LLMRequest(
+            model="deepseek-chat",
+            messages=[
+                ChatMessage(role="system", content=system_prompt),
+                ChatMessage(role="user", content=user_message),
+            ],
+            temperature=0.7,
+            max_tokens=500,
+        )
+        
         response = await self.llm_service.generate(request)
         return response.content or "抱歉，我无法理解您的查询。"
+        
     except Exception as e:
-        logger.error(f"生成响应失败: {e}")
-        # 返回预设的降级响应
+        logger.error(f"Failed to generate response: {e}")
         return self._get_fallback_response(query_type)
 
 def _get_fallback_response(self, query_type: str) -> str:
-    """获取降级响应"""
+    """预定义降级响应"""
     fallback_responses = {
         "progress": "当前创作正在进行中，请稍后查看详细进度。",
         "character": "角色信息正在整理中，请稍后查看。",
         "world": "世界观设定正在构建中，请稍后查看。",
         "system": "InfiniteScribe提供智能小说创作辅助功能。",
-        "general": "感谢您的查询，我正在处理中。"
+        "general": "感谢您的查询，我正在处理中。",
     }
     return fallback_responses.get(query_type, "抱歉，目前无法回答您的问题。")
 ```
 
-#### 📊 消息格式标准化
-
-使用统一的消息格式进行输入输出：
+#### 📊 配置与主题管理
 
 ```python
-# 输入消息格式
-input_message = {
-    "query": "用户查询内容",
-    "session_id": "会话标识",
-    "context": {
-        "user_id": "用户ID",
-        "novel_id": "小说ID"
-    }
-}
+from src.agents.agent_config import get_agent_topics
 
-# 输出消息格式
-output_message = {
-    "event_type": "Inquiry.Response.Generated",
-    "status": "success",
-    "agent": "inquiry",
-    "query_type": "progress|character|world|system|general",
-    "query": "原始查询内容",
-    "response": "生成的回答内容",
-    "session_id": "会话标识",
-    "metadata": {
-        "user_id": "用户ID",
-        "novel_id": "小说ID", 
-        "timestamp": "2025-01-11T00:00:00Z"
-    }
-}
+# 中心化配置管理
+config_consume, config_produce = get_agent_topics("inquiry")
+
+# 优先使用运行时配置，回退到配置文件
+final_consume = consume_topics if consume_topics is not None else config_consume
+final_produce = produce_topics if produce_topics is not None else config_produce
 ```
 
-#### 🔧 技术特性
+#### 🔍 查询处理流程详解
 
-1. **异步处理**: 支持高并发查询请求
-2. **类型安全**: 完整的类型注解和验证
-3. **模块化设计**: 清晰的职责分离
-4. **可扩展性**: 易于添加新的查询类型
-5. **监控友好**: 详细的日志记录和错误追踪
+```mermaid
+stateDiagram-v2
+    [*] --> 接收消息
+    接收消息 --> 提取查询内容
+    提取查询内容 --> 查询内容为空？
+    查询内容为空？ -->|是| 抛出异常
+    查询内容为空？ -->|否| 分析查询类型
+    分析查询类型 --> 选择处理器
+    选择处理器 --> 执行处理器
+    执行处理器 --> 生成响应数据
+    生成响应数据 --> 通过 OutboxEgress 发布
+    通过 OutboxEgress 发布 --> 返回 None
+    返回 None --> [*]
+    
+    抛出异常 --> [*]
+```
 
-#### 📈 性能优化
-
-- **查询缓存**: 缓存常见问题的回答
-- **并发处理**: 异步处理多个查询请求
-- **智能路由**: 快速查询类型识别
-- **降级策略**: 确保系统稳定性
-
-这次重构大大提升了查询代理的智能化程度和系统健壮性，为用户提供了更好的问答体验。
+这次升级将 InquiryAgent 转变为一个现代化的事件驱动微服务，通过 Outbox 模式确保了消息投递的可靠性，通过依赖注入提高了可测试性，为整个系统的稳定性和可维护性奠定了坚实基础。
 
 ## 🔮 未来规划
 
