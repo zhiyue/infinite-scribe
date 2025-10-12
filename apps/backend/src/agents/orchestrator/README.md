@@ -260,6 +260,63 @@ if conflicting_fields:
 }
 ```
 
+## 能力事件与 Outbox 存储的分层结构
+
+为了避免消息格式混乱，编排器侧已经将“传输信封”“能力负载”“领域事件”分层约定好了。以下内容涵盖了消息进入 `EventOutbox` 前后的完整结构。
+
+### 1. 传输信封（Envelope）
+
+- **实现位置**：`apps/backend/src/agents/message.py:15`
+- **生成方式**：`encode_message()`（同文件 `:33`）会把业务结果 dict 包装成统一的 Envelope，字段包括 `id/ts/type/version/agent/correlation_id/retries/status/data`。
+- **存储方式**：`OutboxEgress.enqueue_envelope()`（`apps/backend/src/services/outbox/egress.py:45`）和 `MessageProcessor._send_result()`（`apps/backend/src/agents/message_processor.py:266`）都会调用 `encode_message()`，随后把 Envelope 原样写入 `EventOutbox.payload`。
+
+```jsonc
+{
+  "id": "8b3f5c76-2b49-4a59-8bfa-1e2ad8d9e1cd",
+  "ts": "2025-01-15T10:30:00.123456Z",
+  "type": "Outliner.Theme.Generated",
+  "version": "v1",
+  "agent": "outliner",
+  "correlation_id": "corr-456",
+  "retries": 0,
+  "status": "ok",
+  "data": { /* 能力事件负载，详见下文 */ }
+}
+```
+
+### 2. 能力事件业务负载（GenerationData）
+
+- **模型定义**：`apps/backend/src/agents/orchestrator/types.py:222`
+- **解析流程**：`CapabilityEventProcessor` 会把 Envelope 中的 `data` 还原成 `CapabilityEventMessage` → `GenerationData`（同文件 `:382`）。
+- **必备字段**：
+  - `session_id`：用于绑定会话。若业务数据缺失则必须保证 `context.meta.aggregate_id` 提供（`apps/backend/src/agents/orchestrator/capability_event_processor.py:60`）。
+  - `content`：包含生成文本等核心内容，范式为 `ContentData`（`types.py:209`）。
+- **推荐字段**：能力自身的标识（如 `outline_id`、`character_id`），以及需要透传给质量审查/域事件的额外 metadata。`GenerationData` 允许附加字段，它们会随 `data.model_dump()` 一起发送到质量审查消息与域事件 payload 中（`apps/backend/src/agents/orchestrator/event_handlers.py:92`、`:101`）。
+
+### 3. 领域事件结构（system / data 层）
+
+- **使用场景**：领域事件处理链路（`DomainEventProcessor`）。
+- **结构要求**：事件顶层需包含 `system` 和 `data`：
+  - `system`：保存 `event_type`、`aggregate_id`、`event_id`、`metadata` 等系统字段，用于路由和追踪（`apps/backend/src/agents/orchestrator/domain_event_processor.py:200`）。
+  - `data`：承载业务负载；若存在 `payload` 字段则优先使用，否则自动兼容旧格式（同文件 `:232`）。
+- **关联 ID**：`CorrelationIdExtractor` 会按 `context.meta` → headers → `system.correlation_id` → `system.metadata.correlation_id` 的顺序回退（同文件 `:24-69`）。
+
+### 4. EventOutbox 的最终存储
+
+- `EventOutbox.payload` 永远存储 **Envelope**，信封里的 `data` 就是步骤 2 或步骤 3 的业务负载。
+- 当下游（例如编排器、事件桥）消费时，会通过 `decode_message()`（`apps/backend/src/agents/message.py:60`）识别 Envelope 并取出 `data` 与 meta。
+- 因此：
+  - 传输层的标准由 `Envelope` 保证；
+  - 能力事件/领域事件需要按照各自模型约定提供关键字段；
+  - 未约束的扩展字段可以放在 `content.metadata` 或业务负载的自定义键中。
+
+### 5. 实践建议
+
+1. **生产者 Agent**：始终使用 `enqueue_envelope()` 或返回 dict 交给 `MessageProcessor`，避免绕过 Envelope。
+2. **能力事件**：确保 `session_id` 与实际内容落在 `GenerationData` 中，方便质量审查和域事件引用。
+3. **领域事件**：输出符合 `system + data + schema_version` 的结构，保证 `Command.Received` 事件能被 `DomainEventProcessor` 正确解析和路由。
+4. **系统字段放置**：`correlation_id`、`event_id` 等应优先写入 `context.meta` 或 `system`；业务层字段放在 `data`。
+
 **有冲突情况**:
 ```json
 {
