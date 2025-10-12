@@ -86,10 +86,52 @@ def decode_capability_message(
 ### 统一解码接口
 
 ```python
-def decode_message(raw_message: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    """统一的消息解码接口，自动识别消息格式
-    
-    支持 CapabilityEventEnvelope 和其他格式的自动识别和解码
+def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """统一的消息解码接口，自动识别并解码不同格式的消息
+
+    支持的消息格式：
+    1. CapabilityEventEnvelope: {id, ts, type, data, ...} - Agent 能力调用消息
+    2. DomainEventEnvelope: {system, data, schema_version} - 领域事件消息
+
+    设计理念：
+    - 自动检测消息格式，无需调用方手动判断
+    - 返回统一的 (payload, meta) 结构，简化消费方代码
+    - 使用 Pydantic 验证，确保类型安全和数据完整性
+
+    Args:
+        value: 消息字典，可以是任何支持的格式
+
+    Returns:
+        (payload, meta): 业务数据字典和元数据字典
+            - payload 为消息的 data 字段内容
+            - meta 包含所有元数据字段（id, type, correlation_id 等）
+
+    Raises:
+        ValidationError: 当消息不符合任何已知格式时
+
+    使用示例：
+        ```python
+        # 自动识别 CapabilityEventEnvelope
+        capability_msg = {
+            "id": "msg-123",
+            "ts": "2025-01-01T00:00:00Z",
+            "type": "capability.executed",
+            "data": {"result": "success"}
+        }
+        payload, meta = decode_message(capability_msg)
+
+        # 自动识别 DomainEventEnvelope
+        domain_event = {
+            "system": {
+                "event_id": "evt-456",
+                "event_type": "Order.Created",
+                ...
+            },
+            "data": {"order_id": "123"},
+            "schema_version": "v1"
+        }
+        payload, meta = decode_message(domain_event)
+        ```
     """
 ```
 
@@ -173,6 +215,32 @@ payload, meta = decode_capability_message(received_message)
 
 ## 🔄 消息流转架构
 
+### 统一消息处理流程
+
+```mermaid
+graph TD
+    A[原始消息] --> B{消息格式检测}
+    
+    B -->|包含system字段| C[DomainEventEnvelope]
+    B -->|其他格式| D[CapabilityEventEnvelope]
+    
+    C --> E[使用to_envelope_meta获取元数据]
+    D --> F[构建标准元数据字典]
+    
+    E --> G[返回(payload, meta)]
+    F --> G
+    
+    G --> H[统一的消息处理接口]
+    
+    subgraph "消息格式特征"
+        I[DomainEventEnvelope<br/>system + data + schema_version]
+        J[CapabilityEventEnvelope<br/>id + ts + type + data]
+    end
+    
+    C --> I
+    D --> J
+```
+
 ### Agent 间通信流程
 
 ```mermaid
@@ -188,10 +256,36 @@ sequenceDiagram
     A->>K: 发布到 Kafka 主题
     
     K->>B: 投递消息
-    B->>M: decode_capability_message()
+    B->>M: decode_message()
+    M->>M: 自动识别消息格式
     M->>M: 验证并解析信封
     M->>B: 返回(payload, meta)
     B->>B: 处理业务逻辑
+```
+
+### 智能格式识别
+
+```mermaid
+flowchart TD
+    A[接收消息字典] --> B{检查system字段}
+    
+    B -->|存在system且schema_version| C[识别为DomainEventEnvelope]
+    B -->|其他情况| D[识别为CapabilityEventEnvelope]
+    
+    C --> E[导入DomainEventEnvelope]
+    E --> F[使用to_envelope_meta方法]
+    F --> G[返回结构化元数据]
+    
+    D --> H[导入CapabilityEventEnvelope]
+    H --> I[构建标准元数据字典]
+    I --> J[返回(payload, meta)结构]
+    
+    G --> K[统一输出格式]
+    J --> K
+    
+    style C fill:#e1f5fe
+    style D fill:#f3e5f5
+    style K fill:#e8f5e8
 ```
 
 ### 分布式追踪
