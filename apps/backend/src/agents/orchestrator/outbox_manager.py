@@ -2,6 +2,26 @@
 
 处理编排器的领域事件持久化和能力任务入队功能。
 为领域事件和outbox条目提供幂等性操作。
+
+核心功能：
+1. 领域事件持久化：将业务事件保存到domain_events表
+2. Outbox条目创建：创建待发布的消息到event_outbox表（Outbox Pattern）
+3. 能力任务入队：将能力任务消息入队供relay进程发布
+
+设计模式：
+- Outbox Pattern：通过本地事务保证领域事件和消息发布的最终一致性
+- 幂等性保证：通过correlation_id + event_type确保重复请求不会创建多个事件
+- 事务边界：领域事件和outbox条目在同一事务中创建，保证原子性
+
+幂等性策略：
+- 领域事件：通过(correlation_id, event_type)唯一索引保证幂等
+- Outbox条目：通过event_id主键保证幂等（event_id即domain_event.event_id）
+- 查询优先：创建前先查询，如果已存在则返回现有记录
+
+错误处理原则：
+- UUID转换失败：使用None而非抛出异常，保证系统可用性
+- 数据库查询失败：假定不存在并继续，优先保证系统可用性
+- 重复创建保护：通过幂等性检查避免重复数据
 """
 
 from __future__ import annotations
@@ -26,7 +46,23 @@ logger = get_logger(__name__)
 
 
 class DomainEventIdempotencyChecker:
-    """领域事件幂等性检查器，处理领域事件的幂等性验证。"""
+    """领域事件幂等性检查器，处理领域事件的幂等性验证。
+
+    设计目的：
+    确保相同的业务请求（通过correlation_id标识）不会重复创建领域事件。
+    这对于保证系统的幂等性至关重要，特别是在以下场景：
+    - 客户端重试请求
+    - 消息队列重复投递
+    - 分布式事务重试
+    - 网络超时后的重新提交
+
+    检查策略：
+    - 使用(correlation_id, event_type)组合作为唯一性判断依据
+    - 采用"查询优先"模式，在创建前先检查是否已存在
+    - 容错处理：查询失败时假定不存在，优先保证系统可用性
+
+    Note: 这是一个无状态的工具类，使用@staticmethod避免不必要的实例化。
+    """
 
     @staticmethod
     async def check_existing_domain_event(correlation_id: str, evt_type: str, db_session) -> DomainEvent | None:
@@ -76,7 +112,20 @@ class DomainEventIdempotencyChecker:
 
 
 class DomainEventCreator:
-    """领域事件创建器，处理领域事件的创建逻辑。"""
+    """领域事件创建器，处理领域事件的创建逻辑。
+
+    职责：
+    1. 创建新的领域事件实例（DomainEvent）
+    2. 提供幂等性检查（通过correlation_id + event_type）
+    3. 构建事件元数据（从payload和metadata参数中提取）
+    4. 处理UUID转换和错误恢复（采用降级策略）
+
+    设计原则：
+    - 幂等性优先：相同的correlation_id + event_type只创建一次
+    - 容错设计：UUID转换失败时使用None，不中断流程
+    - 元数据提升：将关键业务字段从payload提升到metadata层
+    - 单一职责：只负责领域事件的创建，不涉及outbox
+    """
 
     def __init__(self, logger):
         """初始化领域事件创建器。
@@ -85,6 +134,7 @@ class DomainEventCreator:
             logger: 日志记录器实例
         """
         self.log = logger
+        # 注入幂等性检查器，实现职责分离
         self.idempotency_checker = DomainEventIdempotencyChecker()
 
     async def create_or_get_domain_event(
@@ -113,6 +163,8 @@ class DomainEventCreator:
         Returns:
             创建或获取的DomainEvent对象
         """
+        # 构建标准化的事件类型和聚合类型
+        # 例如：scope_type="inquiry", event_action="started" -> evt_type="inquiry.started"
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
 
@@ -176,11 +228,14 @@ class DomainEventCreator:
             )
 
         # 构建事件元数据，包含必要的上下文信息
-        # 元数据用于事件追踪、过滤和监控，与业务payload分离
+        # 元数据与业务payload分离的设计目的：
+        # 1. 快速查询和过滤（无需解析payload）
+        # 2. 统一的监控和追踪维度
+        # 3. 保持payload的纯粹性（只包含业务数据）
         event_metadata = EventMetadata(source="orchestrator").model_dump(exclude_none=True)
 
         # 从显式metadata参数中提取关键字段
-        # 允许调用方直接传递额外的元数据信息
+        # 允许调用方直接传递trace_id、span_id等追踪信息
         if metadata:
             event_metadata.update(metadata)
 
@@ -205,6 +260,9 @@ class DomainEventCreator:
             if timestamp:
                 event_metadata["timestamp"] = timestamp
 
+        # 创建领域事件实例
+        # 使用session_id作为aggregate_id，建立事件与会话的强关联
+        # 这使得可以按会话追踪所有相关事件
         domain_event = DomainEvent(
             event_type=evt_type,
             aggregate_type=aggregate_type,
@@ -215,6 +273,8 @@ class DomainEventCreator:
             event_metadata=event_metadata,
         )
         db_session.add(domain_event)
+        # 立即flush以获取生成的event_id
+        # 这对于后续创建outbox条目是必要的（outbox.id = event.event_id）
         await db_session.flush()
 
         self.log.info(
@@ -229,7 +289,18 @@ class DomainEventCreator:
 
 
 class OutboxEntryCreator:
-    """Outbox条目创建器，处理outbox条目的创建逻辑。"""
+    """Outbox条目创建器，处理outbox条目的创建逻辑。
+
+    职责：
+    1. 从领域事件构建outbox条目（使用OutboxPayloadBuilder）
+    2. 提供幂等性检查（通过event_id）
+    3. 构建Kafka消息的headers（用于路由和过滤）
+
+    设计原则：
+    - 单一职责：只负责outbox条目的创建，不涉及领域事件
+    - 依赖领域事件：outbox是领域事件的"投影"，用于消息发布
+    - 幂等性保证：通过event_id确保一个领域事件只有一个outbox条目
+    """
 
     def __init__(self, logger):
         """初始化outbox条目创建器。
@@ -298,14 +369,19 @@ class OutboxEntryCreator:
         # 从event_metadata中提取user_id和novel_id用于headers
         # 目的：将关键业务标识放在headers中，支持：
         # 1. Kafka消费者快速过滤消息（无需解析payload）
-        # 2. 消息路由和分区策略
-        # 3. 监控和追踪系统按业务维度统计
+        # 2. 消息路由和分区策略（例如按用户或小说ID分区）
+        # 3. 监控和追踪系统按业务维度统计（用户活跃度、小说处理量等）
         user_id = None
         novel_id = None
         if domain_event.event_metadata:
             user_id = domain_event.event_metadata.get("user_id")
             novel_id = domain_event.event_metadata.get("novel_id")
 
+        # 创建outbox条目
+        # 关键设计决策：
+        # 1. id使用domain_event.event_id，确保一对一映射和幂等性
+        # 2. key和partition_key都使用session_id，保证同一会话的消息顺序性
+        # 3. 初始状态为PENDING，等待relay进程发布到Kafka
         outbox_entry = EventOutbox(
             id=domain_event.event_id,
             topic=topic,
@@ -399,6 +475,15 @@ class OutboxEntryCreator:
 class CapabilityTaskEnqueuer:
     """能力任务入队器，处理能力任务的入队逻辑。
 
+    设计要点：
+    1. 职责单一：只负责能力任务消息的格式化和入队
+    2. 委托模式：实际的入队操作委托给BaseOutboxManager
+    3. 消息封装：将capability_message转换为标准的消息信封格式
+
+    与领域事件的区别：
+    - 领域事件：记录已发生的业务事实，需要持久化到domain_events表
+    - 能力任务：请求下游Agent执行操作，只需入队到event_outbox表
+
     Note: 现在使用BaseOutboxManager进行消息入队，提供更可靠的消息持久化。
     """
 
@@ -412,6 +497,7 @@ class CapabilityTaskEnqueuer:
         self.log = logger
         self.agent_name = agent_name
         # 使用通用的BaseOutboxManager进行消息入队
+        # 避免重复实现outbox写入逻辑，保持代码DRY原则
         self.base_outbox = BaseOutboxManager(agent_name)
 
     async def enqueue_capability_task(self, capability_message: dict[str, Any], correlation_id: str | None) -> None:
@@ -422,18 +508,24 @@ class CapabilityTaskEnqueuer:
             correlation_id: 关联ID
         """
         # 提取路由信息
+        # _topic和_key是内部路由字段，不会发送到Kafka
         topic = capability_message.get("_topic")
         key = capability_message.get("_key") or capability_message.get("session_id")
 
         if not topic:
+            # 缺少topic说明消息配置有误，记录警告但不中断流程
+            # 这允许其他能力任务继续处理，避免单点故障
             self.log.warning("capability_task_enqueue_skipped", reason="missing_topic", msg=capability_message)
             return
 
         # 构建信封有效负载（剥离路由键）
+        # 移除以_开头的内部字段，保持发送到Kafka的payload纯净
         result_payload = {k: v for k, v in capability_message.items() if k not in {"_topic", "_key"}}
+        # 使用标准的消息编码格式，包含type、version、data等字段
         envelope = encode_message(self.agent_name, result_payload, correlation_id=correlation_id, retries=0)
 
-        # 构建headers
+        # 构建headers，用于消息追踪和路由
+        # headers与payload分离，便于中间件和消费者快速过滤
         headers = EventOutboxHeaders(
             type=envelope.get("type"),
             version=envelope.get("version", 1),
@@ -442,6 +534,10 @@ class CapabilityTaskEnqueuer:
         ).model_dump()
 
         # 使用BaseOutboxManager进行入队
+        # 这提供了统一的消息持久化机制：
+        # 1. 保证消息至少发送一次（at-least-once delivery）
+        # 2. 支持重试和错误恢复
+        # 3. 与relay进程解耦，提高系统可靠性
         outbox_id = await self.base_outbox.enqueue_message(
             topic=topic,
             payload=envelope,
@@ -461,8 +557,19 @@ class CapabilityTaskEnqueuer:
 class OutboxManager:
     """统一的outbox管理接口，提供领域事件持久化和能力任务入队的统一操作。
 
-    Note: 组合使用BaseOutboxManager提供通用的消息入队能力，
-    同时保留orchestrator特定的领域事件持久化逻辑。
+    架构设计：
+    - 使用Facade模式统一多个内部组件的接口
+    - 组合DomainEventCreator、OutboxEntryCreator、CapabilityTaskEnqueuer等专门组件
+    - 组合BaseOutboxManager提供通用的消息入队能力
+
+    职责分离：
+    - 领域事件持久化：orchestrator特定的业务逻辑（DomainEventCreator + OutboxEntryCreator）
+    - 能力任务入队：通用的消息入队逻辑（CapabilityTaskEnqueuer -> BaseOutboxManager）
+    - 事务管理：在persist_domain_event中协调多个组件的操作
+
+    使用场景：
+    1. persist_domain_event：当业务操作完成时，持久化领域事件到数据库
+    2. enqueue_capability_task：当需要调用能力Agent时，入队任务消息
     """
 
     def __init__(self, logger, agent_name: str):
@@ -475,10 +582,12 @@ class OutboxManager:
         self.log = logger
         self.agent_name = agent_name
         # Orchestrator特定的领域事件处理组件
+        # 使用依赖注入模式传递logger，保证日志上下文一致性
         self.domain_event_creator = DomainEventCreator(logger)
         self.outbox_entry_creator = OutboxEntryCreator(logger)
         self.capability_enqueuer = CapabilityTaskEnqueuer(logger, agent_name)
         # 通用的消息入队能力（可用于非领域事件的消息）
+        # BaseOutboxManager提供与领域事件无关的通用消息入队功能
         self.base_outbox = BaseOutboxManager(agent_name)
 
     async def persist_domain_event(
@@ -503,14 +612,18 @@ class OutboxManager:
             causation_id: 因果ID
             metadata: 额外的元数据（如user_id、novel_id等）
         """
+        # 构建事件的标准化标识信息
         evt_type = build_event_type(scope_type, event_action)
         aggregate_type = get_aggregate_type(scope_type)
         topic = get_domain_topic(scope_type)
 
-        # 从payload中提取元数据（如果没有提供）
+        # 从payload中提取元数据（如果没有显式提供）
+        # 这是一个便利性功能，允许调用方只传递payload
+        # 而不必重复构建metadata参数
         if not metadata:
             metadata = {}
             if isinstance(payload, dict):
+                # 提取关键业务字段到metadata
                 if "user_id" in payload:
                     metadata["user_id"] = payload["user_id"]
                 if "novel_id" in payload:
@@ -531,16 +644,23 @@ class OutboxManager:
             metadata_keys=list(metadata.keys()) if metadata else [],
         )
 
+        # 使用事务确保领域事件和outbox条目的原子性写入
+        # 这是Outbox Pattern的核心：要么都成功，要么都失败
+        # 避免领域事件已保存但outbox条目丢失的情况
         async with create_sql_session() as db:
-            # 创建或获取领域事件（幂等性）
+            # 第一步：创建或获取领域事件（幂等性）
+            # 如果相同的correlation_id + event_type已存在，返回现有事件
             domain_event = await self.domain_event_creator.create_or_get_domain_event(
                 scope_type, session_id, event_action, payload, correlation_id, causation_id, db, metadata
             )
 
-            # 创建或获取outbox条目（幂等性）
+            # 第二步：创建或获取outbox条目（幂等性）
+            # 如果相同的event_id已存在outbox，返回现有条目
+            # 这确保即使重试也不会产生重复的消息发布
             await self.outbox_entry_creator.create_or_get_outbox_entry(
                 domain_event, scope_type, session_id, correlation_id, db
             )
+            # 事务自动提交（通过async context manager）
 
         self.log.info(
             "orchestrator_domain_event_persist_completed",

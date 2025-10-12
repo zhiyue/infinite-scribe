@@ -184,68 +184,112 @@ class EventHandlerConfig:
 
     @classmethod
     def _load_config_from_source(cls, config_source: str | Path | None) -> WorkflowConfig:
+        """根据配置源类型选择加载方式
+
+        统一的配置加载入口,根据参数类型路由到具体的加载方法。
+
+        Args:
+            config_source: 配置源,可以是文件路径或None(使用默认配置)
+
+        Returns:
+            完整的工作流配置对象
+        """
         if isinstance(config_source, str | Path):
+            # 从指定文件路径加载配置
             return cls._load_from_file(Path(config_source))
+        # 使用默认配置(带缓存机制)
         return cls._get_default_config()
 
     @classmethod
     def _get_default_config(cls) -> WorkflowConfig:
-        """Load (and cache) the default workflow configuration with thread safety."""
+        """加载并缓存默认配置(线程安全)
+
+        使用双检锁模式确保默认配置只被初始化一次,同时保证多线程环境下的安全性。
+        返回深拷贝以防止不同实例间的意外修改影响缓存。
+
+        线程安全策略:
+        - 第一次检查:避免每次都获取锁,提升性能
+        - 加锁:确保只有一个线程执行初始化
+        - 第二次检查:防止其他等待线程重复初始化
+
+        Returns:
+            默认配置的深拷贝副本,确保每个调用者获得独立的配置对象
+        """
         if cls._cached_default_config is None:
             with cls._config_lock:
-                # Double-checked locking pattern
+                # 双检锁模式:第二次检查确保初始化唯一性
                 if cls._cached_default_config is None:
                     cls._cached_default_config = cls._create_builtin_default_config()
-        # Return a deep copy to avoid accidental mutations across instances
+        # 返回深拷贝防止跨实例的意外修改影响缓存
         return copy.deepcopy(cls._cached_default_config)
 
     @classmethod
     def _create_builtin_default_config(cls) -> WorkflowConfig:
-        """Create the built-in default genesis workflow configuration."""
+        """创建内置的Genesis工作流默认配置
+
+        构建系统默认的Genesis阶段工作流配置,包含标准的阈值设置和事件路由规则。
+        这些默认值基于实际生产环境的最佳实践调优,平衡了内容质量和生成效率。
+
+        配置设计考虑:
+        - 质量阈值7.5:在10分制下,既保证内容质量又避免过度严格导致频繁重试
+        - 最大重试3次:防止无限循环消耗资源,同时给予合理的重试机会
+        - 完整的领域覆盖:支持角色(character)、主题(theme)、世界(world)、询问(inquiry)
+
+        Returns:
+            完整配置的内置默认实例,适用于Genesis工作流的所有标准场景
+        """
+        # 阈值配置:控制质量评估和重试策略
         thresholds = WorkflowThresholds(
-            quality_threshold=7.5,
-            max_attempts=3,
-            consistency_threshold=1.0,
+            quality_threshold=7.5,  # 7.5分以上才通过审核,平衡质量和效率
+            max_attempts=3,  # 最多重试3次,防止资源浪费
+            consistency_threshold=1.0,  # 完全一致性要求,确保设定连贯
         )
 
+        # 路由配置:定义事件到领域的映射和后续动作
         routing = WorkflowRouting(
+            # 事件到目标领域的映射:决定哪个领域处理此事件
             event_target_mapping={
-                "Genesis.Character.Command.Received": "character",
-                "Genesis.Theme.Command.Received": "theme",
-                "Genesis.World.Command.Received": "world",
-                "Character.Design.Generated": "character",
-                "Character.Generated": "character",
-                "Outliner.Theme.Generated": "theme",
-                "Theme.Generated": "theme",
-                "Inquiry.Response.Generated": "inquiry",
+                "Genesis.Character.Command.Received": "character",  # 角色创建命令
+                "Genesis.Theme.Command.Received": "theme",  # 主题设定命令
+                "Genesis.World.Command.Received": "world",  # 世界构建命令
+                "Character.Design.Generated": "character",  # 角色设计生成完成
+                "Character.Generated": "character",  # 角色生成完成
+                "Outliner.Theme.Generated": "theme",  # 大纲主题生成完成
+                "Theme.Generated": "theme",  # 主题生成完成
+                "Inquiry.Response.Generated": "inquiry",  # 询问响应生成完成
             },
+            # 确认动作:质量审核通过后触发的确认事件
             target_confirmation_actions={
                 "character": "Character.Confirmed",
                 "theme": "Theme.Confirmed",
-                "world": "Stage.Confirmed",
+                "world": "Stage.Confirmed",  # 世界相关事件使用Stage前缀
                 "inquiry": "Inquiry.Confirmed",
             },
+            # 失败动作:达到最大重试次数后触发的失败通知
             target_failure_actions={
                 "character": "Character.Failed",
                 "theme": "Theme.Failed",
                 "world": "Stage.Failed",
                 "inquiry": "Inquiry.Failed",
             },
+            # 重新生成动作:质量不达标时触发的重试请求
             target_regeneration_actions={
                 "character": "Character.RegenerationRequested",
                 "theme": "Theme.RegenerationRequested",
                 "world": "Stage.RegenerationRequested",
                 "inquiry": "Inquiry.RegenerationRequested",
             },
+            # 任务前缀映射:标准化任务命名,便于监控和日志追踪
             task_prefix_mapping={
                 "Character.Design": "Character.Design",
                 "Theme.Creation": "Theme.Creation",
                 "World.Building": "World.Building",
-                "quality_review": "Review.Quality.Evaluation",
-                "consistency_check": "Review.Consistency.Check",
+                "quality_review": "Review.Quality.Evaluation",  # 质量审核任务
+                "consistency_check": "Review.Consistency.Check",  # 一致性检查任务
             },
         )
 
+        # 返回完整配置:包含名称、版本、阈值、路由和元数据
         return WorkflowConfig(
             name="genesis-workflow",
             description="Genesis stage workflow configuration",
@@ -253,63 +297,129 @@ class EventHandlerConfig:
             thresholds=thresholds,
             routing=routing,
             metadata={
-                "created_by": "system",
-                "environment": "builtin",
+                "created_by": "system",  # 系统内置配置
+                "environment": "builtin",  # 标记为内置环境
             },
         )
 
     @classmethod
     def _load_from_file(cls, file_path: Path) -> WorkflowConfig:
+        """从JSON文件加载工作流配置
+
+        读取并解析JSON格式的工作流配置文件,验证必需字段并构建配置对象。
+        采用快速失败策略:文件不存在或格式错误时立即抛出异常。
+
+        Args:
+            file_path: 配置文件的绝对路径
+
+        Returns:
+            解析后的完整工作流配置对象
+
+        Raises:
+            WorkflowConfigError: 文件不存在、格式错误或缺少必需字段时抛出
+        """
         if not file_path.exists():
+            # 快速失败:配置文件不存在是严重错误,无法继续
             raise WorkflowConfigError(f"Workflow config file not found: {file_path}")
 
+        # 使用UTF-8编码读取JSON文件,支持中文配置内容
         with file_path.open(encoding="utf-8") as f:
             config_data = json.load(f)
 
         try:
+            # 提取必需的配置段落,缺少任一段落都无法正常工作
             thresholds_data = config_data["thresholds"]
             routing_data = config_data["routing"]
-        except KeyError as exc:  # pragma: no cover - defensive guard, JSON is versioned
+        except KeyError as exc:  # pragma: no cover - 防御性保护,JSON已版本化
+            # 快速失败:缺少必需字段说明配置文件不完整
             raise WorkflowConfigError(f"Missing required workflow section: {exc}") from exc
 
+        # 构建完整配置对象,可选字段使用默认值或空值
         return WorkflowConfig(
             name=config_data.get("name", cls.DEFAULT_WORKFLOW_FILENAME.rsplit(".", 1)[0]),
             description=config_data.get("description"),
             version=config_data.get("version"),
-            thresholds=WorkflowThresholds(**thresholds_data),
-            routing=WorkflowRouting(**routing_data),
-            metadata=config_data.get("metadata", {}),
+            thresholds=WorkflowThresholds(**thresholds_data),  # 解包字典创建阈值对象
+            routing=WorkflowRouting(**routing_data),  # 解包字典创建路由对象
+            metadata=config_data.get("metadata", {}),  # 元数据可选,默认空字典
         )
 
     # ---------------------------------------------------------------------
-    # Alternate constructors
+    # 替代构造器:提供语义化的工厂方法,让调用者明确配置来源
     # ---------------------------------------------------------------------
     @classmethod
     def from_file(cls, config_file: str | Path) -> EventHandlerConfig:
-        """Instantiate configuration from a user-provided file path."""
+        """从指定文件路径创建配置实例
+
+        工厂方法:明确表示配置来自用户指定的文件。
+
+        Args:
+            config_file: 配置文件路径,支持相对路径和绝对路径
+
+        Returns:
+            从文件加载的配置实例
+        """
         return cls(Path(config_file))
 
     @classmethod
     def from_config(cls, config: WorkflowConfig) -> EventHandlerConfig:
-        """Instantiate configuration from a pre-built workflow config object."""
+        """从预构建的配置对象创建实例
+
+        工厂方法:适用于程序化构建配置或测试场景。
+
+        Args:
+            config: 已构建的完整配置对象
+
+        Returns:
+            包装了指定配置对象的实例
+        """
         return cls(config)
 
     @classmethod
     def for_genesis_workflow(cls) -> EventHandlerConfig:
-        """Return configuration bound to the canonical genesis workflow."""
+        """创建标准Genesis工作流配置实例
+
+        工厂方法:返回绑定到标准Genesis工作流的配置,使用系统内置的默认值。
+        这是生产环境推荐的创建方式。
+
+        Returns:
+            使用默认Genesis配置的实例
+        """
         return cls(cls._get_default_config())
 
     @classmethod
     def for_testing(cls, **overrides: Any) -> EventHandlerConfig:
-        """Create a configuration tailored for tests with lightweight overrides."""
+        """创建用于测试的配置实例,支持轻量级参数覆盖
+
+        工厂方法:基于默认配置创建测试实例,允许通过关键字参数覆盖特定配置项。
+        避免在测试中重复构建完整配置,提升测试代码的可读性和维护性。
+
+        Args:
+            **overrides: 要覆盖的配置参数,支持以下键:
+                        - quality_threshold: 覆盖质量阈值
+                        - max_attempts: 覆盖最大重试次数
+                        - consistency_threshold: 覆盖一致性阈值
+                        - event_target_mapping: 覆盖事件目标映射
+                        - target_confirmation_actions: 覆盖确认动作
+                        - target_failure_actions: 覆盖失败动作
+                        - target_regeneration_actions: 覆盖重新生成动作
+                        - task_prefix_mapping: 覆盖任务前缀
+
+        Returns:
+            应用了覆盖参数的测试配置实例
+        """
+        # 获取默认配置作为基准
         config = cls._get_default_config()
 
         if overrides:
+            # 存在覆盖参数时,构建新的配置对象
+            # 阈值覆盖:支持单独调整质量标准和重试策略
             thresholds = WorkflowThresholds(
                 quality_threshold=overrides.get("quality_threshold", config.thresholds.quality_threshold),
                 max_attempts=overrides.get("max_attempts", config.thresholds.max_attempts),
                 consistency_threshold=overrides.get("consistency_threshold", config.thresholds.consistency_threshold),
             )
+            # 路由覆盖:支持自定义事件映射和动作,深拷贝防止修改默认配置
             routing = WorkflowRouting(
                 event_target_mapping=overrides.get(
                     "event_target_mapping", copy.deepcopy(config.routing.event_target_mapping)
@@ -327,6 +437,7 @@ class EventHandlerConfig:
                     "task_prefix_mapping", copy.deepcopy(config.routing.task_prefix_mapping)
                 ),
             )
+            # 重建配置对象,保留元数据但应用新的阈值和路由
             config = WorkflowConfig(
                 name=config.name,
                 description=config.description,
@@ -339,46 +450,104 @@ class EventHandlerConfig:
         return cls(config)
 
     # ---------------------------------------------------------------------
-    # Convenience accessors used by event commands
+    # 便捷访问器:为事件命令处理器提供简化的配置访问接口
+    # 使用全大写命名遵循常量访问习惯,提升代码可读性
     # ---------------------------------------------------------------------
     @property
     def QUALITY_THRESHOLD(self) -> float:  # noqa: N802
+        """质量评分阈值
+
+        生成内容的质量分数需达到此值才能通过审核,低于此值将触发重新生成。
+        典型值为7.5(满分10分),平衡内容质量和生成效率。
+        """
         return self._config.thresholds.quality_threshold
 
     @property
     def MAX_ATTEMPTS(self) -> int:  # noqa: N802
+        """最大重试次数
+
+        单个任务失败后允许的最大重新生成次数,超过此次数后任务将被标记为最终失败。
+        防止无限重试消耗系统资源,同时给予合理的改进机会。
+        """
         return self._config.thresholds.max_attempts
 
     @property
     def CONSISTENCY_THRESHOLD(self) -> float:  # noqa: N802
+        """一致性检查阈值
+
+        用于评估生成内容与现有世界观设定的一致性程度,默认值1.0表示要求完全一致。
+        确保角色、情节、世界观等元素在整个作品中保持连贯。
+        """
         return self._config.thresholds.consistency_threshold
 
     @property
     def EVENT_TARGET_MAPPING(self) -> dict[str, str]:  # noqa: N802
+        """事件到目标领域的映射关系
+
+        定义每个事件应该由哪个领域(character/theme/world/inquiry)处理。
+        用于事件路由决策,确保事件被正确的处理器接收。
+        """
         return self._config.routing.event_target_mapping
 
     @property
     def TARGET_CONFIRMATION_ACTIONS(self) -> dict[str, str]:  # noqa: N802
+        """目标确认动作映射
+
+        当内容通过质量审核时,根据目标领域触发相应的确认事件。
+        例如:character领域触发"Character.Confirmed"事件。
+        """
         return self._config.routing.target_confirmation_actions
 
     @property
     def TARGET_FAILURE_ACTIONS(self) -> dict[str, str]:  # noqa: N802
+        """目标失败动作映射
+
+        当任务达到最大重试次数仍失败时,根据目标领域触发相应的失败通知事件。
+        用于通知下游系统任务最终失败,触发降级或补偿逻辑。
+        """
         return self._config.routing.target_failure_actions
 
     @property
     def TARGET_REGENERATION_ACTIONS(self) -> dict[str, str]:  # noqa: N802
+        """目标重新生成动作映射
+
+        当内容质量不达标时,根据目标领域触发相应的重新生成请求事件。
+        驱动自动重试机制,给予系统改进输出的机会。
+        """
         return self._config.routing.target_regeneration_actions
 
     @property
     def TASK_PREFIX_MAPPING(self) -> dict[str, str]:  # noqa: N802
+        """任务前缀映射
+
+        将任务类型映射到标准化的事件前缀,用于任务跟踪、审计和监控。
+        统一的命名规范便于日志分析和问题排查。
+        """
         return self._config.routing.task_prefix_mapping
 
     @property
     def METADATA(self) -> dict[str, Any]:  # noqa: N802
+        """配置元数据
+
+        存储配置的附加信息,如创建者、环境、时间戳等上下文数据。
+        不影响核心业务逻辑,用于配置管理和追溯。
+        """
         return self._config.metadata
 
     def to_dict(self) -> dict[str, Any]:
-        """Export configuration as a serialisable dictionary (primarily used in tests/debugging)."""
+        """导出配置为可序列化的字典格式
+
+        将配置对象转换为标准的Python字典,便于JSON序列化、日志记录和调试。
+        主要用于测试断言、配置导出和问题排查场景。
+
+        设计考虑:
+        - 使用深拷贝防止返回的字典被修改影响原配置
+        - 保持与JSON配置文件格式一致,支持配置导出和导入
+        - 包含所有配置项,提供完整的配置视图
+
+        Returns:
+            包含完整配置信息的字典,结构与JSON配置文件一致
+        """
         return {
             "name": self._config.name,
             "description": self._config.description,
@@ -389,6 +558,7 @@ class EventHandlerConfig:
                 "consistency_threshold": self.CONSISTENCY_THRESHOLD,
             },
             "routing": {
+                # 深拷贝所有字典类型配置,防止外部修改
                 "event_target_mapping": copy.deepcopy(self.EVENT_TARGET_MAPPING),
                 "target_confirmation_actions": copy.deepcopy(self.TARGET_CONFIRMATION_ACTIONS),
                 "target_failure_actions": copy.deepcopy(self.TARGET_FAILURE_ACTIONS),
