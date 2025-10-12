@@ -63,7 +63,7 @@ def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any
     # 检测消息格式：如果有 'system' 字段，则为 DomainEventEnvelope 格式
     if "system" in value and "schema_version" in value:
         # 领域事件格式
-        from src.common.events.envelope import DomainEventEnvelope
+        from src.common.messaging.domain_envelope import DomainEventEnvelope
 
         envelope = DomainEventEnvelope.model_validate(value)
         # 使用类型安全的转换方法获取元数据
@@ -72,7 +72,7 @@ def decode_message(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any
         return payload, meta
 
     # 默认为 CapabilityEventEnvelope 格式
-    from .envelope import CapabilityEventEnvelope
+    from .capability_envelope import CapabilityEventEnvelope
 
     envelope = CapabilityEventEnvelope.model_validate(value)
     payload = envelope.data

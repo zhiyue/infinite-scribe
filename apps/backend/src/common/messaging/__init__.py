@@ -3,7 +3,8 @@
 提供 Agent 间异步通信的标准化消息格式和编解码工具。
 
 核心组件：
-- CapabilityEventEnvelope: 能力事件的标准信封格式
+- CapabilityEventEnvelope: Agent 能力调用消息的标准信封格式
+- DomainEventEnvelope: 领域事件的标准信封格式（Event Sourcing & CQRS）
 - encode_capability_message: 编码能力事件消息
 - decode_message: 统一的消息解码接口（支持多种格式）
 
@@ -23,26 +24,36 @@
     from src.common.messaging import decode_message
 
     payload, meta = decode_message(message)
+
+    # 构建领域事件信封
+    from src.common.messaging import DomainEventBuilder
+
+    envelope = DomainEventBuilder.from_domain_event(event).build()
     ```
 
 模块结构：
-- envelope.py: CapabilityEventEnvelope 定义和专用编解码
+- capability_envelope.py: CapabilityEventEnvelope 定义和专用编解码
+- domain_envelope.py: DomainEventEnvelope 定义和 Builder
 - protocol.py: 统一的消息协议和解码接口
 """
 
-from .envelope import (
+from .capability_envelope import (
     CapabilityEventEnvelope,
     decode_capability_message,
     encode_capability_message,
 )
+from .domain_envelope import DomainEventBuilder, DomainEventEnvelope, SystemMetadata
 from .protocol import decode_message
 
 __all__ = [
     # 能力事件信封
     "CapabilityEventEnvelope",
-    # 编码函数
     "encode_capability_message",
-    # 解码函数
     "decode_capability_message",
-    "decode_message",  # 统一解码接口
+    # 领域事件信封
+    "DomainEventEnvelope",
+    "DomainEventBuilder",
+    "SystemMetadata",
+    # 统一解码接口
+    "decode_message",
 ]

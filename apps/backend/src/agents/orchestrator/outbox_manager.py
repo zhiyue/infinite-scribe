@@ -33,8 +33,8 @@ from sqlalchemy import and_, select
 
 from src.agents.orchestrator.types import EventMetadata, EventOutboxHeaders
 from src.common.events.config import build_event_type, get_aggregate_type, get_domain_topic
-from src.common.events.envelope import DomainEventBuilder
 from src.common.messaging import encode_capability_message
+from src.common.messaging.domain_envelope import DomainEventBuilder
 from src.common.outbox import BaseOutboxManager
 from src.common.utils.uuid_utils import safe_uuid_conversion
 from src.core.logging import get_logger

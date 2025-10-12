@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.events.config import get_domain_topic
-from src.common.events.envelope import DomainEventBuilder
+from src.common.messaging.domain_envelope import DomainEventBuilder
 from src.models.workflow import EventOutbox
 from src.schemas.enums import OutboxStatus
 
