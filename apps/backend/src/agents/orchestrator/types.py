@@ -434,7 +434,3 @@ def create_capability_event_message(**kwargs: Any) -> CapabilityEventMessage:
 def create_processing_result(**kwargs: Any) -> ProcessingResult:
     """创建类型安全的处理结果"""
     return ProcessingResult(**kwargs)
-
-
-# === 向后兼容的工厂函数已移除 ===
-# 直接使用类构造函数: ClassName(**data)
