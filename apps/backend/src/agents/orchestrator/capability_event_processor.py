@@ -1,22 +1,18 @@
 """能力事件处理模块
 
-本模块实现了能力事件(Capability Event)的核心处理流程，负责：
-1. 从原始消息中提取和规范化事件数据
-2. 解析消息上下文中的系统元数据(correlation_id、causation_id等)
-3. 通过注册表动态匹配并调用相应的事件处理器
-4. 生成包含下游操作(领域事件、任务完成、能力消息)的处理结果
+目标：用直接的基于 msg_type 的路由替代多层分发，降低复杂度。
 
-设计理念：
-- 采用职责分离原则：提取器、匹配器、处理器各司其职
-- 遵循事件溯源模式：保留完整的因果链追踪(correlation_id、causation_id)
-- 支持动态处理器注册：通过类型映射实现松耦合的处理器扩展
+核心职责：
+- 解析能力事件消息与上下文，提取会话/作用域/追踪信息
+- 基于 `msg_type` 直接构建 EventAction（领域事件、任务完成、能力消息）
+- 返回 ProcessingResult 供 OrchestratorAgent 执行
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from src.agents.orchestrator.event_handlers import HANDLER_REGISTRY
+from src.agents.orchestrator.message_factory import MessageFactory
 from src.agents.orchestrator.types import (
     CapabilityEventMessage,
     GenerationData,
@@ -24,355 +20,119 @@ from src.agents.orchestrator.types import (
     ProcessingResult,
     ScopeInfo,
 )
-from src.agents.orchestrator.workflows import EventAction
-from src.common.events.config import DEFAULT_VALUES
+from src.agents.orchestrator.workflows import EventAction, EventActionBuilder
+from src.common.events.config import infer_scope_from_topic
+from src.common.events.mapping import (
+    extract_strategy_key_from_event_type,
+    is_generation_completed_event,
+    is_quality_review_event,
+    normalize_task_type,
+)
+
+# ============================================================================
+# 数据提取函数
+# ============================================================================
 
 
-class EventDataExtractor:
-    """事件数据提取器，用于从能力事件中提取和规范化数据
+def extract_event_data(message: dict[str, Any]) -> GenerationData:
+    """从消息中提取业务数据，处理多种消息格式
 
-    职责：
-    1. 将原始消息字典转换为类型安全的Pydantic模型
-    2. 提取业务数据(GenerationData)和系统元数据(correlation_id等)
-    3. 处理消息格式的兼容性问题(标准格式vs遗留格式)
-    4. 从消息和上下文中推断会话ID和作用域信息
+    支持两种格式：
+    1. 标准格式：{"data": {...}, ...}
+    2. 扁平格式：{直接包含业务字段}
     """
+    event_msg: CapabilityEventMessage = CapabilityEventMessage(**message)
+    typed_data = event_msg.to_typed_data()
 
-    @staticmethod
-    def extract_event_data(message: dict[str, Any]) -> GenerationData:
-        """从消息中提取业务数据，处理多种消息格式
+    if hasattr(typed_data, "model_fields_set") and typed_data.model_fields_set:
+        return typed_data
 
-        处理逻辑：
-        1. 首先尝试按标准CapabilityEventMessage格式解析
-        2. 如果解析成功且有有效字段，直接返回typed_data
-        3. 否则回退到兼容模式：从message["data"]或message本身提取数据
+    # 简单回退：当标准信封不足时直接取字典
+    potential_payload = message.get("data") if isinstance(message.get("data"), dict) else message
+    payload = {} if not isinstance(potential_payload, dict) else potential_payload
 
-        这种回退机制是为了兼容不同版本的消息生产者，确保系统演进过程中
-        旧版本消息仍能被正确处理。
-
-        Args:
-            message: 原始消息字典，可能包含标准data字段或直接包含业务字段
-
-        Returns:
-            提取出的GenerationData事件数据对象，包含纯业务字段
-        """
-        # 使用 Pydantic 进行类型安全的数据提取和转换
-        event_msg: CapabilityEventMessage = CapabilityEventMessage(**message)
-        typed_data = event_msg.to_typed_data()
-
-        # 检查是否有任何有效字段（包括空值字段）
-        # model_fields_set是Pydantic v2特性，记录了哪些字段被显式设置
-        if hasattr(typed_data, "model_fields_set") and typed_data.model_fields_set:
-            return typed_data
-
-        # 兼容性回退：处理非标准格式的消息
-        # 某些生产者可能直接在message根层级发送数据，而不是嵌套在data字段中
-        potential_payload = message.get("data") if isinstance(message.get("data"), dict) else message
-
-        # 防御性编程：确保payload是有效字典，避免Pydantic解析异常
-        payload = {} if not isinstance(potential_payload, dict) else potential_payload
-
-        return GenerationData(**payload)
-
-    @staticmethod
-    def extract_session_and_scope(data: GenerationData, context: MessageContext) -> tuple[str, ScopeInfo]:
-        """从数据和上下文中提取会话ID和作用域信息
-
-        会话ID提取策略(按优先级排序)：
-        1. context.meta.aggregate_id - 系统层级的聚合根ID，最可靠
-        2. data.session_id - 业务层级的会话ID，用于向后兼容
-
-        作用域推断策略：
-        - 从topic的第一段提取作用域前缀(如"genesis.outline.events" -> "Genesis")
-        - 作用域决定了事件的处理范围和处理器选择
-        - 这种基于约定的推断减少了显式配置，但要求topic命名规范一致
-
-        Args:
-            data: 事件数据，可能包含业务层面的session_id
-            context: 消息上下文，包含系统元数据和topic信息
-
-        Returns:
-            (会话ID, 作用域信息) 元组，用于后续的处理器路由和事件关联
-        """
-        # 优先从系统元数据中提取会话ID
-        # 新的分层设计将系统字段统一存放在context.meta中，与业务数据分离
-        session_id = ""
-        if context.meta:
-            # aggregate_id在DDD中代表聚合根的唯一标识，通常映射到会话ID
-            session_id = str(context.meta.aggregate_id or "")
-
-        # 兼容性回退：从业务数据中查找session_id
-        # 某些遗留消息可能将session_id放在业务数据层，需要支持这种情况
-        if not session_id:
-            session_id = str(getattr(data, "session_id", "") or "")
-
-        topic = context.topic or ""
-
-        # 基于topic约定推断作用域类型
-        # 作用域决定了消息路由和处理器选择，是消息分类的关键维度
-        # 例如："genesis.outline.events" -> scope_prefix="Genesis", scope_type="GENESIS"
-        scope_prefix = topic.split(".", 1)[0].capitalize() if "." in topic else DEFAULT_VALUES["scope_prefix"]
-        scope_type = scope_prefix.upper()
-
-        scope_info = ScopeInfo(
-            topic=topic,
-            scope_prefix=scope_prefix,
-            scope_type=scope_type,
-        )
-
-        return session_id, scope_info
-
-    @staticmethod
-    def extract_correlation_id(context: MessageContext, data: GenerationData) -> str | None:
-        """提取关联ID，用于追踪跨服务的请求链路
-
-        Correlation ID的作用：
-        - 将同一用户请求产生的所有事件关联起来
-        - 支持分布式追踪和问题定位
-        - 在整个请求链路中保持不变，直到请求完成
-
-        为什么只从context.meta提取：
-        - 遵循新的消息分层设计：系统元数据与业务数据分离
-        - correlation_id是系统级概念，不应出现在业务数据层
-        - 这种严格分离提高了代码的可维护性和类型安全性
-
-        Args:
-            context: 消息上下文，包含系统元数据
-            data: 事件业务数据(不应包含系统字段)
-
-        Returns:
-            关联ID字符串，用于追踪请求链；如果不存在返回None
-        """
-        # 仅从系统元数据中提取correlation_id
-        # 这是有意为之：强制消息生产者将系统字段放在正确位置
-        if context.meta and context.meta.correlation_id:
-            return context.meta.correlation_id
-
-        # 不再从业务数据中提取系统字段
-        # 如果这里返回None，说明消息格式不符合规范，需要修复生产者
-        return None
-
-    @staticmethod
-    def extract_causation_id(context: MessageContext, data: GenerationData) -> str | None:
-        """提取因果ID，用于构建事件的因果关系链
-
-        Causation ID的作用：
-        - 记录当前事件是由哪个事件触发的(直接因果关系)
-        - 与correlation_id配合，支持完整的事件溯源
-        - 能力事件的event_id会成为其触发的领域事件的causation_id
-
-        因果链示例：
-        1. 用户请求(correlation_id=REQ-001) -> 能力事件A(event_id=EVT-A, correlation_id=REQ-001)
-        2. 能力事件A触发 -> 领域事件B(causation_id=EVT-A, correlation_id=REQ-001)
-        3. 领域事件B触发 -> 领域事件C(causation_id=EVT-B, correlation_id=REQ-001)
-
-        Args:
-            context: 消息上下文，包含当前事件的event_id
-            data: 事件业务数据(不使用)
-
-        Returns:
-            因果ID字符串(即当前事件的event_id)；如果不存在返回None
-        """
-        # 当前能力事件的event_id将作为下游事件的causation_id
-        # 这样可以追踪"谁触发了谁"的因果关系
-        if context.meta and context.meta.event_id:
-            return context.meta.event_id
-
-        # 不再从业务数据中提取系统字段
-        # 缺失event_id说明消息格式有问题，需要在生产者侧修复
-        return None
+    return GenerationData(**payload)
 
 
-class EventHandlerMatcher:
-    """事件处理器匹配器，负责动态路由和执行事件处理器
+def extract_session_and_scope(data: GenerationData, context: MessageContext) -> tuple[str, ScopeInfo]:
+    """从数据和上下文中提取会话ID和作用域信息
 
-    设计模式：策略模式 + 注册表模式
-    - 使用类型作为键，从HANDLER_REGISTRY中查找对应的处理器函数
-    - 支持运行时动态添加新的处理器，无需修改此类代码
-    - 避免了大量的if-else条件判断，提高了可扩展性
+    会话ID提取优先级：
+    1. context.meta.aggregate_id (系统级)
+    2. data.session_id (业务级，向后兼容)
 
-    工作流程：
-    1. 根据数据类型(type(data))查找注册表
-    2. 调用匹配的处理器函数，传入所有必要参数
-    3. 返回处理器生成的EventAction对象
+    作用域从topic推断：topic="genesis.outline.events" -> scope="Genesis"
     """
+    session_id = ""
+    if context.meta:
+        session_id = str(context.meta.aggregate_id or "")
 
-    def __init__(self, logger: Any) -> None:
-        """初始化事件处理器匹配器
+    if not session_id:
+        session_id = str(getattr(data, "session_id", "") or "")
 
-        Args:
-            logger: 结构化日志记录器，用于追踪处理器匹配和执行过程
-        """
-        self.log = logger
+    topic = context.topic or ""
+    scope_prefix, scope_type = infer_scope_from_topic(topic)
 
-    def find_matching_handler(
-        self,
-        msg_type: str,
-        session_id: str,
-        data: GenerationData,
-        correlation_id: str | None,
-        scope_info: ScopeInfo,
-        causation_id: str | None,
-    ) -> EventAction | None:
-        """通过类型注册表动态分派事件处理器
+    scope_info = ScopeInfo(
+        topic=topic,
+        scope_prefix=scope_prefix,
+        scope_type=scope_type,
+    )
 
-        为什么使用类型作为键：
-        - Python的type()返回对象的确切类型，天然支持多态
-        - 类型匹配比字符串匹配更类型安全，IDE可以提供更好的支持
-        - 便于使用装饰器自动注册处理器：@register_handler(DataType)
+    return session_id, scope_info
 
-        处理器职责：
-        - 将能力事件转换为下游操作(领域事件、任务完成、能力消息)
-        - 封装特定事件类型的业务逻辑
-        - 返回EventAction对象，包含要执行的所有操作
 
-        Args:
-            msg_type: 消息类型标识符
-            session_id: 会话ID，用于关联用户上下文
-            data: 类型化的事件业务数据
-            correlation_id: 请求链路追踪ID
-            scope_info: 作用域信息，决定事件的处理范围
-            causation_id: 因果关系ID，追踪事件触发链
+def extract_metadata_field(context: MessageContext, field_name: str) -> str | None:
+    """从context.meta中提取指定的元数据字段
 
-        Returns:
-            EventAction对象(包含要执行的下游操作)，如果未找到处理器则返回None
-        """
-        # 使用数据的运行时类型作为查找键
-        # 这样可以支持GenerationData的各种子类型
-        data_type = type(data)
+    统一的元数据提取逻辑，替代原来重复的代码。
+    用于提取 correlation_id、event_id 等系统级元数据。
+    """
+    if context.meta:
+        return getattr(context.meta, field_name, None)
+    return None
 
-        # 从全局注册表中查找对应的处理器函数
-        # 注册表在event_handlers模块中维护，支持动态注册
-        handler = HANDLER_REGISTRY.get(data_type)
 
-        if handler:
-            self.log.info(
-                "orchestrator_handler_found",
-                data_type=data_type.__name__,
-                handler_name=getattr(handler, "__name__", "unknown"),
-                session_id=session_id,
-            )
-
-            # 调用处理器函数，传入完整的上下文信息
-            # 处理器是纯函数，接收参数，返回EventAction或None
-            action = handler(
-                msg_type=msg_type,
-                session_id=session_id,
-                data=data,
-                correlation_id=correlation_id,
-                scope_type=scope_info.scope_type,
-                scope_prefix=scope_info.scope_prefix,
-                causation_id=causation_id,
-            )
-
-            if action:
-                # 记录处理器返回的操作类型，便于监控和调试
-                self.log.info(
-                    "orchestrator_handler_matched",
-                    msg_type=msg_type,
-                    session_id=session_id,
-                    data_type=data_type.__name__,
-                    has_domain_event=bool(action.domain_event),
-                    has_task_completion=bool(action.task_completion),
-                    has_capability_message=bool(action.capability_message),
-                )
-                return action
-
-        # 未找到匹配的处理器是正常情况：
-        # 1. 可能是新增的事件类型，处理器尚未实现
-        # 2. 可能是测试/调试阶段的事件
-        # 记录警告日志，但不抛出异常，允许系统继续运行
-        self.log.warning(
-            "orchestrator_no_handler_matched",
-            msg_type=msg_type,
-            session_id=session_id,
-            data_type=data_type.__name__,
-        )
-        return None
+# ============================================================================
+# 主处理器类
+# ============================================================================
 
 
 class CapabilityEventProcessor:
-    """能力事件处理编排器，协调整个能力事件的处理流程
+    """能力事件处理编排器
 
-    架构定位：
-    - 这是Orchestrator Agent的核心组件，负责处理所有入站的能力事件
-    - 采用管道模式：提取 -> 匹配 -> 执行
-    - 作为事件驱动架构的关键节点，连接能力层和领域层
-
-    职责：
-    1. 数据提取：将原始消息转换为类型安全的结构化数据
-    2. 处理器路由：根据事件类型动态匹配处理器
-    3. 结果封装：将处理器的输出封装为统一的ProcessingResult
-    4. 可观测性：记录完整的处理过程，支持问题诊断
-
-    与其他组件的协作：
-    - EventDataExtractor: 负责数据提取和规范化
-    - EventHandlerMatcher: 负责处理器的动态匹配和调用
-    - 各种Handler: 实现特定事件类型的业务逻辑
+    协调整个能力事件的处理流程：
+    - 数据提取和规范化
+    - 处理器动态路由
+    - 结果封装
     """
 
     def __init__(self, logger: Any) -> None:
-        """初始化能力事件处理器
-
-        采用依赖注入模式：
-        - 注入logger而不是在内部创建，便于测试和日志配置
-        - 组合EventDataExtractor和EventHandlerMatcher，而不是继承
-
-        Args:
-            logger: 结构化日志记录器，支持追踪整个处理流程
-        """
         self.log = logger
-        self.data_extractor = EventDataExtractor()
-        self.handler_matcher = EventHandlerMatcher(logger)
 
     async def handle_capability_event(
         self, msg_type: str, message: dict[str, Any], context: dict[str, Any]
     ) -> ProcessingResult | None:
         """处理能力事件的完整编排流程
 
-        处理流程：
-        1. 数据提取阶段
-           - 提取业务数据(GenerationData)
-           - 提取系统元数据(correlation_id, causation_id)
-           - 提取会话和作用域信息
-
-        2. 处理器匹配阶段
-           - 根据数据类型查找注册的处理器
-           - 调用处理器，传入完整上下文
-           - 获取处理器返回的EventAction
-
-        3. 结果封装阶段
-           - 将EventAction封装为ProcessingResult
-           - 保留关键元数据以供后续流程使用
-
-        错误处理策略：
-        - Pydantic解析失败会抛出ValidationError，由上层捕获
-        - 找不到处理器返回None，而不是抛异常(可能是预期行为)
-        - 处理器内部错误由处理器自己负责捕获或向上传播
-
-        为什么使用async：
-        - 虽然当前实现是同步的，但为将来的异步处理器预留接口
-        - 保持与Orchestrator Agent其他方法的接口一致性
-
-        Args:
-            msg_type: 消息类型标识符，用于日志记录和追踪
-            message: 原始消息字典，包含业务数据和可能的系统字段
-            context: 消息上下文字典，包含系统元数据和topic信息
+        流程：
+        1. 提取数据：业务数据、系统元数据、会话和作用域
+        2. 匹配处理器：根据数据类型查找并调用处理器
+        3. 封装结果：返回包含EventAction的ProcessingResult
 
         Returns:
-            ProcessingResult对象，包含EventAction和关键元数据；
-            如果未找到匹配的处理器，返回None
+            ProcessingResult: 包含处理结果和元数据
+            None: 未找到匹配的处理器
         """
-        # 阶段1：数据提取和类型转换
-        # 使用Pydantic确保数据类型安全，避免运行时类型错误
-        data = self.data_extractor.extract_event_data(message)
+        # 阶段1：数据提取
+        data = extract_event_data(message)
         context_model = MessageContext(**context)
-        session_id, scope_info = self.data_extractor.extract_session_and_scope(data, context_model)
-        correlation_id = self.data_extractor.extract_correlation_id(context_model, data)
-        causation_id = self.data_extractor.extract_causation_id(context_model, data)
+        session_id, scope_info = extract_session_and_scope(data, context_model)
 
-        # 记录详细的事件信息，便于调试和监控
-        # model_fields_set显示了消息中实际设置的字段，有助于诊断数据问题
+        # 提取系统元数据
+        correlation_id = extract_metadata_field(context_model, "correlation_id")
+        causation_id = extract_metadata_field(context_model, "event_id")
+
         self.log.info(
             "orchestrator_capability_event_details",
             msg_type=msg_type,
@@ -384,23 +144,88 @@ class CapabilityEventProcessor:
             data_fields=list(data.model_fields_set),
         )
 
-        # 阶段2：处理器匹配和执行
-        # 将复杂的处理器查找逻辑委托给EventHandlerMatcher
-        action = self.handler_matcher.find_matching_handler(
-            msg_type, session_id, data, correlation_id, scope_info, causation_id
+        # 阶段2：直接路由并构建事件动作
+        action = self._route_action(
+            msg_type=msg_type,
+            session_id=session_id,
+            data=data,
+            correlation_id=correlation_id,
+            scope_info=scope_info,
+            causation_id=causation_id,
         )
 
-        # 如果没有找到匹配的处理器，返回None
-        # 这是正常流程：可能是新事件类型，或者是测试消息
         if not action:
             return None
 
         # 阶段3：结果封装
-        # 使用Pydantic确保返回值的类型安全性
-        # 保留msg_type、session_id、correlation_id等元数据，供后续流程使用
         return ProcessingResult(
             action=action,
             msg_type=msg_type,
             session_id=session_id,
             correlation_id=correlation_id,
         )
+
+    def _route_action(
+        self,
+        *,
+        msg_type: str,
+        session_id: str,
+        data: GenerationData,
+        correlation_id: str | None,
+        scope_info: ScopeInfo,
+        causation_id: str | None,
+    ) -> EventAction | None:
+        """基于 msg_type 的直接路由，构建 EventAction。"""
+        if not session_id:
+            return None
+
+        # 生成完成 → 发布 Proposed + 完成任务 + 触发质量评审
+        if is_generation_completed_event(msg_type):
+            target_type = self._target_from_msg_type(msg_type)
+            if not target_type:
+                return None
+
+            task_prefix = normalize_task_type(msg_type)
+            builder = EventActionBuilder()
+
+            builder.with_domain_event(
+                scope_type=scope_info.scope_type,
+                session_id=session_id,
+                event_action=f"{target_type.capitalize()}.Proposed",
+                payload={"session_id": session_id, "content": data.model_dump()},
+                correlation_id=correlation_id,
+                causation_id=causation_id,
+            )
+
+            builder.with_task_completion(
+                correlation_id=correlation_id,
+                expect_task_prefix=task_prefix,
+                result_data=data.model_dump(),
+            )
+
+            capability_message = MessageFactory.create_quality_review_message(
+                session_id=session_id,
+                target_type=target_type,
+                content=data.model_dump(),
+                scope_prefix=scope_info.scope_prefix,
+            )
+            builder.with_capability_message(capability_message)
+
+            return builder.build()
+
+        # 质量评审类事件：此处理器不直接处理，留给领域流程
+        if is_quality_review_event(msg_type):
+            return None
+
+        return None
+
+    @staticmethod
+    def _target_from_msg_type(msg_type: str) -> str | None:
+        """从 msg_type 推断目标类型（character/theme/…）。"""
+        target = extract_strategy_key_from_event_type(msg_type)
+        if target:
+            return target
+        parts = msg_type.split(".")
+        if len(parts) >= 2:
+            return parts[1].lower()
+        return None

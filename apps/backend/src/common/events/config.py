@@ -76,6 +76,44 @@ def build_event_type(scope_type: str | ScopeType, action: str) -> str:
     return f"{prefix}.{action_str}"
 
 
+def infer_scope_from_topic(topic: str | None) -> tuple[str, str]:
+    """Infer scope (prefix, type) from a topic name using centralized config.
+
+    Strategy:
+    - Use the first segment of the topic as scope key (e.g., "genesis.*" -> GENESIS)
+    - Map it to canonical prefix (PascalCase) and type (UPPERCASE) via ScopeType
+    - Fallback to DEFAULT_VALUES when topic is empty or unknown
+
+    Args:
+        topic: Topic string like "genesis.character.events" or "chapter.writer.tasks"
+
+    Returns:
+        (scope_prefix, scope_type) tuple, e.g., ("Genesis", "GENESIS")
+    """
+    if not topic or "." not in topic:
+        return DEFAULT_VALUES["scope_prefix"], DEFAULT_VALUES["scope_type"]
+
+    first = topic.split(".", 1)[0].lower()
+
+    # Known mapping from ScopeType values
+    known = {
+        ScopeType.GENESIS.value.lower(): "Genesis",
+        ScopeType.CHAPTER.value.lower(): "Chapter",
+        ScopeType.REVIEW.value.lower(): "Review",
+        ScopeType.PLANNING.value.lower(): "Planning",
+        ScopeType.WORLDBUILDING.value.lower(): "Worldbuilding",
+    }
+
+    prefix = known.get(first)
+    if prefix:
+        return prefix, prefix.upper()
+
+    # Fallback: derive from first segment to preserve legacy topics like
+    # "character.*" or "plot.*" while still centralizing the logic here.
+    derived_prefix = first.capitalize()
+    return derived_prefix, derived_prefix.upper()
+
+
 # ==================== Strategy Configuration ====================
 
 # Message type configuration for common patterns
@@ -230,6 +268,7 @@ __all__ = [
     "get_aggregate_type",
     "get_domain_topic",
     "build_event_type",
+    "infer_scope_from_topic",
     "get_strategy_config",
     "get_strategy_keys",
     "is_command_received_event",

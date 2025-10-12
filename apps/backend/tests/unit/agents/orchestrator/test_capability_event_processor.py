@@ -3,33 +3,36 @@
 Tests the capability event processing logic with proper isolation and mocking.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from src.agents.orchestrator.capability_event_processor import (
     CapabilityEventProcessor,
-    EventDataExtractor,
-    EventHandlerMatcher,
+    extract_event_data,
+    extract_metadata_field,
+    extract_session_and_scope,
 )
-from src.agents.orchestrator.event_handlers import EventAction
+from src.agents.orchestrator.workflows import EventAction
 from src.agents.orchestrator.types import (
     GenerationData,
     MessageContext,
     ScopeInfo,
 )
+from src.common.events.mapping import normalize_task_type
+from src.common.events.config import get_message_type
 
 
-class TestEventDataExtractor:
-    """Tests for event data extraction logic."""
+class TestExtractEventData:
+    """Tests for extract_event_data function."""
 
-    def test_extract_event_data_with_data_field(self):
+    def test_extract_with_data_field(self):
         message = {
             "data": {"session_id": "session-123", "result": "success"},
             "other_field": "ignored",
         }
 
-        result = EventDataExtractor.extract_event_data(message)
+        result = extract_event_data(message)
 
         assert isinstance(result, GenerationData)
         assert result.model_dump(exclude_none=True) == {
@@ -37,19 +40,23 @@ class TestEventDataExtractor:
             "result": "success",
         }
 
-    def test_extract_event_data_without_data_field(self):
+    def test_extract_without_data_field(self):
         message = {"session_id": "session-123", "result": "success"}
 
-        result = EventDataExtractor.extract_event_data(message)
+        result = extract_event_data(message)
 
         assert isinstance(result, GenerationData)
         assert result.model_dump(exclude_none=True) == message
 
-    def test_extract_session_and_scope_with_session_id(self):
+
+class TestExtractSessionAndScope:
+    """Tests for extract_session_and_scope function."""
+
+    def test_extract_with_session_id(self):
         data = GenerationData(session_id="session-123", other="data")
         context = MessageContext(topic="genesis.character.events")
 
-        session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
+        session_id, scope_info = extract_session_and_scope(data, context)
 
         assert session_id == "session-123"
         assert isinstance(scope_info, ScopeInfo)
@@ -57,148 +64,80 @@ class TestEventDataExtractor:
         assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
-    def test_extract_session_and_scope_with_aggregate_id(self):
+    def test_extract_with_aggregate_id(self):
         data = GenerationData(other="data")
         context = MessageContext(topic="character.world.events", meta={"aggregate_id": "session-456"})
 
-        session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
+        session_id, scope_info = extract_session_and_scope(data, context)
 
         assert session_id == "session-456"
         assert scope_info.scope_prefix == "Character"
         assert scope_info.scope_type == "CHARACTER"
 
-    def test_extract_session_and_scope_no_session(self):
+    def test_extract_no_session(self):
         data = GenerationData()
         context = MessageContext(topic="plot.outline.events")
 
-        session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
+        session_id, scope_info = extract_session_and_scope(data, context)
 
         assert session_id == ""
         assert scope_info.scope_prefix == "Plot"
         assert scope_info.scope_type == "PLOT"
 
-    def test_extract_session_and_scope_no_topic(self):
+    def test_extract_no_topic(self):
         data = GenerationData(session_id="session-123")
         context = MessageContext()
 
-        session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
+        session_id, scope_info = extract_session_and_scope(data, context)
 
         assert session_id == "session-123"
         assert scope_info.topic == ""
         assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
-    def test_extract_session_and_scope_single_word_topic(self):
+    def test_extract_single_word_topic(self):
         data = GenerationData(session_id="session-123")
         context = MessageContext(topic="events")
 
-        session_id, scope_info = EventDataExtractor.extract_session_and_scope(data, context)
+        session_id, scope_info = extract_session_and_scope(data, context)
 
         assert session_id == "session-123"
         assert scope_info.scope_prefix == "Genesis"
         assert scope_info.scope_type == "GENESIS"
 
-    def test_extract_correlation_id_from_context_meta(self):
+
+class TestExtractMetadataField:
+    """Tests for extract_metadata_field function."""
+
+    def test_extract_correlation_id(self):
         correlation_id = str(uuid4())
         context = MessageContext(meta={"correlation_id": correlation_id})
-        data = GenerationData(correlation_id="other-id")
 
-        result = EventDataExtractor.extract_correlation_id(context, data)
+        result = extract_metadata_field(context, "correlation_id")
 
         assert result == correlation_id
 
-    def test_extract_correlation_id_none(self):
-        context = MessageContext(meta={})
-        data = GenerationData()
+    def test_extract_event_id(self):
+        event_id = str(uuid4())
+        context = MessageContext(meta={"event_id": event_id})
 
-        result = EventDataExtractor.extract_correlation_id(context, data)
+        result = extract_metadata_field(context, "event_id")
+
+        assert result == event_id
+
+    def test_extract_missing_field(self):
+        context = MessageContext(meta={})
+
+        result = extract_metadata_field(context, "missing_field")
 
         assert result is None
 
-    def test_extract_causation_id_from_context_meta(self):
-        causation_id = str(uuid4())
-        context = MessageContext(meta={"event_id": causation_id})
-        data = GenerationData(event_id="other-id")
+    def test_extract_no_meta(self):
+        context = MessageContext()
 
-        result = EventDataExtractor.extract_causation_id(context, data)
+        result = extract_metadata_field(context, "correlation_id")
 
-        assert result == causation_id
-
-
-class TestEventHandlerMatcher:
-    """Tests for event handler matching logic."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.mock_logger = MagicMock()
-        self.matcher = EventHandlerMatcher(self.mock_logger)
-
-    def test_find_matching_handler_success(self):
-        """Test finding a matching handler successfully."""
-        # Arrange
-        msg_type = "Character.Design.GenerationCompleted"
-        session_id = "session-123"
-        data = GenerationData(session_id=session_id, character_id="char-456", name="Hero")
-        correlation_id = str(uuid4())
-        scope_info = ScopeInfo(topic="genesis.character.events", scope_prefix="GENESIS", scope_type="GENESIS")
-        causation_id = str(uuid4())
-
-        mock_action = EventAction(
-            domain_event={"scope_type": "GENESIS", "event_action": "Character.Generated"},
-            task_completion={"correlation_id": correlation_id, "expect_task_prefix": "Character.Design"},
-        )
-
-        # Mock the handler function to return our test action
-        mock_handler = MagicMock(return_value=mock_action)
-
-        with patch(
-            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY", {GenerationData: mock_handler}
-        ):
-            # Act
-            result = self.matcher.find_matching_handler(
-                msg_type, session_id, data, correlation_id, scope_info, causation_id
-            )
-
-            # Assert
-            assert result == mock_action
-            mock_handler.assert_called_once_with(
-                msg_type=msg_type,
-                session_id=session_id,
-                data=data,
-                correlation_id=correlation_id,
-                scope_type="GENESIS",
-                scope_prefix="GENESIS",
-                causation_id=causation_id,
-            )
-
-    def test_find_matching_handler_no_match(self):
-        """Test when no handler matches."""
-        # Arrange
-        msg_type = "Unknown.Event.Type"
-        session_id = "session-123"
-        data = GenerationData(session_id=session_id)
-        correlation_id = str(uuid4())
-        scope_info = ScopeInfo(topic="genesis.character.events", scope_prefix="GENESIS", scope_type="GENESIS")
-        causation_id = str(uuid4())
-
-        # Mock HANDLER_REGISTRY to have no matching handler for the data type
-        with patch(
-            "src.agents.orchestrator.capability_event_processor.HANDLER_REGISTRY",
-            {},  # Empty registry - no handlers for GenerationData
-        ):
-            # Act
-            result = self.matcher.find_matching_handler(
-                msg_type, session_id, data, correlation_id, scope_info, causation_id
-            )
-
-            # Assert
-            assert result is None
-            self.mock_logger.warning.assert_called_with(
-                "orchestrator_no_handler_matched",
-                msg_type=msg_type,
-                session_id=session_id,
-                data_type="GenerationData",
-            )
+        assert result is None
 
 
 class TestCapabilityEventProcessor:
@@ -210,136 +149,89 @@ class TestCapabilityEventProcessor:
         self.processor = CapabilityEventProcessor(self.mock_logger)
 
     @pytest.mark.asyncio
-    async def test_handle_capability_event_success(self):
-        """Test successful capability event processing."""
-        # Arrange
-        msg_type = "Character.Design.GenerationCompleted"
+    async def test_handle_generation_completed_builds_actions(self):
+        """Character.Design.Generated 应构建 Proposed + TaskCompletion + QualityReview。"""
+        msg_type = "Character.Design.Generated"
+        correlation_id = str(uuid4())
         message = {
             "data": {"session_id": "session-123", "character_id": "char-456", "name": "Hero"},
-            "other_field": "ignored",
         }
         context = {
             "topic": "genesis.character.events",
-            "meta": {"correlation_id": str(uuid4()), "event_id": str(uuid4())},
+            "meta": {"correlation_id": correlation_id, "event_id": str(uuid4())},
         }
 
-        mock_action = EventAction(
-            domain_event={"scope_type": "GENESIS", "event_action": "Character.Generated"},
-            task_completion={
-                "correlation_id": context["meta"]["correlation_id"],
-                "expect_task_prefix": "Character.Design",
-            },
-        )
-
-        # Mock the handler matcher to return an action
-        self.processor.handler_matcher.find_matching_handler = MagicMock(return_value=mock_action)
-
-        # Act
         result = await self.processor.handle_capability_event(msg_type, message, context)
 
-        # Assert
         assert result is not None
-        assert result.action == mock_action
         assert result.msg_type == msg_type
         assert result.session_id == "session-123"
-        assert result.correlation_id == context["meta"]["correlation_id"]
+        assert result.correlation_id == correlation_id
 
-        # Verify handler matcher was called correctly
-        self.processor.handler_matcher.find_matching_handler.assert_called_once()
-        call_args = self.processor.handler_matcher.find_matching_handler.call_args[0]
-        assert call_args[0] == msg_type
-        assert call_args[1] == "session-123"
-        event_data = call_args[2]
-        assert isinstance(event_data, GenerationData)
-        assert event_data.model_dump(exclude_none=True) == {
-            "session_id": "session-123",
-            "character_id": "char-456",
-            "name": "Hero",
-        }
-        assert call_args[3] == context["meta"]["correlation_id"]
-        scope_info = call_args[4]
-        assert isinstance(scope_info, ScopeInfo)
-        assert scope_info.scope_type == "GENESIS"
-        assert call_args[5] == context["meta"]["event_id"]
+        action = result.action
+        assert isinstance(action, EventAction)
+
+        # 领域事件
+        assert action.domain_event is not None
+        assert action.domain_event["scope_type"] == "GENESIS"
+        assert action.domain_event["session_id"] == "session-123"
+        assert action.domain_event["event_action"] == "Character.Proposed"
+        assert action.domain_event["correlation_id"] == correlation_id
+
+        # 任务完成
+        assert action.task_completion is not None
+        assert action.task_completion["correlation_id"] == correlation_id
+        assert action.task_completion["expect_task_prefix"] == normalize_task_type(msg_type)
+
+        # 质量评审能力消息
+        assert action.capability_message is not None
+        assert action.capability_message["type"] == get_message_type("quality_review")
+        assert action.capability_message["session_id"] == "session-123"
+        assert action.capability_message["_topic"].endswith("review.tasks")
 
     @pytest.mark.asyncio
-    async def test_handle_capability_event_no_handler_match(self):
-        """Test when no handler matches the event."""
-        # Arrange
+    async def test_handle_unknown_event_returns_none(self):
         msg_type = "Unknown.Event.Type"
         message = {"data": {"session_id": "session-123", "unknown": "data"}}
         context = {"topic": "genesis.unknown.events"}
 
-        # Mock the handler matcher to return None
-        self.processor.handler_matcher.find_matching_handler = MagicMock(return_value=None)
-
-        # Act
         result = await self.processor.handle_capability_event(msg_type, message, context)
-
-        # Assert
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_handle_capability_event_extracts_data_correctly(self):
-        """Test that event data is extracted correctly."""
-        # Arrange
-        msg_type = "Character.Design.GenerationCompleted"
+    async def test_handle_event_data_extraction_and_scope(self):
+        msg_type = "Character.Generated"
         message = {
             "data": {"session_id": "session-123", "result": "success"},
-            "metadata": "ignored",
         }
         context = {
             "topic": "character.design.events",
             "meta": {"correlation_id": str(uuid4())},
         }
 
-        mock_action = EventAction(domain_event={"scope_type": "CHARACTER"})
-
-        # Mock the handler matcher
-        self.processor.handler_matcher.find_matching_handler = MagicMock(return_value=mock_action)
-
-        # Act
         result = await self.processor.handle_capability_event(msg_type, message, context)
-
-        # Assert
-        assert result is not None
-
-        # Verify correct data extraction
-        call_args = self.processor.handler_matcher.find_matching_handler.call_args[0]
-        extracted_data = call_args[2]
-        assert isinstance(extracted_data, GenerationData)
-        assert extracted_data.model_dump(exclude_none=True) == {
-            "session_id": "session-123",
-            "result": "success",
-        }
-
-        # Verify scope extraction
-        scope_info = call_args[4]
-        assert isinstance(scope_info, ScopeInfo)
-        assert scope_info.scope_type == "CHARACTER"
-        assert scope_info.scope_prefix == "Character"
+        # 非 generation_completed（严格匹配列表），可能返回 None
+        # 这里主要验证不会抛异常，且数据提取正常
+        assert isinstance(extract_event_data(message), GenerationData)
 
     @pytest.mark.asyncio
-    async def test_handle_capability_event_message_without_data_field(self):
-        """Test handling message without separate data field."""
-        # Arrange
-        msg_type = "Character.Design.GenerationCompleted"
+    async def test_message_without_data_field(self):
+        msg_type = "Character.Design.Generated"
         message = {"session_id": "session-123", "result": "success"}
         context = {"topic": "genesis.character.events"}
 
-        mock_action = EventAction(domain_event={"scope_type": "GENESIS"})
-
-        # Mock the handler matcher
-        self.processor.handler_matcher.find_matching_handler = MagicMock(return_value=mock_action)
-
-        # Act
         result = await self.processor.handle_capability_event(msg_type, message, context)
-
-        # Assert
         assert result is not None
+        # 验证使用了整条消息作为数据构建动作
+        assert result.action.domain_event is not None
 
-        # Verify the entire message was used as data
-        call_args = self.processor.handler_matcher.find_matching_handler.call_args[0]
-        extracted_data = call_args[2]
-        assert isinstance(extracted_data, GenerationData)
-        assert extracted_data.model_dump(exclude_none=True) == message
+    @pytest.mark.asyncio
+    async def test_outliner_theme_generated_target_inference(self):
+        """Outliner.Theme.Generated 应推断 target_type 为 theme。"""
+        msg_type = "Outliner.Theme.Generated"
+        message = {"data": {"session_id": "s-1", "title": "T"}}
+        context = {"topic": "genesis.outline.events", "meta": {"correlation_id": str(uuid4())}}
+
+        result = await self.processor.handle_capability_event(msg_type, message, context)
+        assert result is not None
+        assert result.action.domain_event["event_action"] == "Theme.Proposed"

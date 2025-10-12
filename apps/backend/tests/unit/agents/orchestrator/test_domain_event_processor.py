@@ -3,18 +3,12 @@
 Tests the domain event processing logic with proper isolation and mocking.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 
-from src.agents.orchestrator.domain_event_processor import (
-    CommandMapper,
-    CorrelationIdExtractor,
-    DomainEventProcessor,
-    EventValidator,
-    PayloadEnricher,
-)
+from src.agents.orchestrator.domain_event_processor import CommandMapper, CorrelationIdExtractor, DomainEventProcessor, EventValidator, PayloadEnricher
 
 
 class TestCorrelationIdExtractor:
@@ -242,10 +236,9 @@ class TestEventValidator:
 
 
 class TestCommandMapper:
-    """Tests for command mapping logic."""
+    """Tests for command mapping logic (direct, config-driven)."""
 
-    def test_map_command_delegates_to_registry(self):
-        """Test that command mapping delegates to the command registry."""
+    def test_map_command_builds_message_from_config(self):
         # Arrange
         cmd_type = "Character.Request"
         scope_type = "GENESIS"
@@ -253,22 +246,16 @@ class TestCommandMapper:
         aggregate_id = "session-123"
         payload = {"character_type": "hero"}
 
-        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
-            mock_mapping = MagicMock()
-            mock_registry.process_command.return_value = mock_mapping
+        # Act
+        result = CommandMapper.map_command(cmd_type, scope_type, scope_prefix, aggregate_id, payload)
 
-            # Act
-            result = CommandMapper.map_command(cmd_type, scope_type, scope_prefix, aggregate_id, payload)
-
-            # Assert
-            assert result == mock_mapping
-            mock_registry.process_command.assert_called_once_with(
-                cmd_type=cmd_type,
-                scope_type=scope_type,
-                scope_prefix=scope_prefix,
-                aggregate_id=aggregate_id,
-                payload=payload,
-            )
+        # Assert
+        assert result is not None
+        assert result.requested_action == "Character.Requested"
+        assert result.capability_message["type"] == "Character.Design.GenerationRequested"
+        assert result.capability_message["_topic"] == "genesis.character.tasks"
+        assert result.capability_message["_key"] == aggregate_id
+        assert result.capability_message["input"] == payload
 
 
 class TestPayloadEnricher:
@@ -395,38 +382,33 @@ class TestDomainEventProcessor:
         }
         context = {"meta": {"correlation_id": correlation_id}}
 
-        # Mock the command mapping result
-        mock_mapping = MagicMock()
-        mock_mapping.requested_action = "Character.Requested"
-        mock_mapping.capability_message = {
-            "type": "Character.Design.GenerationRequested",
-            "input": {"character_type": "hero"},
-        }
+        # Act
+        result = await self.processor.handle_domain_event(evt, context)
 
-        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
-            mock_registry.process_command.return_value = mock_mapping
+        # Assert
+        assert result is not None
+        assert result["correlation_id"] == correlation_id
+        assert result["scope_type"] == "GENESIS"
+        assert result["aggregate_id"] == "session-123"
+        assert result["causation_id"] == event_id
 
-            # Act
-            result = await self.processor.handle_domain_event(evt, context)
+        # Verify mapping built directly
+        mapping = result["mapping"]
+        assert mapping.requested_action == "Character.Requested"
+        assert mapping.capability_message["type"] == "Character.Design.GenerationRequested"
+        assert mapping.capability_message["_topic"] == "genesis.character.tasks"
+        assert mapping.capability_message["_key"] == "session-123"
+        assert mapping.capability_message["input"] == {"character_type": "hero"}
 
-            # Assert
-            assert result is not None
-            assert result["correlation_id"] == correlation_id
-            assert result["scope_type"] == "GENESIS"
-            assert result["aggregate_id"] == "session-123"
-            assert result["mapping"] == mock_mapping
-            assert result["causation_id"] == event_id
-
-            # Verify enriched payload
-            enriched_payload = result["enriched_payload"]
-            assert enriched_payload["session_id"] == "session-123"
-            assert enriched_payload["input"] == {"character_type": "hero"}
+        # Verify enriched payload
+        enriched_payload = result["enriched_payload"]
+        assert enriched_payload["session_id"] == "session-123"
+        assert enriched_payload["input"] == {"character_type": "hero"}
         assert enriched_payload["user_id"] == "user-456"
 
     @pytest.mark.asyncio
     async def test_handle_domain_event_feedback_intent_routes_to_review(self):
         """当分类为反馈生成时，应路由到 review 主题并附带 intent。"""
-        from src.agents.orchestrator.command_strategies import CommandMapping
         from src.agents.orchestrator.intent_classifier import IntentClassification
 
         correlation_id = str(uuid4())
@@ -452,21 +434,7 @@ class TestDomainEventProcessor:
         classifier = _StubIntentClassifier(result=intent_result)
         processor = DomainEventProcessor(self.mock_logger, intent_classifier=classifier)
 
-        mapping = CommandMapping(
-            requested_action="Details.Requested",
-            capability_message={
-                "type": "Writer.Content.GenerationRequested",
-                "session_id": "session-abc",
-                "input": {"foo": "bar"},
-                "_topic": "genesis.writer.tasks",
-                "_key": "session-abc",
-            },
-        )
-
-        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
-            mock_registry.process_command.return_value = mapping
-
-            result = await processor.handle_domain_event(evt, context)
+        result = await processor.handle_domain_event(evt, context)
 
         assert result is not None
         routed_mapping = result["mapping"]
@@ -540,15 +508,12 @@ class TestDomainEventProcessor:
         }
         context = {}
 
-        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
-            mock_registry.process_command.return_value = None
+        # Act
+        result = await self.processor.handle_domain_event(evt, context)
 
-            # Act
-            result = await self.processor.handle_domain_event(evt, context)
-
-            # Assert
-            assert result is None
-            self.mock_logger.warning.assert_called_once()
+        # Assert
+        assert result is None
+        self.mock_logger.warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handle_domain_event_extracts_scope_correctly(self):
@@ -567,19 +532,8 @@ class TestDomainEventProcessor:
         }
         context = {}
 
-        mock_mapping = MagicMock()
-        mock_mapping.requested_action = "Character.Requested"
-        mock_mapping.capability_message = {"type": "Character.Design.GenerationRequested"}
+        # Act
+        result = await self.processor.handle_domain_event(evt, context)
 
-        with patch("src.agents.orchestrator.domain_event_processor.command_registry") as mock_registry:
-            mock_registry.process_command.return_value = mock_mapping
-
-            # Act
-            result = await self.processor.handle_domain_event(evt, context)
-
-            # Assert
-            assert result["scope_type"] == "CHARACTER"
-            mock_registry.process_command.assert_called_once()
-            call_args = mock_registry.process_command.call_args[1]
-            assert call_args["scope_type"] == "CHARACTER"
-            assert call_args["scope_prefix"] == "Character"
+        # Assert
+        assert result["scope_type"] == "CHARACTER"

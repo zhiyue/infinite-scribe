@@ -6,11 +6,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
-from src.agents.orchestrator.command_strategies import CommandMapping, command_registry
 from src.agents.orchestrator.intent_classifier import IntentClassification, IntentClassifier
-from src.common.events.mapping import build_topic_name
+from src.common.events.config import (
+    DEFAULT_VALUES,
+    get_message_type,
+    get_strategy_config,
+    is_command_received_event,
+    is_state_change_event,
+)
+from src.common.events.mapping import build_topic_name, extract_strategy_key_from_event_type, get_event_by_command
 from src.common.utils.datetime_utils import utc_now
 
 
@@ -115,8 +121,6 @@ class EventValidator:
         Returns:
             如果是命令接收事件则返回True， 否则返回False
         """
-        from src.common.events.config import is_command_received_event
-
         return is_command_received_event(event_type)
 
     @staticmethod
@@ -153,8 +157,6 @@ class EventValidator:
         Returns:
             (作用域前缀, 作用域类型) 元组，例如：("genesis", "GENESIS")
         """
-        from src.common.events.config import DEFAULT_VALUES
-
         # 解析作用域前缀（事件类型的第一部分，点号之前）
         # 如果事件类型不包含点号（格式异常），使用默认值避免解析错误
         scope_prefix = event_type.split(".", 1)[0] if "." in event_type else DEFAULT_VALUES["scope_prefix"]
@@ -162,6 +164,13 @@ class EventValidator:
         # 注册表使用大写的作用域类型作为命令策略的分组标识
         scope_type = scope_prefix.upper()  # 例如: genesis -> GENESIS
         return scope_prefix, scope_type
+
+
+class CommandMapping(NamedTuple):
+    """命令映射结果：请求动作 + 能力消息。"""
+
+    requested_action: str
+    capability_message: dict[str, Any] | None
 
 
 class CommandMapper:
@@ -174,41 +183,43 @@ class CommandMapper:
     @staticmethod
     def map_command(
         cmd_type: str, scope_type: str, scope_prefix: str, aggregate_id: str, payload: dict[str, Any]
-    ) -> Any:  # 返回来自command_registry的CommandMapping
-        """使用命令注册表将命令映射到领域请求和能力任务。
+    ) -> CommandMapping | None:
+        """数据驱动的直接映射：命令 → 请求动作 + 能力消息。
 
-        命令注册表维护了命令类型到处理策略的映射关系，包括：
-        - 领域请求的事件类型（如WorldConcept.Create.Requested）
-        - 能力任务的消息格式和路由信息（type、input、_topic、_key）
-        - 命令的验证规则和转换逻辑
-
-        设计模式：策略模式（Strategy Pattern）
-        - 命令注册表作为策略容器，维护命令类型到处理策略的映射
-        - 每个命令策略定义了如何将命令转换为领域事件和能力消息
-        - 新增命令类型只需在注册表中添加策略，无需修改编排器核心代码
-        - 这种设计符合开闭原则（对扩展开放，对修改封闭）
-
-        Args:
-            cmd_type: 命令类型（如StartGenesisSession、GenerateWorldConcept等）
-            scope_type: 作用域类型（大写，如GENESIS、WORLDBUILD），用于主题构建
-            scope_prefix: 作用域前缀（小写，如genesis、worldbuild），用于主题构建
-            aggregate_id: 聚合ID（通常是session_id），用于事件关联和分区键
-            payload: 有效负载数据（命令参数）
-
-        Returns:
-            命令映射对象，包含：
-            - requested_action: 领域请求的事件类型
-            - capability_message: 发送给能力Agent的消息
+        - 通过配置 `get_event_by_command` 翻译命令 → 请求动作
+        - 纯状态变更（如 *.Confirmed）不生成能力消息
+        - 依据请求动作推断策略键，查 `get_strategy_config` 构造能力消息
         """
-        # 委托给命令注册表处理，实现策略模式的分发逻辑
-        # 注册表会根据cmd_type查找对应的处理策略，并执行转换逻辑
-        return command_registry.process_command(
-            cmd_type=cmd_type,
-            scope_type=scope_type,
-            scope_prefix=scope_prefix,
-            aggregate_id=aggregate_id,
-            payload=payload,
-        )
+        event_action = get_event_by_command(cmd_type)
+        if not event_action:
+            return None
+
+        if is_state_change_event(event_action):
+            return CommandMapping(requested_action=event_action, capability_message=None)
+
+        strategy_key = CommandMapper._strategy_for_action(event_action)
+        cfg = get_strategy_config(strategy_key) if strategy_key else None
+        if not cfg:
+            return CommandMapping(requested_action=event_action, capability_message=None)
+
+        capability_message = {
+            "type": cfg["capability_type"],
+            "session_id": aggregate_id,
+            "input": payload or {},
+            "_topic": build_topic_name(cfg["base_topic"], scope_type, scope_prefix),
+            "_key": aggregate_id,
+        }
+        return CommandMapping(requested_action=event_action, capability_message=capability_message)
+
+    @staticmethod
+    def _strategy_for_action(event_action: str) -> str | None:
+        # 特例映射：Stage.*
+        if event_action.endswith("ValidationRequested"):
+            return "stage_validation"
+        if event_action.endswith("LockRequested"):
+            return "stage_lock"
+        # 通用映射：取前缀
+        return extract_strategy_key_from_event_type(event_action)
 
 
 class PayloadEnricher:
@@ -495,6 +506,26 @@ class DomainEventProcessor:
             capability_type=(mapping.capability_message or {}).get("type"),
             has_capability_input=bool((mapping.capability_message or {}).get("input")),
         )
+
+        # 针对“反馈生成”意图：将能力消息改路由到质量评审(review)
+        # 并在输入中附带意图相关元信息
+        if mapping and mapping.capability_message and intent_result and intent_result.intent == "feedback_generation":
+            review_cfg = get_strategy_config("stage_validation")
+            if review_cfg:
+                mapping.capability_message["type"] = get_message_type("quality_review")
+                mapping.capability_message["_topic"] = build_topic_name(
+                    review_cfg["base_topic"], scope_type, scope_prefix
+                )
+                review_input = mapping.capability_message.get("input") or {}
+                review_input = dict(review_input)
+                review_input.update(
+                    {
+                        "intent": intent_result.intent,
+                        "intent_confidence": intent_result.confidence,
+                        "intent_source": intent_result.source,
+                    }
+                )
+                mapping.capability_message["input"] = review_input
 
         # 丰富有效负载，添加会话上下文和路由信息
         # PayloadEnricher会添加session_id、user_id、timestamp等核心字段
