@@ -15,7 +15,6 @@ from src.agents.orchestrator.types import (
     MessageContext,
     ProcessingResult,
     ScopeInfo,
-    create_processing_result,
 )
 from src.agents.orchestrator.workflows import EventAction
 from src.common.events.config import DEFAULT_VALUES
@@ -259,7 +258,7 @@ class CapabilityEventProcessor:
             return None
 
         # 使用 Pydantic 返回类型安全的处理结果
-        return create_processing_result(
+        return ProcessingResult(
             action=action,
             msg_type=msg_type,
             session_id=session_id,
