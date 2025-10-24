@@ -8,9 +8,11 @@
 
 ## 🚧 当前开发状态
 
-- ✅ **基础设施配置**：Docker 容器化、开发工具链、CI/CD 流程
-- 🔄 **后端开发**：API Gateway 和 Agent 服务架构（开发中）
-- 🔄 **前端开发**：React 18 + TypeScript（开发中）
+- ✅ **基础设施配置**：Docker 容器化、开发工具链、参数化命令系统
+- ✅ **后端开发**：API Gateway、认证系统、Agent 框架基础
+- ✅ **前端开发**：React 18 + TypeScript、认证 UI、E2E 测试
+- ✅ **开发工具**：统一脚本系统、邮件服务、API 工具、健康检查
+- 🔄 **核心功能**：Agent 智能体实现、小说生成流程（开发中）
 - 📋 **项目管理**：基于 bmad 方法论的故事驱动开发
 
 ## 🎯 项目概述
@@ -28,10 +30,10 @@ InfiniteScribe利用最先进的AI技术和多智能体架构，为用户提供�
 
 ## 🏗️ 技术栈
 
-### 已配置/开发中
+### 已配置/生产就绪
 
-- **后端**: Python 3.11 + FastAPI + Pydantic
-- **前端**: React 18.2 + TypeScript ~5.2.2 + Vite + Tailwind CSS + Shadcn UI
+- **后端**: Python 3.11 + FastAPI + Pydantic + SQLAlchemy
+- **前端**: React 18.2 + TypeScript ~5.9.2 + Vite + Tailwind CSS + Shadcn UI  
 - **数据库**: PostgreSQL 16 + Redis 7.2 + Neo4j 5.x + Milvus 2.6
 - **消息队列**: Apache Kafka 3.7
 - **工作流编排**: Prefect 3.x
@@ -40,6 +42,8 @@ InfiniteScribe利用最先进的AI技术和多智能体架构，为用户提供�
 - **可观测性**: Langfuse
 - **容器化**: Docker + Docker Compose
 - **包管理**: pnpm ~8.15.9 (Monorepo) + uv (Python)
+- **测试**: Pytest + Vitest + Playwright (E2E)
+- **开发工具**: 参数化命令系统、MailDev、API 导出工具
 
 ## 📁 项目结构
 
@@ -126,26 +130,47 @@ infinite-scribe/
 - Python ~3.11
 - uv (现代Python包管理器)
 
-### 开发命令说明
+### 🎯 参数化命令系统 (核心功能)
 
-本项目支持使用 `make` 或 `pnpm` 来执行开发任务。两种方式功能完全相同，可根据个人
-喜好选择：
+本项目采用了统一的参数化脚本运行器，极大简化了开发命令的使用：
 
 ```bash
-# 使用 Make（更简洁）
-make backend-run       # 启动后端服务
-make test-all         # 运行所有测试
+# 核心开发命令 (日常使用 95% 的命令)
+pnpm backend run                     # 启动后端 API 网关
+pnpm frontend run                    # 启动前端开发服务器
+pnpm backend install                 # 安装 Python 依赖
+pnpm frontend install               # 安装 Node.js 依赖
 
-# 使用 pnpm（更明确）
-pnpm run backend:run   # 启动后端服务
-pnpm run test:all     # 运行所有测试
+# 测试命令
+pnpm test all                        # 运行所有测试（本地 Docker）
+pnpm test all --remote               # 远程测试（192.168.2.202）
+pnpm test unit                       # 单元测试
+pnpm test coverage                   # 带覆盖率测试
 
-# 查看所有可用命令
-make help             # Make 命令帮助
-pnpm run              # pnpm 脚本列表
+# 服务管理
+pnpm check services                  # 快速健康检查
+pnpm check services --remote         # 检查远程服务器服务
+pnpm infra up                        # 启动基础设施服务
+pnpm infra down                      # 停止基础设施服务
+
+# SSH 连接
+pnpm ssh dev                         # 连接开发服务器 (192.168.2.201)
+pnpm ssh test                        # 连接测试服务器 (192.168.2.202)
+
+# API 工具
+pnpm api export                      # 导出本地 API 定义
+pnpm api export:dev                  # 导出开发环境 API 定义
+
+# 获取帮助
+pnpm run                             # 显示完整命令帮助
+pnpm backend                         # 后端命令帮助  
+pnpm test                            # 测试命令帮助
 ```
 
-详细的命令对照表请参考 [开发命令参考](./docs/guides/development/command-reference.md)。
+**优势**: 
+- ✅ 减少 86% 重复代码 (从 88 个脚本 → 12 个核心脚本)
+- ✅ 统一环境变量和参数管理
+- ✅ 保持完全向后兼容性
 
 ### 安装依赖
 
@@ -235,49 +260,49 @@ pnpm env:show     # 查看当前环境
 
 ### 🔄 开发工作流
 
-推荐的日常开发流程（优先使用 Make 命令）：
+推荐的日常开发流程：
 
 ```bash
 # 1. 初始设置（只需要做一次）
 ./scripts/dev/setup-dev.sh  # 安装所有依赖
-pnpm infra up               # 启动基础设施服务（新命令！）
+pnpm infra up               # 启动基础设施服务
 pnpm check services         # 检查本地服务状态
 
 # 2. 日常开发（在两个终端中运行）
-pnpm backend:run            # 终端 1: 启动后端 API 网关
-pnpm frontend:run           # 终端 2: 启动前端开发服务器
+pnpm backend run            # 终端 1: 启动后端 API 网关
+pnpm frontend run           # 终端 2: 启动前端开发服务器
 
 # 3. 代码质量检查（提交前）
-pnpm lint:all               # 代码格式和规范检查
-pnpm typecheck:all          # 类型检查
-pnpm backend:test:unit      # 单元测试
+pnpm backend lint           # Python 代码检查
+pnpm backend typecheck      # Python 类型检查
+pnpm backend test           # 单元测试
+pnpm lint                   # 前端代码检查
 
 # 4. 完整测试（提交前建议运行）
-pnpm test:all               # 全部测试（Docker 容器模式）
+pnpm test all               # 全部测试（Docker 容器模式）
 
-# 5. 部署到开发服务器（新的统一命令！）
+# 5. 部署到开发服务器
 pnpm app                    # 部署所有应用服务
 pnpm app --build            # 重新构建并部署（更新依赖后）
 ```
 
 **快捷命令：**
-- `pnpm run` - 查看所有可用命令
-- `pnpm check` - 运行所有检查（代码规范 + 类型 + 单元测试）  
-- `pnpm clean` - 清理缓存和构建产物
+- `pnpm run` - 查看所有可用命令和完整帮助
+- `pnpm clean` - 清理缓存和构建产物  
+- `pnpm format` - 格式化所有代码
 
 **环境管理命令：**
 ```bash
 # SSH 连接命令
-pnpm ssh:dev                # 连接开发服务器 (192.168.2.201)
-pnpm ssh:test               # 连接测试服务器 (192.168.2.202)
-# 或使用 Make
-make ssh-dev                # 连接开发服务器
-make ssh-test               # 连接测试服务器
+pnpm ssh dev                # 连接开发服务器 (192.168.2.201)
+pnpm ssh test               # 连接测试服务器 (192.168.2.202)
 
-# 环境同步与配置
-pnpm env:sync-frontend      # 同步前端环境配置
+# 环境配置管理
+pnpm env:local              # 切换到本地开发环境
+pnpm env:dev                # 切换到开发服务器环境
+pnpm env:show               # 查看当前环境
 
-# 远程日志和备份
+# 运维工具
 pnpm logs:remote            # 查看远程服务日志
 pnpm backup:dev             # 备份开发数据
 ```
@@ -291,17 +316,17 @@ pnpm infra up
 # 检查所有服务健康状态
 pnpm check services
 
-# 前端开发服务器
-pnpm --filter frontend dev
+# 启动前端开发服务器
+pnpm frontend run
 
 # 启动API网关（在新终端）
-pnpm backend:run
+pnpm backend run
 
-# 直接使用 uvicorn（高级用法）
+# 高级用法：直接使用 uvicorn 启动后端
 cd apps/backend
 uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 
-# 启动特定Agent服务（高级用法）
+# 高级用法：启动特定Agent服务
 SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 ```
 
@@ -311,27 +336,21 @@ SERVICE_TYPE=agent-worldsmith python -m src.agents.worldsmith.main
 #### 基础设施和部署命令
 
 ```bash
-# 启动所有基础设施服务
-pnpm infra up
+# 基础设施管理
+pnpm infra up                # 启动所有基础设施服务
+pnpm infra down              # 停止所有服务
+pnpm infra deploy            # 部署基础设施到开发服务器
+pnpm infra deploy --local    # 本地部署基础设施
 
-# 停止所有服务
-pnpm infra down
-
-# 查看服务日志
-pnpm infra logs
-
-# 部署基础设施到开发服务器
-pnpm infra deploy
-
-# ⭐ 应用部署 - 只需要记住最常用的命令：
+# ⭐ 应用部署 - 最常用命令
 pnpm app                     # 日常代码部署（90% 的时候用这个）
 pnpm app --build             # 重新构建并部署（更新依赖后）
 pnpm app --type backend      # 只部署后端服务
 pnpm app --service api-gateway  # 只部署 API Gateway
 
-# SSH 连接
-pnpm ssh:dev                 # 连接到开发服务器
-pnpm ssh:test                # 连接到测试服务器
+# SSH 连接和运维
+pnpm ssh dev                 # 连接开发服务器 (192.168.2.201)
+pnpm ssh test                # 连接测试服务器 (192.168.2.202)
 
 # 📖 完整部署命令参考：docs/guides/deployment/DEPLOY_SIMPLE.md
 ```
@@ -352,8 +371,7 @@ pnpm check services:full
 pnpm check services:full --remote
 ```
 
-服务检查包括：
-
+**服务检查包括**：
 - PostgreSQL、Redis、Neo4j 数据库连接
 - Kafka 消息队列状态
 - Milvus 向量数据库
@@ -361,11 +379,47 @@ pnpm check services:full --remote
 - Prefect 工作流编排平台
 - 所有服务的 Web UI 访问性
 
-### 项目结构验证
+### 🧪 测试系统
+
+本项目支持多层次的测试策略：
 
 ```bash
-# 运行项目结构测试
-pnpm test:structure
+# 单元测试
+pnpm backend test            # Python 单元测试
+pnpm frontend test           # React 单元测试
+
+# E2E 测试（前端）
+pnpm frontend e2e            # 运行所有 E2E 测试
+pnpm frontend e2e:ui         # UI 模式运行 E2E 测试
+pnpm frontend e2e:auth       # 运行认证相关 E2E 测试
+
+# 完整测试（推荐）
+pnpm test all                # 本地 Docker 运行所有测试
+pnpm test all --remote       # 远程测试机器运行
+pnpm test coverage           # 生成覆盖率报告
+
+# 项目结构验证
+pnpm test structure          # 验证项目结构完整性
+```
+
+### 📧 开发工具
+
+**邮件服务 (MailDev)**:
+```bash
+# 启动邮件开发服务器
+pnpm maildev start          # 启动 MailDev
+pnpm maildev logs           # 查看邮件服务日志
+pnpm maildev stop           # 停止邮件服务
+
+# 访问地址: http://localhost:1080
+```
+
+**API 工具**:
+```bash
+# 导出 API 定义（用于 Hoppscotch/Postman）
+pnpm api export             # 导出本地 API
+pnpm api export:dev         # 导出开发环境 API
+pnpm api hoppscotch         # 导出并显示导入提示
 ```
 
 ## 📋 开发进度管理
